@@ -1,0 +1,27 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  directUrl  = env("DIRECT_URL")
+  extensions = [postgis(version: "3.4.2")]
+}
+
+model PlaceholderUser {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  createdAt DateTime @default(now())
+}
+
+model ReportPlaceholder {
+  id          String   @id @default(uuid())
+  title       String
+  description String
+  // PostGIS-compatible location for future
+  // Prisma doesn't natively type this well for client access, so we use Unsupported
+  location    Unsupported("geography(Point, 4326)")?
+  createdAt   DateTime @default(now())
+}
