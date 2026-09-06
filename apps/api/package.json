@@ -11,19 +11,30 @@
     "db:migrate": "prisma migrate dev"
   },
   "dependencies": {
-    "express": "^4.21.0",
+    "@prisma/client": "^5.19.1",
+    "@repo/shared": "*",
+    "bcrypt": "^6.0.0",
+    "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
+    "express": "^4.21.0",
+    "helmet": "^8.3.0",
+    "jsonwebtoken": "^9.0.3",
+    "morgan": "^1.12.0",
     "socket.io": "^4.7.5",
-    "@prisma/client": "^5.19.1",
-    "@repo/shared": "*"
+    "zod": "^4.5.4"
   },
   "devDependencies": {
-    "@types/express": "^4.17.21",
+    "@types/bcrypt": "^6.0.0",
+    "@types/cookie-parser": "^1.4.10",
     "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/helmet": "^0.0.48",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/morgan": "^1.9.10",
     "@types/node": "^20.12.12",
-    "typescript": "^5.6.2",
+    "prisma": "^5.19.1",
     "tsx": "^4.19.1",
-    "prisma": "^5.19.1"
+    "typescript": "^5.6.2"
   }
 }
