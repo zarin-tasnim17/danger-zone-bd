@@ -1,6 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  transpilePackages: ["@repo/shared"]
+  transpilePackages: ["@repo/shared"],
+  optimizeFonts: false,
 };
 
 export default nextConfig;

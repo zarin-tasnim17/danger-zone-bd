@@ -16,7 +16,7 @@
     "dotenv": "^16.4.5",
     "socket.io": "^4.7.5",
     "@prisma/client": "^5.19.1",
-    "@repo/shared": "workspace:*"
+    "@repo/shared": "*"
   },
   "devDependencies": {
     "@types/express": "^4.17.21",

@@ -1,67 +1,108 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import Navbar from "@/components/layout/Navbar";
 import DynamicMap from "@/components/map/DynamicMap";
-import { checkApiHealth, checkDbHealth } from "@/lib/api";
+import IncidentFeed from "@/components/incidents/IncidentFeed";
+import ReportIncidentModal from "@/components/incidents/ReportIncidentModal";
 import { useMapStore } from "@/store/useMapStore";
-import { io, Socket } from "socket.io-client";
+import { useLanguageStore } from "@/store/useLanguageStore";
+import { INITIAL_INCIDENTS } from "@/lib/initial-data";
+import { Layers, ListFilter, MapPin } from "lucide-react";
 
 export default function Home() {
-  const [apiStatus, setApiStatus] = useState<string>("Checking...");
-  const [dbStatus, setDbStatus] = useState<string>("Checking...");
-  const [socketStatus, setSocketStatus] = useState<string>("Disconnected");
+  const [reportModalOpen, setReportModalOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const { language } = useLanguageStore();
   const mapMode = useMapStore((state) => state.mode);
   const setMapMode = useMapStore((state) => state.setMode);
+  const setCenter = useMapStore((state) => state.setCenter);
+  const setZoom = useMapStore((state) => state.setZoom);
 
-  useEffect(() => {
-    checkApiHealth().then((res) => {
-      setApiStatus(res?.success ? "Online" : "Offline");
-    });
-    checkDbHealth().then((res) => {
-      setDbStatus(res?.success ? "Online" : "Offline");
-    });
-
-    const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || "http://localhost:5000";
-    const socket: Socket = io(socketUrl, {
-      reconnectionDelayMax: 10000,
-    });
-
-    socket.on("connect", () => setSocketStatus("Connected"));
-    socket.on("disconnect", () => setSocketStatus("Disconnected"));
-
-    return () => {
-      socket.disconnect();
-    };
-  }, []);
+  // Quick reset to whole Bangladesh view
+  const handleResetView = () => {
+    setCenter({ lat: 23.685, lng: 90.3563 });
+    setZoom(7);
+  };
 
   return (
-    <main className="flex min-h-screen flex-col items-center">
-      <header className="w-full bg-blue-900 text-white p-4 shadow-md flex justify-between items-center z-10">
-        <h1 className="text-2xl font-bold">BD Safety Map</h1>
-        <div className="flex gap-4 text-sm">
-          <span>API: {apiStatus}</span>
-          <span>DB: {dbStatus}</span>
-          <span>Socket: {socketStatus}</span>
-        </div>
-      </header>
+    <main className="flex h-screen flex-col bg-surface-subtle overflow-hidden">
+      {/* Top Navbar */}
+      <Navbar
+        totalIncidents={INITIAL_INCIDENTS.length}
+        onOpenReportModal={() => setReportModalOpen(true)}
+      />
 
-      <div className="flex w-full flex-1 relative">
-        <div className="absolute top-4 left-4 z-[400] bg-white p-2 rounded shadow flex gap-2">
-          <button 
-            className={`px-3 py-1 rounded ${mapMode === 'basic' ? 'bg-blue-600 text-white' : 'bg-gray-200'}`}
-            onClick={() => setMapMode('basic')}
-          >Basic</button>
-          <button 
-            className={`px-3 py-1 rounded ${mapMode === 'heatmap' ? 'bg-blue-600 text-white' : 'bg-gray-200'}`}
-            onClick={() => setMapMode('heatmap')}
-          >Heatmap</button>
-          <button 
-            className={`px-3 py-1 rounded ${mapMode === 'labeled' ? 'bg-blue-600 text-white' : 'bg-gray-200'}`}
-            onClick={() => setMapMode('labeled')}
-          >Labeled</button>
+      {/* Main Workspace Area: Sidebar Feed + Interactive Map */}
+      <div className="flex flex-1 w-full relative overflow-hidden min-h-0">
+        {/* Responsive Feed Sidebar */}
+        <div
+          className={`${
+            sidebarOpen ? "flex" : "hidden"
+          } absolute md:relative inset-y-0 left-0 z-20 w-full sm:w-80 md:w-96 shadow-overlay md:shadow-none transition-all`}
+        >
+          <IncidentFeed />
         </div>
-        <DynamicMap />
+
+        {/* Map Container */}
+        <div className="flex-1 w-full h-full relative min-h-0">
+          {/* Floating Map Controls overlay */}
+          <div className="absolute top-4 left-4 z-[400] flex flex-wrap gap-2">
+            {/* Sidebar toggle button */}
+            <button
+              onClick={() => setSidebarOpen(!sidebarOpen)}
+              className="bg-white hover:bg-surface-muted text-content-primary text-xs font-semibold px-3 py-1.5 rounded-md border border-surface-border shadow-card flex items-center gap-1.5 transition-colors"
+              title="Toggle Alert Feed"
+            >
+              <ListFilter className="w-3.5 h-3.5 text-danger-critical" />
+              <span>{sidebarOpen ? (language === "en" ? "Hide Feed" : "ফিড লুকান") : (language === "en" ? "Show Feed" : "ফিড দেখুন")}</span>
+            </button>
+
+            {/* Reset to BD Whole view */}
+            <button
+              onClick={handleResetView}
+              className="bg-white hover:bg-surface-muted text-content-primary text-xs font-semibold px-3 py-1.5 rounded-md border border-surface-border shadow-card flex items-center gap-1.5 transition-colors"
+              title="Fit to Bangladesh"
+            >
+              <MapPin className="w-3.5 h-3.5 text-brand-primary" />
+              <span>{language === "en" ? "All BD" : "সমগ্র বাংলাদেশ"}</span>
+            </button>
+
+            {/* Map Mode Buttons */}
+            <div className="bg-white border border-surface-border rounded-md shadow-card p-0.5 flex gap-1">
+              <button
+                onClick={() => setMapMode("basic")}
+                className={`text-xs px-2.5 py-1 rounded font-medium transition-colors ${
+                  mapMode === "basic"
+                    ? "bg-content-primary text-white"
+                    : "text-content-secondary hover:bg-surface-muted"
+                }`}
+              >
+                Standard
+              </button>
+              <button
+                onClick={() => setMapMode("heatmap")}
+                className={`text-xs px-2.5 py-1 rounded font-medium transition-colors ${
+                  mapMode === "heatmap"
+                    ? "bg-danger-critical text-white"
+                    : "text-content-secondary hover:bg-surface-muted"
+                }`}
+              >
+                Risk Zones
+              </button>
+            </div>
+          </div>
+
+          {/* Dynamic Leaflet Map Component */}
+          <DynamicMap />
+        </div>
       </div>
+
+      {/* Report Incident Modal */}
+      <ReportIncidentModal
+        isOpen={reportModalOpen}
+        onClose={() => setReportModalOpen(false)}
+      />
     </main>
   );
 }
