@@ -10,18 +10,204 @@ datasource db {
   extensions = [postgis(version: "3.4.2")]
 }
 
-model PlaceholderUser {
-  id        String   @id @default(uuid())
-  email     String   @unique
-  createdAt DateTime @default(now())
+enum Role {
+  USER
+  VERIFIED_RESPONDER
+  ADMIN
 }
 
-model ReportPlaceholder {
-  id          String   @id @default(uuid())
-  title       String
-  description String
-  // PostGIS-compatible location for future
-  // Prisma doesn't natively type this well for client access, so we use Unsupported
-  location    Unsupported("geography(Point, 4326)")?
-  createdAt   DateTime @default(now())
+enum ReportCategory {
+  MUGGING
+  THEFT
+  UNLIT_ROAD
+  EXTORTION
+  DRUG_ACTIVITY
+}
+
+enum ReportSeverity {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum ReportStatus {
+  ACTIVE
+  RESOLVED
+  PURGED
+}
+
+enum VerificationType {
+  PHONE_OTP
+  NID_DOCUMENT
+}
+
+enum VerificationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum SafeZoneType {
+  HOSPITAL
+  POLICE_BOX
+  PHARMACY
+}
+
+enum ModerationAction {
+  BAN_USER
+  UNBAN_USER
+  PURGE_REPORT
+  VERIFY_USER
+}
+
+model User {
+  id              String   @id @default(uuid())
+  email           String   @unique
+  passwordHash    String?
+  googleId        String?  @unique
+  phoneNumber     String?  @unique
+  anonymousId     String   @unique
+  role            Role     @default(USER)
+  isVerified      Boolean  @default(false)
+  trustScore      Int      @default(0)
+  isBanned        Boolean  @default(false)
+  lastReportAt    DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  reports         Report[]
+  votes           Vote[]
+  reportUpdates   ReportUpdate[]
+  refreshTokens   RefreshToken[]
+  alertZones      UserAlertZone[]
+  verifications   UserVerification[]
+  moderationLogs  ModerationLog[] @relation("AdminLogs")
+  targetedLogs    ModerationLog[] @relation("TargetUserLogs")
+}
+
+model UserVerification {
+  id              String   @id @default(uuid())
+  userId          String
+  type            VerificationType
+  status          VerificationStatus @default(PENDING)
+  documentUrl     String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user            User     @relation(fields: [userId], references: [id])
+}
+
+model RefreshToken {
+  id              String   @id @default(uuid())
+  userId          String
+  token           String   @unique
+  isRevoked       Boolean  @default(false)
+  expiresAt       DateTime
+  createdAt       DateTime @default(now())
+
+  user            User     @relation(fields: [userId], references: [id])
+}
+
+model UserAlertZone {
+  id              String   @id @default(uuid())
+  userId          String
+  name            String
+  area            Unsupported("geography(Polygon, 4326)")
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user            User     @relation(fields: [userId], references: [id])
+
+  @@index([area], type: Gist)
+}
+
+model Report {
+  id              String   @id @default(uuid())
+  userId          String
+  category        ReportCategory
+  severity        ReportSeverity
+  isNightReport   Boolean  @default(false)
+  latitude        Float
+  longitude       Float
+  location        Unsupported("geography(Point, 4326)")?
+  description     String?
+  upvotes         Int      @default(0)
+  downvotes       Int      @default(0)
+  status          ReportStatus @default(ACTIVE)
+  expiresAt       DateTime
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user            User     @relation(fields: [userId], references: [id])
+  votes           Vote[]
+  updates         ReportUpdate[]
+  media           ReportMedia[]
+  targetedLogs    ModerationLog[] @relation("TargetReportLogs")
+
+  @@index([location], type: Gist)
+  @@index([status, expiresAt])
+  @@index([isNightReport])
+  @@index([createdAt])
+}
+
+model Vote {
+  id              String   @id @default(uuid())
+  userId          String
+  reportId        String
+  voteType        Int
+  createdAt       DateTime @default(now())
+
+  user            User     @relation(fields: [userId], references: [id])
+  report          Report   @relation(fields: [reportId], references: [id])
+
+  @@unique([userId, reportId])
+}
+
+model ReportUpdate {
+  id              String   @id @default(uuid())
+  reportId        String
+  userId          String
+  content         String
+  createdAt       DateTime @default(now())
+
+  report          Report   @relation(fields: [reportId], references: [id])
+  user            User     @relation(fields: [userId], references: [id])
+}
+
+model ReportMedia {
+  id              String   @id @default(uuid())
+  reportId        String
+  originalUrl     String
+  blurredUrl      String?
+  createdAt       DateTime @default(now())
+
+  report          Report   @relation(fields: [reportId], references: [id])
+}
+
+model SafeZone {
+  id              String   @id @default(uuid())
+  type            SafeZoneType
+  name            String
+  latitude        Float
+  longitude       Float
+  location        Unsupported("geography(Point, 4326)")?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([location], type: Gist)
+}
+
+model ModerationLog {
+  id              String   @id @default(uuid())
+  adminId         String
+  targetUserId    String?
+  targetReportId  String?
+  action          ModerationAction
+  reason          String
+  createdAt       DateTime @default(now())
+
+  admin           User     @relation("AdminLogs", fields: [adminId], references: [id])
+  targetUser      User?    @relation("TargetUserLogs", fields: [targetUserId], references: [id])
+  targetReport    Report?  @relation("TargetReportLogs", fields: [targetReportId], references: [id])
 }
