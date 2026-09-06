@@ -1,0 +1,21 @@
+dontADDgit/
+
+# Node
+node_modules/
+dist/
+coverage/
+
+# Next.js
+.next/
+out/
+
+# Env
+.env
+.env.local
+.env.*.local
+
+# Turborepo
+.turbo/
+
+# Prisma
+# (Optional) ignore generated client if not storing it in node_modules, but default is in node_modules
