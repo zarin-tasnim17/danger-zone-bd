@@ -1,16 +1,27 @@
-import { ErrorRequestHandler } from 'express';
-import { ApiResponse } from '@repo/shared';
+import { Request, Response, NextFunction } from 'express';
+import { ZodError } from 'zod';
+import { errorResponse } from '../utils/responseFormatter';
 
-export const errorHandler: ErrorRequestHandler = (err, req, res, next) => {
-  console.error('[Error Handler]', err);
+export const errorHandler = (
+  err: any,
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  console.error('[Error]:', err);
 
-  const response: ApiResponse = {
-    success: false,
-    error: {
-      code: err.code || 'INTERNAL_SERVER_ERROR',
-      message: err.message || 'An unexpected error occurred'
-    }
-  };
+  if (err instanceof ZodError) {
+    const zErr = err as any;
+    const messages = zErr.errors.map((e: any) => `${e.path.join('.')}: ${e.message}`).join(', ');
+    return errorResponse(res, `Validation failed: ${messages}`, 400);
+  }
 
-  res.status(err.status || 500).json(response);
+  // Handle known application errors or DB constraints here if needed
+
+  const statusCode = err.statusCode || 500;
+  const message = process.env.NODE_ENV === 'production' && statusCode === 500
+    ? 'Internal Server Error'
+    : err.message || 'Unknown error occurred';
+
+  return errorResponse(res, message, statusCode);
 };
