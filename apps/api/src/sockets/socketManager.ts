@@ -140,3 +140,11 @@ export const emitReportPurged = (data: { reportId: string; reason?: string }) =>
   if (!io) return;
   io.to('live_reports').emit('REPORT_PURGED', data);
 };
+
+/**
+ * Broadcast REPORT_EXPIRED when incidents expire via Time-Decay
+ */
+export const emitReportExpired = (data: { reportIds: string[]; reason: string }) => {
+  if (!io) return;
+  io.to('live_reports').emit('REPORT_EXPIRED', data);
+};
