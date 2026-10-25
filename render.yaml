@@ -4,8 +4,8 @@ services:
     runtime: node
     plan: free
     region: singapore
-    buildCommand: npm install && npm run build:api
-    startCommand: npm run start:api
+    buildCommand: corepack enable && pnpm install --no-frozen-lockfile && pnpm --filter api build
+    startCommand: node apps/api/dist/server.js
     healthCheckPath: /health
     autoDeploy: true
     envVars:
