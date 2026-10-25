@@ -36,6 +36,7 @@
     "@types/morgan": "^1.9.10",
     "@types/node": "^20.12.12",
     "prisma-erd-generator": "^3.2.1",
+    "socket.io-client": "^4.8.4",
     "tsx": "^4.19.1",
     "typescript": "^5.6.2"
   }

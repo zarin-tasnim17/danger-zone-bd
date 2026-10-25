@@ -1,6 +1,7 @@
 import { prisma } from '../db/prisma';
 import { ReportCategory, ReportSeverity } from '@prisma/client';
 import { isWithinDistance, getReportsInBounds, BoundingBox } from '../db/spatialUtils';
+import { emitNewReport } from '../sockets';
 
 export const createReport = async (
   userId: string,
@@ -37,6 +38,21 @@ export const createReport = async (
       description: payload.description,
       expiresAt
     }
+  });
+
+  // Phase 8: Broadcast newly created pin in real time (PII strictly stripped)
+  emitNewReport({
+    id: report.id,
+    category: report.category,
+    severity: report.severity,
+    latitude: report.latitude,
+    longitude: report.longitude,
+    description: report.description,
+    upvotes: report.upvotes,
+    downvotes: report.downvotes,
+    status: report.status,
+    expiresAt: report.expiresAt,
+    createdAt: report.createdAt
   });
 
   return report;

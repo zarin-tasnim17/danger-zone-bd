@@ -1,4 +1,5 @@
 import { prisma } from '../db/prisma';
+import { emitReportVoted, emitReportPurged } from '../sockets';
 
 export const submitVote = async (userId: string, reportId: string, voteType: 1 | -1) => {
   const report = await prisma.report.findUnique({ where: { id: reportId } });
@@ -13,7 +14,7 @@ export const submitVote = async (userId: string, reportId: string, voteType: 1 |
   }
 
   // Use a transaction to ensure vote record insertion and report aggregation happen atomically
-  return await prisma.$transaction(async (tx) => {
+  const result = await prisma.$transaction(async (tx: any) => {
     // 1. Check if vote already exists to prevent duplicate votes
     const existingVote = await tx.vote.findUnique({
       where: {
@@ -45,9 +46,11 @@ export const submitVote = async (userId: string, reportId: string, voteType: 1 |
         : { downvotes: { increment: 1 } }
     });
 
+    let finalReport = updatedReport;
+
     // 4. Trust Engine Rule: if downvotes hit threshold, automatically purge.
     if (updatedReport.downvotes >= 5) {
-      await tx.report.update({
+      finalReport = await tx.report.update({
         where: { id: reportId },
         data: { status: 'PURGED' }
       });
@@ -59,6 +62,23 @@ export const submitVote = async (userId: string, reportId: string, voteType: 1 |
       });
     }
 
-    return updatedReport;
+    return finalReport;
   });
+
+  // Phase 8: Emit real-time vote updates
+  emitReportVoted({
+    reportId: result.id,
+    upvotes: result.upvotes,
+    downvotes: result.downvotes,
+    status: result.status
+  });
+
+  if (result.status === 'PURGED') {
+    emitReportPurged({
+      reportId: result.id,
+      reason: 'TRUST_ENGINE_DOWNVOTE_THRESHOLD'
+    });
+  }
+
+  return result;
 };
