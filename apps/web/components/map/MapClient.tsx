@@ -10,6 +10,12 @@ import { DangerIncident, IncidentSeverity } from "@repo/shared";
 import { getTranslation } from "@/lib/translations";
 import L from "leaflet";
 
+// Bounding box covering all 64 districts of Bangladesh with comfortable padding
+const BANGLADESH_BOUNDS: L.LatLngBoundsExpression = [
+  [20.3, 87.8], // Southwest (Bay of Bengal / Sundarbans / St. Martin)
+  [26.8, 92.9], // Northeast (Tetulia / Jaflong / Chittagong Hill Tracts)
+];
+
 // Create custom high-visibility solid marker icons without gradients
 function createCustomIcon(severity: IncidentSeverity) {
   const colorMap: Record<IncidentSeverity, { bg: string; border: string; label: string }> = {
@@ -96,6 +102,10 @@ export default function MapClient() {
       <MapContainer
         center={[center.lat, center.lng]}
         zoom={zoom}
+        minZoom={6}
+        maxZoom={18}
+        maxBounds={BANGLADESH_BOUNDS}
+        maxBoundsViscosity={1.0}
         style={{ height: "100%", width: "100%" }}
         zoomControl={true}
         scrollWheelZoom={true}
