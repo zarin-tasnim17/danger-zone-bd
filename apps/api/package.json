@@ -25,6 +25,7 @@
     "zod": "^4.5.4"
   },
   "devDependencies": {
+    "@mermaid-js/mermaid-cli": "^11.17.0",
     "@types/bcrypt": "^6.0.0",
     "@types/cookie-parser": "^1.4.10",
     "@types/cors": "^2.8.17",
@@ -34,6 +35,7 @@
     "@types/morgan": "^1.9.10",
     "@types/node": "^20.12.12",
     "prisma": "^5.19.1",
+    "prisma-erd-generator": "^3.2.1",
     "tsx": "^4.19.1",
     "typescript": "^5.6.2"
   }
