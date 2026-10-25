@@ -12,7 +12,7 @@ interface NavbarProps {
   onOpenReportModal?: () => void;
 }
 
-export default function Navbar({ totalIncidents = 6, onOpenReportModal }: NavbarProps) {
+export default function Navbar({ totalIncidents = 0, onOpenReportModal }: NavbarProps) {
   const { language, toggleLanguage } = useLanguageStore();
   const { selectedSeverity, setSeverity, selectedCategory, setCategory, searchQuery, setSearchQuery } = useFilterStore();
   const t = getTranslation(language);

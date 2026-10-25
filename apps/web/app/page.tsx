@@ -7,13 +7,14 @@ import IncidentFeed from "@/components/incidents/IncidentFeed";
 import ReportIncidentModal from "@/components/incidents/ReportIncidentModal";
 import { useMapStore } from "@/store/useMapStore";
 import { useLanguageStore } from "@/store/useLanguageStore";
-import { INITIAL_INCIDENTS } from "@/lib/initial-data";
+import { useIncidentStore } from "@/store/useIncidentStore";
 import { Layers, ListFilter, MapPin } from "lucide-react";
 
 export default function Home() {
   const [reportModalOpen, setReportModalOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const { language } = useLanguageStore();
+  const incidents = useIncidentStore((state) => state.incidents);
   const mapMode = useMapStore((state) => state.mode);
   const setMapMode = useMapStore((state) => state.setMode);
   const setCenter = useMapStore((state) => state.setCenter);
@@ -29,7 +30,7 @@ export default function Home() {
     <main className="flex h-screen flex-col bg-surface-subtle overflow-hidden">
       {/* Top Navbar */}
       <Navbar
-        totalIncidents={INITIAL_INCIDENTS.length}
+        totalIncidents={incidents.length}
         onOpenReportModal={() => setReportModalOpen(true)}
       />
 

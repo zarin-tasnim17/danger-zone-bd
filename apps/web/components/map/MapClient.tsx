@@ -5,7 +5,7 @@ import { MapContainer, TileLayer, Marker, Popup, Circle, useMap } from "react-le
 import { useMapStore } from "@/store/useMapStore";
 import { useFilterStore } from "@/store/useFilterStore";
 import { useLanguageStore } from "@/store/useLanguageStore";
-import { INITIAL_INCIDENTS } from "@/lib/initial-data";
+import { useIncidentStore } from "@/store/useIncidentStore";
 import { DangerIncident, IncidentSeverity } from "@repo/shared";
 import { getTranslation } from "@/lib/translations";
 import L from "leaflet";
@@ -63,12 +63,13 @@ export default function MapClient() {
   const setCenter = useMapStore((state) => state.setCenter);
   const setZoom = useMapStore((state) => state.setZoom);
   const { language } = useLanguageStore();
+  const incidents = useIncidentStore((state) => state.incidents);
   const { selectedSeverity, selectedCategory, searchQuery } = useFilterStore();
   const t = getTranslation(language);
 
   // Filter incidents based on active user filters
   const filteredIncidents = useMemo(() => {
-    return INITIAL_INCIDENTS.filter((item) => {
+    return incidents.filter((item) => {
       if (selectedSeverity !== "all" && item.severity !== selectedSeverity) {
         return false;
       }
@@ -88,7 +89,7 @@ export default function MapClient() {
       }
       return true;
     });
-  }, [selectedSeverity, selectedCategory, searchQuery]);
+  }, [incidents, selectedSeverity, selectedCategory, searchQuery]);
 
   return (
     <div className="w-full h-full relative z-0">

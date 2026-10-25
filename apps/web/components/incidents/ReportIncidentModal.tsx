@@ -4,7 +4,9 @@ import React, { useState } from "react";
 import { useLanguageStore } from "@/store/useLanguageStore";
 import { getTranslation } from "@/lib/translations";
 import { X, ShieldAlert, CheckCircle2 } from "lucide-react";
-import { IncidentCategory, IncidentSeverity } from "@repo/shared";
+import { IncidentCategory, IncidentSeverity, DangerIncident } from "@repo/shared";
+import { useIncidentStore } from "@/store/useIncidentStore";
+import { useMapStore } from "@/store/useMapStore";
 
 interface ReportModalProps {
   isOpen: boolean;
@@ -19,7 +21,9 @@ export default function ReportIncidentModal({ isOpen, onClose }: ReportModalProp
   const [category, setCategory] = useState<IncidentCategory>("violence_riot");
   const [severity, setSeverity] = useState<IncidentSeverity>("critical");
   const [locationName, setLocationName] = useState("");
-  const [district, setDistrict] = useState("Dhaka");
+  const [district, setDistrict] = useState("");
+  const addIncident = useIncidentStore((state) => state.addIncident);
+  const mapCenter = useMapStore((state) => state.center);
   const [description, setDescription] = useState("");
   const [submitted, setSubmitted] = useState(false);
 
@@ -31,9 +35,34 @@ export default function ReportIncidentModal({ isOpen, onClose }: ReportModalProp
       alert(language === "en" ? "Please fill in all required fields." : "অনুগ্রহ করে সকল প্রয়োজনীয় তথ্য পূরণ করুন।");
       return;
     }
+    const newIncident: DangerIncident = {
+      id: `inc-${Date.now()}`,
+      title: title.trim(),
+      description: description.trim(),
+      category,
+      severity,
+      coordinates: {
+        lat: mapCenter.lat,
+        lng: mapCenter.lng,
+      },
+      locationName: locationName.trim(),
+      district: district.trim() || undefined,
+      timestamp: new Date().toISOString(),
+      upvotes: 0,
+      downvotes: 0,
+      status: "unverified",
+      reportedBy: language === "en" ? "Citizen Report" : "নাগরিক রিপোর্ট",
+      verifiedCount: 0,
+    };
+
+    addIncident(newIncident);
     setSubmitted(true);
     setTimeout(() => {
       setSubmitted(false);
+      setTitle("");
+      setLocationName("");
+      setDistrict("");
+      setDescription("");
       onClose();
     }, 2000);
   };

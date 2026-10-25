@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useMemo } from "react";
-import { INITIAL_INCIDENTS } from "@/lib/initial-data";
+import { useIncidentStore } from "@/store/useIncidentStore";
 import { useMapStore } from "@/store/useMapStore";
 import { useLanguageStore } from "@/store/useLanguageStore";
 import { useFilterStore } from "@/store/useFilterStore";
@@ -11,13 +11,14 @@ import { AlertCircle, MapPin, ThumbsUp, ChevronRight } from "lucide-react";
 
 export default function IncidentFeed() {
   const { language } = useLanguageStore();
+  const incidents = useIncidentStore((state) => state.incidents);
   const { selectedSeverity, selectedCategory, searchQuery } = useFilterStore();
   const setCenter = useMapStore((state) => state.setCenter);
   const setZoom = useMapStore((state) => state.setZoom);
   const t = getTranslation(language);
 
   const filtered = useMemo(() => {
-    return INITIAL_INCIDENTS.filter((item) => {
+    return incidents.filter((item) => {
       if (selectedSeverity !== "all" && item.severity !== selectedSeverity) return false;
       if (selectedCategory !== "all" && item.category !== selectedCategory) return false;
       if (searchQuery.trim() !== "") {
@@ -32,7 +33,7 @@ export default function IncidentFeed() {
       }
       return true;
     });
-  }, [selectedSeverity, selectedCategory, searchQuery]);
+  }, [incidents, selectedSeverity, selectedCategory, searchQuery]);
 
   const handleSelectIncident = (incident: DangerIncident) => {
     setCenter(incident.coordinates);
