@@ -121,10 +121,15 @@ export default function IncidentFeed() {
       </div>
 
       {/* Safety notice footer */}
-      <div className="p-2.5 bg-surface-muted border-t border-surface-border text-[10px] text-content-muted text-center">
-        {language === "en"
-          ? "Always verify with local emergency services during active danger."
-          : "জরুরি প্রয়োজনে সর্বদা জাতীয় জরুরি সেবা ৯৯৯ এ যোগাযোগ করুন।"}
+      <div className="p-2.5 bg-surface-muted border-t border-surface-border text-[10px] text-content-muted flex flex-col sm:flex-row items-center justify-between gap-1 px-3">
+        <span>
+          {language === "en"
+            ? "Always verify with local emergency services during active danger."
+            : "জরুরি প্রয়োজনে সর্বদা জাতীয় জরুরি সেবা ৯৯৯ এ যোগাযোগ করুন।"}
+        </span>
+        <span className="opacity-70 whitespace-nowrap text-[9px]">
+          Map &copy; OpenStreetMap
+        </span>
       </div>
     </aside>
   );

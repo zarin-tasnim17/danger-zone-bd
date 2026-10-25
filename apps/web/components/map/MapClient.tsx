@@ -106,6 +106,7 @@ export default function MapClient() {
         maxZoom={18}
         maxBounds={BANGLADESH_BOUNDS}
         maxBoundsViscosity={1.0}
+        attributionControl={false}
         style={{ height: "100%", width: "100%" }}
         zoomControl={true}
         scrollWheelZoom={true}
@@ -113,7 +114,6 @@ export default function MapClient() {
         <MapViewUpdater center={center} zoom={zoom} />
 
         <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
 
