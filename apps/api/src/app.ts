@@ -8,11 +8,12 @@ import healthRouter from './routes/health';
 
 const app = express();
 
-const corsOrigin = process.env.CORS_ORIGIN || 'http://localhost:3000';
+const rawCors = process.env.CORS_ORIGIN || 'http://localhost:3000';
+const corsOrigins = rawCors === '*' ? '*' : rawCors.split(',').map((o) => o.trim());
 
 app.use(helmet());
 app.use(cors({
-  origin: corsOrigin,
+  origin: corsOrigins,
   credentials: true
 }));
 app.use(morgan('dev'));
@@ -27,6 +28,20 @@ import reportRouter from './routes/reports';
 app.use('/api/v1/auth', authRouter);
 app.use('/api/v1/users', userRouter);
 app.use('/api/v1/reports', reportRouter);
+app.get('/', (req, res) => {
+  res.json({
+    name: 'BD Safety Map API',
+    status: 'online',
+    version: '1.0.0',
+    endpoints: {
+      health: '/health',
+      dbHealth: '/health/db',
+      reports: '/api/v1/reports',
+      auth: '/api/v1/auth'
+    }
+  });
+});
+
 app.use('/health', healthRouter);
 
 // Global Error Handler

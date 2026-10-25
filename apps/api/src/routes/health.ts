@@ -1,10 +1,8 @@
 import { Router } from 'express';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../db/prisma';
 import { ApiResponse } from '@repo/shared';
 
 const router = Router();
-// Provide a centralized way to use Prisma in the real app, but for this health check we can initialize briefly or assume it's attached elsewhere later.
-const prisma = new PrismaClient();
 
 router.get('/', (req, res) => {
   const response: ApiResponse = {

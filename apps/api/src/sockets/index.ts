@@ -2,11 +2,12 @@ import { Server as SocketIOServer } from 'socket.io';
 import { Server as HttpServer } from 'http';
 
 export const setupSockets = (httpServer: HttpServer) => {
-  const corsOrigin = process.env.CORS_ORIGIN || 'http://localhost:3000';
+  const rawCors = process.env.CORS_ORIGIN || 'http://localhost:3000';
+  const corsOrigins = rawCors === '*' ? '*' : rawCors.split(',').map((o) => o.trim());
 
   const io = new SocketIOServer(httpServer, {
     cors: {
-      origin: corsOrigin,
+      origin: corsOrigins,
       methods: ['GET', 'POST'],
       credentials: true
     }
