@@ -3,12 +3,12 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "build": "npm run build --workspace=apps/web",
-    "build:api": "npm run build --workspace=apps/api",
-    "start:api": "npm run start --workspace=apps/api",
-    "dev": "npm run dev --workspace=apps/web",
-    "lint": "npm run lint --workspace=apps/web",
-    "typecheck": "npm run typecheck --workspace=apps/web",
+    "build": "pnpm --filter web build",
+    "build:api": "pnpm --filter api build",
+    "start:api": "pnpm --filter api start",
+    "dev": "pnpm --filter web dev",
+    "lint": "pnpm --filter web lint",
+    "typecheck": "pnpm --filter web typecheck",
     "db:generate": "turbo run db:generate --filter=api",
     "db:migrate": "turbo run db:migrate --filter=api"
   },

@@ -21,6 +21,7 @@
     "helmet": "^8.3.0",
     "jsonwebtoken": "^9.0.3",
     "morgan": "^1.12.0",
+    "prisma": "^5.19.1",
     "socket.io": "^4.7.5",
     "zod": "^4.5.4"
   },
@@ -34,7 +35,6 @@
     "@types/jsonwebtoken": "^9.0.10",
     "@types/morgan": "^1.9.10",
     "@types/node": "^20.12.12",
-    "prisma": "^5.19.1",
     "prisma-erd-generator": "^3.2.1",
     "tsx": "^4.19.1",
     "typescript": "^5.6.2"
