@@ -1,7 +1,7 @@
 import http from 'http';
 import { app } from './app';
 import { initSocketServer } from './sockets';
-import { initTimeDecayCron } from './jobs';
+import { initTimeDecayCron, initNewsCrawlerCron } from './jobs';
 import { prisma } from './db/prisma';
 import { env } from './config/env';
 
@@ -12,8 +12,9 @@ const server = http.createServer(app);
 // Initialize Socket.IO on the same HTTP server
 initSocketServer(server);
 
-// Initialize Time-Decay background worker
+// Initialize Background Workers
 const timeDecayCron = initTimeDecayCron();
+const newsCrawlerCron = initNewsCrawlerCron();
 
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`[Server] API is running on port ${PORT}`);
@@ -23,6 +24,7 @@ server.listen(PORT, '0.0.0.0', () => {
 const gracefulShutdown = async (signal: string) => {
   console.log(`\n[Server] Received ${signal}. Initiating graceful shutdown...`);
   timeDecayCron.stop();
+  newsCrawlerCron.stop();
 
   server.close(async () => {
     console.log('[Server] HTTP and Socket.IO server closed.');

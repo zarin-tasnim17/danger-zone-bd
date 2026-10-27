@@ -112,6 +112,13 @@ export const createReport = async (
     })
   ]);
 
+  // Populate PostGIS geography point for spatial GIST indexing
+  await prisma.$executeRaw`
+    UPDATE "Report"
+    SET location = ST_SetSRID(ST_MakePoint(${payload.longitude}, ${payload.latitude}), 4326)::geography
+    WHERE id = ${report.id}
+  `;
+
   // Phase 8: Broadcast newly created pin in real time with location fuzzing applied
   const fuzzed = getFuzzedCoordinates(report.id, report.latitude, report.longitude);
 

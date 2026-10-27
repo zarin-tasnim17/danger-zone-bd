@@ -7,6 +7,7 @@ import {
   getHazardTrends,
 } from '../services/adminService';
 import { getPendingVerifications, rejectVerification } from '../services/userService';
+import { triggerNewsCrawler } from '../jobs';
 import { successResponse, errorResponse } from '../utils/responseFormatter';
 
 export const banUserHandler = async (req: Request, res: Response, next: NextFunction) => {
@@ -95,5 +96,15 @@ export const rejectVerificationHandler = async (req: Request, res: Response, nex
   } catch (error: any) {
     const statusCode = error.statusCode || 400;
     return errorResponse(res, error.message || 'Failed to reject verification', statusCode);
+  }
+};
+
+export const triggerNewsCrawlHandler = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const result = await triggerNewsCrawler();
+    return successResponse(res, result, 200);
+  } catch (error: any) {
+    const statusCode = error.statusCode || 500;
+    return errorResponse(res, error.message || 'News crawler failed', statusCode);
   }
 };

@@ -118,6 +118,8 @@ export interface SanitizedReportEvent {
   status: string;
   expiresAt: Date;
   createdAt: Date;
+  sourceUrl?: string | null;
+  sourceName?: string | null;
 }
 
 /**
@@ -174,4 +176,12 @@ export const emitNewReportUpdate = (data: { reportId: string; update: any }) => 
 export const emitUserAlert = (userId: string, data: any) => {
   if (!io) return;
   io.to(`user:${userId}`).emit('GEOFENCE_ALERT', data);
+};
+
+/**
+ * Broadcast REPORT_VERIFIED when a citizen report is cross-confirmed by a press report
+ */
+export const emitReportVerified = (data: { reportId: string; verifiedBy: string; sourceUrl?: string; articleTitle?: string }) => {
+  if (!io) return;
+  io.to('live_reports').emit('REPORT_VERIFIED', data);
 };

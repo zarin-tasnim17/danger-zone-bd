@@ -11,6 +11,7 @@ import {
   getTrendsHandler,
   getVerificationsHandler,
   rejectVerificationHandler,
+  triggerNewsCrawlHandler,
 } from '../controllers/adminController';
 
 const router = Router();
@@ -45,5 +46,6 @@ router.get('/logs', validateRequest(logsQuerySchema), getLogsHandler);
 router.get('/analytics/trends', getTrendsHandler);
 router.get('/verifications', getVerificationsHandler);
 router.post('/verifications/:id/reject', validateRequest(reasonSchema), rejectVerificationHandler);
+router.post('/news/crawl', triggerNewsCrawlHandler);
 
 export default router;

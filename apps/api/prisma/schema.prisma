@@ -144,6 +144,9 @@ model Report {
   updates         ReportUpdate[]
   media           ReportMedia[]
   targetedLogs    ModerationLog[] @relation("TargetReportLogs")
+  sourceUrl       String?
+  sourceName      String?
+  newsArticle     NewsArticle?
 
   @@index([location], type: Gist)
   @@index([status, expiresAt])
@@ -210,4 +213,23 @@ model ModerationLog {
   admin           User     @relation("AdminLogs", fields: [adminId], references: [id])
   targetUser      User?    @relation("TargetUserLogs", fields: [targetUserId], references: [id])
   targetReport    Report?  @relation("TargetReportLogs", fields: [targetReportId], references: [id])
+}
+
+model NewsArticle {
+  id          String         @id @default(uuid())
+  guid        String         @unique
+  title       String
+  sourceUrl   String
+  sourceName  String
+  publishedAt DateTime
+  category    ReportCategory
+  severity    ReportSeverity
+  latitude    Float
+  longitude   Float
+  reportId    String?        @unique
+  createdAt   DateTime       @default(now())
+
+  report      Report?        @relation(fields: [reportId], references: [id], onDelete: SetNull)
+
+  @@index([publishedAt])
 }
