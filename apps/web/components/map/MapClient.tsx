@@ -18,14 +18,14 @@ const BANGLADESH_BOUNDS: L.LatLngBoundsExpression = [
 
 // Create custom high-visibility solid marker icons without gradients
 function createCustomIcon(severity: IncidentSeverity) {
-  const colorMap: Record<IncidentSeverity, { bg: string; border: string; label: string }> = {
-    critical: { bg: "#DC2626", border: "#991B1B", label: "!" },
-    high: { bg: "#EA580C", border: "#C2410C", label: "▲" },
-    medium: { bg: "#CA8A04", border: "#A16207", label: "●" },
-    low: { bg: "#16A34A", border: "#15803D", label: "✓" },
+  const normalized = (severity || "").toUpperCase();
+  const colorMap: Record<string, { bg: string; border: string; label: string }> = {
+    HIGH: { bg: "#DC2626", border: "#991B1B", label: "!" },
+    MEDIUM: { bg: "#EA580C", border: "#C2410C", label: "▲" },
+    LOW: { bg: "#CA8A04", border: "#A16207", label: "●" },
   };
 
-  const config = colorMap[severity] || colorMap.medium;
+  const config = colorMap[normalized] || colorMap.MEDIUM;
 
   return L.divIcon({
     className: "custom-danger-pin",
@@ -159,7 +159,7 @@ export default function MapClient() {
                             : "bg-danger-caution text-white"
                         }`}
                       >
-                        {t.severity[incident.severity] || incident.severity}
+                        {(t.severity as any)[incident.severity] || incident.severity}
                       </span>
                       <span className="text-[10px] text-content-muted">
                         {incident.district || "Bangladesh"}

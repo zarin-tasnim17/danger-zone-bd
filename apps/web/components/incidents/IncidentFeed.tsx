@@ -82,11 +82,11 @@ export default function IncidentFeed() {
                         : "bg-danger-caution text-white border-danger-caution"
                     }`}
                   >
-                    {t.severity[item.severity]}
+                    {(t.severity as any)[item.severity] || item.severity}
                   </span>
 
                   <span className="text-[11px] text-content-muted">
-                    {t.categories[item.category] || item.category}
+                    {(t.categories as any)[item.category] || item.category}
                   </span>
                 </div>
 

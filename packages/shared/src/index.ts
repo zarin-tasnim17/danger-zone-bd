@@ -1,8 +1,30 @@
 export type MapMode = "basic" | "heatmap" | "labeled";
 
-export type IncidentSeverity = "critical" | "high" | "medium" | "low";
+export const REPORT_CATEGORIES = [
+  "MUGGING",
+  "THEFT",
+  "UNLIT_ROAD",
+  "EXTORTION",
+  "DRUG_ACTIVITY",
+] as const;
+export type ReportCategory = (typeof REPORT_CATEGORIES)[number];
+
+export const REPORT_SEVERITIES = ["LOW", "MEDIUM", "HIGH"] as const;
+export type ReportSeverity = (typeof REPORT_SEVERITIES)[number];
+
+export const REPORT_STATUSES = ["ACTIVE", "RESOLVED", "PURGED"] as const;
+export type ReportStatus = (typeof REPORT_STATUSES)[number];
+
+// Backward-compatible unified types for web and api
+export type IncidentSeverity =
+  | ReportSeverity
+  | "critical"
+  | "high"
+  | "medium"
+  | "low";
 
 export type IncidentCategory =
+  | ReportCategory
   | "violence_riot"
   | "robbery_crime"
   | "roadblock"
