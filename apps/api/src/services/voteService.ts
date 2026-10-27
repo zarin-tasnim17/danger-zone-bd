@@ -2,6 +2,17 @@ import { prisma } from '../db/prisma';
 import { emitReportVoted, emitReportPurged } from '../sockets';
 
 export const submitVote = async (userId: string, reportId: string, voteType: 1 | -1) => {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { isBanned: true }
+  });
+
+  if (user?.isBanned) {
+    const error: any = new Error('Your account has been suspended. You cannot vote on reports.');
+    error.statusCode = 403;
+    throw error;
+  }
+
   const report = await prisma.report.findUnique({ where: { id: reportId } });
   if (!report) {
     throw new Error('Report not found');
@@ -48,7 +59,15 @@ export const submitVote = async (userId: string, reportId: string, voteType: 1 |
 
     let finalReport = updatedReport;
 
-    // 4. Trust Engine Rule: if downvotes hit threshold, automatically purge.
+    // 4. Trust Engine Rule: Community verification upvotes increment creator's trust score
+    if (voteType === 1) {
+      await tx.user.update({
+        where: { id: report.userId },
+        data: { trustScore: { increment: 1 } }
+      });
+    }
+
+    // 5. Trust Engine Rule: If downvotes hit threshold, automatically purge and penalize creator
     if (updatedReport.downvotes >= 5) {
       finalReport = await tx.report.update({
         where: { id: reportId },

@@ -12,6 +12,7 @@ export const voteOnReport = async (req: Request, res: Response) => {
     
     return successResponse(res, report, 201);
   } catch (error: any) {
-    return errorResponse(res, error.message, 400);
+    const statusCode = error.statusCode || 400;
+    return errorResponse(res, error.message, statusCode);
   }
 };
