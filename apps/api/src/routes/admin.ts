@@ -10,6 +10,7 @@ import {
   getLogsHandler,
   getTrendsHandler,
   getVerificationsHandler,
+  approveVerificationHandler,
   rejectVerificationHandler,
   triggerNewsCrawlHandler,
 } from '../controllers/adminController';
@@ -24,6 +25,12 @@ const reasonSchema = z.object({
       .min(3, { message: 'Reason must be at least 3 characters' })
       .max(500, { message: 'Reason cannot exceed 500 characters' }),
   }).strict(),
+  params: z.object({
+    id: z.string().uuid({ message: 'Valid UUID is required' }),
+  }).passthrough(),
+});
+
+const approveSchema = z.object({
   params: z.object({
     id: z.string().uuid({ message: 'Valid UUID is required' }),
   }).passthrough(),
@@ -45,6 +52,7 @@ router.post('/reports/:id/purge', validateRequest(reasonSchema), purgeReportHand
 router.get('/logs', validateRequest(logsQuerySchema), getLogsHandler);
 router.get('/analytics/trends', getTrendsHandler);
 router.get('/verifications', getVerificationsHandler);
+router.post('/verifications/:id/approve', validateRequest(approveSchema), approveVerificationHandler);
 router.post('/verifications/:id/reject', validateRequest(reasonSchema), rejectVerificationHandler);
 router.post('/news/crawl', triggerNewsCrawlHandler);
 

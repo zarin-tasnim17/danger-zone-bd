@@ -6,7 +6,7 @@ import {
   getModerationLogs,
   getHazardTrends,
 } from '../services/adminService';
-import { getPendingVerifications, rejectVerification } from '../services/userService';
+import { getPendingVerifications, rejectVerification, approveVerification } from '../services/userService';
 import { triggerNewsCrawler } from '../jobs';
 import { successResponse, errorResponse } from '../utils/responseFormatter';
 
@@ -82,6 +82,19 @@ export const getVerificationsHandler = async (req: Request, res: Response, next:
   } catch (error: any) {
     const statusCode = error.statusCode || 400;
     return errorResponse(res, error.message || 'Failed to fetch pending verifications', statusCode);
+  }
+};
+
+export const approveVerificationHandler = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const adminId = req.user!.id;
+    const { id } = req.params;
+
+    const result = await approveVerification(adminId, id);
+    return successResponse(res, result, 200);
+  } catch (error: any) {
+    const statusCode = error.statusCode || 400;
+    return errorResponse(res, error.message || 'Failed to approve verification', statusCode);
   }
 };
 
