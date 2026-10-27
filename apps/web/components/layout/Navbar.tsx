@@ -1,11 +1,12 @@
 "use client";
 
 import React, { useState } from "react";
+import Link from "next/link";
 import { useLanguageStore } from "@/store/useLanguageStore";
 import { useFilterStore } from "@/store/useFilterStore";
+import { useAuthStore } from "@/store/useAuthStore";
 import { getTranslation } from "@/lib/translations";
-import { ShieldAlert, AlertTriangle, Filter, Globe, Menu, X, PlusCircle, Search } from "lucide-react";
-import { IncidentSeverity, IncidentCategory } from "@repo/shared";
+import { ShieldAlert, AlertTriangle, Filter, Globe, Menu, X, PlusCircle, Search, Shield, UserCheck } from "lucide-react";
 
 interface NavbarProps {
   totalIncidents?: number;
@@ -15,6 +16,7 @@ interface NavbarProps {
 export default function Navbar({ totalIncidents = 0, onOpenReportModal }: NavbarProps) {
   const { language, toggleLanguage } = useLanguageStore();
   const { selectedSeverity, setSeverity, selectedCategory, setCategory, searchQuery, setSearchQuery } = useFilterStore();
+  const user = useAuthStore((state) => state.user);
   const t = getTranslation(language);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -78,8 +80,30 @@ export default function Navbar({ totalIncidents = 0, onOpenReportModal }: Navbar
           />
         </div>
 
-        {/* Action Controls */}
+        {/* Action Controls & Role Badge */}
         <div className="flex items-center gap-2 sm:gap-3">
+          {/* Role Status Indicator */}
+          {user?.role === "ADMIN" ? (
+            <Link
+              href="/admin"
+              className="bg-purple-700 hover:bg-purple-800 text-white text-xs font-semibold px-2.5 py-1.5 rounded-md flex items-center gap-1 transition-colors shadow-sm"
+              title="Open Admin Moderation Console"
+            >
+              <Shield className="w-3.5 h-3.5" />
+              <span>Admin Console</span>
+            </Link>
+          ) : (
+            <div className="hidden lg:flex items-center gap-1.5 px-2 py-1 bg-surface-subtle border border-surface-border rounded text-[11px] text-content-secondary">
+              <span className="w-2 h-2 rounded-full bg-emerald-500" />
+              <span className="font-semibold">
+                {user?.role === "VERIFIED_RESPONDER" ? "Verified" : "Citizen"}
+              </span>
+              <span className="text-content-muted font-mono">
+                (Trust: {user?.trustScore ?? 10})
+              </span>
+            </div>
+          )}
+
           {/* Quick report button */}
           <button
             onClick={onOpenReportModal}
@@ -136,67 +160,36 @@ export default function Navbar({ totalIncidents = 0, onOpenReportModal }: Navbar
           </button>
 
           <button
-            onClick={() => setCategory(selectedCategory === "roadblock" ? "all" : "roadblock")}
-            className={`text-xs px-3 py-1 rounded-md font-medium border flex items-center gap-1.5 transition-colors ${
-              selectedCategory === "roadblock"
-                ? "bg-danger-warning text-white border-danger-warning"
-                : "bg-white text-danger-warning border-danger-warning-border hover:bg-danger-warning-bg"
-            }`}
-          >
-            <span className="w-2 h-2 rounded-full bg-danger-warning" />
-            {t.roadblocks}
-          </button>
-
-          <button
-            onClick={() => setCategory(selectedCategory === "natural_hazard" ? "all" : "natural_hazard")}
-            className={`text-xs px-3 py-1 rounded-md font-medium border flex items-center gap-1.5 transition-colors ${
-              selectedCategory === "natural_hazard"
-                ? "bg-danger-caution text-white border-danger-caution"
-                : "bg-white text-danger-caution border-danger-caution-border hover:bg-danger-caution-bg"
-            }`}
-          >
-            <span className="w-2 h-2 rounded-full bg-danger-caution" />
-            {t.hazards}
-          </button>
-
-          <button
             onClick={() => setCategory(selectedCategory === "violence_riot" ? "all" : "violence_riot")}
             className={`text-xs px-3 py-1 rounded-md font-medium border flex items-center gap-1.5 transition-colors ${
               selectedCategory === "violence_riot"
-                ? "bg-red-800 text-white border-red-800"
-                : "bg-white text-red-800 border-red-200 hover:bg-red-50"
+                ? "bg-content-primary text-white border-content-primary"
+                : "bg-white text-content-secondary border-surface-border hover:bg-surface-muted"
             }`}
           >
-            <AlertTriangle className="w-3 h-3 text-danger-critical" />
             {t.categories.violence_riot}
           </button>
+
+          <button
+            onClick={() => setCategory(selectedCategory === "robbery_crime" ? "all" : "robbery_crime")}
+            className={`text-xs px-3 py-1 rounded-md font-medium border flex items-center gap-1.5 transition-colors ${
+              selectedCategory === "robbery_crime"
+                ? "bg-content-primary text-white border-content-primary"
+                : "bg-white text-content-secondary border-surface-border hover:bg-surface-muted"
+            }`}
+          >
+            {t.categories.robbery_crime}
+          </button>
+
+          <Link
+            href="/admin"
+            className="text-xs text-content-muted hover:text-purple-700 ml-auto transition-colors flex items-center gap-1"
+          >
+            <Shield className="w-3 h-3" />
+            <span>Admin Portal</span>
+          </Link>
         </div>
       </div>
-
-      {/* Mobile drawer */}
-      {mobileMenuOpen && (
-        <div className="md:hidden border-t border-surface-border bg-white px-4 py-3 space-y-3">
-          <div className="relative">
-            <Search className="w-4 h-4 text-content-muted absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder={t.searchPlaceholder}
-              className="w-full pl-9 pr-4 py-2 text-sm bg-surface-subtle border border-surface-border rounded-md text-content-primary placeholder-content-muted"
-            />
-          </div>
-          <div className="flex items-center justify-between pt-2 border-t border-surface-border text-xs text-content-secondary">
-            <span>{language === "en" ? "Interface Language:" : "ভাষান্তর:"}</span>
-            <button
-              onClick={toggleLanguage}
-              className="px-3 py-1 bg-surface-muted font-semibold rounded text-content-primary"
-            >
-              {language === "en" ? "বাংলা করুন" : "Switch to English"}
-            </button>
-          </div>
-        </div>
-      )}
     </header>
   );
 }

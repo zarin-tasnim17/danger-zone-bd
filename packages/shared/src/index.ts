@@ -67,6 +67,9 @@ export interface DangerIncident {
   status: VerificationStatus;
   reportedBy: string;
   verifiedCount: number;
+  sourceUrl?: string | null;
+  sourceName?: string | null;
+  fuzzedRadiusMeters?: number;
 }
 
 export interface ApiResponse<T = any> {
@@ -78,3 +81,17 @@ export interface ApiResponse<T = any> {
     message: string;
   };
 }
+
+export const SOCKET_EVENTS = {
+  CONNECT: "connect",
+  DISCONNECT: "disconnect",
+  JOIN_MAP_BOUNDS: "joinMapBounds",
+  NEW_REPORT: "NEW_REPORT",
+  REPORT_VOTED: "REPORT_VOTED",
+  REPORT_PURGED: "REPORT_PURGED",
+  REPORT_EXPIRED: "REPORT_EXPIRED",
+  REPORT_RESOLVED: "REPORT_RESOLVED",
+  NEW_REPORT_UPDATE: "NEW_REPORT_UPDATE",
+  REPORT_VERIFIED: "REPORT_VERIFIED",
+  GEOFENCE_ALERT: "GEOFENCE_ALERT",
+} as const;

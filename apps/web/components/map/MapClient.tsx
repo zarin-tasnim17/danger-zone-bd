@@ -1,7 +1,15 @@
 "use client";
 
 import { useMemo, useEffect, Fragment } from "react";
-import { MapContainer, TileLayer, Marker, Popup, Circle, useMap } from "react-leaflet";
+import {
+  MapContainer,
+  TileLayer,
+  Marker,
+  Popup,
+  Circle,
+  useMap,
+  useMapEvents,
+} from "react-leaflet";
 import { useMapStore } from "@/store/useMapStore";
 import { useFilterStore } from "@/store/useFilterStore";
 import { useLanguageStore } from "@/store/useLanguageStore";
@@ -16,11 +24,12 @@ const BANGLADESH_BOUNDS: L.LatLngBoundsExpression = [
   [26.8, 92.9], // Northeast (Tetulia / Jaflong / Chittagong Hill Tracts)
 ];
 
-// Create custom high-visibility solid marker icons without gradients
+// Custom high-visibility solid marker icons without gradients
 function createCustomIcon(severity: IncidentSeverity) {
   const normalized = (severity || "").toUpperCase();
   const colorMap: Record<string, { bg: string; border: string; label: string }> = {
     HIGH: { bg: "#DC2626", border: "#991B1B", label: "!" },
+    CRITICAL: { bg: "#DC2626", border: "#991B1B", label: "!" },
     MEDIUM: { bg: "#EA580C", border: "#C2410C", label: "▲" },
     LOW: { bg: "#CA8A04", border: "#A16207", label: "●" },
   };
@@ -54,6 +63,36 @@ function createCustomIcon(severity: IncidentSeverity) {
   });
 }
 
+// Verified Safe Zone icon (Police / Hospital)
+function createSafeZoneIcon(type: string) {
+  const isPolice = type === "POLICE_STATION";
+  return L.divIcon({
+    className: "custom-safe-zone-pin",
+    html: `
+      <div style="
+        background-color: ${isPolice ? "#2563EB" : "#059669"};
+        border: 2px solid #ffffff;
+        width: 28px;
+        height: 28px;
+        border-radius: 6px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #ffffff;
+        font-weight: 700;
+        font-size: 13px;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+        cursor: pointer;
+      ">
+        ${isPolice ? "🛡️" : "🏥"}
+      </div>
+    `,
+    iconSize: [28, 28],
+    iconAnchor: [14, 14],
+    popupAnchor: [0, -16],
+  });
+}
+
 // Subcomponent to fly to selected coordinates when center changes
 function MapViewUpdater({ center, zoom }: { center: { lat: number; lng: number }; zoom: number }) {
   const map = useMap();
@@ -63,20 +102,57 @@ function MapViewUpdater({ center, zoom }: { center: { lat: number; lng: number }
   return null;
 }
 
+// Subcomponent tracking viewport moves and fetching PostGIS incidents within bounds
+function MapEventsHandler() {
+  const map = useMapEvents({
+    moveend: () => {
+      const bounds = map.getBounds();
+      useIncidentStore.getState().fetchIncidentsInBounds({
+        minLat: bounds.getSouth(),
+        maxLat: bounds.getNorth(),
+        minLng: bounds.getWest(),
+        maxLng: bounds.getEast(),
+      });
+    },
+  });
+
+  useEffect(() => {
+    // Initial fetch on mount
+    const bounds = map.getBounds();
+    useIncidentStore.getState().fetchIncidentsInBounds({
+      minLat: bounds.getSouth(),
+      maxLat: bounds.getNorth(),
+      minLng: bounds.getWest(),
+      maxLng: bounds.getEast(),
+    });
+  }, [map]);
+
+  return null;
+}
+
 export default function MapClient() {
   const center = useMapStore((state) => state.center);
   const zoom = useMapStore((state) => state.zoom);
   const setCenter = useMapStore((state) => state.setCenter);
-  const setZoom = useMapStore((state) => state.setZoom);
   const { language } = useLanguageStore();
   const incidents = useIncidentStore((state) => state.incidents);
+  const safeZones = useIncidentStore((state) => state.safeZones);
+  const voteIncident = useIncidentStore((state) => state.voteIncident);
+  const fetchSafeZones = useIncidentStore((state) => state.fetchSafeZones);
+  const initSocketListeners = useIncidentStore((state) => state.initSocketListeners);
   const { selectedSeverity, selectedCategory, searchQuery } = useFilterStore();
   const t = getTranslation(language);
+
+  // Initialize socket event listeners & safe zones once on mount
+  useEffect(() => {
+    initSocketListeners();
+    fetchSafeZones();
+  }, [initSocketListeners, fetchSafeZones]);
 
   // Filter incidents based on active user filters
   const filteredIncidents = useMemo(() => {
     return incidents.filter((item) => {
-      if (selectedSeverity !== "all" && item.severity !== selectedSeverity) {
+      if (selectedSeverity !== "all" && item.severity.toUpperCase() !== selectedSeverity.toUpperCase()) {
         return false;
       }
       if (selectedCategory !== "all" && item.category !== selectedCategory) {
@@ -112,26 +188,45 @@ export default function MapClient() {
         scrollWheelZoom={true}
       >
         <MapViewUpdater center={center} zoom={zoom} />
+        <MapEventsHandler />
 
-        <TileLayer
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-        />
+        <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
 
+        {/* Render Verified Safe Zones (Hospitals / Police) */}
+        {safeZones.map((zone) => (
+          <Marker
+            key={`safe-zone-${zone.id}`}
+            position={[zone.latitude, zone.longitude]}
+            icon={createSafeZoneIcon(zone.type)}
+          >
+            <Popup>
+              <div className="p-2 text-content-primary">
+                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800">
+                  {zone.type.replace("_", " ")}
+                </span>
+                <h4 className="font-semibold text-xs mt-1">{zone.name}</h4>
+                <p className="text-[10px] text-content-muted mt-0.5">Verified Safe Haven / Emergency Point</p>
+              </div>
+            </Popup>
+          </Marker>
+        ))}
+
+        {/* Render Live Danger Incidents */}
         {filteredIncidents.map((incident: DangerIncident) => {
           const icon = createCustomIcon(incident.severity);
-          const isCritical = incident.severity === "critical";
+          const isHigh = incident.severity.toUpperCase() === "HIGH" || incident.severity === "critical";
 
           return (
             <Fragment key={incident.id}>
               {/* Radius overlay for high-severity danger perimeters */}
-              {isCritical && (
+              {isHigh && (
                 <Circle
                   center={[incident.coordinates.lat, incident.coordinates.lng]}
-                  radius={700}
+                  radius={incident.fuzzedRadiusMeters || 150}
                   pathOptions={{
                     color: "#DC2626",
                     fillColor: "#DC2626",
-                    fillOpacity: 0.12,
+                    fillOpacity: 0.14,
                     weight: 1.5,
                     dashArray: "4, 4",
                   }}
@@ -152,14 +247,14 @@ export default function MapClient() {
                     <div className="flex items-center justify-between gap-2 mb-1.5">
                       <span
                         className={`text-[10px] font-bold uppercase px-1.5 py-0.5 rounded ${
-                          incident.severity === "critical"
+                          isHigh
                             ? "bg-danger-critical text-white"
-                            : incident.severity === "high"
+                            : incident.severity.toUpperCase() === "MEDIUM"
                             ? "bg-danger-warning text-white"
                             : "bg-danger-caution text-white"
                         }`}
                       >
-                        {(t.severity as any)[incident.severity] || incident.severity}
+                        {(t.severity as any)[incident.severity.toLowerCase()] || incident.severity}
                       </span>
                       <span className="text-[10px] text-content-muted">
                         {incident.district || "Bangladesh"}
@@ -177,12 +272,46 @@ export default function MapClient() {
                     </p>
 
                     <div className="pt-2 border-t border-surface-border text-[11px] text-content-muted flex items-center justify-between">
-                      <span className="truncate">
-                        📍 {language === "bn" && incident.locationNameBn ? incident.locationNameBn : incident.locationName}
-                      </span>
+                      <span className="truncate">📍 {incident.locationName}</span>
                       <span className="font-medium text-brand-primary shrink-0">
-                        {incident.upvotes} {language === "en" ? "Confirms" : "যাচাই"}
+                        {incident.reportedBy}
                       </span>
+                    </div>
+
+                    {/* Community Voting Controls */}
+                    <div className="flex items-center gap-1.5 mt-2.5 pt-2 border-t border-surface-border">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          voteIncident(incident.id, 1).catch((err) => alert(err.message));
+                        }}
+                        className="flex items-center gap-1 text-[11px] px-2 py-0.5 rounded bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-semibold transition-colors border border-emerald-200"
+                        title="Confirm / Upvote this hazard"
+                      >
+                        👍 <span>{incident.upvotes}</span>
+                      </button>
+
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          voteIncident(incident.id, -1).catch((err) => alert(err.message));
+                        }}
+                        className="flex items-center gap-1 text-[11px] px-2 py-0.5 rounded bg-rose-50 hover:bg-rose-100 text-rose-700 font-semibold transition-colors border border-rose-200"
+                        title="Downvote / Dispute this hazard (5 downvotes auto-purges fake reports)"
+                      >
+                        👎 <span>{incident.downvotes}</span>
+                      </button>
+
+                      {incident.sourceUrl && (
+                        <a
+                          href={incident.sourceUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="ml-auto text-[10px] text-brand-primary underline truncate max-w-[100px] font-medium"
+                        >
+                          Source ↗
+                        </a>
+                      )}
                     </div>
                   </div>
                 </Popup>

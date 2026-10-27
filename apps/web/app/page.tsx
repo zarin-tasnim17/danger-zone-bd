@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Navbar from "@/components/layout/Navbar";
 import DynamicMap from "@/components/map/DynamicMap";
 import IncidentFeed from "@/components/incidents/IncidentFeed";
@@ -8,7 +8,8 @@ import ReportIncidentModal from "@/components/incidents/ReportIncidentModal";
 import { useMapStore } from "@/store/useMapStore";
 import { useLanguageStore } from "@/store/useLanguageStore";
 import { useIncidentStore } from "@/store/useIncidentStore";
-import { Layers, ListFilter, MapPin } from "lucide-react";
+import { useAuthStore } from "@/store/useAuthStore";
+import { ListFilter, MapPin } from "lucide-react";
 
 export default function Home() {
   const [reportModalOpen, setReportModalOpen] = useState(false);
@@ -19,6 +20,12 @@ export default function Home() {
   const setMapMode = useMapStore((state) => state.setMode);
   const setCenter = useMapStore((state) => state.setCenter);
   const setZoom = useMapStore((state) => state.setZoom);
+  const initAuth = useAuthStore((state) => state.initAuth);
+
+  // Initialize transparent device authentication on mount
+  useEffect(() => {
+    initAuth();
+  }, [initAuth]);
 
   // Quick reset to whole Bangladesh view
   const handleResetView = () => {
@@ -56,7 +63,15 @@ export default function Home() {
               title="Toggle Alert Feed"
             >
               <ListFilter className="w-3.5 h-3.5 text-danger-critical" />
-              <span>{sidebarOpen ? (language === "en" ? "Hide Feed" : "ফিড লুকান") : (language === "en" ? "Show Feed" : "ফিড দেখুন")}</span>
+              <span>
+                {sidebarOpen
+                  ? language === "en"
+                    ? "Hide Feed"
+                    : "ফিড লুকান"
+                  : language === "en"
+                  ? "Show Feed"
+                  : "ফিড দেখুন"}
+              </span>
             </button>
 
             {/* Reset to BD Whole view */}
