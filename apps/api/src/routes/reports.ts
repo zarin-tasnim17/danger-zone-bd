@@ -1,9 +1,12 @@
 import { Router } from 'express';
-import { createReport, getReports } from '../controllers/reportController';
+import { createReport, getReports, getReportById, resolveReportHandler } from '../controllers/reportController';
 import { voteOnReport } from '../controllers/voteController';
+import { addUpdateHandler, getUpdatesHandler } from '../controllers/reportUpdateController';
 import { requireAuth } from '../middleware/requireAuth';
 import { validateRequest } from '../middleware/validateRequest';
 import { z } from 'zod';
+
+import { reportCreationRateLimiter } from '../middleware/rateLimiter';
 
 const router = Router();
 
@@ -27,7 +30,16 @@ const boundsSchema = z.object({
     minLat: z.string().refine(val => !isNaN(parseFloat(val)), "Must be a number string"),
     maxLng: z.string().refine(val => !isNaN(parseFloat(val)), "Must be a number string"),
     maxLat: z.string().refine(val => !isNaN(parseFloat(val)), "Must be a number string"),
-  }).strict()
+    category: z.enum(['MUGGING', 'THEFT', 'UNLIT_ROAD', 'EXTORTION', 'DRUG_ACTIVITY']).optional(),
+    severity: z.enum(['LOW', 'MEDIUM', 'HIGH']).optional(),
+    isNightReport: z.enum(['true', 'false']).optional(),
+  }).passthrough()
+});
+
+const reportIdSchema = z.object({
+  params: z.object({
+    id: z.string().uuid({ message: 'Valid report UUID is required' })
+  }).passthrough()
 });
 
 const voteSchema = z.object({
@@ -39,8 +51,23 @@ const voteSchema = z.object({
   }).passthrough()
 });
 
-router.post('/', requireAuth, validateRequest(reportSchema), createReport);
+const addUpdateSchema = z.object({
+  body: z.object({
+    content: z.string().min(2, 'Update must be at least 2 characters').max(500, 'Update cannot exceed 500 characters')
+  }).strict(),
+  params: z.object({
+    id: z.string().uuid({ message: 'Valid report UUID is required' })
+  }).passthrough()
+});
+
+router.post('/', requireAuth, reportCreationRateLimiter, validateRequest(reportSchema), createReport);
 router.get('/', validateRequest(boundsSchema), getReports);
+router.get('/:id', validateRequest(reportIdSchema), getReportById);
+router.patch('/:id/resolve', requireAuth, validateRequest(reportIdSchema), resolveReportHandler);
 router.post('/:id/vote', requireAuth, validateRequest(voteSchema), voteOnReport);
+
+// Threaded Context Updates for active incidents
+router.post('/:id/updates', requireAuth, validateRequest(addUpdateSchema), addUpdateHandler);
+router.get('/:id/updates', validateRequest(reportIdSchema), getUpdatesHandler);
 
 export default router;

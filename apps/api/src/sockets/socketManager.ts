@@ -153,6 +153,22 @@ export const emitReportExpired = (data: { reportIds: string[]; reason: string })
 };
 
 /**
+ * Broadcast REPORT_RESOLVED when an incident is marked resolved
+ */
+export const emitReportResolved = (data: { reportId: string; status: string; resolvedAt?: string }) => {
+  if (!io) return;
+  io.to('live_reports').emit('REPORT_RESOLVED', data);
+};
+
+/**
+ * Broadcast NEW_REPORT_UPDATE when a threaded context update is posted
+ */
+export const emitNewReportUpdate = (data: { reportId: string; update: any }) => {
+  if (!io) return;
+  io.to('live_reports').emit('NEW_REPORT_UPDATE', data);
+};
+
+/**
  * Targeted geofence alert emitted to a specific user room
  */
 export const emitUserAlert = (userId: string, data: any) => {
