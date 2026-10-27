@@ -27,12 +27,14 @@ import userRouter from './routes/users';
 import reportRouter from './routes/reports';
 import mediaRouter from './routes/media';
 import alertsRouter from './routes/alerts';
+import adminRouter from './routes/admin';
 
 app.use('/api/v1/auth', authRouter);
 app.use('/api/v1/users', userRouter);
 app.use('/api/v1/reports', reportRouter);
 app.use('/api/v1/media', mediaRouter);
 app.use('/api/v1/alerts', alertsRouter);
+app.use('/api/v1/admin', adminRouter);
 
 app.get('/', (req, res) => {
   res.json({
@@ -45,7 +47,8 @@ app.get('/', (req, res) => {
       reports: '/api/v1/reports',
       auth: '/api/v1/auth',
       media: '/api/v1/media',
-      alerts: '/api/v1/alerts'
+      alerts: '/api/v1/alerts',
+      admin: '/api/v1/admin'
     }
   });
 });

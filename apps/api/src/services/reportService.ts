@@ -15,6 +15,12 @@ export const createReport = async (
   },
   deviceGps: { latitude: number; longitude: number }
 ) => {
+  // Enforce account suspension check
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: { isBanned: true } });
+  if (user?.isBanned) {
+    throw new Error('Your account has been suspended. You cannot submit reports.');
+  }
+
   // Critical Business Rule: Proximity validation (max 200m)
   const isCloseEnough = await isWithinDistance(
     payload.latitude, payload.longitude,
