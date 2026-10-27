@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Navbar from "@/components/layout/Navbar";
+import RouteTestNav from "@/components/layout/RouteTestNav";
 import DynamicMap from "@/components/map/DynamicMap";
 import IncidentFeed from "@/components/incidents/IncidentFeed";
 import ReportIncidentModal from "@/components/incidents/ReportIncidentModal";
@@ -35,10 +36,14 @@ export default function Home() {
 
   return (
     <main className="flex h-screen flex-col bg-surface-subtle overflow-hidden">
+      {/* Route Quick-Tester Strip */}
+      <RouteTestNav />
+
       {/* Top Navbar */}
       <Navbar
         totalIncidents={incidents.length}
         onOpenReportModal={() => setReportModalOpen(true)}
+        showFilters={true}
       />
 
       {/* Main Workspace Area: Sidebar Feed + Interactive Map */}
