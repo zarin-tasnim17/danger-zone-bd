@@ -26,11 +26,13 @@ import authRouter from './routes/auth';
 import userRouter from './routes/users';
 import reportRouter from './routes/reports';
 import mediaRouter from './routes/media';
+import alertsRouter from './routes/alerts';
 
 app.use('/api/v1/auth', authRouter);
 app.use('/api/v1/users', userRouter);
 app.use('/api/v1/reports', reportRouter);
 app.use('/api/v1/media', mediaRouter);
+app.use('/api/v1/alerts', alertsRouter);
 
 app.get('/', (req, res) => {
   res.json({
@@ -42,7 +44,8 @@ app.get('/', (req, res) => {
       dbHealth: '/health/db',
       reports: '/api/v1/reports',
       auth: '/api/v1/auth',
-      media: '/api/v1/media'
+      media: '/api/v1/media',
+      alerts: '/api/v1/alerts'
     }
   });
 });

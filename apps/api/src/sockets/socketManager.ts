@@ -76,6 +76,9 @@ export const initSocketServer = (httpServer: HttpServer): SocketIOServer => {
     // Automatically join the live map feed room
     socket.join('live_reports');
 
+    // Automatically join user-specific notification room
+    socket.join(`user:${user.id}`);
+
     // Room subscription based on map bounds
     socket.on('joinMapBounds', (bounds: { minLng: number; minLat: number; maxLng: number; maxLat: number }) => {
       socket.data.bounds = bounds;
@@ -147,4 +150,12 @@ export const emitReportPurged = (data: { reportId: string; reason?: string }) =>
 export const emitReportExpired = (data: { reportIds: string[]; reason: string }) => {
   if (!io) return;
   io.to('live_reports').emit('REPORT_EXPIRED', data);
+};
+
+/**
+ * Targeted geofence alert emitted to a specific user room
+ */
+export const emitUserAlert = (userId: string, data: any) => {
+  if (!io) return;
+  io.to(`user:${userId}`).emit('GEOFENCE_ALERT', data);
 };

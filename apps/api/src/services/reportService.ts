@@ -2,6 +2,7 @@ import { prisma } from '../db/prisma';
 import { ReportCategory, ReportSeverity } from '@prisma/client';
 import { isWithinDistance, getReportsInBounds, BoundingBox } from '../db/spatialUtils';
 import { emitNewReport } from '../sockets';
+import { enqueueReportNotification } from '../jobs';
 
 export const createReport = async (
   userId: string,
@@ -54,6 +55,11 @@ export const createReport = async (
     expiresAt: report.expiresAt,
     createdAt: report.createdAt
   });
+
+  // Phase 11: Asynchronously enqueue geofenced alert checks for HIGH severity reports
+  if (report.severity === 'HIGH') {
+    enqueueReportNotification(report);
+  }
 
   return report;
 };
