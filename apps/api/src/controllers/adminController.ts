@@ -4,7 +4,9 @@ import {
   unbanUser,
   purgeReport,
   getModerationLogs,
+  getHazardTrends,
 } from '../services/adminService';
+import { getPendingVerifications, rejectVerification } from '../services/userService';
 import { successResponse, errorResponse } from '../utils/responseFormatter';
 
 export const banUserHandler = async (req: Request, res: Response, next: NextFunction) => {
@@ -59,5 +61,39 @@ export const getLogsHandler = async (req: Request, res: Response, next: NextFunc
   } catch (error: any) {
     const statusCode = error.statusCode || 400;
     return errorResponse(res, error.message || 'Failed to retrieve audit logs', statusCode);
+  }
+};
+
+export const getTrendsHandler = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const trends = await getHazardTrends();
+    return successResponse(res, trends, 200);
+  } catch (error: any) {
+    const statusCode = error.statusCode || 400;
+    return errorResponse(res, error.message || 'Failed to calculate hazard trends', statusCode);
+  }
+};
+
+export const getVerificationsHandler = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const verifications = await getPendingVerifications();
+    return successResponse(res, verifications, 200);
+  } catch (error: any) {
+    const statusCode = error.statusCode || 400;
+    return errorResponse(res, error.message || 'Failed to fetch pending verifications', statusCode);
+  }
+};
+
+export const rejectVerificationHandler = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const adminId = req.user!.id;
+    const { id } = req.params;
+    const { reason } = req.body;
+
+    const result = await rejectVerification(adminId, id, reason);
+    return successResponse(res, result, 200);
+  } catch (error: any) {
+    const statusCode = error.statusCode || 400;
+    return errorResponse(res, error.message || 'Failed to reject verification', statusCode);
   }
 };

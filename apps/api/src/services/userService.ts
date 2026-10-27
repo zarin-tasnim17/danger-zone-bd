@@ -44,17 +44,39 @@ export const submitVerification = async (userId: string, type: VerificationType,
   return verification;
 };
 
+export const getPendingVerifications = async () => {
+  return prisma.userVerification.findMany({
+    where: { status: 'PENDING' },
+    include: {
+      user: {
+        select: {
+          id: true,
+          email: true,
+          role: true,
+          trustScore: true,
+          createdAt: true
+        }
+      }
+    },
+    orderBy: { createdAt: 'asc' }
+  });
+};
+
 export const approveVerification = async (adminId: string, verificationId: string) => {
   const verification = await prisma.userVerification.findUnique({
     where: { id: verificationId }
   });
 
   if (!verification) {
-    throw new Error('Verification request not found');
+    const error: any = new Error('Verification request not found');
+    error.statusCode = 404;
+    throw error;
   }
 
   if (verification.status !== 'PENDING') {
-    throw new Error(`Verification is already ${verification.status}`);
+    const error: any = new Error(`Verification is already ${verification.status}`);
+    error.statusCode = 400;
+    throw error;
   }
 
   // Use a transaction to approve verification, update user role, and log the action
@@ -81,4 +103,39 @@ export const approveVerification = async (adminId: string, verificationId: strin
   ]);
 
   return updatedUser;
+};
+
+export const rejectVerification = async (adminId: string, verificationId: string, reason?: string) => {
+  const verification = await prisma.userVerification.findUnique({
+    where: { id: verificationId }
+  });
+
+  if (!verification) {
+    const error: any = new Error('Verification request not found');
+    error.statusCode = 404;
+    throw error;
+  }
+
+  if (verification.status !== 'PENDING') {
+    const error: any = new Error(`Verification is already ${verification.status}`);
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const [rejected] = await prisma.$transaction([
+    prisma.userVerification.update({
+      where: { id: verificationId },
+      data: { status: 'REJECTED' }
+    }),
+    prisma.moderationLog.create({
+      data: {
+        adminId,
+        targetUserId: verification.userId,
+        action: 'VERIFY_USER',
+        reason: reason || 'Rejected KYC verification request',
+      }
+    })
+  ]);
+
+  return rejected;
 };

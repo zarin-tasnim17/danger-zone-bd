@@ -8,6 +8,9 @@ import {
   unbanUserHandler,
   purgeReportHandler,
   getLogsHandler,
+  getTrendsHandler,
+  getVerificationsHandler,
+  rejectVerificationHandler,
 } from '../controllers/adminController';
 
 const router = Router();
@@ -39,5 +42,8 @@ router.post('/users/:id/ban', validateRequest(reasonSchema), banUserHandler);
 router.post('/users/:id/unban', validateRequest(reasonSchema), unbanUserHandler);
 router.post('/reports/:id/purge', validateRequest(reasonSchema), purgeReportHandler);
 router.get('/logs', validateRequest(logsQuerySchema), getLogsHandler);
+router.get('/analytics/trends', getTrendsHandler);
+router.get('/verifications', getVerificationsHandler);
+router.post('/verifications/:id/reject', validateRequest(reasonSchema), rejectVerificationHandler);
 
 export default router;

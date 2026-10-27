@@ -12,7 +12,7 @@ export interface ModerationLogOutput {
 }
 
 /**
- * Bans a user account and records an immutable entry in ModerationLog.
+ * Bans a user account, revokes all active refresh tokens, and records an immutable entry in ModerationLog.
  */
 export const banUser = async (
   adminId: string,
@@ -35,11 +35,15 @@ export const banUser = async (
     throw error;
   }
 
-  // Atomic transaction: suspend user and record immutable moderation log
-  const [updatedUser, log] = await prisma.$transaction([
+  // Atomic transaction: suspend user, globally revoke all active sessions, and record immutable moderation log
+  const [updatedUser, , log] = await prisma.$transaction([
     prisma.user.update({
       where: { id: targetUserId },
       data: { isBanned: true },
+    }),
+    prisma.refreshToken.updateMany({
+      where: { userId: targetUserId, isRevoked: false },
+      data: { isRevoked: true },
     }),
     prisma.moderationLog.create({
       data: {
@@ -72,7 +76,7 @@ export const unbanUser = async (
     throw error;
   }
 
-  if (!targetUser.isBanned) {
+  if (targetUser.isBanned) {
     const error: any = new Error('User is not banned');
     error.statusCode = 400;
     throw error;
@@ -184,5 +188,96 @@ export const getModerationLogs = async (page: number = 1, limit: number = 20) =>
       limit: safeLimit,
       totalPages: Math.ceil(total / safeLimit),
     },
+  };
+};
+
+/**
+ * Calculates 30-day incident trends, frequency breakdown by category and severity,
+ * night-time proportions, and daily timeline distribution for administrative analytics.
+ */
+export const getHazardTrends = async () => {
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+
+  const [
+    totalReports,
+    byCategory,
+    bySeverity,
+    byStatus,
+    nightReportsCount,
+    dailyTimeline
+  ] = await prisma.$transaction([
+    // Total reports in last 30 days
+    prisma.report.count({
+      where: { createdAt: { gte: thirtyDaysAgo } }
+    }),
+    // Breakdown by category
+    prisma.report.groupBy({
+      by: ['category'],
+      where: { createdAt: { gte: thirtyDaysAgo } },
+      _count: { _all: true },
+      orderBy: { category: 'asc' }
+    }),
+    // Breakdown by severity
+    prisma.report.groupBy({
+      by: ['severity'],
+      where: { createdAt: { gte: thirtyDaysAgo } },
+      _count: { _all: true },
+      orderBy: { severity: 'asc' }
+    }),
+    // Breakdown by status
+    prisma.report.groupBy({
+      by: ['status'],
+      where: { createdAt: { gte: thirtyDaysAgo } },
+      _count: { _all: true },
+      orderBy: { status: 'asc' }
+    }),
+    // Total night-time reports
+    prisma.report.count({
+      where: { createdAt: { gte: thirtyDaysAgo }, isNightReport: true }
+    }),
+    // Daily incident timeline
+    prisma.$queryRaw<Array<{ day: string; count: bigint }>>`
+      SELECT 
+        TO_CHAR(DATE_TRUNC('day', "createdAt"), 'YYYY-MM-DD') as day,
+        COUNT(*)::bigint as count
+      FROM "Report"
+      WHERE "createdAt" >= ${thirtyDaysAgo}
+      GROUP BY DATE_TRUNC('day', "createdAt")
+      ORDER BY DATE_TRUNC('day', "createdAt") ASC
+    `
+  ]);
+
+  const categoryMap: Record<string, number> = {};
+  for (const item of byCategory) {
+    categoryMap[item.category] = (item as any)._count?._all ?? 0;
+  }
+
+  const severityMap: Record<string, number> = {};
+  for (const item of bySeverity) {
+    severityMap[item.severity] = (item as any)._count?._all ?? 0;
+  }
+
+  const statusMap: Record<string, number> = {};
+  for (const item of byStatus) {
+    statusMap[item.status] = (item as any)._count?._all ?? 0;
+  }
+
+  const timelineFormatted = dailyTimeline.map((row) => ({
+    date: row.day,
+    count: Number(row.count)
+  }));
+
+  return {
+    timeframe: '30_DAYS',
+    startDate: thirtyDaysAgo.toISOString(),
+    totalReports,
+    nightReportsCount,
+    nightReportPercentage: totalReports > 0 ? Number(((nightReportsCount / totalReports) * 100).toFixed(1)) : 0,
+    breakdown: {
+      byCategory: categoryMap,
+      bySeverity: severityMap,
+      byStatus: statusMap
+    },
+    timeline: timelineFormatted
   };
 };
