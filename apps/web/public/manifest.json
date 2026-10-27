@@ -1,0 +1,17 @@
+{
+  "name": "Bangladesh Real-Time Public Safety Map",
+  "short_name": "BD Safety Map",
+  "description": "Tactical emergency command center, live public hazard tracking and verified safe shelters across Bangladesh.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0B0F19",
+  "theme_color": "#0B0F19",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
