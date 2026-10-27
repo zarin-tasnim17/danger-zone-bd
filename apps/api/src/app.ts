@@ -25,9 +25,13 @@ app.use(cookieParser());
 import authRouter from './routes/auth';
 import userRouter from './routes/users';
 import reportRouter from './routes/reports';
+import mediaRouter from './routes/media';
+
 app.use('/api/v1/auth', authRouter);
 app.use('/api/v1/users', userRouter);
 app.use('/api/v1/reports', reportRouter);
+app.use('/api/v1/media', mediaRouter);
+
 app.get('/', (req, res) => {
   res.json({
     name: 'BD Safety Map API',
@@ -37,7 +41,8 @@ app.get('/', (req, res) => {
       health: '/health',
       dbHealth: '/health/db',
       reports: '/api/v1/reports',
-      auth: '/api/v1/auth'
+      auth: '/api/v1/auth',
+      media: '/api/v1/media'
     }
   });
 });

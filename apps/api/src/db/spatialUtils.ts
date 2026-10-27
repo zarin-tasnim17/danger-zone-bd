@@ -10,9 +10,18 @@ export interface BoundingBox {
 
 export const getReportsInBounds = async (bounds: BoundingBox) => {
   // PostGIS ST_MakeEnvelope signature: ST_MakeEnvelope(xmin, ymin, xmax, ymax, srid)
+  // Aggregate sanitized media (blurredUrl only) to preserve public privacy
   const reports = await prisma.$queryRaw`
     SELECT 
-      id, category, severity, "isNightReport", latitude, longitude, description, upvotes, downvotes, status, "expiresAt", "createdAt"
+      id, category, severity, "isNightReport", latitude, longitude, description, upvotes, downvotes, status, "expiresAt", "createdAt",
+      COALESCE(
+        (
+          SELECT json_agg(json_build_object('id', m.id, 'blurredUrl', m."blurredUrl", 'createdAt', m."createdAt"))
+          FROM "ReportMedia" m
+          WHERE m."reportId" = "Report".id
+        ),
+        '[]'::json
+      ) as media
     FROM "Report"
     WHERE status = 'ACTIVE' 
       AND location && ST_MakeEnvelope(
