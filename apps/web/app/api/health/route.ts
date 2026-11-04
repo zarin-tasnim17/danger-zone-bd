@@ -3,7 +3,12 @@ import { NextResponse } from 'next/server';
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
-  const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'https://danger-zone-bd.onrender.com';
+  const rawBackend =
+    process.env.INTERNAL_API_URL ||
+    (process.env.NEXT_PUBLIC_API_URL && !process.env.NEXT_PUBLIC_API_URL.startsWith("/")
+      ? process.env.NEXT_PUBLIC_API_URL
+      : "https://danger-zone-bd.onrender.com");
+  const backendUrl = rawBackend.replace(/\/+$/, "").replace(/\/api\/v1$/, "");
   const startTime = Date.now();
 
   let backendStatus = 'unknown';

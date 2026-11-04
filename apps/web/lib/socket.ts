@@ -4,7 +4,10 @@ import { SOCKET_EVENTS } from "@repo/shared";
 let socketInstance: Socket | null = null;
 
 const SOCKET_URL =
-  process.env.NEXT_PUBLIC_SOCKET_URL || "http://127.0.0.1:5000";
+  process.env.NEXT_PUBLIC_SOCKET_URL ||
+  (typeof window !== "undefined" && window.location.hostname !== "localhost"
+    ? "https://danger-zone-bd.onrender.com"
+    : "http://127.0.0.1:5000");
 
 /**
  * Access or create the singleton Socket.IO instance.
