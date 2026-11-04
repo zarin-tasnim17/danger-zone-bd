@@ -1,12 +1,7 @@
-const CACHE_NAME = "bd-safety-map-v2";
-const STATIC_ASSETS = ["/", "/feed", "/safe-zones", "/alerts", "/manifest.json"];
+const CACHE_NAME = "bd-safety-map-v3";
 
 self.addEventListener("install", (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(STATIC_ASSETS);
-    })
-  );
+  // Activate worker immediately without waiting for existing tabs to close
   self.skipWaiting();
 });
 
@@ -15,7 +10,8 @@ self.addEventListener("activate", (event) => {
     caches.keys().then((keys) => {
       return Promise.all(
         keys.map((key) => {
-          if (key !== CACHE_NAME) {
+          // Purge all legacy caches so stale Next.js chunks are never served
+          if (key !== CACHE_NAME && key !== "bd-safety-map-tiles") {
             return caches.delete(key);
           }
         })
@@ -26,19 +22,28 @@ self.addEventListener("activate", (event) => {
 });
 
 self.addEventListener("fetch", (event) => {
-  // Only intercept GET requests - mutation requests (POST/PATCH/DELETE) pass through natively
+  // 1. NEVER intercept navigation requests: always let browser fetch fresh HTML document from Vercel
+  if (event.request.mode === "navigate") {
+    return;
+  }
+
+  // 2. Only intercept GET requests
   if (event.request.method !== "GET") {
     return;
   }
 
   const url = new URL(event.request.url);
 
-  // Do not intercept Socket.IO polling or WebSockets
-  if (url.pathname.includes("/socket.io/") || url.pathname.startsWith("/api/")) {
+  // 3. NEVER intercept Next.js bundles, API routes, or WebSockets
+  if (
+    url.pathname.startsWith("/_next/") ||
+    url.pathname.startsWith("/api/") ||
+    url.pathname.includes("/socket.io/")
+  ) {
     return;
   }
 
-  // Cache OpenStreetMap or CartoDB tiles with stale-while-revalidate
+  // 4. Cache OpenStreetMap or CartoDB map tiles with stale-while-revalidate
   if (
     url.hostname.includes("tile.openstreetmap.org") ||
     url.hostname.includes("cartocdn.com")
@@ -60,28 +65,4 @@ self.addEventListener("fetch", (event) => {
     );
     return;
   }
-
-  // Network-first for static pages and navigation, falling back to cache or offline fallback response
-  event.respondWith(
-    fetch(event.request).catch(async () => {
-      try {
-        const cached = await caches.match(event.request);
-        if (cached) {
-          return cached;
-        }
-        if (event.request.mode === "navigate") {
-          const fallback = await caches.match("/");
-          if (fallback) return fallback;
-        }
-      } catch {
-        // Fall through to offline response
-      }
-
-      return new Response("Network unavailable. Service is offline.", {
-        status: 503,
-        statusText: "Service Unavailable",
-        headers: { "Content-Type": "text/plain" },
-      });
-    })
-  );
 });
