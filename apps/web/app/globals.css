@@ -36,6 +36,11 @@
   background-color: #030712 !important;
 }
 
+/* Tactical Dark Tile Filter for OpenStreetMap - Free, Zero Watermark, Zero API Key */
+.tactical-dark-tiles .leaflet-tile {
+  filter: brightness(0.65) invert(1) contrast(2.8) hue-rotate(200deg) saturate(0.25) brightness(0.75) !important;
+}
+
 /* Dark Glassmorphic Zoom Controls */
 .leaflet-bar {
   border: 1px solid rgba(51, 65, 85, 0.8) !important;
