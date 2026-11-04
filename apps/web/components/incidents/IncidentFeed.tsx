@@ -117,7 +117,7 @@ export default function IncidentFeed({ onIncidentSelect }: { onIncidentSelect?: 
   };
 
   return (
-    <aside className="w-full bg-white border-r border-slate-200 text-slate-800 flex flex-col h-full z-10 shadow-sm select-text">
+    <aside className="w-full bg-white text-slate-800 flex flex-col h-full z-10 shadow-sm select-text">
       {/* Feed Header */}
       <div className="p-3.5 border-b border-slate-200 bg-slate-50/80 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-2">
@@ -211,7 +211,7 @@ export default function IncidentFeed({ onIncidentSelect }: { onIncidentSelect?: 
                     : "ফিল্টার মুছে ফেলুন অথবা অন্যান্য জেলার তথ্য দেখতে মানচিত্রটি সরান।"
                   : language === "en"
                   ? "All clear in this sector. Pan the map to explore other districts, or report an incident to protect your community."
-                  : "এই এলাকায় কোনো বিপদ সংকেত নেই। অন্যান্য জেলা দেখতে মানচিত্রটি সরান অথবা নতুন তথ্য জানান।"}
+                    : "এই এলাকায় কোনো বিপদ সংকেত নেই। অন্যান্য জেলা দেখতে মানচিত্রটি সরান অথবা নতুন তথ্য জানান।"}
               </p>
             </div>
             {hasActiveFilters ? (
