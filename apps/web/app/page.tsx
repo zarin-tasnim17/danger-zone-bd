@@ -47,7 +47,7 @@ export default function Home() {
   }, [incidents]);
 
   return (
-    <main className="flex h-screen flex-col bg-slate-950 text-slate-100 overflow-hidden font-sans select-none">
+    <main className="flex h-screen flex-col bg-slate-100 text-slate-900 overflow-hidden font-sans select-none">
       {/* Top Command Navigation Header with integrated Filters & Search */}
       <Navbar
         totalIncidents={incidents.length}
@@ -56,10 +56,10 @@ export default function Home() {
       />
 
       {/* Main Workspace Area: Responsive 2-Pane Command Layout */}
-      <div className="flex flex-1 w-full relative overflow-hidden min-h-0">
+      <div className="flex flex-1 w-full relative overflow-hidden min-h-0 bg-slate-100">
         {/* Desktop Collapsible Left Sidebar */}
         <div
-          className={`hidden md:flex flex-col h-full border-r border-slate-800/80 transition-all duration-300 ease-in-out shrink-0 ${
+          className={`hidden md:flex flex-col h-full border-r border-slate-200 transition-all duration-300 ease-in-out shrink-0 ${
             desktopSidebarOpen ? "w-80 lg:w-96" : "w-0 overflow-hidden border-none"
           }`}
         >
@@ -67,16 +67,16 @@ export default function Home() {
         </div>
 
         {/* Map Viewport Area */}
-        <div className="flex-1 w-full h-full relative min-h-0 bg-slate-950">
+        <div className="flex-1 w-full h-full relative min-h-0 bg-slate-100">
           {/* Floating Situational Telemetry & Sidebar Toggle HUD (Top-Left) */}
           <div className="absolute top-4 left-4 z-[400] flex flex-wrap items-center gap-2 pointer-events-none">
             {/* Desktop Sidebar Toggle Button */}
             <button
               onClick={() => setDesktopSidebarOpen(!desktopSidebarOpen)}
-              className="pointer-events-auto hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-2xl bg-slate-950/85 backdrop-blur-xl border border-slate-800 hover:border-slate-700 text-slate-200 text-xs font-bold shadow-2xl transition-all active:scale-95"
+              className="pointer-events-auto hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-2xl bg-white/95 backdrop-blur-xl border border-slate-200/90 hover:bg-slate-50 text-slate-800 text-xs font-bold shadow-md transition-all active:scale-95"
               title={desktopSidebarOpen ? "Collapse Feed" : "Expand Feed"}
             >
-              <ListFilter className="w-3.5 h-3.5 text-red-400" />
+              <ListFilter className="w-3.5 h-3.5 text-red-600" />
               <span>
                 {desktopSidebarOpen
                   ? language === "en"
@@ -87,14 +87,14 @@ export default function Home() {
                   : "ফিড দেখুন"}
               </span>
               {desktopSidebarOpen ? (
-                <ChevronLeft className="w-3 h-3 text-slate-500" />
+                <ChevronLeft className="w-3 h-3 text-slate-400" />
               ) : (
-                <ChevronRight className="w-3 h-3 text-slate-500" />
+                <ChevronRight className="w-3 h-3 text-slate-400" />
               )}
             </button>
 
             {/* Situational Telemetry Dock */}
-            <div className="pointer-events-auto flex items-center gap-1 bg-slate-950/85 backdrop-blur-xl border border-slate-800 rounded-2xl p-1 shadow-2xl">
+            <div className="pointer-events-auto flex items-center gap-1 bg-white/95 backdrop-blur-xl border border-slate-200/90 rounded-2xl p-1 shadow-md">
               {/* Critical Red Zones Counter / Filter */}
               <button
                 onClick={() =>
@@ -102,46 +102,46 @@ export default function Home() {
                 }
                 className={`flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-bold transition ${
                   selectedSeverity === "HIGH" || selectedSeverity === "critical"
-                    ? "bg-red-950 text-red-300 border border-red-800 shadow-sm"
-                    : "text-slate-300 hover:text-white hover:bg-slate-900"
+                    ? "bg-red-50 text-red-700 border border-red-200 shadow-2xs"
+                    : "text-slate-700 hover:text-slate-900 hover:bg-slate-100"
                 }`}
                 title="Filter High Severity Threats"
               >
                 <span className="relative flex h-2 w-2">
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-red-600"></span>
                 </span>
                 <span>{criticalCount}</span>
-                <span className="hidden lg:inline text-[10px] text-red-400 uppercase font-mono">
+                <span className="hidden lg:inline text-[10px] text-red-700 uppercase font-mono">
                   {language === "en" ? "Critical" : "উচ্চ ঝুঁকি"}
                 </span>
               </button>
 
-              <span className="text-slate-700">|</span>
+              <span className="text-slate-300">|</span>
 
               {/* Total Active Threats */}
               <button
                 onClick={resetFilters}
-                className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-bold text-slate-300 hover:text-white hover:bg-slate-900 transition"
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-bold text-slate-700 hover:text-slate-900 hover:bg-slate-100 transition"
                 title="View All Incidents"
               >
-                <ShieldAlert className="w-3.5 h-3.5 text-orange-400" />
+                <ShieldAlert className="w-3.5 h-3.5 text-orange-500" />
                 <span>{incidents.length}</span>
-                <span className="hidden lg:inline text-[10px] text-slate-400 font-mono">
+                <span className="hidden lg:inline text-[10px] text-slate-500 font-mono">
                   {language === "en" ? "Active" : "সক্রিয়"}
                 </span>
               </button>
 
-              <span className="text-slate-700">|</span>
+              <span className="text-slate-300">|</span>
 
               {/* Safe Shelters Count */}
               <div
-                className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-bold text-slate-300"
+                className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-bold text-slate-700"
                 title="Verified Safe Havens in Bangladesh"
               >
-                <Shield className="w-3.5 h-3.5 text-emerald-400" />
+                <Shield className="w-3.5 h-3.5 text-emerald-600" />
                 <span>{safeZones.length}</span>
-                <span className="hidden lg:inline text-[10px] text-emerald-400 font-mono">
+                <span className="hidden lg:inline text-[10px] text-emerald-700 font-mono">
                   {language === "en" ? "Safe Havens" : "আশ্রয়স্থল"}
                 </span>
               </div>
@@ -155,7 +155,7 @@ export default function Home() {
           <div className="md:hidden absolute bottom-5 inset-x-4 z-[400] flex justify-center pointer-events-none">
             <button
               onClick={() => setMobileSheetOpen(true)}
-              className="pointer-events-auto flex items-center gap-2 px-4 py-2.5 rounded-full bg-slate-950/95 backdrop-blur-2xl border border-slate-700 text-white text-xs font-bold shadow-2xl active:scale-95 transition-all ring-1 ring-blue-500/40"
+              className="pointer-events-auto flex items-center gap-2 px-4 py-2.5 rounded-full bg-white/95 backdrop-blur-2xl border border-slate-200 text-slate-800 text-xs font-bold shadow-xl active:scale-95 transition-all ring-1 ring-blue-500/20"
             >
               <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
               <span>
@@ -163,8 +163,8 @@ export default function Home() {
                   ? `⚡ ${incidents.length} Hazards in View`
                   : `⚡ ${incidents.length}টি সক্রিয় বিপদ`}
               </span>
-              <span className="text-slate-400 font-normal">|</span>
-              <span className="text-blue-400 flex items-center gap-0.5">
+              <span className="text-slate-300 font-normal">|</span>
+              <span className="text-blue-600 flex items-center gap-0.5 font-bold">
                 <span>{language === "en" ? "View Feed" : "ফিড দেখুন"}</span>
                 <ChevronUp className="w-3.5 h-3.5" />
               </span>
@@ -175,24 +175,24 @@ export default function Home() {
 
       {/* Mobile Sliding Bottom Sheet Modal */}
       {mobileSheetOpen && (
-        <div className="md:hidden fixed inset-0 z-[1500] flex flex-col justify-end bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+        <div className="md:hidden fixed inset-0 z-[1500] flex flex-col justify-end bg-black/40 backdrop-blur-xs animate-in fade-in duration-200">
           <div
             className="fixed inset-0 -z-10"
             onClick={() => setMobileSheetOpen(false)}
             aria-hidden="true"
           />
 
-          <div className="bg-slate-900 border-t border-slate-700 rounded-t-3xl shadow-2xl flex flex-col max-h-[80vh] overflow-hidden animate-in slide-in-from-bottom duration-200">
+          <div className="bg-white border-t border-slate-200 rounded-t-3xl shadow-2xl flex flex-col max-h-[80vh] overflow-hidden animate-in slide-in-from-bottom duration-200">
             {/* Sheet Handle */}
-            <div className="p-3 pb-1 flex flex-col items-center border-b border-slate-800">
-              <div className="w-12 h-1.5 rounded-full bg-slate-700 mb-2" />
+            <div className="p-3 pb-1 flex flex-col items-center border-b border-slate-100">
+              <div className="w-12 h-1.5 rounded-full bg-slate-300 mb-2" />
               <div className="w-full flex items-center justify-between px-2">
-                <span className="text-xs font-bold text-white uppercase tracking-wider">
+                <span className="text-xs font-bold text-slate-900 uppercase tracking-wider">
                   {language === "en" ? "Live Danger Feed" : "সরাসরি বিপদ সংকেতসমূহ"}
                 </span>
                 <button
                   onClick={() => setMobileSheetOpen(false)}
-                  className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800"
+                  className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100"
                 >
                   <X className="w-4 h-4" />
                 </button>
