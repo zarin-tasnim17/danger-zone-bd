@@ -9,7 +9,6 @@ import { useAuthStore } from "@/store/useAuthStore";
 import { getTranslation } from "@/lib/translations";
 import {
   ShieldAlert,
-  Globe,
   Menu,
   X,
   PlusCircle,
@@ -22,9 +21,6 @@ import {
   UserCheck,
   FlaskConical,
   Lock,
-  Radio,
-  Flame,
-  AlertTriangle,
 } from "lucide-react";
 import { IncidentCategory } from "@repo/shared";
 
@@ -63,10 +59,9 @@ export default function Navbar({
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const navLinks = [
-    { name: language === "en" ? "Live Map" : "মানচিত্র", href: "/", icon: Map },
+    { name: language === "en" ? "Live Map" : "লাইভ ম্যাপ", href: "/", icon: Map },
     { name: language === "en" ? "Feed" : "ফিড", href: "/feed", icon: ListFilter },
-    { name: language === "en" ? "Report" : "রিপোর্ট", href: "/report", icon: PlusCircle },
-    { name: language === "en" ? "Safe Shelters" : "নিরাপদ স্থান", href: "/safe-zones", icon: Shield },
+    { name: language === "en" ? "Safe Shelters" : "আশ্রয়স্থল", href: "/safe-zones", icon: Shield },
     { name: language === "en" ? "Safe Routes" : "নিরাপদ পথ", href: "/routes", icon: Navigation },
     { name: language === "en" ? "Alerts" : "সতর্কতা", href: "/alerts", icon: Bell },
     { name: language === "en" ? "Profile" : "প্রোফাইল", href: "/profile", icon: UserCheck },
@@ -77,64 +72,37 @@ export default function Navbar({
     selectedSeverity !== "all" || selectedCategory !== "all" || searchQuery.trim() !== "";
 
   return (
-    <header className="w-full bg-white/95 backdrop-blur-xl border-b border-slate-200 text-slate-800 sticky top-0 z-30 shadow-sm transition-all select-none">
-      {/* Situational Emergency Telemetry Strip */}
-      <div className="bg-slate-50 border-b border-slate-200/80 px-4 sm:px-6 py-1 text-xs flex justify-between items-center text-slate-600">
-        <div className="flex items-center gap-2">
-          <span className="relative flex h-2 w-2">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-red-600"></span>
-          </span>
-          <span className="font-semibold tracking-wider text-[11px] uppercase text-slate-700">
-            {language === "en"
-              ? "Bangladesh Public Safety Command • Live Network"
-              : "বাংলাদেশ জরুরি নিরাপত্তা কমান্ড • সরাসরি নেটওয়ার্ক"}
-          </span>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <div className="hidden sm:flex items-center gap-1.5 text-[11px] text-emerald-700 font-mono font-medium">
-            <Radio className="w-3 h-3 text-emerald-600 animate-pulse" />
-            <span>Grid: Synchronized</span>
-          </div>
-
-          <button
-            onClick={toggleLanguage}
-            className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-white hover:bg-slate-100 text-slate-700 transition-all border border-slate-200 text-[11px] font-bold shadow-2xs"
-            title="Switch Language (English / বাংলা)"
-            id="lang-toggle-btn"
-          >
-            <Globe className="w-3 h-3 text-blue-600" />
-            <span>{language === "en" ? "বাংলা" : "EN"}</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Main Command Navigation Header */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 h-14 sm:h-16 flex items-center justify-between gap-3">
-        {/* Brand Logo & Status Pill */}
-        <Link href="/" className="flex items-center gap-2.5 shrink-0 group">
-          <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-red-600 to-rose-600 flex items-center justify-center text-white shrink-0 shadow-md shadow-red-600/25 ring-1 ring-red-500/20 group-hover:scale-105 transition-all">
+    <header className="w-full bg-white/95 backdrop-blur-xl border-b border-slate-200 text-slate-800 sticky top-0 z-30 shadow-xs transition-all select-none">
+      {/* Main Single Premium Navbar (No top strip, language toggle integrated directly) */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-4">
+        {/* Brand Logo & Live Threat Counter */}
+        <Link href="/" className="flex items-center gap-3 shrink-0 group">
+          <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-red-600 to-rose-500 flex items-center justify-center text-white shrink-0 shadow-md shadow-red-500/25 ring-1 ring-red-400/30 group-hover:scale-105 transition-all">
             <ShieldAlert className="w-5 h-5 sm:w-6 sm:h-6" />
           </div>
           <div>
             <div className="flex items-center gap-2">
               <span className="text-base sm:text-lg font-black tracking-tight text-slate-900 group-hover:text-red-600 transition-colors">
-                {language === "en" ? "DANGER ZONE ⚡" : "বিপদ সংকেত ⚡"}
+                {language === "en" ? "DANGER ZONE" : "বিপদ সংকেত"}
               </span>
-              <span className="flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-50 text-red-700 border border-red-200">
-                <span className="w-1.5 h-1.5 rounded-full bg-red-600 animate-pulse" />
+              <span className="flex items-center gap-1.5 text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-red-50 text-red-700 border border-red-200 shadow-2xs font-mono">
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-red-600" />
+                </span>
                 <span>{totalIncidents} {language === "en" ? "Active" : "সক্রিয়"}</span>
               </span>
             </div>
-            <p className="text-[10px] text-slate-500 hidden md:block tracking-wide">
-              {language === "en" ? "Real-Time Hazard & Red Zone Map" : "সরাসরি গণনিরাপত্তা ও ঝুঁকিপূর্ণ অঞ্চল মানচিত্র"}
+            <p className="text-[10px] text-slate-500 hidden sm:block tracking-wide font-medium">
+              {language === "en"
+                ? "Bangladesh Civic Safety Network"
+                : "বাংলাদেশ জরুরি নাগরিক নিরাপত্তা ব্যবস্থা"}
             </p>
           </div>
         </Link>
 
         {/* Primary Desktop Navigation Links */}
-        <nav className="hidden xl:flex items-center gap-1">
+        <nav className="hidden xl:flex items-center gap-1 bg-slate-50/80 p-1 rounded-2xl border border-slate-200/80">
           {navLinks.map((link) => {
             const isActive = link.href === "/" ? pathname === "/" : pathname?.startsWith(link.href);
             const Icon = link.icon;
@@ -144,24 +112,50 @@ export default function Navbar({
                 href={link.href}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
                   isActive
-                    ? "bg-slate-100 text-slate-900 shadow-2xs border border-slate-200"
-                    : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
+                    ? "bg-white text-slate-900 shadow-2xs border border-slate-200/80 font-bold"
+                    : "text-slate-600 hover:text-slate-900 hover:bg-white/60"
                 }`}
               >
-                <Icon className={`w-3.5 h-3.5 ${isActive ? "text-blue-600" : "text-slate-500"}`} />
+                <Icon className={`w-3.5 h-3.5 ${isActive ? "text-blue-600" : "text-slate-400"}`} />
                 <span>{link.name}</span>
               </Link>
             );
           })}
         </nav>
 
-        {/* Action Controls, User Badge & Report Button */}
-        <div className="flex items-center gap-2 sm:gap-2.5">
-          {/* Admin console button */}
+        {/* Right Controls: Integrated Language Switcher, Citizen Trust Badge & Primary CTA */}
+        <div className="flex items-center gap-2 sm:gap-3">
+          {/* Integrated Tactile Language Switcher (EN | বাংলা) */}
+          <div className="flex items-center p-0.5 bg-slate-100 border border-slate-200 rounded-xl text-xs font-semibold shadow-2xs">
+            <button
+              onClick={() => language !== "en" && toggleLanguage()}
+              className={`px-2.5 py-1 rounded-lg transition-all text-[11px] ${
+                language === "en"
+                  ? "bg-white text-slate-900 font-bold shadow-2xs"
+                  : "text-slate-500 hover:text-slate-800"
+              }`}
+              title="English"
+            >
+              EN
+            </button>
+            <button
+              onClick={() => language !== "bn" && toggleLanguage()}
+              className={`px-2.5 py-1 rounded-lg transition-all text-[11px] ${
+                language === "bn"
+                  ? "bg-white text-slate-900 font-bold shadow-2xs"
+                  : "text-slate-500 hover:text-slate-800"
+              }`}
+              title="বাংলা"
+            >
+              বাংলা
+            </button>
+          </div>
+
+          {/* Admin Moderation Console Link */}
           {user?.role === "ADMIN" ? (
             <Link
               href="/admin"
-              className="bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 text-xs font-bold px-2.5 py-1.5 rounded-xl flex items-center gap-1.5 transition-all shadow-2xs"
+              className="bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 text-xs font-bold px-3 py-1.5 rounded-xl flex items-center gap-1.5 transition-all shadow-2xs"
               title="Open Admin Moderation Console"
             >
               <Lock className="w-3.5 h-3.5 text-purple-600" />
@@ -170,22 +164,22 @@ export default function Navbar({
           ) : (
             <Link
               href="/profile"
-              className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 border border-slate-200 rounded-xl text-[11px] text-slate-700 hover:bg-slate-100 transition"
-              title="Citizen Trust Score"
+              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-xs text-slate-700 transition shadow-2xs"
+              title="Citizen Trust Score & Identity"
             >
-              <span className="w-2 h-2 rounded-full bg-emerald-500" />
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
               <span className="font-semibold text-slate-800">
                 {user?.role === "VERIFIED_RESPONDER"
                   ? language === "en" ? "Verified" : "যাচাইকৃত"
                   : language === "en" ? "Citizen" : "নাগরিক"}
               </span>
-              <span className="text-slate-500 font-mono">
+              <span className="text-slate-500 font-mono text-[11px]">
                 ({user?.trustScore ?? 50})
               </span>
             </Link>
           )}
 
-          {/* High-Visibility Report Hazard CTA */}
+          {/* High-Visibility Primary Report Hazard CTA */}
           {onOpenReportModal ? (
             <button
               onClick={onOpenReportModal}
@@ -205,10 +199,10 @@ export default function Navbar({
             </Link>
           )}
 
-          {/* Mobile menu toggle */}
+          {/* Mobile Navigation Drawer Toggle */}
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="xl:hidden p-2 rounded-xl border border-slate-200 bg-slate-50 text-slate-700 hover:text-slate-900 hover:bg-slate-100 transition-colors"
+            className="xl:hidden p-2 rounded-xl border border-slate-200 bg-slate-50 text-slate-700 hover:text-slate-900 hover:bg-slate-100 transition-colors shadow-2xs"
             aria-label="Toggle menu"
           >
             {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
@@ -218,7 +212,7 @@ export default function Navbar({
 
       {/* Mobile Drawer Menu */}
       {mobileMenuOpen && (
-        <div className="xl:hidden border-t border-slate-200 bg-white/98 backdrop-blur-2xl px-4 py-3 space-y-1.5 shadow-xl animate-in slide-in-from-top-2 duration-150">
+        <div className="xl:hidden border-t border-slate-200 bg-white/98 backdrop-blur-2xl px-4 py-3 space-y-2 shadow-xl animate-in slide-in-from-top-2 duration-150">
           <div className="grid grid-cols-2 gap-1.5 pb-2 border-b border-slate-100">
             {navLinks.map((link) => {
               const isActive = link.href === "/" ? pathname === "/" : pathname?.startsWith(link.href);
@@ -241,22 +235,36 @@ export default function Navbar({
             })}
           </div>
 
-          {user?.role === "ADMIN" && (
+          <div className="flex items-center justify-between pt-1">
             <Link
-              href="/admin"
+              href="/profile"
               onClick={() => setMobileMenuOpen(false)}
-              className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold bg-purple-50 text-purple-700 border border-purple-200"
+              className="flex items-center gap-1.5 text-xs text-slate-700 font-semibold"
             >
-              <Lock className="w-4 h-4" />
-              <span>Admin Moderation Console</span>
+              <span className="w-2 h-2 rounded-full bg-emerald-500" />
+              <span>
+                {language === "en" ? "Citizen Trust Score:" : "নাগরিক ট্রাস্ট স্কোর:"}{" "}
+                <span className="font-mono text-slate-900 font-bold">{user?.trustScore ?? 50}</span>
+              </span>
             </Link>
-          )}
+
+            {user?.role === "ADMIN" && (
+              <Link
+                href="/admin"
+                onClick={() => setMobileMenuOpen(false)}
+                className="flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-bold bg-purple-50 text-purple-700 border border-purple-200"
+              >
+                <Lock className="w-3.5 h-3.5" />
+                <span>Admin Console</span>
+              </Link>
+            )}
+          </div>
         </div>
       )}
 
-      {/* Filter Chips & Live Search Bar (Rendered on Landing Page) */}
+      {/* Filter Chips & Live Search Bar (Smooth Daylight Glassmorphism) */}
       {showFilters && (
-        <div className="border-t border-slate-200/90 bg-white px-3 sm:px-6 py-2 overflow-x-auto scrollbar-none">
+        <div className="border-t border-slate-200/80 bg-slate-50/70 backdrop-blur-md px-3 sm:px-6 py-2 overflow-x-auto scrollbar-none">
           <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
             {/* Quick Filter Chips */}
             <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 scrollbar-none shrink-0">
@@ -269,7 +277,7 @@ export default function Navbar({
                 className={`text-xs px-3 py-1.5 rounded-xl font-bold border transition-all shrink-0 ${
                   selectedSeverity === "all" && selectedCategory === "all"
                     ? "bg-slate-900 text-white border-slate-900 shadow-2xs"
-                    : "bg-slate-50 text-slate-600 border-slate-200 hover:text-slate-900 hover:bg-slate-100"
+                    : "bg-white text-slate-600 border-slate-200 hover:text-slate-900 hover:bg-slate-100"
                 }`}
               >
                 {t.allIncidents}
@@ -281,7 +289,7 @@ export default function Navbar({
                 className={`text-xs px-3 py-1.5 rounded-xl font-bold border flex items-center gap-1.5 transition-all shrink-0 ${
                   selectedSeverity === "HIGH" || selectedSeverity === "critical"
                     ? "bg-red-600 text-white border-red-600 shadow-sm shadow-red-600/20"
-                    : "bg-red-50 text-red-700 border-red-200 hover:bg-red-100"
+                    : "bg-white text-red-700 border-red-200 hover:bg-red-50"
                 }`}
               >
                 <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
@@ -298,7 +306,7 @@ export default function Navbar({
                     className={`text-xs px-2.5 py-1.5 rounded-xl font-medium border flex items-center gap-1.5 transition-all shrink-0 ${
                       isSelected
                         ? "bg-blue-600 text-white border-blue-600 shadow-2xs"
-                        : "bg-slate-50 text-slate-600 border-slate-200 hover:text-slate-900 hover:bg-slate-100"
+                        : "bg-white text-slate-600 border-slate-200 hover:text-slate-900 hover:bg-slate-100"
                     }`}
                   >
                     <span>{cat.icon}</span>
@@ -311,7 +319,7 @@ export default function Navbar({
               {hasActiveFilters && (
                 <button
                   onClick={resetFilters}
-                  className="text-xs px-2.5 py-1 text-slate-500 hover:text-slate-900 underline transition shrink-0 ml-1"
+                  className="text-xs px-2.5 py-1 text-slate-500 hover:text-slate-900 underline transition shrink-0 ml-1 font-medium"
                 >
                   {language === "en" ? "Reset" : "মুছে ফেলুন"}
                 </button>
@@ -330,7 +338,7 @@ export default function Navbar({
                     ? "Filter area or title..."
                     : "এলাকা বা শিরোনাম খুঁজুন..."
                 }
-                className="w-full pl-8 pr-7 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition"
+                className="w-full pl-8 pr-7 py-1.5 text-xs bg-white border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition shadow-2xs"
               />
               {searchQuery && (
                 <button
