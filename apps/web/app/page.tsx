@@ -4,7 +4,6 @@ import { useState, useEffect, useMemo } from "react";
 import Navbar from "@/components/layout/Navbar";
 import DynamicMap from "@/components/map/DynamicMap";
 import IncidentFeed from "@/components/incidents/IncidentFeed";
-import ReportIncidentModal from "@/components/incidents/ReportIncidentModal";
 import { useLanguageStore } from "@/store/useLanguageStore";
 import { useIncidentStore } from "@/store/useIncidentStore";
 import { useFilterStore } from "@/store/useFilterStore";
@@ -21,7 +20,6 @@ import {
 } from "lucide-react";
 
 export default function Home() {
-  const [reportModalOpen, setReportModalOpen] = useState(false);
   const [desktopSidebarOpen, setDesktopSidebarOpen] = useState(true);
   const [mobileSheetOpen, setMobileSheetOpen] = useState(false);
 
@@ -75,7 +73,6 @@ export default function Home() {
       {/* Top Command Navigation Header with integrated Filters & Search */}
       <Navbar
         totalIncidents={activeCount}
-        onOpenReportModal={() => setReportModalOpen(true)}
         showFilters={true}
       />
 
@@ -230,12 +227,6 @@ export default function Home() {
           </div>
         </div>
       )}
-
-      {/* Report Incident Modal (Mounted with z-[2000] above all HUD elements) */}
-      <ReportIncidentModal
-        isOpen={reportModalOpen}
-        onClose={() => setReportModalOpen(false)}
-      />
     </main>
   );
 }

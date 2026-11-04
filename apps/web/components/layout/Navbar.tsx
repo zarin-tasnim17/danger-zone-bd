@@ -190,24 +190,14 @@ export default function Navbar({
           )}
 
           {/* High-Visibility Primary Report Hazard CTA */}
-          {onOpenReportModal ? (
-            <button
-              onClick={onOpenReportModal}
-              className="relative group overflow-hidden bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-700 hover:to-rose-700 text-white text-xs sm:text-sm font-bold px-3.5 sm:px-4 py-2 rounded-xl flex items-center gap-1.5 transition-all shadow-md shadow-red-600/20 active:scale-95 ring-1 ring-red-500/30"
-              id="report-incident-btn"
-            >
-              <PlusCircle className="w-4 h-4 shrink-0" />
-              <span>{language === "en" ? "Report Threat" : "বিপদ রিপোর্ট"}</span>
-            </button>
-          ) : (
-            <Link
-              href="/report"
-              className="relative group overflow-hidden bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-700 hover:to-rose-700 text-white text-xs sm:text-sm font-bold px-3.5 sm:px-4 py-2 rounded-xl flex items-center gap-1.5 transition-all shadow-md shadow-red-600/20 active:scale-95 ring-1 ring-red-500/30"
-            >
-              <PlusCircle className="w-4 h-4 shrink-0" />
-              <span>{language === "en" ? "Report Threat" : "বিপদ রিপোর্ট"}</span>
-            </Link>
-          )}
+          <Link
+            href="/report"
+            className="relative group overflow-hidden bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-700 hover:to-rose-700 text-white text-xs sm:text-sm font-bold px-3.5 sm:px-4 py-2 rounded-xl flex items-center gap-1.5 transition-all shadow-md shadow-red-600/20 active:scale-95 ring-1 ring-red-500/30"
+            id="report-incident-btn"
+          >
+            <PlusCircle className="w-4 h-4 shrink-0" />
+            <span>{language === "en" ? "Report Threat" : "বিপদ রিপোর্ট"}</span>
+          </Link>
 
           {/* Mobile Navigation Drawer Toggle */}
           <button

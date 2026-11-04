@@ -3,7 +3,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import Link from "next/link";
 import Navbar from "@/components/layout/Navbar";
-import ReportIncidentModal from "@/components/incidents/ReportIncidentModal";
 import { apiFetch } from "@/lib/api";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useLanguageStore } from "@/store/useLanguageStore";
@@ -157,7 +156,6 @@ export default function FeedPage() {
 
   // Interaction States
   const [votingId, setVotingId] = useState<string | null>(null);
-  const [reportModalOpen, setReportModalOpen] = useState(false);
   const [expandedCommentsId, setExpandedCommentsId] = useState<string | null>(null);
   const [commentsMap, setCommentsMap] = useState<Record<string, IncidentComment[]>>({});
   const [loadingCommentsId, setLoadingCommentsId] = useState<string | null>(null);
@@ -383,7 +381,6 @@ export default function FeedPage() {
       {/* World-Class Single Daylight Navbar (No auxiliary route test strip, integrated language switch) */}
       <Navbar
         totalIncidents={activeCount}
-        onOpenReportModal={() => setReportModalOpen(true)}
         showFilters={false}
       />
 
@@ -433,13 +430,13 @@ export default function FeedPage() {
                 <span>{isBn ? "ম্যাপে দেখুন" : "View Map"}</span>
               </Link>
 
-              <button
-                onClick={() => setReportModalOpen(true)}
+              <Link
+                href="/report"
                 className="px-4 py-2.5 rounded-2xl bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-700 hover:to-rose-700 text-white text-xs font-bold flex items-center gap-2 transition active:scale-95 shadow-md shadow-red-600/20 ring-1 ring-red-500/30"
               >
                 <PlusCircle className="w-4 h-4" />
                 <span>{isBn ? "নতুন বিপদ রিপোর্ট" : "Report Hazard"}</span>
-              </button>
+              </Link>
             </div>
           </div>
 
@@ -690,12 +687,12 @@ export default function FeedPage() {
               >
                 {isBn ? "ফিল্টার মুছুন" : "Reset Filters"}
               </button>
-              <button
-                onClick={() => setReportModalOpen(true)}
+              <Link
+                href="/report"
                 className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold transition active:scale-95 shadow-md shadow-red-600/20"
               >
                 {isBn ? "নতুন রিপোর্ট করুন" : "Submit Incident"}
-              </button>
+              </Link>
             </div>
           </div>
         ) : (
@@ -938,15 +935,6 @@ export default function FeedPage() {
           </div>
         )}
       </main>
-
-      {/* Report Incident Modal (Mounted with z-[2000] above all layers) */}
-      <ReportIncidentModal
-        isOpen={reportModalOpen}
-        onClose={() => {
-          setReportModalOpen(false);
-          fetchIncidents();
-        }}
-      />
     </div>
   );
 }
