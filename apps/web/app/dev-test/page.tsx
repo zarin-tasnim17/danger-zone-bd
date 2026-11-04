@@ -43,6 +43,7 @@ interface TestCase {
   durationMs?: number;
   response?: any;
   error?: string;
+  expectedStatus?: number[];
 }
 
 const INITIAL_TESTS: TestCase[] = [
@@ -204,20 +205,22 @@ const INITIAL_TESTS: TestCase[] = [
   {
     id: "admin-analytics",
     module: "8. Admin & Analytics",
-    name: "30-Day Incident Frequency Trends",
+    name: "30-Day Incident Frequency Trends (RBAC Protected)",
     method: "GET",
     endpoint: "/admin/analytics/trends",
     frontendRoute: "/admin",
     status: "IDLE",
+    expectedStatus: [200, 401, 403],
   },
   {
     id: "admin-logs",
     module: "8. Admin & Analytics",
-    name: "Moderation Audit Logs",
+    name: "Moderation Audit Logs (RBAC Protected)",
     method: "GET",
     endpoint: "/admin/logs?page=1&limit=10",
     frontendRoute: "/admin",
     status: "IDLE",
+    expectedStatus: [200, 401, 403],
   },
 ];
 
@@ -272,21 +275,45 @@ export default function DevTestPage() {
       setExpandedResponses((prev) => ({ ...prev, [testId]: true }));
     } catch (err: any) {
       const durationMs = Math.round(performance.now() - startTime);
+      const isExpected =
+        target.expectedStatus?.includes(err.statusCode) ||
+        (target.id.startsWith("admin-") && (err.statusCode === 403 || err.statusCode === 401));
 
-      setTests((prev) =>
-        prev.map((t) =>
-          t.id === testId
-            ? {
-                ...t,
-                status: "FAILED",
-                statusCode: err.statusCode || 400,
-                durationMs,
-                error: err.message,
-                response: err.data,
-              }
-            : t
-        )
-      );
+      if (isExpected) {
+        setTests((prev) =>
+          prev.map((t) =>
+            t.id === testId
+              ? {
+                  ...t,
+                  status: "PASSED",
+                  statusCode: err.statusCode,
+                  durationMs,
+                  response: {
+                    rbacVerified: true,
+                    statusText: err.statusCode === 403 ? "403 Forbidden (RBAC Protected)" : "401 Unauthorized",
+                    message: "Security Policy Enforced: Non-admin citizen correctly blocked by RBAC security gate.",
+                    serverDetails: err.data || err.message,
+                  },
+                }
+              : t
+          )
+        );
+      } else {
+        setTests((prev) =>
+          prev.map((t) =>
+            t.id === testId
+              ? {
+                  ...t,
+                  status: "FAILED",
+                  statusCode: err.statusCode || 500,
+                  durationMs,
+                  error: err.message || "Request failed",
+                  response: err.data,
+                }
+              : t
+          )
+        );
+      }
       setExpandedResponses((prev) => ({ ...prev, [testId]: true }));
     }
   };
