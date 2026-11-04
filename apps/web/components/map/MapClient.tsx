@@ -126,19 +126,14 @@ function createSafeZoneIcon(type: string) {
   });
 }
 
-// Map events handler to update store on user movement and trigger viewport incident loading
+// Map events handler to trigger viewport incident loading on user pan or zoom
 function MapEventsHandler() {
-  const setCenter = useMapStore((state) => state.setCenter);
-  const setZoom = useMapStore((state) => state.setZoom);
   const fetchIncidentsInBounds = useIncidentStore((state) => state.fetchIncidentsInBounds);
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
 
   const map = useMapEvents({
     moveend: () => {
-      const c = map.getCenter();
-      setCenter({ lat: c.lat, lng: c.lng });
-
-      // Debounce viewport bounds query to prevent re-fetching on every continuous zoom or pan step
+      // Debounce viewport bounds query to prevent re-fetching on continuous zoom or pan
       if (debounceRef.current) {
         clearTimeout(debounceRef.current);
       }
@@ -151,9 +146,6 @@ function MapEventsHandler() {
           maxLng: b.getEast(),
         });
       }, 350);
-    },
-    zoomend: () => {
-      setZoom(map.getZoom());
     },
   });
 
@@ -182,7 +174,7 @@ function MapEventsHandler() {
   return null;
 }
 
-// Map center updater when store center updates externally
+// Map center updater when store center updates externally (e.g. clicking incident card or locator)
 function MapViewUpdater({
   center,
   zoom,
@@ -191,9 +183,33 @@ function MapViewUpdater({
   zoom: number;
 }) {
   const map = useMap();
+  const lastTargetRef = useRef<{ lat: number; lng: number; zoom: number } | null>(null);
 
   useEffect(() => {
-    map.flyTo([center.lat, center.lng], zoom, { duration: 1.2 });
+    const currentCenter = map.getCenter();
+    const currentZoom = map.getZoom();
+
+    const latDiff = Math.abs(currentCenter.lat - center.lat);
+    const lngDiff = Math.abs(currentCenter.lng - center.lng);
+    const zoomDiff = Math.abs(currentZoom - zoom);
+
+    // If map is already at this position within micro-threshold, prevent infinite animation loop
+    if (latDiff < 0.0001 && lngDiff < 0.0001 && zoomDiff === 0) {
+      return;
+    }
+
+    // If already commanded to this exact target, do not re-fly
+    if (
+      lastTargetRef.current &&
+      lastTargetRef.current.lat === center.lat &&
+      lastTargetRef.current.lng === center.lng &&
+      lastTargetRef.current.zoom === zoom
+    ) {
+      return;
+    }
+
+    lastTargetRef.current = { lat: center.lat, lng: center.lng, zoom };
+    map.flyTo([center.lat, center.lng], zoom, { duration: 1.0 });
   }, [center.lat, center.lng, zoom, map]);
 
   return null;

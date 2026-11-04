@@ -1,4 +1,4 @@
-const CACHE_NAME = "bd-safety-map-v1";
+const CACHE_NAME = "bd-safety-map-v2";
 const STATIC_ASSETS = ["/", "/feed", "/safe-zones", "/alerts", "/manifest.json"];
 
 self.addEventListener("install", (event) => {
@@ -26,9 +26,19 @@ self.addEventListener("activate", (event) => {
 });
 
 self.addEventListener("fetch", (event) => {
+  // Only intercept GET requests - mutation requests (POST/PATCH/DELETE) pass through natively
+  if (event.request.method !== "GET") {
+    return;
+  }
+
   const url = new URL(event.request.url);
 
-  // Cache OpenStreetMap or CartoDB tiles with stale-while-revalidate or cache-first
+  // Do not intercept Socket.IO polling or WebSockets
+  if (url.pathname.includes("/socket.io/") || url.pathname.startsWith("/api/")) {
+    return;
+  }
+
+  // Cache OpenStreetMap or CartoDB tiles with stale-while-revalidate
   if (
     url.hostname.includes("tile.openstreetmap.org") ||
     url.hostname.includes("cartocdn.com")
@@ -51,8 +61,27 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Network first for page navigation and API requests, fall back to cache
+  // Network-first for static pages and navigation, falling back to cache or offline fallback response
   event.respondWith(
-    fetch(event.request).catch(() => caches.match(event.request))
+    fetch(event.request).catch(async () => {
+      try {
+        const cached = await caches.match(event.request);
+        if (cached) {
+          return cached;
+        }
+        if (event.request.mode === "navigate") {
+          const fallback = await caches.match("/");
+          if (fallback) return fallback;
+        }
+      } catch {
+        // Fall through to offline response
+      }
+
+      return new Response("Network unavailable. Service is offline.", {
+        status: 503,
+        statusText: "Service Unavailable",
+        headers: { "Content-Type": "text/plain" },
+      });
+    })
   );
 });
