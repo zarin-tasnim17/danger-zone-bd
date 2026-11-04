@@ -309,7 +309,36 @@ export default function MapClient() {
     });
   }, [incidents, selectedSeverity, selectedCategory, searchQuery]);
 
-  // Request browser geolocation
+  // Boundary validator: ensure coordinates lie inside Bangladesh bounds
+  const isWithinBangladesh = (lat: number, lng: number) => {
+    return lat >= 20.3 && lat <= 26.8 && lng >= 87.8 && lng <= 92.9;
+  };
+
+  // Automatically detect user location on mount and smoothly zoom into their local neighborhood
+  useEffect(() => {
+    if (typeof window === "undefined" || !navigator.geolocation) return;
+
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        setUserLocation(coords);
+
+        if (isWithinBangladesh(coords.lat, coords.lng)) {
+          setCenter(coords);
+          setZoom(15);
+        } else {
+          console.info("[Geo] Device is outside Bangladesh boundaries. Displaying national view.");
+        }
+      },
+      (err) => {
+        // Silent graceful fallback if permission denied, timeout, or location unavailable
+        console.info("[Geo] Auto-location skipped:", err.message);
+      },
+      { enableHighAccuracy: true, timeout: 6000, maximumAge: 60000 }
+    );
+  }, [setCenter, setZoom]);
+
+  // Request browser geolocation (manual button click)
   const handleLocateMe = () => {
     if (!navigator.geolocation) {
       alert("Geolocation is not supported by your browser");
@@ -320,8 +349,13 @@ export default function MapClient() {
       (pos) => {
         const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
         setUserLocation(coords);
-        setCenter(coords);
-        setZoom(16);
+
+        if (isWithinBangladesh(coords.lat, coords.lng)) {
+          setCenter(coords);
+          setZoom(15);
+        } else {
+          alert("Your detected GPS location is outside Bangladesh boundaries.");
+        }
         setIsLocating(false);
       },
       (err) => {
@@ -380,9 +414,9 @@ export default function MapClient() {
             title="Locate Me (Current GPS)"
           >
             {isLocating ? (
-              <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
+              <Loader2 className={`w-4 h-4 animate-spin ${userLocation ? "text-white" : "text-blue-600"}`} />
             ) : (
-              <Crosshair className="w-4 h-4 text-blue-600" />
+              <Crosshair className={`w-4 h-4 ${userLocation ? "text-white" : "text-blue-600"}`} />
             )}
             <span className="hidden sm:inline text-xs">
               {language === "en" ? "My Location" : "আমার অবস্থান"}
