@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect, Fragment } from "react";
+import { useState, useMemo, useEffect, useRef, Fragment } from "react";
 import Link from "next/link";
 import {
   MapContainer,
@@ -131,23 +131,40 @@ function MapEventsHandler() {
   const setCenter = useMapStore((state) => state.setCenter);
   const setZoom = useMapStore((state) => state.setZoom);
   const fetchIncidentsInBounds = useIncidentStore((state) => state.fetchIncidentsInBounds);
+  const debounceRef = useRef<NodeJS.Timeout | null>(null);
 
   const map = useMapEvents({
     moveend: () => {
       const c = map.getCenter();
       setCenter({ lat: c.lat, lng: c.lng });
-      const b = map.getBounds();
-      fetchIncidentsInBounds({
-        minLat: b.getSouth(),
-        maxLat: b.getNorth(),
-        minLng: b.getWest(),
-        maxLng: b.getEast(),
-      });
+
+      // Debounce viewport bounds query to prevent re-fetching on every continuous zoom or pan step
+      if (debounceRef.current) {
+        clearTimeout(debounceRef.current);
+      }
+      debounceRef.current = setTimeout(() => {
+        const b = map.getBounds();
+        fetchIncidentsInBounds({
+          minLat: b.getSouth(),
+          maxLat: b.getNorth(),
+          minLng: b.getWest(),
+          maxLng: b.getEast(),
+        });
+      }, 350);
     },
     zoomend: () => {
       setZoom(map.getZoom());
     },
   });
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) {
+        clearTimeout(debounceRef.current);
+      }
+    };
+  }, []);
 
   // Initial bounds load on map readiness
   useEffect(() => {

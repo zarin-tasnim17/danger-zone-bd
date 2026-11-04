@@ -24,6 +24,7 @@ import {
   Search,
   RotateCcw,
   PlusCircle,
+  Loader2,
 } from "lucide-react";
 
 function formatRelativeTime(dateString: string, lang: "en" | "bn"): string {
@@ -53,6 +54,7 @@ export default function IncidentFeed({ onIncidentSelect }: { onIncidentSelect?: 
   const { language } = useLanguageStore();
   const incidents = useIncidentStore((state) => state.incidents);
   const isLoading = useIncidentStore((state) => state.isLoading);
+  const isUpdatingBounds = useIncidentStore((state) => state.isUpdatingBounds);
   const error = useIncidentStore((state) => state.error);
   const activeBounds = useIncidentStore((state) => state.activeBounds);
   const fetchIncidentsInBounds = useIncidentStore((state) => state.fetchIncidentsInBounds);
@@ -135,6 +137,14 @@ export default function IncidentFeed({ onIncidentSelect }: { onIncidentSelect?: 
         </div>
 
         <div className="flex items-center gap-1.5">
+          {isUpdatingBounds && (
+            <span className="text-[10px] text-slate-500 flex items-center gap-1 font-medium bg-slate-100 px-2 py-0.5 rounded-full border border-slate-200 shadow-2xs">
+              <Loader2 className="w-3 h-3 animate-spin text-blue-600" />
+              <span className="hidden sm:inline">
+                {language === "en" ? "Syncing..." : "সিঙ্ক হচ্ছে..."}
+              </span>
+            </span>
+          )}
           <span className="text-[11px] font-mono font-bold px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200 shadow-2xs">
             {filtered.length} {language === "en" ? "reports" : "টি"}
           </span>
@@ -143,7 +153,7 @@ export default function IncidentFeed({ onIncidentSelect }: { onIncidentSelect?: 
 
       {/* Scrollable Incident Cards List */}
       <div className="flex-1 overflow-y-auto p-3 space-y-3 bg-slate-50/40">
-        {isLoading ? (
+        {isLoading && incidents.length === 0 ? (
           <div className="space-y-3 py-1">
             {[1, 2, 3].map((n) => (
               <div

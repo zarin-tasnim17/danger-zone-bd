@@ -15,6 +15,7 @@ interface IncidentState {
   incidents: DangerIncident[];
   safeZones: SafeZoneItem[];
   isLoading: boolean;
+  isUpdatingBounds: boolean;
   error: string | null;
   activeBounds: { minLat: number; maxLat: number; minLng: number; maxLng: number } | null;
   setIncidents: (incidents: DangerIncident[]) => void;
@@ -54,6 +55,7 @@ export const useIncidentStore = create<IncidentState>((set, get) => ({
   incidents: [],
   safeZones: [],
   isLoading: true,
+  isUpdatingBounds: false,
   error: null,
   activeBounds: null,
 
@@ -65,7 +67,12 @@ export const useIncidentStore = create<IncidentState>((set, get) => ({
     })),
 
   fetchIncidentsInBounds: async (bounds) => {
-    set({ isLoading: true, error: null, activeBounds: bounds });
+    const hasExistingData = get().incidents.length > 0;
+    if (hasExistingData) {
+      set({ isUpdatingBounds: true, error: null, activeBounds: bounds });
+    } else {
+      set({ isLoading: true, isUpdatingBounds: true, error: null, activeBounds: bounds });
+    }
 
     try {
       // Update viewport on server for targeted Socket.IO emissions
@@ -86,16 +93,19 @@ export const useIncidentStore = create<IncidentState>((set, get) => ({
       const reports = await apiFetch<any[]>(`/reports?${query.toString()}`);
       if (Array.isArray(reports)) {
         const mapped = reports.map(mapBackendToFrontendIncident);
-        set({ incidents: mapped, isLoading: false, error: null });
+        set({ incidents: mapped, isLoading: false, isUpdatingBounds: false, error: null });
       } else {
-        set({ incidents: [], isLoading: false, error: null });
+        set({ incidents: [], isLoading: false, isUpdatingBounds: false, error: null });
       }
     } catch (err: any) {
       console.error("[Incidents] Fetch failed from live database:", err.message);
+      // Preserve existing incidents during map movements if background refresh fails
       set({
-        incidents: [],
         isLoading: false,
-        error: err.message || "Unable to connect to live public safety network.",
+        isUpdatingBounds: false,
+        error: hasExistingData
+          ? null
+          : (err.message || "Unable to connect to live public safety network."),
       });
     }
   },

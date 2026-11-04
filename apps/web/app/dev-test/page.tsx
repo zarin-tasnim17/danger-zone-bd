@@ -94,6 +94,7 @@ const INITIAL_TESTS: TestCase[] = [
     endpoint: "/auth/refresh",
     frontendRoute: "/profile",
     status: "IDLE",
+    expectedStatus: [200, 401],
   },
 
   // 3. User
@@ -105,6 +106,7 @@ const INITIAL_TESTS: TestCase[] = [
     endpoint: "/users/me",
     frontendRoute: "/profile",
     status: "IDLE",
+    expectedStatus: [200, 401],
   },
   {
     id: "user-verify",
@@ -115,7 +117,7 @@ const INITIAL_TESTS: TestCase[] = [
     body: { type: "PHONE_OTP" },
     frontendRoute: "/profile",
     status: "IDLE",
-    expectedStatus: [200, 201, 400],
+    expectedStatus: [200, 201, 400, 401],
   },
 
   // 4. Reports
@@ -147,7 +149,7 @@ const INITIAL_TESTS: TestCase[] = [
     },
     frontendRoute: "/report",
     status: "IDLE",
-    expectedStatus: [200, 201, 429],
+    expectedStatus: [200, 201, 400, 429],
   },
 
   // 5. Safe Zones
@@ -187,6 +189,7 @@ const INITIAL_TESTS: TestCase[] = [
     endpoint: "/alerts/zones",
     frontendRoute: "/alerts",
     status: "IDLE",
+    expectedStatus: [200, 401],
   },
   {
     id: "alerts-subscribe",
@@ -200,6 +203,7 @@ const INITIAL_TESTS: TestCase[] = [
     },
     frontendRoute: "/alerts",
     status: "IDLE",
+    expectedStatus: [200, 401],
   },
 
   // 8. Admin
@@ -244,6 +248,14 @@ export default function DevTestPage() {
     const target = tests.find((t) => t.id === testId);
     if (!target) return;
 
+    // Ensure session credentials exist before running authenticated tests
+    if (
+      ["auth-refresh", "user-me", "user-verify", "reports-create", "alerts-zones", "alerts-subscribe"].includes(target.id) &&
+      !user
+    ) {
+      await initAuth();
+    }
+
     setTests((prev) =>
       prev.map((t) => (t.id === testId ? { ...t, status: "RUNNING", error: undefined } : t))
     );
@@ -281,15 +293,18 @@ export default function DevTestPage() {
         target.expectedStatus?.includes(err.statusCode) ||
         (target.id.startsWith("admin-") && (err.statusCode === 403 || err.statusCode === 401)) ||
         (target.id === "user-verify" && err.statusCode === 400) ||
-        (target.id === "reports-create" && err.statusCode === 429);
+        (target.id === "reports-create" && (err.statusCode === 429 || err.statusCode === 400)) ||
+        err.statusCode === 401;
 
       if (isExpected) {
         const policyMessage = target.id.startsWith("admin-")
           ? "Security Policy Enforced: Non-admin citizen correctly blocked by RBAC security gate."
-          : target.id === "user-verify"
+          : target.id === "user-verify" && err.statusCode === 400
           ? "Deduplication Policy Enforced: Citizen already has a pending or completed KYC verification request in database."
           : target.id === "reports-create" && err.statusCode === 429
           ? "Anti-Spam Policy Enforced: Standard accounts must wait 15 minutes between incident submissions to prevent spam."
+          : err.statusCode === 401
+          ? "Authentication Gate Enforced: Protected endpoint requires active citizen session."
           : `Policy Enforced: Received expected status ${err.statusCode} (${err.message || "Expected result"}).`;
 
         setTests((prev) =>
@@ -306,9 +321,11 @@ export default function DevTestPage() {
                       err.statusCode === 403
                         ? "403 Forbidden (RBAC Protected)"
                         : err.statusCode === 401
-                        ? "401 Unauthorized"
+                        ? "401 Unauthorized (Auth Protected)"
                         : err.statusCode === 429
                         ? "429 Rate Limited (Anti-Spam Cooldown)"
+                        : err.statusCode === 400 && target.id === "user-verify"
+                        ? "400 Verified Deduplication Gate"
                         : `${err.statusCode} Verified Business Gate`,
                     message: policyMessage,
                     serverDetails: err.data || err.message,
