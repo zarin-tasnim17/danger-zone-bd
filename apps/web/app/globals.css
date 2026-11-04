@@ -4,11 +4,11 @@
 
 @layer base {
   :root {
-    --color-bg: #f8fafc;
-    --color-surface: #ffffff;
-    --color-border: #e2e8f0;
-    --color-text: #0f172a;
-    --color-text-muted: #475569;
+    --color-bg: #030712;
+    --color-surface: #0f172a;
+    --color-border: #1e293b;
+    --color-text: #f8fafc;
+    --color-text-muted: #94a3b8;
   }
 
   body {
@@ -17,53 +17,63 @@
     font-family: 'Inter', 'Noto Sans Bengali', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    overflow-x: hidden;
   }
 
   /* Accessible solid focus states */
   *:focus-visible {
-    outline: 2px solid #2563eb;
+    outline: 2px solid #3b82f6;
     outline-offset: 2px;
   }
 }
 
-/* Custom crisp Leaflet styling overrides */
+/* Custom Tactical Leaflet styling overrides */
 .leaflet-container {
   font-family: inherit;
   z-index: 0;
   width: 100%;
   height: 100%;
+  background-color: #030712 !important;
 }
 
+/* Dark Glassmorphic Zoom Controls */
 .leaflet-bar {
-  border: 1px solid #e2e8f0 !important;
-  box-shadow: 0 1px 3px 0 rgba(15, 23, 42, 0.08) !important;
-  border-radius: 6px !important;
+  border: 1px solid rgba(51, 65, 85, 0.8) !important;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.6) !important;
+  border-radius: 12px !important;
   overflow: hidden;
+  backdrop-filter: blur(16px) !important;
+  -webkit-backdrop-filter: blur(16px) !important;
 }
 
 .leaflet-bar a {
-  background-color: #ffffff !important;
-  color: #0f172a !important;
-  border-bottom: 1px solid #e2e8f0 !important;
-  width: 32px !important;
-  height: 32px !important;
-  line-height: 32px !important;
-  font-size: 14px !important;
-  font-weight: 600 !important;
-  transition: background-color 0.15s ease;
+  background-color: rgba(15, 23, 42, 0.9) !important;
+  color: #f8fafc !important;
+  border-bottom: 1px solid rgba(51, 65, 85, 0.8) !important;
+  width: 36px !important;
+  height: 36px !important;
+  line-height: 36px !important;
+  font-size: 16px !important;
+  font-weight: 700 !important;
+  transition: all 0.2s ease !important;
 }
 
 .leaflet-bar a:hover {
-  background-color: #f1f5f9 !important;
-  color: #0f172a !important;
+  background-color: rgba(30, 41, 59, 1) !important;
+  color: #60a5fa !important;
 }
 
+/* Dark Glassmorphic Leaflet Popups */
 .leaflet-popup-content-wrapper {
-  border-radius: 8px !important;
-  box-shadow: 0 4px 6px -1px rgba(15, 23, 42, 0.1), 0 2px 4px -2px rgba(15, 23, 42, 0.1) !important;
-  border: 1px solid #e2e8f0 !important;
+  background: rgba(15, 23, 42, 0.96) !important;
+  backdrop-filter: blur(20px) !important;
+  -webkit-backdrop-filter: blur(20px) !important;
+  border-radius: 16px !important;
+  box-shadow: 0 25px 35px -5px rgba(0, 0, 0, 0.7), 0 10px 10px -5px rgba(0, 0, 0, 0.5) !important;
+  border: 1px solid rgba(71, 85, 105, 0.5) !important;
   padding: 0 !important;
   overflow: hidden;
+  color: #f8fafc !important;
 }
 
 .leaflet-popup-content {
@@ -72,7 +82,47 @@
 }
 
 .leaflet-popup-tip {
-  background: #ffffff !important;
+  background: rgba(15, 23, 42, 0.96) !important;
   box-shadow: none !important;
-  border: 1px solid #e2e8f0;
+  border: 1px solid rgba(71, 85, 105, 0.5) !important;
+}
+
+.leaflet-container a.leaflet-popup-close-button {
+  color: #94a3b8 !important;
+  padding: 6px !important;
+  top: 8px !important;
+  right: 8px !important;
+  font-size: 16px !important;
+}
+
+.leaflet-container a.leaflet-popup-close-button:hover {
+  color: #ffffff !important;
+}
+
+/* Sleek custom scrollbars for feeds */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(51, 65, 85, 0.6);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(100, 116, 139, 0.8);
+}
+
+/* Hide scrollbar for clean UI elements while keeping functionality */
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+.scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
