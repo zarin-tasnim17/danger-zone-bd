@@ -163,6 +163,9 @@ export const fetchReportById = async (reportId: string) => {
     where: { id: reportId },
     select: {
       id: true,
+      userId: true,
+      sourceUrl: true,
+      sourceName: true,
       category: true,
       severity: true,
       isNightReport: true,
