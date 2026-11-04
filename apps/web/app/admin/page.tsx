@@ -19,6 +19,12 @@ import {
   Radio,
   CheckCircle2,
   Keyboard,
+  BarChart3,
+  TrendingUp,
+  Moon,
+  Clock,
+  Shield,
+  Activity,
 } from "lucide-react";
 
 export default function AdminPage() {
@@ -29,11 +35,13 @@ export default function AdminPage() {
   const [isAuthenticating, setIsAuthenticating] = useState(false);
 
   // Dashboard Data State
-  const [activeTab, setActiveTab] = useState<"reports" | "users" | "verifications" | "logs">("reports");
+  const [activeTab, setActiveTab] = useState<"reports" | "users" | "verifications" | "logs" | "analytics">("reports");
   const [reports, setReports] = useState<any[]>([]);
   const [logs, setLogs] = useState<any[]>([]);
   const [verifications, setVerifications] = useState<any[]>([]);
+  const [trends, setTrends] = useState<any | null>(null);
   const [isLoadingData, setIsLoadingData] = useState(false);
+  const [isLoadingTrends, setIsLoadingTrends] = useState(false);
 
   // Action Inputs
   const [banUserId, setBanUserId] = useState("");
@@ -43,6 +51,18 @@ export default function AdminPage() {
   useEffect(() => {
     initAuth();
   }, [initAuth]);
+
+  const fetchTrends = useCallback(async () => {
+    setIsLoadingTrends(true);
+    try {
+      const data = await apiFetch<any>("/admin/analytics/trends");
+      setTrends(data);
+    } catch (err: any) {
+      console.warn("[Admin Trends Fetch] Notice:", err.message);
+    } finally {
+      setIsLoadingTrends(false);
+    }
+  }, []);
 
   const fetchAdminData = useCallback(async () => {
     setIsLoadingData(true);
@@ -58,6 +78,10 @@ export default function AdminPage() {
       // 3. Fetch pending KYC verifications
       const verificationsData = await apiFetch<any[]>("/admin/verifications");
       setVerifications(verificationsData || []);
+
+      // 4. Fetch 30-day hazard analytics and trends
+      const trendsData = await apiFetch<any>("/admin/analytics/trends");
+      setTrends(trendsData || null);
     } catch (err: any) {
       console.warn("[Admin Data Fetch] Notice:", err.message);
     } finally {
@@ -440,6 +464,20 @@ export default function AdminPage() {
           >
             Immutable Audit Trail ({logs.length})
           </button>
+
+          <button
+            onClick={() => {
+              setActiveTab("analytics");
+              fetchTrends();
+            }}
+            className={`pb-3 text-xs sm:text-sm font-semibold border-b-2 transition-colors ${
+              activeTab === "analytics"
+                ? "border-purple-600 text-purple-600 font-bold"
+                : "border-transparent text-slate-500 hover:text-slate-900"
+            }`}
+          >
+            Analytics & Trends (30 Days)
+          </button>
         </div>
 
         {/* TAB 1: Report Moderation */}
@@ -699,6 +737,235 @@ export default function AdminPage() {
                   )}
                 </tbody>
               </table>
+            </div>
+          </div>
+        )}
+        {/* TAB 5: Analytics & Trends */}
+        {activeTab === "analytics" && (
+          <div className="space-y-6">
+            {/* Top Aggregate Metric Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">30-Day Total Hazards</span>
+                  <div className="p-2 bg-purple-50 text-purple-600 rounded-xl border border-purple-200">
+                    <TrendingUp className="w-4 h-4" />
+                  </div>
+                </div>
+                <div className="text-2xl font-black text-slate-900">{trends?.totalReports ?? 0}</div>
+                <p className="text-[11px] text-slate-500 mt-1">Live recorded across Bangladesh</p>
+              </div>
+
+              <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Night Hazard Ratio</span>
+                  <div className="p-2 bg-indigo-50 text-indigo-600 rounded-xl border border-indigo-200">
+                    <Moon className="w-4 h-4" />
+                  </div>
+                </div>
+                <div className="text-2xl font-black text-indigo-700">
+                  {trends?.nightReportPercentage ?? 0}%
+                </div>
+                <p className="text-[11px] text-slate-500 mt-1 font-mono">
+                  {trends?.nightReportsCount ?? 0} of {trends?.totalReports ?? 0} incidents occurred at night
+                </p>
+              </div>
+
+              <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">High Severity Threats</span>
+                  <div className="p-2 bg-red-50 text-red-600 rounded-xl border border-red-200">
+                    <ShieldAlert className="w-4 h-4" />
+                  </div>
+                </div>
+                <div className="text-2xl font-black text-red-600">
+                  {trends?.breakdown?.bySeverity?.HIGH ?? 0}
+                </div>
+                <p className="text-[11px] text-slate-500 mt-1">Armed or imminent danger pins</p>
+              </div>
+
+              <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Resolved Incidents</span>
+                  <div className="p-2 bg-emerald-50 text-emerald-600 rounded-xl border border-emerald-200">
+                    <CheckCircle2 className="w-4 h-4" />
+                  </div>
+                </div>
+                <div className="text-2xl font-black text-emerald-700">
+                  {trends?.breakdown?.byStatus?.RESOLVED ?? 0}
+                </div>
+                <p className="text-[11px] text-slate-500 mt-1">Neutralized or safe status</p>
+              </div>
+            </div>
+
+            {/* Breakdown Grids */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Category Distribution */}
+              <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+                <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
+                  <div className="flex items-center gap-2">
+                    <BarChart3 className="w-4 h-4 text-purple-600" />
+                    <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+                      Hazard Category Distribution
+                    </h3>
+                  </div>
+                  <span className="text-[11px] text-slate-500 font-mono">Last 30 Days</span>
+                </div>
+
+                <div className="space-y-3.5">
+                  {[
+                    { key: "MUGGING", label: "Mugging & Robbery", color: "bg-red-500" },
+                    { key: "THEFT", label: "Theft & Burglary", color: "bg-amber-500" },
+                    { key: "UNLIT_ROAD", label: "Unlit / Broken Road", color: "bg-yellow-500" },
+                    { key: "EXTORTION", label: "Extortion & Gangs", color: "bg-purple-500" },
+                    { key: "DRUG_ACTIVITY", label: "Narcotics / Drug Activity", color: "bg-rose-500" },
+                  ].map((cat) => {
+                    const count = trends?.breakdown?.byCategory?.[cat.key] ?? 0;
+                    const total = trends?.totalReports || 1;
+                    const pct = Math.round((count / total) * 100);
+                    return (
+                      <div key={cat.key} className="space-y-1">
+                        <div className="flex justify-between text-xs font-medium text-slate-700">
+                          <span>{cat.label}</span>
+                          <span className="font-mono text-slate-900 font-bold">{count} ({pct}%)</span>
+                        </div>
+                        <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
+                          <div
+                            className={`h-full ${cat.color} rounded-full transition-all duration-500`}
+                            style={{ width: `${pct}%` }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Severity & Status Breakdown */}
+              <div className="space-y-6">
+                <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+                  <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
+                    <div className="flex items-center gap-2">
+                      <Shield className="w-4 h-4 text-purple-600" />
+                      <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+                        Threat Severity Breakdown
+                      </h3>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-3 text-center">
+                    <div className="p-3 rounded-xl bg-red-50 border border-red-200">
+                      <span className="text-[11px] font-bold text-red-700 block uppercase">HIGH</span>
+                      <span className="text-xl font-black text-red-700 font-mono">
+                        {trends?.breakdown?.bySeverity?.HIGH ?? 0}
+                      </span>
+                    </div>
+                    <div className="p-3 rounded-xl bg-amber-50 border border-amber-200">
+                      <span className="text-[11px] font-bold text-amber-700 block uppercase">MEDIUM</span>
+                      <span className="text-xl font-black text-amber-700 font-mono">
+                        {trends?.breakdown?.bySeverity?.MEDIUM ?? 0}
+                      </span>
+                    </div>
+                    <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200">
+                      <span className="text-[11px] font-bold text-emerald-700 block uppercase">LOW</span>
+                      <span className="text-xl font-black text-emerald-700 font-mono">
+                        {trends?.breakdown?.bySeverity?.LOW ?? 0}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+                  <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
+                    <div className="flex items-center gap-2">
+                      <Activity className="w-4 h-4 text-purple-600" />
+                      <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+                        Incident Resolution Pipeline
+                      </h3>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-3 text-center">
+                    <div className="p-3 rounded-xl bg-blue-50 border border-blue-200">
+                      <span className="text-[11px] font-bold text-blue-700 block uppercase">ACTIVE</span>
+                      <span className="text-xl font-black text-blue-700 font-mono">
+                        {trends?.breakdown?.byStatus?.ACTIVE ?? 0}
+                      </span>
+                    </div>
+                    <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200">
+                      <span className="text-[11px] font-bold text-emerald-700 block uppercase">RESOLVED</span>
+                      <span className="text-xl font-black text-emerald-700 font-mono">
+                        {trends?.breakdown?.byStatus?.RESOLVED ?? 0}
+                      </span>
+                    </div>
+                    <div className="p-3 rounded-xl bg-slate-100 border border-slate-200">
+                      <span className="text-[11px] font-bold text-slate-700 block uppercase">PURGED</span>
+                      <span className="text-xl font-black text-slate-700 font-mono">
+                        {trends?.breakdown?.byStatus?.PURGED ?? 0}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Daily Timeline */}
+            <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+              <div className="p-4 border-b border-slate-200 bg-slate-50/70 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Clock className="w-4 h-4 text-purple-600" />
+                  <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+                    Daily Incident Timeline (PostGIS Aggregated Days)
+                  </h3>
+                </div>
+                <button
+                  onClick={fetchTrends}
+                  className="px-2.5 py-1 text-xs font-semibold text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200 rounded-lg flex items-center gap-1 transition"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isLoadingTrends ? "animate-spin" : ""}`} />
+                  <span>Refresh Trends</span>
+                </button>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200">
+                    <tr>
+                      <th className="p-3">Date (UTC)</th>
+                      <th className="p-3">Incidents Logged</th>
+                      <th className="p-3">Visual Distribution</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-slate-700">
+                    {(!trends?.timeline || trends.timeline.length === 0) ? (
+                      <tr>
+                        <td colSpan={3} className="p-6 text-center text-slate-500">
+                          No timeline records found in the last 30 days.
+                        </td>
+                      </tr>
+                    ) : (
+                      trends.timeline.map((row: { date: string; count: number }) => {
+                        const maxCount = Math.max(...trends.timeline.map((r: any) => r.count), 1);
+                        const barWidth = Math.round((row.count / maxCount) * 100);
+                        return (
+                          <tr key={row.date} className="hover:bg-slate-50/80 transition-colors">
+                            <td className="p-3 font-mono font-semibold text-slate-900">{row.date}</td>
+                            <td className="p-3 font-mono font-bold text-purple-700">{row.count} reports</td>
+                            <td className="p-3 w-1/2">
+                              <div className="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
+                                <div
+                                  className="bg-purple-600 h-full rounded-full transition-all duration-300"
+                                  style={{ width: `${Math.max(barWidth, 6)}%` }}
+                                />
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         )}

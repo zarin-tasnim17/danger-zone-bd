@@ -65,6 +65,15 @@ const INITIAL_TESTS: TestCase[] = [
     frontendRoute: "/",
     status: "IDLE",
   },
+  {
+    id: "platform-stats",
+    module: "1. System & Health",
+    name: "Platform Aggregated Statistics (PostgreSQL Aggregates)",
+    method: "GET",
+    endpoint: "/stats",
+    frontendRoute: "/",
+    status: "IDLE",
+  },
 
   // 2. Auth
   {

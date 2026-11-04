@@ -9,6 +9,7 @@ import { useLanguageStore } from "@/store/useLanguageStore";
 import { useIncidentStore } from "@/store/useIncidentStore";
 import { useFilterStore } from "@/store/useFilterStore";
 import { useAuthStore } from "@/store/useAuthStore";
+import { useStatsStore } from "@/store/useStatsStore";
 import {
   ListFilter,
   ShieldAlert,
@@ -32,25 +33,48 @@ export default function Home() {
   const initAuth = useAuthStore((state) => state.initAuth);
   const { selectedSeverity, setSeverity, resetFilters } = useFilterStore();
 
-  // Initialize transparent device authentication and safe zones on mount
+  const stats = useStatsStore((state) => state.stats);
+  const fetchStats = useStatsStore((state) => state.fetchStats);
+  const initStatsListener = useStatsStore((state) => state.initStatsListener);
+
+  // Initialize transparent device authentication, safe zones, and live DB stats on mount
   useEffect(() => {
     initAuth();
     fetchSafeZones();
+    fetchStats();
     initSocketListeners();
-  }, [initAuth, fetchSafeZones, initSocketListeners]);
+    initStatsListener();
+  }, [initAuth, fetchSafeZones, fetchStats, initSocketListeners, initStatsListener]);
 
-  // Telemetry Metrics
+  // Telemetry Metrics (Derived directly from PostgreSQL database via stats endpoint)
   const criticalCount = useMemo(() => {
+    if (stats && typeof stats.criticalThreats === "number") {
+      return stats.criticalThreats;
+    }
     return incidents.filter(
       (i) => i.severity.toUpperCase() === "HIGH" || i.severity === "critical"
     ).length;
-  }, [incidents]);
+  }, [stats, incidents]);
+
+  const activeCount = useMemo(() => {
+    if (stats && typeof stats.activeReports === "number") {
+      return stats.activeReports;
+    }
+    return incidents.length;
+  }, [stats, incidents.length]);
+
+  const safeCount = useMemo(() => {
+    if (stats && typeof stats.safeHavens === "number") {
+      return stats.safeHavens;
+    }
+    return safeZones.length;
+  }, [stats, safeZones.length]);
 
   return (
     <main className="flex h-screen flex-col bg-slate-100 text-slate-900 overflow-hidden font-sans select-none">
       {/* Top Command Navigation Header with integrated Filters & Search */}
       <Navbar
-        totalIncidents={incidents.length}
+        totalIncidents={activeCount}
         onOpenReportModal={() => setReportModalOpen(true)}
         showFilters={true}
       />
@@ -93,7 +117,7 @@ export default function Home() {
               )}
             </button>
 
-            {/* Situational Telemetry Dock */}
+            {/* Situational Telemetry Dock (Connected to Real Database Counts) */}
             <div className="pointer-events-auto flex items-center gap-1 bg-white/95 backdrop-blur-xl border border-slate-200/90 rounded-2xl p-1 shadow-md">
               {/* Critical Red Zones Counter / Filter */}
               <button
@@ -126,7 +150,7 @@ export default function Home() {
                 title="View All Incidents"
               >
                 <ShieldAlert className="w-3.5 h-3.5 text-orange-500" />
-                <span>{incidents.length}</span>
+                <span>{activeCount}</span>
                 <span className="hidden lg:inline text-[10px] text-slate-500 font-mono">
                   {language === "en" ? "Active" : "সক্রিয়"}
                 </span>
@@ -140,7 +164,7 @@ export default function Home() {
                 title="Verified Safe Havens in Bangladesh"
               >
                 <Shield className="w-3.5 h-3.5 text-emerald-600" />
-                <span>{safeZones.length}</span>
+                <span>{safeCount}</span>
                 <span className="hidden lg:inline text-[10px] text-emerald-700 font-mono">
                   {language === "en" ? "Safe Havens" : "আশ্রয়স্থল"}
                 </span>
