@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
-import RouteTestNav from "@/components/layout/RouteTestNav";
 import Navbar from "@/components/layout/Navbar";
 import { apiFetch } from "@/lib/api";
 import { useAuthStore } from "@/store/useAuthStore";
@@ -229,6 +228,7 @@ export default function DevTestPage() {
   const [tests, setTests] = useState<TestCase[]>(INITIAL_TESTS);
   const [expandedResponses, setExpandedResponses] = useState<Record<string, boolean>>({});
   const [isRunningAll, setIsRunningAll] = useState(false);
+  const [warmupMessage, setWarmupMessage] = useState<string | null>(null);
 
   useEffect(() => {
     initAuth();
@@ -320,6 +320,33 @@ export default function DevTestPage() {
 
   const runAllTests = async () => {
     setIsRunningAll(true);
+    setWarmupMessage(null);
+
+    // Step 1: Pre-flight probe to wake up Render if it is asleep
+    let isAwake = false;
+    try {
+      await apiFetch("/health", { method: "GET" });
+      isAwake = true;
+    } catch (e) {
+      // Backend might be spinning up
+      setWarmupMessage("Backend is spinning up from standby on Render free tier (takes ~30s). Waiting for server wake-up...");
+      for (let attempt = 1; attempt <= 12; attempt++) {
+        try {
+          await new Promise((r) => setTimeout(r, 4000));
+          await apiFetch("/health", { method: "GET" });
+          isAwake = true;
+          setWarmupMessage("Backend is online! Executing test suite...");
+          await new Promise((r) => setTimeout(r, 800));
+          break;
+        } catch (retryErr) {
+          setWarmupMessage(`Waking up Render backend... (Attempt ${attempt}/12)`);
+        }
+      }
+    }
+
+    setWarmupMessage(null);
+
+    // Step 2: Run all tests sequentially
     for (const test of tests) {
       await runTest(test.id);
     }
@@ -331,8 +358,7 @@ export default function DevTestPage() {
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-50">
-      <RouteTestNav />
-      <Navbar />
+            <Navbar />
 
       <main className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 py-8">
         {/* Header */}
@@ -368,6 +394,17 @@ export default function DevTestPage() {
             </button>
           </div>
         </div>
+
+        {/* Cloud Standby Wake-up Notice */}
+        {warmupMessage && (
+          <div className="mb-6 p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 flex items-center gap-3 animate-pulse shadow-sm">
+            <RefreshCw className="w-5 h-5 animate-spin text-amber-600 shrink-0" />
+            <div>
+              <p className="text-xs font-bold text-amber-800">Render Free-Tier Server Waking Up</p>
+              <p className="text-xs text-amber-700">{warmupMessage}</p>
+            </div>
+          </div>
+        )}
 
         {/* Tests List Grouped by Module */}
         <div className="space-y-4">

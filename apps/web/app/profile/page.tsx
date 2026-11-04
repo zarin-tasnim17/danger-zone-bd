@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
-import RouteTestNav from "@/components/layout/RouteTestNav";
 import Navbar from "@/components/layout/Navbar";
 import { apiFetch } from "@/lib/api";
 import { useAuthStore } from "@/store/useAuthStore";
@@ -94,8 +93,7 @@ export default function ProfilePage() {
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-50">
-      <RouteTestNav />
-      <Navbar />
+            <Navbar />
 
       <main className="flex-1 max-w-4xl w-full mx-auto px-4 sm:px-6 py-8">
         {/* Header */}

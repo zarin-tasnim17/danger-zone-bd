@@ -3,7 +3,11 @@ const nextConfig = {
   transpilePackages: ["@repo/shared"],
   optimizeFonts: false,
   async rewrites() {
-    const rawTarget = process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:5000";
+    const rawTarget =
+      process.env.INTERNAL_API_URL ||
+      (process.env.NEXT_PUBLIC_API_URL && !process.env.NEXT_PUBLIC_API_URL.startsWith("/")
+        ? process.env.NEXT_PUBLIC_API_URL
+        : "https://danger-zone-bd.onrender.com");
     const targetUrl = rawTarget.replace(/\/+$/, "").replace(/\/api\/v1$/, "");
 
     return [

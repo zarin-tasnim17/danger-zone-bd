@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
-import RouteTestNav from "@/components/layout/RouteTestNav";
 import { useAuthStore } from "@/store/useAuthStore";
 import { apiFetch } from "@/lib/api";
 import {
@@ -242,8 +241,7 @@ export default function AdminPage() {
   if (user?.role !== "ADMIN") {
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col text-slate-900">
-        <RouteTestNav />
-        <div className="flex-1 flex items-center justify-center p-4">
+                <div className="flex-1 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl border border-slate-200 shadow-xl max-w-md w-full p-6 sm:p-8">
             <div className="flex items-center gap-3 mb-6">
               <div className="w-12 h-12 rounded-xl bg-purple-600 flex items-center justify-center text-white shrink-0 shadow-md">
@@ -321,8 +319,7 @@ export default function AdminPage() {
   // Authenticated Admin Dashboard
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col text-slate-900">
-      <RouteTestNav />
-      {/* Top Admin Header */}
+            {/* Top Admin Header */}
       <header className="bg-white border-b border-slate-200 px-6 py-4 flex flex-wrap items-center justify-between gap-4 shadow-2xs">
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-xl bg-purple-600 flex items-center justify-center text-white shadow-md">

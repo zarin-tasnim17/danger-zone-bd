@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect, useMemo } from "react";
 import dynamic from "next/dynamic";
-import RouteTestNav from "@/components/layout/RouteTestNav";
 import Navbar from "@/components/layout/Navbar";
 import { apiFetch } from "@/lib/api";
 import { useAuthStore } from "@/store/useAuthStore";
@@ -288,7 +287,6 @@ export default function AlertsPage() {
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 text-slate-900">
-      <RouteTestNav />
       <Navbar />
 
       <main className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 py-8">
