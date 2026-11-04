@@ -4,11 +4,11 @@
 
 @layer base {
   :root {
-    --color-bg: #030712;
-    --color-surface: #0f172a;
-    --color-border: #1e293b;
-    --color-text: #f8fafc;
-    --color-text-muted: #94a3b8;
+    --color-bg: #f8fafc;
+    --color-surface: #ffffff;
+    --color-border: #e2e8f0;
+    --color-text: #0f172a;
+    --color-text-muted: #64748b;
   }
 
   body {
@@ -22,39 +22,34 @@
 
   /* Accessible solid focus states */
   *:focus-visible {
-    outline: 2px solid #3b82f6;
+    outline: 2px solid #2563eb;
     outline-offset: 2px;
   }
 }
 
-/* Custom Tactical Leaflet styling overrides */
+/* Light Map Styling Overrides */
 .leaflet-container {
   font-family: inherit;
   z-index: 0;
   width: 100%;
   height: 100%;
-  background-color: #030712 !important;
+  background-color: #f1f5f9 !important;
 }
 
-/* Tactical Dark Tile Filter for OpenStreetMap - Free, Zero Watermark, Zero API Key */
-.tactical-dark-tiles .leaflet-tile {
-  filter: brightness(0.65) invert(1) contrast(2.8) hue-rotate(200deg) saturate(0.25) brightness(0.75) !important;
-}
-
-/* Dark Glassmorphic Zoom Controls */
+/* Clean White Zoom Controls */
 .leaflet-bar {
-  border: 1px solid rgba(51, 65, 85, 0.8) !important;
-  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.6) !important;
+  border: 1px solid rgba(226, 232, 240, 0.9) !important;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.08) !important;
   border-radius: 12px !important;
   overflow: hidden;
-  backdrop-filter: blur(16px) !important;
-  -webkit-backdrop-filter: blur(16px) !important;
+  backdrop-filter: blur(8px) !important;
+  -webkit-backdrop-filter: blur(8px) !important;
 }
 
 .leaflet-bar a {
-  background-color: rgba(15, 23, 42, 0.9) !important;
-  color: #f8fafc !important;
-  border-bottom: 1px solid rgba(51, 65, 85, 0.8) !important;
+  background-color: #ffffff !important;
+  color: #1e293b !important;
+  border-bottom: 1px solid rgba(226, 232, 240, 0.9) !important;
   width: 36px !important;
   height: 36px !important;
   line-height: 36px !important;
@@ -64,21 +59,21 @@
 }
 
 .leaflet-bar a:hover {
-  background-color: rgba(30, 41, 59, 1) !important;
-  color: #60a5fa !important;
+  background-color: #f8fafc !important;
+  color: #2563eb !important;
 }
 
-/* Dark Glassmorphic Leaflet Popups */
+/* Clean White Leaflet Popups */
 .leaflet-popup-content-wrapper {
-  background: rgba(15, 23, 42, 0.96) !important;
-  backdrop-filter: blur(20px) !important;
-  -webkit-backdrop-filter: blur(20px) !important;
+  background: #ffffff !important;
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
   border-radius: 16px !important;
-  box-shadow: 0 25px 35px -5px rgba(0, 0, 0, 0.7), 0 10px 10px -5px rgba(0, 0, 0, 0.5) !important;
-  border: 1px solid rgba(71, 85, 105, 0.5) !important;
+  box-shadow: 0 20px 25px -5px rgba(15, 23, 42, 0.12), 0 8px 10px -6px rgba(15, 23, 42, 0.08) !important;
+  border: 1px solid rgba(226, 232, 240, 0.9) !important;
   padding: 0 !important;
   overflow: hidden;
-  color: #f8fafc !important;
+  color: #0f172a !important;
 }
 
 .leaflet-popup-content {
@@ -87,13 +82,13 @@
 }
 
 .leaflet-popup-tip {
-  background: rgba(15, 23, 42, 0.96) !important;
+  background: #ffffff !important;
   box-shadow: none !important;
-  border: 1px solid rgba(71, 85, 105, 0.5) !important;
+  border: 1px solid rgba(226, 232, 240, 0.9) !important;
 }
 
 .leaflet-container a.leaflet-popup-close-button {
-  color: #94a3b8 !important;
+  color: #64748b !important;
   padding: 6px !important;
   top: 8px !important;
   right: 8px !important;
@@ -101,10 +96,10 @@
 }
 
 .leaflet-container a.leaflet-popup-close-button:hover {
-  color: #ffffff !important;
+  color: #0f172a !important;
 }
 
-/* Sleek custom scrollbars for feeds */
+/* Sleek custom scrollbars for light feeds */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -115,12 +110,12 @@
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(51, 65, 85, 0.6);
+  background: rgba(203, 213, 225, 0.8);
   border-radius: 9999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(100, 116, 139, 0.8);
+  background: rgba(148, 163, 184, 1);
 }
 
 /* Hide scrollbar for clean UI elements while keeping functionality */
