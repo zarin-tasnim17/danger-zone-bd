@@ -44,10 +44,10 @@ function createCustomIcon(severity: IncidentSeverity) {
   const normalized = (severity || "").toUpperCase();
   const isHigh = normalized === "HIGH" || normalized === "CRITICAL";
   const colorMap: Record<string, { bg: string; border: string; label: string; glow: string }> = {
-    HIGH: { bg: "#EF4444", border: "#B91C1C", label: "!", glow: "rgba(239, 68, 68, 0.6)" },
-    CRITICAL: { bg: "#EF4444", border: "#B91C1C", label: "!", glow: "rgba(239, 68, 68, 0.6)" },
-    MEDIUM: { bg: "#F97316", border: "#C2410C", label: "▲", glow: "rgba(249, 115, 22, 0.5)" },
-    LOW: { bg: "#EAB308", border: "#A16207", label: "●", glow: "rgba(234, 179, 8, 0.4)" },
+    HIGH: { bg: "#DC2626", border: "#FFFFFF", label: "!", glow: "rgba(220, 38, 38, 0.45)" },
+    CRITICAL: { bg: "#DC2626", border: "#FFFFFF", label: "!", glow: "rgba(220, 38, 38, 0.45)" },
+    MEDIUM: { bg: "#EA580C", border: "#FFFFFF", label: "▲", glow: "rgba(234, 88, 12, 0.35)" },
+    LOW: { bg: "#CA8A04", border: "#FFFFFF", label: "●", glow: "rgba(202, 138, 4, 0.3)" },
   };
 
   const config = colorMap[normalized] || colorMap.MEDIUM;
@@ -71,7 +71,7 @@ function createCustomIcon(severity: IncidentSeverity) {
         <div style="
           position: relative;
           background-color: ${config.bg};
-          border: 2px solid #FFFFFF;
+          border: 2.5px solid ${config.border};
           width: 32px;
           height: 32px;
           border-radius: 50%;
@@ -81,7 +81,7 @@ function createCustomIcon(severity: IncidentSeverity) {
           color: #FFFFFF;
           font-weight: 800;
           font-size: 14px;
-          box-shadow: 0 4px 14px ${config.glow}, 0 2px 4px rgba(0, 0, 0, 0.7);
+          box-shadow: 0 4px 14px ${config.glow}, 0 2px 4px rgba(15, 23, 42, 0.25);
           cursor: pointer;
           transition: transform 0.15s ease;
         ">
@@ -103,24 +103,24 @@ function createSafeZoneIcon(type: string) {
     html: `
       <div style="
         background-color: ${isPolice ? "#2563EB" : "#059669"};
-        border: 2px solid #FFFFFF;
-        width: 30px;
-        height: 30px;
-        border-radius: 8px;
+        border: 2.5px solid #FFFFFF;
+        width: 32px;
+        height: 32px;
+        border-radius: 10px;
         display: flex;
         align-items: center;
         justify-content: center;
         color: #FFFFFF;
         font-weight: 800;
         font-size: 14px;
-        box-shadow: 0 4px 12px ${isPolice ? "rgba(37, 99, 235, 0.5)" : "rgba(5, 150, 105, 0.5)"}, 0 2px 4px rgba(0,0,0,0.6);
+        box-shadow: 0 4px 12px ${isPolice ? "rgba(37, 99, 235, 0.35)" : "rgba(5, 150, 105, 0.35)"}, 0 2px 4px rgba(15,23,42,0.15);
         cursor: pointer;
       ">
         ${isPolice ? "👮" : "🏥"}
       </div>
     `,
-    iconSize: [30, 30],
-    iconAnchor: [15, 15],
+    iconSize: [32, 32],
+    iconAnchor: [16, 16],
     popupAnchor: [0, -18],
   });
 }
@@ -185,7 +185,6 @@ export default function MapClient() {
   // Tactical Layer States
   const [showSafeZones, setShowSafeZones] = useState(true);
   const [showDangerCircles, setShowDangerCircles] = useState(true);
-  const [tileTheme, setTileTheme] = useState<"dark" | "osm">("dark");
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [isLocating, setIsLocating] = useState(false);
 
@@ -265,7 +264,7 @@ export default function MapClient() {
             width: 24px;
             height: 24px;
             border-radius: 50%;
-            box-shadow: 0 0 12px rgba(37, 99, 235, 0.8);
+            box-shadow: 0 0 12px rgba(37, 99, 235, 0.6);
           "></div>
         </div>
       `,
@@ -275,26 +274,26 @@ export default function MapClient() {
   }, []);
 
   return (
-    <div className="relative w-full h-full min-h-0 bg-slate-950">
+    <div className="relative w-full h-full min-h-0 bg-slate-100">
       {/* Floating Tactical Command HUD Dock (Top-Right) */}
       <div className="absolute top-4 right-4 z-[400] flex flex-col items-end gap-2 pointer-events-none">
         {/* Layer & Utility Controls */}
-        <div className="pointer-events-auto flex items-center gap-1.5 p-1 bg-slate-950/85 backdrop-blur-xl border border-slate-800 rounded-2xl shadow-2xl">
+        <div className="pointer-events-auto flex items-center gap-1 p-1 bg-white/95 backdrop-blur-xl border border-slate-200/90 rounded-2xl shadow-md">
           {/* Locate Me (GPS) */}
           <button
             onClick={handleLocateMe}
             disabled={isLocating}
-            className={`p-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
+            className={`px-2.5 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
               userLocation
-                ? "bg-blue-600 text-white shadow-md shadow-blue-900/50"
-                : "text-slate-300 hover:text-white hover:bg-slate-800/80"
+                ? "bg-blue-600 text-white shadow-sm shadow-blue-600/30"
+                : "text-slate-700 hover:text-slate-900 hover:bg-slate-100"
             }`}
             title="Locate Me (Current GPS)"
           >
             {isLocating ? (
-              <Loader2 className="w-4 h-4 animate-spin text-blue-400" />
+              <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
             ) : (
-              <Crosshair className="w-4 h-4 text-blue-400" />
+              <Crosshair className="w-4 h-4 text-blue-600" />
             )}
             <span className="hidden sm:inline text-xs">
               {language === "en" ? "My Location" : "আমার অবস্থান"}
@@ -304,14 +303,14 @@ export default function MapClient() {
           {/* Safe Havens Toggle */}
           <button
             onClick={() => setShowSafeZones(!showSafeZones)}
-            className={`p-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
+            className={`px-2.5 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
               showSafeZones
-                ? "bg-emerald-950 text-emerald-300 border border-emerald-800/80 shadow-sm"
-                : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/80"
+                ? "bg-emerald-50 text-emerald-800 border border-emerald-200 shadow-2xs"
+                : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
             }`}
             title="Toggle Safe Havens (Police & Hospitals)"
           >
-            <Shield className="w-4 h-4 text-emerald-400" />
+            <Shield className="w-4 h-4 text-emerald-600" />
             <span className="hidden sm:inline text-xs">
               {language === "en" ? "Safe Havens" : "আশ্রয়স্থল"}
             </span>
@@ -320,38 +319,26 @@ export default function MapClient() {
           {/* Danger Perimeter Toggle (150m Red Zone Radius) */}
           <button
             onClick={() => setShowDangerCircles(!showDangerCircles)}
-            className={`p-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
+            className={`px-2.5 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
               showDangerCircles
-                ? "bg-red-950 text-red-300 border border-red-800/80 shadow-sm"
-                : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/80"
+                ? "bg-red-50 text-red-800 border border-red-200 shadow-2xs"
+                : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
             }`}
             title="Toggle 150m Hazard Danger Perimeters"
           >
             {showDangerCircles ? (
-              <Eye className="w-4 h-4 text-red-400" />
+              <Eye className="w-4 h-4 text-red-600" />
             ) : (
-              <EyeOff className="w-4 h-4 text-slate-500" />
+              <EyeOff className="w-4 h-4 text-slate-400" />
             )}
             <span className="hidden sm:inline text-xs">
               {language === "en" ? "Perimeters" : "ঝুঁকি বলয়"}
             </span>
           </button>
-
-          {/* Dark / Street Map Switcher */}
-          <button
-            onClick={() => setTileTheme(tileTheme === "dark" ? "osm" : "dark")}
-            className="p-2 rounded-xl text-xs text-slate-300 hover:text-white hover:bg-slate-800/80 transition-all flex items-center gap-1.5"
-            title={tileTheme === "dark" ? "Switch to Street View" : "Switch to Dark Tactical View"}
-          >
-            <Layers className="w-4 h-4 text-amber-400" />
-            <span className="hidden md:inline text-xs">
-              {tileTheme === "dark" ? "Dark Grid" : "Street"}
-            </span>
-          </button>
         </div>
       </div>
 
-      {/* Main Leaflet Map Container */}
+      {/* Main Leaflet Map Container (Crisp Standard Daylight Street Map) */}
       <MapContainer
         center={[center.lat, center.lng]}
         zoom={zoom}
@@ -370,9 +357,8 @@ export default function MapClient() {
         {/* Zoom Control repositioned neatly at bottom-left */}
         <ZoomControl position="bottomleft" />
 
-        {/* Tactical Tile Provider (Zero API Key, Zero Watermarks) */}
+        {/* Standard High-Resolution OpenStreetMap Tiles (Clean, Daylight, Zero Watermarks) */}
         <TileLayer
-          className={tileTheme === "dark" ? "tactical-dark-tiles" : ""}
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
           maxZoom={19}
@@ -382,9 +368,9 @@ export default function MapClient() {
         {userLocation && (
           <Marker position={[userLocation.lat, userLocation.lng]} icon={userGpsIcon}>
             <Popup>
-              <div className="p-2 text-slate-100 text-xs">
-                <span className="font-bold text-blue-400">📍 You Are Here</span>
-                <p className="text-[10px] text-slate-400 font-mono mt-0.5">
+              <div className="p-2 text-slate-800 text-xs">
+                <span className="font-bold text-blue-600">📍 You Are Here</span>
+                <p className="text-[10px] text-slate-500 font-mono mt-0.5">
                   ({userLocation.lat.toFixed(4)}, {userLocation.lng.toFixed(4)})
                 </p>
               </div>
@@ -401,21 +387,21 @@ export default function MapClient() {
               icon={createSafeZoneIcon(zone.type)}
             >
               <Popup>
-                <div className="p-3 max-w-[260px] text-slate-100">
+                <div className="p-3 max-w-[260px] text-slate-900">
                   <div className="flex items-center gap-1.5 mb-1">
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-950 text-emerald-300 border border-emerald-800">
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">
                       {zone.type.replace("_", " ")}
                     </span>
-                    <span className="text-[10px] text-emerald-400 font-semibold">✓ Verified Haven</span>
+                    <span className="text-[10px] text-emerald-600 font-semibold">✓ Verified Haven</span>
                   </div>
-                  <h4 className="font-bold text-sm text-white mt-1">{zone.name}</h4>
-                  <p className="text-xs text-slate-400 mt-0.5">
+                  <h4 className="font-bold text-sm text-slate-900 mt-1">{zone.name}</h4>
+                  <p className="text-xs text-slate-600 mt-0.5">
                     Designated 24/7 sanctuary point during emergencies.
                   </p>
-                  <div className="mt-2.5 pt-2 border-t border-slate-800 flex items-center justify-between">
+                  <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between">
                     <Link
                       href="/safe-zones"
-                      className="text-[11px] font-bold text-blue-400 hover:text-blue-300 flex items-center gap-0.5"
+                      className="text-[11px] font-bold text-blue-600 hover:text-blue-700 flex items-center gap-0.5"
                     >
                       <span>All Safe Havens</span>
                       <ArrowUpRight className="w-3 h-3" />
@@ -441,11 +427,11 @@ export default function MapClient() {
                   center={[incident.coordinates.lat, incident.coordinates.lng]}
                   radius={incident.fuzzedRadiusMeters || 150}
                   pathOptions={{
-                    color: "#EF4444",
-                    fillColor: "#EF4444",
-                    fillOpacity: 0.16,
-                    weight: 1.5,
-                    dashArray: "4, 4",
+                    color: "#DC2626",
+                    fillColor: "#DC2626",
+                    fillOpacity: 0.14,
+                    weight: 2,
+                    dashArray: "5, 5",
                   }}
                 />
               )}
@@ -460,62 +446,62 @@ export default function MapClient() {
                 }}
               >
                 <Popup>
-                  <div className="p-3.5 max-w-[290px] text-slate-100 space-y-2">
+                  <div className="p-3.5 max-w-[290px] text-slate-900 space-y-2">
                     {/* Header */}
                     <div className="flex items-center justify-between gap-2">
                       <span
                         className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full border flex items-center gap-1 ${
                           isHigh
-                            ? "bg-red-950 text-red-300 border-red-800"
+                            ? "bg-red-50 text-red-700 border-red-200"
                             : isMed
-                            ? "bg-orange-950 text-orange-300 border-orange-800"
-                            : "bg-yellow-950 text-yellow-300 border-yellow-800"
+                            ? "bg-amber-50 text-amber-800 border-amber-200"
+                            : "bg-yellow-50 text-yellow-800 border-yellow-200"
                         }`}
                       >
-                        {isHigh && <span className="w-1.5 h-1.5 rounded-full bg-red-400 animate-ping" />}
+                        {isHigh && <span className="w-1.5 h-1.5 rounded-full bg-red-600 animate-ping" />}
                         {(t.severity as any)[incident.severity.toLowerCase()] || incident.severity}
                       </span>
 
-                      <span className="text-[10px] text-slate-400 font-mono">
+                      <span className="text-[10px] text-slate-500 font-mono">
                         {(t.categories as any)[incident.category.toLowerCase()] || incident.category}
                       </span>
                     </div>
 
                     {/* Title */}
-                    <h4 className="font-bold text-sm leading-snug text-white">
+                    <h4 className="font-bold text-sm leading-snug text-slate-900">
                       {language === "bn" && incident.titleBn ? incident.titleBn : incident.title}
                     </h4>
 
                     {/* Description */}
-                    <p className="text-xs text-slate-300 line-clamp-2 leading-relaxed">
+                    <p className="text-xs text-slate-600 line-clamp-2 leading-relaxed">
                       {language === "bn" && incident.descriptionBn
                         ? incident.descriptionBn
                         : incident.description}
                     </p>
 
                     {/* Landmark / Source */}
-                    <div className="pt-2 border-t border-slate-800 text-[11px] text-slate-400 flex items-center justify-between">
+                    <div className="pt-2 border-t border-slate-100 text-[11px] text-slate-500 flex items-center justify-between">
                       <span className="truncate flex items-center gap-1">
-                        <Navigation className="w-3 h-3 text-red-400 shrink-0" />
-                        <span className="truncate">{incident.locationName}</span>
+                        <Navigation className="w-3 h-3 text-red-500 shrink-0" />
+                        <span className="truncate font-medium text-slate-700">{incident.locationName}</span>
                       </span>
-                      <span className="text-[10px] text-blue-400 font-medium shrink-0 ml-1">
+                      <span className="text-[10px] text-blue-600 font-semibold shrink-0 ml-1">
                         {incident.reportedBy}
                       </span>
                     </div>
 
                     {/* Community Voting Controls & Deep-Dive Link */}
-                    <div className="flex items-center justify-between gap-1 pt-2 border-t border-slate-800">
+                    <div className="flex items-center justify-between gap-1 pt-2 border-t border-slate-100">
                       <div className="flex items-center gap-1">
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
                             voteIncident(incident.id, 1).catch((err) => alert(err.message));
                           }}
-                          className="flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-lg bg-emerald-950/80 hover:bg-emerald-900 text-emerald-300 font-semibold border border-emerald-800 transition"
+                          className="flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-semibold border border-emerald-200 transition"
                           title="Confirm / Upvote"
                         >
-                          <ThumbsUp className="w-3 h-3" />
+                          <ThumbsUp className="w-3 h-3 text-emerald-600" />
                           <span>{incident.upvotes}</span>
                         </button>
 
@@ -524,17 +510,17 @@ export default function MapClient() {
                             e.stopPropagation();
                             voteIncident(incident.id, -1).catch((err) => alert(err.message));
                           }}
-                          className="flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-lg bg-rose-950/80 hover:bg-rose-900 text-rose-300 font-semibold border border-rose-800 transition"
+                          className="flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 font-semibold border border-rose-200 transition"
                           title="Dispute / Downvote"
                         >
-                          <ThumbsDown className="w-3 h-3" />
+                          <ThumbsDown className="w-3 h-3 text-rose-600" />
                           <span>{incident.downvotes}</span>
                         </button>
                       </div>
 
                       <Link
                         href={`/reports/${incident.id}`}
-                        className="px-2.5 py-1 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-[11px] font-bold flex items-center gap-1 shadow-md transition"
+                        className="px-2.5 py-1 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-bold flex items-center gap-1 shadow-2xs transition"
                       >
                         <span>War Room</span>
                         <ArrowUpRight className="w-3 h-3" />
