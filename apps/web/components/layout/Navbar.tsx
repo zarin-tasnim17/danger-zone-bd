@@ -21,6 +21,11 @@ import {
   UserCheck,
   FlaskConical,
   Lock,
+  Siren,
+  AlertTriangle,
+  LightbulbOff,
+  AlertOctagon,
+  Pill,
 } from "lucide-react";
 import { IncidentCategory } from "@repo/shared";
 
@@ -30,12 +35,17 @@ interface NavbarProps {
   showFilters?: boolean;
 }
 
-const CATEGORY_CHIPS: { id: IncidentCategory; labelEn: string; labelBn: string; icon: string }[] = [
-  { id: "MUGGING", labelEn: "Mugging", labelBn: "ছিনতাই", icon: "🚨" },
-  { id: "THEFT", labelEn: "Theft", labelBn: "চুরি", icon: "⚠️" },
-  { id: "UNLIT_ROAD", labelEn: "Unlit Road", labelBn: "অন্ধকার সড়ক", icon: "💡" },
-  { id: "EXTORTION", labelEn: "Extortion", labelBn: "চাঁদাবাজি", icon: "🛑" },
-  { id: "DRUG_ACTIVITY", labelEn: "Narcotics", labelBn: "মাদক", icon: "💊" },
+const CATEGORY_CHIPS: {
+  id: IncidentCategory;
+  labelEn: string;
+  labelBn: string;
+  icon: React.ComponentType<{ className?: string }>;
+}[] = [
+  { id: "MUGGING", labelEn: "Mugging", labelBn: "ছিনতাই", icon: Siren },
+  { id: "THEFT", labelEn: "Theft", labelBn: "চুরি", icon: AlertTriangle },
+  { id: "UNLIT_ROAD", labelEn: "Unlit Road", labelBn: "অন্ধকার সড়ক", icon: LightbulbOff },
+  { id: "EXTORTION", labelEn: "Extortion", labelBn: "চাঁদাবাজি", icon: AlertOctagon },
+  { id: "DRUG_ACTIVITY", labelEn: "Narcotics", labelBn: "মাদক", icon: Pill },
 ];
 
 export default function Navbar({
@@ -299,17 +309,18 @@ export default function Navbar({
               {/* Dynamic Category Chips */}
               {CATEGORY_CHIPS.map((cat) => {
                 const isSelected = selectedCategory === cat.id;
+                const Icon = cat.icon;
                 return (
                   <button
                     key={cat.id}
                     onClick={() => setCategory(isSelected ? "all" : cat.id)}
                     className={`text-xs px-2.5 py-1.5 rounded-xl font-medium border flex items-center gap-1.5 transition-all shrink-0 ${
                       isSelected
-                        ? "bg-blue-600 text-white border-blue-600 shadow-2xs"
+                        ? "bg-blue-600 text-white border-blue-600 shadow-2xs font-semibold"
                         : "bg-white text-slate-600 border-slate-200 hover:text-slate-900 hover:bg-slate-100"
                     }`}
                   >
-                    <span>{cat.icon}</span>
+                    <Icon className={`w-3.5 h-3.5 ${isSelected ? "text-white" : "text-slate-500"}`} />
                     <span>{language === "en" ? cat.labelEn : cat.labelBn}</span>
                   </button>
                 );

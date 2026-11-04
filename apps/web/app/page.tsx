@@ -184,8 +184,8 @@ export default function Home() {
               <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
               <span>
                 {language === "en"
-                  ? `⚡ ${incidents.length} Hazards in View`
-                  : `⚡ ${incidents.length}টি সক্রিয় বিপদ`}
+                  ? `${incidents.length} Hazards in View`
+                  : `${incidents.length}টি সক্রিয় বিপদ`}
               </span>
               <span className="text-slate-300 font-normal">|</span>
               <span className="text-blue-600 flex items-center gap-0.5 font-bold">

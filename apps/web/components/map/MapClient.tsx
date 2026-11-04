@@ -43,14 +43,15 @@ const BANGLADESH_BOUNDS: L.LatLngBoundsExpression = [
 function createCustomIcon(severity: IncidentSeverity) {
   const normalized = (severity || "").toUpperCase();
   const isHigh = normalized === "HIGH" || normalized === "CRITICAL";
-  const colorMap: Record<string, { bg: string; border: string; label: string; glow: string }> = {
-    HIGH: { bg: "#DC2626", border: "#FFFFFF", label: "!", glow: "rgba(220, 38, 38, 0.45)" },
-    CRITICAL: { bg: "#DC2626", border: "#FFFFFF", label: "!", glow: "rgba(220, 38, 38, 0.45)" },
-    MEDIUM: { bg: "#EA580C", border: "#FFFFFF", label: "▲", glow: "rgba(234, 88, 12, 0.35)" },
-    LOW: { bg: "#CA8A04", border: "#FFFFFF", label: "●", glow: "rgba(202, 138, 4, 0.3)" },
+  const colorMap: Record<string, { bg: string; border: string; glow: string }> = {
+    HIGH: { bg: "#DC2626", border: "#FFFFFF", glow: "rgba(220, 38, 38, 0.45)" },
+    CRITICAL: { bg: "#DC2626", border: "#FFFFFF", glow: "rgba(220, 38, 38, 0.45)" },
+    MEDIUM: { bg: "#EA580C", border: "#FFFFFF", glow: "rgba(234, 88, 12, 0.35)" },
+    LOW: { bg: "#CA8A04", border: "#FFFFFF", glow: "rgba(202, 138, 4, 0.3)" },
   };
 
   const config = colorMap[normalized] || colorMap.MEDIUM;
+  const alertSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`;
 
   return L.divIcon({
     className: "custom-danger-pin",
@@ -79,13 +80,11 @@ function createCustomIcon(severity: IncidentSeverity) {
           align-items: center;
           justify-content: center;
           color: #FFFFFF;
-          font-weight: 800;
-          font-size: 14px;
           box-shadow: 0 4px 14px ${config.glow}, 0 2px 4px rgba(15, 23, 42, 0.25);
           cursor: pointer;
           transition: transform 0.15s ease;
         ">
-          ${config.label}
+          ${alertSvg}
         </div>
       </div>
     `,
@@ -95,9 +94,13 @@ function createCustomIcon(severity: IncidentSeverity) {
   });
 }
 
-// Verified Safe Zone icon (Police / Hospital)
+// Verified Safe Zone icon (Police / Hospital) with crisp vector SVG
 function createSafeZoneIcon(type: string) {
   const isPolice = type === "POLICE_STATION";
+  const iconSvg = isPolice
+    ? `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>`
+    : `<svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 6v12"/><path d="M6 12h12"/></svg>`;
+
   return L.divIcon({
     className: "custom-safe-pin",
     html: `
@@ -111,12 +114,10 @@ function createSafeZoneIcon(type: string) {
         align-items: center;
         justify-content: center;
         color: #FFFFFF;
-        font-weight: 800;
-        font-size: 14px;
         box-shadow: 0 4px 12px ${isPolice ? "rgba(37, 99, 235, 0.35)" : "rgba(5, 150, 105, 0.35)"}, 0 2px 4px rgba(15,23,42,0.15);
         cursor: pointer;
       ">
-        ${isPolice ? "👮" : "🏥"}
+        ${iconSvg}
       </div>
     `,
     iconSize: [32, 32],
