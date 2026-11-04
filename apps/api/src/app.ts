@@ -30,6 +30,7 @@ import alertsRouter from './routes/alerts';
 import adminRouter from './routes/admin';
 import safeZonesRouter from './routes/safeZones';
 import routingRouter from './routes/routing';
+import statsRouter from './routes/stats';
 
 app.use('/api/v1/auth', authRouter);
 app.use('/api/v1/users', userRouter);
@@ -39,6 +40,7 @@ app.use('/api/v1/alerts', alertsRouter);
 app.use('/api/v1/admin', adminRouter);
 app.use('/api/v1/safe-zones', safeZonesRouter);
 app.use('/api/v1/routes', routingRouter);
+app.use('/api/v1/stats', statsRouter);
 
 app.get('/', (req, res) => {
   res.json({
@@ -48,6 +50,7 @@ app.get('/', (req, res) => {
     endpoints: {
       health: '/health',
       dbHealth: '/health/db',
+      stats: '/api/v1/stats',
       reports: '/api/v1/reports',
       safeZones: '/api/v1/safe-zones',
       safeRouting: '/api/v1/routes/safe-path',

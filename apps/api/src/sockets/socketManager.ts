@@ -185,3 +185,12 @@ export const emitReportVerified = (data: { reportId: string; verifiedBy: string;
   if (!io) return;
   io.to('live_reports').emit('REPORT_VERIFIED', data);
 };
+
+
+/**
+ * Broadcast STATS_UPDATED whenever platform aggregates change
+ */
+export const emitStatsUpdated = (stats: any) => {
+  if (!io) return;
+  io.to('live_reports').emit('STATS_UPDATED', stats);
+};
