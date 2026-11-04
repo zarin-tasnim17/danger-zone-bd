@@ -325,7 +325,8 @@ export default function MapClient() {
 
         if (isWithinBangladesh(coords.lat, coords.lng)) {
           setCenter(coords);
-          setZoom(15);
+          // Optimal regional context zoom level on initial load (shows local district, towns, and surrounding threat context)
+          setZoom(13);
         } else {
           console.info("[Geo] Device is outside Bangladesh boundaries. Displaying national view.");
         }
@@ -352,7 +353,8 @@ export default function MapClient() {
 
         if (isWithinBangladesh(coords.lat, coords.lng)) {
           setCenter(coords);
-          setZoom(15);
+          // Optimal regional context zoom level on initial load (shows local district, towns, and surrounding threat context)
+          setZoom(13);
         } else {
           alert("Your detected GPS location is outside Bangladesh boundaries.");
         }
@@ -488,18 +490,31 @@ export default function MapClient() {
           maxZoom={19}
         />
 
-        {/* User GPS Pin (if enabled) */}
+        {/* User GPS Pin & Accuracy Radar Circle */}
         {userLocation && (
-          <Marker position={[userLocation.lat, userLocation.lng]} icon={userGpsIcon}>
-            <Popup>
-              <div className="p-2 text-slate-800 text-xs">
-                <span className="font-bold text-blue-600">📍 You Are Here</span>
-                <p className="text-[10px] text-slate-500 font-mono mt-0.5">
-                  ({userLocation.lat.toFixed(4)}, {userLocation.lng.toFixed(4)})
-                </p>
-              </div>
-            </Popup>
-          </Marker>
+          <>
+            <Circle
+              center={[userLocation.lat, userLocation.lng]}
+              radius={300}
+              pathOptions={{
+                color: "#2563EB",
+                fillColor: "#3B82F6",
+                fillOpacity: 0.12,
+                weight: 1.5,
+                dashArray: "4, 6",
+              }}
+            />
+            <Marker position={[userLocation.lat, userLocation.lng]} icon={userGpsIcon}>
+              <Popup>
+                <div className="p-2 text-slate-800 text-xs">
+                  <span className="font-bold text-blue-600">📍 You Are Here</span>
+                  <p className="text-[10px] text-slate-500 font-mono mt-0.5">
+                    ({userLocation.lat.toFixed(4)}, {userLocation.lng.toFixed(4)})
+                  </p>
+                </div>
+              </Popup>
+            </Marker>
+          </>
         )}
 
         {/* Render Verified Safe Zones */}

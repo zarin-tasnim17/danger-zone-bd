@@ -1218,7 +1218,7 @@ export default function ReportDetailsPage() {
                               </div>
                               <div className="min-w-0">
                                 <h4 className="text-xs font-bold text-slate-900 truncate">
-                                  {language === "bn" && zone.nameBn ? zone.nameBn : zone.name}
+                                  {language === "bn" && (zone as any).nameBn ? (zone as any).nameBn : zone.name}
                                 </h4>
                                 <div className="text-[11px] text-slate-500 flex items-center gap-1.5 font-medium">
                                   <span>{isPolice ? "Police Station" : "Hospital / Medical"}</span>

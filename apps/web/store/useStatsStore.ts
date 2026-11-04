@@ -31,9 +31,10 @@ export const useStatsStore = create<StatsState>((set, get) => ({
   fetchStats: async () => {
     try {
       set({ isLoading: true, error: null });
-      const response = await apiFetch<{ success: boolean; data: PlatformStats }>("/stats");
-      if (response && response.data) {
-        set({ stats: response.data, isLoading: false, error: null });
+      const response: any = await apiFetch("/stats");
+      const statsData = response?.data || response;
+      if (statsData && typeof statsData.activeReports === "number") {
+        set({ stats: statsData, isLoading: false, error: null });
       }
     } catch (err: any) {
       console.warn("[StatsStore] Could not fetch live platform stats:", err.message);

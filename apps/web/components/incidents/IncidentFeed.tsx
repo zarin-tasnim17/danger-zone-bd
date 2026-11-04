@@ -211,17 +211,17 @@ export default function IncidentFeed({ onIncidentSelect }: { onIncidentSelect?: 
                     ? "No active hazards match your filter"
                     : "আপনার ফিল্টারে কোনো সক্রিয় বিপদ পাওয়া যায়নি"
                   : language === "en"
-                  ? "No Active Hazards in Current Viewport"
-                  : "বর্তমান মানচিত্র এলাকায় কোনো সক্রিয় বিপদ নেই"}
+                  ? "Sector All Clear — 0 Local Threats"
+                  : "এই এলাকা নিরাপদ — কোনো বিপদ নেই"}
               </p>
-              <p className="text-[11px] text-slate-500 mt-1 max-w-[230px] mx-auto leading-relaxed">
+              <p className="text-[11px] text-slate-500 mt-1 max-w-[240px] mx-auto leading-relaxed">
                 {hasActiveFilters
                   ? language === "en"
                     ? "Try resetting filters or pan the map to scan other districts."
                     : "ফিল্টার মুছে ফেলুন অথবা অন্যান্য জেলার তথ্য দেখতে মানচিত্রটি সরান।"
                   : language === "en"
-                  ? "All clear in this sector. Pan the map to explore other districts, or report an incident to protect your community."
-                    : "এই এলাকায় কোনো বিপদ সংকেত নেই। অন্যান্য জেলা দেখতে মানচিত্রটি সরান অথবা নতুন তথ্য জানান।"}
+                  ? "No incidents reported in your immediate vicinity. Pan the map or zoom out to inspect national threat zones."
+                  : "আপনার এলাকায় কোনো সক্রিয় বিপদ নেই। সারা দেশের বিপদের তথ্য দেখতে জুম আউট করুন।"}
               </p>
             </div>
             {hasActiveFilters ? (
@@ -233,13 +233,25 @@ export default function IncidentFeed({ onIncidentSelect }: { onIncidentSelect?: 
                 <span>{language === "en" ? "Reset Filters" : "ফিল্টার রিসেট করুন"}</span>
               </button>
             ) : (
-              <Link
-                href="/report"
-                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold shadow-sm transition-all active:scale-95"
-              >
-                <PlusCircle className="w-3.5 h-3.5" />
-                <span>{language === "en" ? "Report Threat Here" : "নতুন রিপোর্ট করুন"}</span>
-              </Link>
+              <div className="flex flex-col gap-2 pt-1 items-center">
+                <button
+                  onClick={() => {
+                    setCenter({ lat: 23.685, lng: 90.3563 });
+                    setZoom(7);
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold shadow-xs transition-all active:scale-95"
+                >
+                  <MapPin className="w-3.5 h-3.5 text-blue-400" />
+                  <span>{language === "en" ? "View All Bangladesh Threats" : "সারা দেশের ম্যাপ দেখুন"}</span>
+                </button>
+                <Link
+                  href="/report"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white hover:bg-slate-100 text-slate-700 text-xs font-semibold border border-slate-200 transition-all active:scale-95 shadow-2xs"
+                >
+                  <PlusCircle className="w-3.5 h-3.5 text-red-600" />
+                  <span>{language === "en" ? "Report Threat in Area" : "নতুন রিপোর্ট করুন"}</span>
+                </Link>
+              </div>
             )}
           </div>
         ) : (
