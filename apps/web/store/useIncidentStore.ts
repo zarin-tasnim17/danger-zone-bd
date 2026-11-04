@@ -11,144 +11,6 @@ export interface SafeZoneItem {
   longitude: number;
 }
 
-export const DEFAULT_BANGLADESH_INCIDENTS: DangerIncident[] = [
-  {
-    id: "sample-1",
-    title: "Armed Mugging Attempt near Rapa Plaza",
-    titleBn: "রাপা প্লাজার কাছে সশস্ত্র ছিনতাইয়ের চেষ্টা",
-    description: "Two individuals on a black motorcycle attempted to snatch a bag. Suspects fled toward Mirpur Road.",
-    descriptionBn: "কালো মোটরসাইকেলে দুই ব্যক্তি ব্যাগ ছিনতাইয়ের চেষ্টা করে। মিরপুর রোডের দিকে পালিয়ে গেছে।",
-    category: "MUGGING",
-    severity: "HIGH",
-    coordinates: { lat: 23.7538, lng: 90.3773 },
-    locationName: "Dhanmondi 27, Dhaka",
-    locationNameBn: "ধানমন্ডি ২৭, ঢাকা",
-    timestamp: new Date(Date.now() - 15 * 60 * 1000).toISOString(),
-    upvotes: 14,
-    downvotes: 1,
-    status: "community_confirmed",
-    reportedBy: "Verified Responder",
-    verifiedCount: 14,
-    fuzzedRadiusMeters: 150,
-  },
-  {
-    id: "sample-2",
-    title: "Severe Extortion Demand at Transport Stand",
-    titleBn: "পরিবহন স্ট্যান্ডে জোরপূর্বক চাঁদাবাজি",
-    description: "Local syndicate harassing CNG auto-rickshaws and microbuses demanding illegal toll.",
-    descriptionBn: "সিএনজি ও মাইক্রোবাস থেকে অবৈধ চাঁদা আদায় করছে একটি সংঘবদ্ধ চক্র।",
-    category: "EXTORTION",
-    severity: "HIGH",
-    coordinates: { lat: 23.7570, lng: 90.3900 },
-    locationName: "Farmgate Bus Terminal, Dhaka",
-    locationNameBn: "ফার্মগেট বাস টার্মিনাল, ঢাকা",
-    timestamp: new Date(Date.now() - 45 * 60 * 1000).toISOString(),
-    upvotes: 9,
-    downvotes: 0,
-    status: "community_confirmed",
-    reportedBy: "Citizen Report",
-    verifiedCount: 9,
-    fuzzedRadiusMeters: 150,
-  },
-  {
-    id: "sample-3",
-    title: "Completely Unlit Dark Road with Open Trench",
-    titleBn: "সম্পূর্ণ অন্ধকার রাস্তা ও উন্মুক্ত ড্রেন",
-    description: "Streetlights dysfunctional for 500m stretch. High accident risk and potential snatching spot.",
-    descriptionBn: "প্রায় ৫০০ মিটার রাস্তায় বাতি জ্বলছে না। রাতে ছিনতাই ও দুর্ঘটনার মারাত্মক ঝুঁকি।",
-    category: "UNLIT_ROAD",
-    severity: "MEDIUM",
-    coordinates: { lat: 23.8070, lng: 90.3685 },
-    locationName: "Mirpur 10 Roundabout Link, Dhaka",
-    locationNameBn: "মিরপুর ১০ গোলচত্বর লিংক রোড",
-    timestamp: new Date(Date.now() - 2 * 3600 * 1000).toISOString(),
-    upvotes: 21,
-    downvotes: 2,
-    status: "authority_verified",
-    reportedBy: "Press: Prothom Alo",
-    sourceUrl: "https://prothomalo.com",
-    sourceName: "Prothom Alo",
-    verifiedCount: 21,
-    fuzzedRadiusMeters: 150,
-  },
-  {
-    id: "sample-4",
-    title: "Motorbike Snatch-and-Run Incident",
-    titleBn: "চলন্ত মোটরসাইকেল থেকে ভ্যানিটি ব্যাগ ছিনতাই",
-    description: "Gold chain snatched from rickshaw commuter during slow-moving evening traffic.",
-    descriptionBn: "রিকশাযাত্রীর কাছ থেকে স্বর্ণের চেইন ছিনিয়ে নিয়ে দ্রুত পালিয়ে যায়।",
-    category: "THEFT",
-    severity: "MEDIUM",
-    coordinates: { lat: 23.7925, lng: 90.4078 },
-    locationName: "Gulshan 1 Avenue, Dhaka",
-    locationNameBn: "গুলশান ১ এভিনিউ, ঢাকা",
-    timestamp: new Date(Date.now() - 4 * 3600 * 1000).toISOString(),
-    upvotes: 7,
-    downvotes: 0,
-    status: "community_confirmed",
-    reportedBy: "Citizen Report",
-    verifiedCount: 7,
-    fuzzedRadiusMeters: 150,
-  },
-  {
-    id: "sample-5",
-    title: "Suspected Narcotics Trade Point in Dark Alley",
-    titleBn: "অন্ধকার গলিতে সন্দেহভাজন মাদক বেচাকেনা",
-    description: "Suspicious group gathering after midnight behind railway boundary.",
-    descriptionBn: "রেললাইন সংলগ্ন নির্জন গলিতে গভীর রাতে সন্দেহজনক জমায়েত।",
-    category: "DRUG_ACTIVITY",
-    severity: "LOW",
-    coordinates: { lat: 23.8680, lng: 90.4000 },
-    locationName: "Uttara Sector 3, Dhaka",
-    locationNameBn: "উত্তরা সেক্টর ৩, ঢাকা",
-    timestamp: new Date(Date.now() - 6 * 3600 * 1000).toISOString(),
-    upvotes: 5,
-    downvotes: 1,
-    status: "community_confirmed",
-    reportedBy: "Citizen Report",
-    verifiedCount: 5,
-    fuzzedRadiusMeters: 150,
-  },
-];
-
-export const DEFAULT_SAFE_ZONES: SafeZoneItem[] = [
-  {
-    id: "safe-1",
-    name: "Dhaka Medical College Hospital (Emergency)",
-    type: "HOSPITAL",
-    latitude: 23.7257,
-    longitude: 90.3976,
-  },
-  {
-    id: "safe-2",
-    name: "Dhanmondi Model Police Station",
-    type: "POLICE_STATION",
-    latitude: 23.7431,
-    longitude: 90.3756,
-  },
-  {
-    id: "safe-3",
-    name: "Gulshan Police Station",
-    type: "POLICE_STATION",
-    latitude: 23.7925,
-    longitude: 90.4150,
-  },
-  {
-    id: "safe-4",
-    name: "Kurmitola General Hospital",
-    type: "HOSPITAL",
-    latitude: 23.8247,
-    longitude: 90.4124,
-  },
-  {
-    id: "safe-5",
-    name: "Mirpur Model Police Station",
-    type: "POLICE_STATION",
-    latitude: 23.8050,
-    longitude: 90.3690,
-  },
-];
-
 interface IncidentState {
   incidents: DangerIncident[];
   safeZones: SafeZoneItem[];
@@ -189,9 +51,9 @@ const mapBackendToFrontendIncident = (r: any): DangerIncident => {
 };
 
 export const useIncidentStore = create<IncidentState>((set, get) => ({
-  incidents: DEFAULT_BANGLADESH_INCIDENTS,
-  safeZones: DEFAULT_SAFE_ZONES,
-  isLoading: false,
+  incidents: [],
+  safeZones: [],
+  isLoading: true,
   error: null,
   activeBounds: null,
 
@@ -203,7 +65,7 @@ export const useIncidentStore = create<IncidentState>((set, get) => ({
     })),
 
   fetchIncidentsInBounds: async (bounds) => {
-    set({ isLoading: true, activeBounds: bounds });
+    set({ isLoading: true, error: null, activeBounds: bounds });
 
     try {
       // Update viewport on server for targeted Socket.IO emissions
@@ -222,27 +84,30 @@ export const useIncidentStore = create<IncidentState>((set, get) => ({
       });
 
       const reports = await apiFetch<any[]>(`/reports?${query.toString()}`);
-      if (reports && reports.length > 0) {
+      if (Array.isArray(reports)) {
         const mapped = reports.map(mapBackendToFrontendIncident);
         set({ incidents: mapped, isLoading: false, error: null });
       } else {
-        // Keep fallback data if backend returns empty in current viewport
-        set({ isLoading: false });
+        set({ incidents: [], isLoading: false, error: null });
       }
     } catch (err: any) {
-      console.warn("[Incidents] Fetch failed, retaining fallback sample data:", err.message);
-      set({ isLoading: false, error: err.message });
+      console.error("[Incidents] Fetch failed from live database:", err.message);
+      set({
+        incidents: [],
+        isLoading: false,
+        error: err.message || "Unable to connect to live public safety network.",
+      });
     }
   },
 
   fetchSafeZones: async () => {
     try {
       const zones = await apiFetch<SafeZoneItem[]>("/safe-zones");
-      if (zones && zones.length > 0) {
+      if (Array.isArray(zones)) {
         set({ safeZones: zones });
       }
     } catch (err: any) {
-      console.warn("[SafeZones] Fetch failed, retaining fallback sample havens:", err.message);
+      console.error("[SafeZones] Fetch failed from live database:", err.message);
     }
   },
 
@@ -282,12 +147,7 @@ export const useIncidentStore = create<IncidentState>((set, get) => ({
       return result;
     } catch (err: any) {
       console.error("[Vote] Failed:", err.message);
-      // For local fallback items, allow voting without crashing
-      return {
-        upvotes: 0,
-        downvotes: 0,
-        status: "ACTIVE",
-      };
+      throw err;
     }
   },
 
@@ -300,7 +160,7 @@ export const useIncidentStore = create<IncidentState>((set, get) => ({
       return result;
     } catch (err: any) {
       console.error("[ContextUpdate] Failed:", err.message);
-      return { success: true };
+      throw err;
     }
   },
 
