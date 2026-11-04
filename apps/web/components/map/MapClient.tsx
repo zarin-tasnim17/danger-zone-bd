@@ -215,6 +215,48 @@ function MapViewUpdater({
   return null;
 }
 
+// Automatically invalidates Leaflet map size when the viewport or parent container (sidebar collapse/expand) changes
+function MapResizeHandler() {
+  const map = useMap();
+  const fetchIncidentsInBounds = useIncidentStore((state) => state.fetchIncidentsInBounds);
+
+  useEffect(() => {
+    const container = map.getContainer();
+    if (!container) return;
+
+    let resizeTimer: NodeJS.Timeout | null = null;
+    const observer = new ResizeObserver(() => {
+      map.invalidateSize();
+      if (resizeTimer) clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(() => {
+        map.invalidateSize();
+        const b = map.getBounds();
+        fetchIncidentsInBounds({
+          minLat: b.getSouth(),
+          maxLat: b.getNorth(),
+          minLng: b.getWest(),
+          maxLng: b.getEast(),
+        });
+      }, 350);
+    });
+
+    observer.observe(container);
+
+    const handleWindowResize = () => {
+      map.invalidateSize();
+    };
+    window.addEventListener("resize", handleWindowResize);
+
+    return () => {
+      observer.disconnect();
+      if (resizeTimer) clearTimeout(resizeTimer);
+      window.removeEventListener("resize", handleWindowResize);
+    };
+  }, [map, fetchIncidentsInBounds]);
+
+  return null;
+}
+
 export default function MapClient() {
   const center = useMapStore((state) => state.center);
   const zoom = useMapStore((state) => state.zoom);
@@ -400,6 +442,7 @@ export default function MapClient() {
       >
         <MapViewUpdater center={center} zoom={zoom} />
         <MapEventsHandler />
+        <MapResizeHandler />
 
         {/* Zoom Control repositioned neatly at bottom-left */}
         <ZoomControl position="bottomleft" />
