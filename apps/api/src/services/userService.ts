@@ -12,7 +12,24 @@ export const getUserProfile = async (userId: string) => {
       trustScore: true,
       isBanned: true,
       createdAt: true,
-    }
+      _count: {
+        select: {
+          reports: true,
+          votes: true,
+          alertZones: true,
+        },
+      },
+      verifications: {
+        orderBy: { createdAt: 'desc' },
+        take: 1,
+        select: {
+          id: true,
+          type: true,
+          status: true,
+          createdAt: true,
+        },
+      },
+    },
   });
 
   if (!user) {

@@ -9,6 +9,18 @@ export interface AuthUser {
   trustScore: number;
   isVerified: boolean;
   isBanned?: boolean;
+  createdAt?: string;
+  _count?: {
+    reports: number;
+    votes: number;
+    alertZones: number;
+  };
+  verifications?: {
+    id: string;
+    type: 'PHONE_OTP' | 'NID_DOCUMENT';
+    status: 'PENDING' | 'APPROVED' | 'REJECTED';
+    createdAt: string;
+  }[];
 }
 
 interface AuthState {
