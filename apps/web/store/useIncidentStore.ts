@@ -20,6 +20,7 @@ interface IncidentState {
   activeBounds: { minLat: number; maxLat: number; minLng: number; maxLng: number } | null;
   setIncidents: (incidents: DangerIncident[]) => void;
   addIncident: (incident: DangerIncident) => void;
+  fetchAllIncidents: () => Promise<void>;
   fetchIncidentsInBounds: (bounds: { minLat: number; maxLat: number; minLng: number; maxLng: number }) => Promise<void>;
   fetchSafeZones: () => Promise<void>;
   voteIncident: (reportId: string, voteType: 1 | -1) => Promise<{ upvotes: number; downvotes: number }>;
@@ -66,6 +67,31 @@ export const useIncidentStore = create<IncidentState>((set, get) => ({
       incidents: [incident, ...state.incidents.filter((i) => i.id !== incident.id)],
     })),
 
+  fetchAllIncidents: async () => {
+    try {
+      set({ isLoading: true, error: null });
+      // Fetch nationwide incidents across Bangladesh
+      const query = new URLSearchParams({
+        minLat: "20.0",
+        maxLat: "27.5",
+        minLng: "88.0",
+        maxLng: "93.5",
+      });
+      const reports = await apiFetch<any[]>(`/reports?${query.toString()}`);
+      if (Array.isArray(reports)) {
+        const mapped = reports.map(mapBackendToFrontendIncident);
+        const existingMap = new Map(get().incidents.map((i) => [i.id, i]));
+        mapped.forEach((inc) => existingMap.set(inc.id, inc));
+        set({ incidents: Array.from(existingMap.values()), isLoading: false, error: null });
+      } else {
+        set({ isLoading: false, error: null });
+      }
+    } catch (err: any) {
+      console.error("[Incidents] Nationwide fetch failed:", err.message);
+      set({ isLoading: false });
+    }
+  },
+
   fetchIncidentsInBounds: async (bounds) => {
     const hasExistingData = get().incidents.length > 0;
     if (hasExistingData) {
@@ -93,9 +119,12 @@ export const useIncidentStore = create<IncidentState>((set, get) => ({
       const reports = await apiFetch<any[]>(`/reports?${query.toString()}`);
       if (Array.isArray(reports)) {
         const mapped = reports.map(mapBackendToFrontendIncident);
-        set({ incidents: mapped, isLoading: false, isUpdatingBounds: false, error: null });
+        // Merge with existing incidents so navigating to one local sector never deletes pins in other districts
+        const existingMap = new Map(get().incidents.map((i) => [i.id, i]));
+        mapped.forEach((inc) => existingMap.set(inc.id, inc));
+        set({ incidents: Array.from(existingMap.values()), isLoading: false, isUpdatingBounds: false, error: null });
       } else {
-        set({ incidents: [], isLoading: false, isUpdatingBounds: false, error: null });
+        set({ isLoading: false, isUpdatingBounds: false, error: null });
       }
     } catch (err: any) {
       console.error("[Incidents] Fetch failed from live database:", err.message);

@@ -33,12 +33,6 @@ import {
   Loader2,
 } from "lucide-react";
 
-// Bounding box covering all 64 districts of Bangladesh with comfortable padding
-const BANGLADESH_BOUNDS: L.LatLngBoundsExpression = [
-  [20.3, 87.8], // Southwest (Bay of Bengal / Sundarbans / St. Martin)
-  [26.8, 92.9], // Northeast (Tetulia / Jaflong / Chittagong Hill Tracts)
-];
-
 // Custom high-visibility solid marker icons with animated radar pulse on high severity
 function createCustomIcon(severity: IncidentSeverity) {
   const normalized = (severity || "").toUpperCase();
@@ -264,6 +258,7 @@ export default function MapClient() {
   const setZoom = useMapStore((state) => state.setZoom);
   const incidents = useIncidentStore((state) => state.incidents);
   const safeZones = useIncidentStore((state) => state.safeZones);
+  const fetchAllIncidents = useIncidentStore((state) => state.fetchAllIncidents);
   const fetchSafeZones = useIncidentStore((state) => state.fetchSafeZones);
   const initSocketListeners = useIncidentStore((state) => state.initSocketListeners);
   const voteIncident = useIncidentStore((state) => state.voteIncident);
@@ -276,12 +271,14 @@ export default function MapClient() {
   const [showDangerCircles, setShowDangerCircles] = useState(true);
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [isLocating, setIsLocating] = useState(false);
+  const hasAutoLocatedRef = useRef(false);
 
-  // Mount: fetch verified safe zones and start socket listeners
+  // Mount: fetch nationwide incidents across Bangladesh, verified safe zones, and start socket listeners
   useEffect(() => {
+    fetchAllIncidents();
     fetchSafeZones();
     initSocketListeners();
-  }, [fetchSafeZones, initSocketListeners]);
+  }, [fetchAllIncidents, fetchSafeZones, initSocketListeners]);
 
   // Filter incidents based on active global filter states
   const filteredIncidents = useMemo(() => {
@@ -314,10 +311,11 @@ export default function MapClient() {
     return lat >= 20.3 && lat <= 26.8 && lng >= 87.8 && lng <= 92.9;
   };
 
-  // Automatically detect user location on mount and smoothly zoom into their local neighborhood
+  // Automatically detect user location once on mount and smoothly zoom into their local neighborhood
   useEffect(() => {
-    if (typeof window === "undefined" || !navigator.geolocation) return;
+    if (typeof window === "undefined" || !navigator.geolocation || hasAutoLocatedRef.current) return;
 
+    hasAutoLocatedRef.current = true;
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
@@ -463,14 +461,12 @@ export default function MapClient() {
         </div>
       </div>
 
-      {/* Main Leaflet Map Container (Crisp Standard Daylight Street Map) */}
+      {/* Main Leaflet Map Container (Crisp Standard Daylight Street Map - Completely Unlocked & Smooth) */}
       <MapContainer
         center={[center.lat, center.lng]}
         zoom={zoom}
-        minZoom={6}
+        minZoom={5}
         maxZoom={18}
-        maxBounds={BANGLADESH_BOUNDS}
-        maxBoundsViscosity={1.0}
         attributionControl={false}
         zoomControl={false}
         scrollWheelZoom={true}
