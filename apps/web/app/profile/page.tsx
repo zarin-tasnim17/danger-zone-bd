@@ -136,13 +136,13 @@ export default function ProfilePage() {
   const isPendingVerification = latestVerification?.status === "PENDING";
 
   // Trust score coloring
-  const trustScore = user?.trustScore ?? 50;
+  const trustScore = user?.trustScore ?? 0;
   const trustColorClass =
     trustScore >= 75
       ? "text-emerald-600 bg-emerald-50 border-emerald-200"
       : trustScore >= 50
       ? "text-blue-600 bg-blue-50 border-blue-200"
-      : "text-amber-600 bg-amber-50 border-amber-200";
+      : "text-slate-600 bg-slate-100 border-slate-200";
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 text-slate-900 selection:bg-blue-500 selection:text-white">

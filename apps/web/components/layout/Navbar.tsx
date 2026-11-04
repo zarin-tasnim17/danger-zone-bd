@@ -84,18 +84,18 @@ export default function Navbar({
   return (
     <header className="w-full bg-white/95 backdrop-blur-xl border-b border-slate-200 text-slate-800 sticky top-0 z-30 shadow-xs transition-all select-none">
       {/* Main Single Premium Navbar (No top strip, language toggle integrated directly) */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-4">
+      <div className="max-w-[1536px] w-full mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-3">
         {/* Brand Logo & Live Threat Counter */}
-        <Link href="/" className="flex items-center gap-3 shrink-0 group">
+        <Link href="/" className="flex items-center gap-2.5 sm:gap-3 shrink-0 group">
           <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-red-600 to-rose-500 flex items-center justify-center text-white shrink-0 shadow-md shadow-red-500/25 ring-1 ring-red-400/30 group-hover:scale-105 transition-all">
             <ShieldAlert className="w-5 h-5 sm:w-6 sm:h-6" />
           </div>
-          <div>
+          <div className="flex flex-col">
             <div className="flex items-center gap-2">
-              <span className="text-base sm:text-lg font-black tracking-tight text-slate-900 group-hover:text-red-600 transition-colors">
+              <span className="text-base sm:text-lg font-black tracking-tight text-slate-900 group-hover:text-red-600 transition-colors whitespace-nowrap">
                 {language === "en" ? "DANGER ZONE" : "বিপদ সংকেত"}
               </span>
-              <span className="flex items-center gap-1.5 text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-red-50 text-red-700 border border-red-200 shadow-2xs font-mono">
+              <span className="inline-flex items-center gap-1.5 text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-red-50 text-red-700 border border-red-200 shadow-2xs font-mono whitespace-nowrap">
                 <span className="relative flex h-2 w-2">
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
                   <span className="relative inline-flex rounded-full h-2 w-2 bg-red-600" />
@@ -103,7 +103,7 @@ export default function Navbar({
                 <span>{totalIncidents} {language === "en" ? "Active" : "সক্রিয়"}</span>
               </span>
             </div>
-            <p className="text-[10px] text-slate-500 hidden sm:block tracking-wide font-medium">
+            <p className="text-[10px] text-slate-500 hidden 2xl:block tracking-wide font-medium whitespace-nowrap">
               {language === "en"
                 ? "Bangladesh Civic Safety Network"
                 : "বাংলাদেশ জরুরি নাগরিক নিরাপত্তা ব্যবস্থা"}
@@ -111,8 +111,8 @@ export default function Navbar({
           </div>
         </Link>
 
-        {/* Primary Desktop Navigation Links */}
-        <nav className="hidden xl:flex items-center gap-1 bg-slate-50/80 p-1 rounded-2xl border border-slate-200/80">
+        {/* Primary Desktop Navigation Links (Strict single-line guarantee with whitespace-nowrap) */}
+        <nav className="hidden lg:flex items-center gap-0.5 xl:gap-1 bg-slate-100/80 p-1 rounded-2xl border border-slate-200/80 shrink-0">
           {navLinks.map((link) => {
             const isActive = link.href === "/" ? pathname === "/" : pathname?.startsWith(link.href);
             const Icon = link.icon;
@@ -120,26 +120,26 @@ export default function Navbar({
               <Link
                 key={link.href}
                 href={link.href}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
+                className={`whitespace-nowrap inline-flex items-center gap-1.5 px-2.5 xl:px-3 py-1.5 rounded-xl text-xs font-semibold transition-all shrink-0 select-none ${
                   isActive
-                    ? "bg-white text-slate-900 shadow-2xs border border-slate-200/80 font-bold"
+                    ? "bg-white text-slate-900 shadow-xs border border-slate-200/90 font-bold"
                     : "text-slate-600 hover:text-slate-900 hover:bg-white/60"
                 }`}
               >
-                <Icon className={`w-3.5 h-3.5 ${isActive ? "text-blue-600" : "text-slate-400"}`} />
-                <span>{link.name}</span>
+                <Icon className={`w-3.5 h-3.5 shrink-0 ${isActive ? "text-red-600" : "text-slate-400"}`} />
+                <span className="whitespace-nowrap">{link.name}</span>
               </Link>
             );
           })}
         </nav>
 
         {/* Right Controls: Integrated Language Switcher, Citizen Trust Badge & Primary CTA */}
-        <div className="flex items-center gap-2 sm:gap-3">
+        <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
           {/* Integrated Tactile Language Switcher (EN | বাংলা) */}
-          <div className="flex items-center p-0.5 bg-slate-100 border border-slate-200 rounded-xl text-xs font-semibold shadow-2xs">
+          <div className="flex items-center p-0.5 bg-slate-100 border border-slate-200/90 rounded-xl text-xs font-semibold shadow-2xs shrink-0">
             <button
               onClick={() => language !== "en" && toggleLanguage()}
-              className={`px-2.5 py-1 rounded-lg transition-all text-[11px] ${
+              className={`px-2.5 py-1 rounded-lg transition-all text-[11px] font-semibold whitespace-nowrap ${
                 language === "en"
                   ? "bg-white text-slate-900 font-bold shadow-2xs"
                   : "text-slate-500 hover:text-slate-800"
@@ -150,7 +150,7 @@ export default function Navbar({
             </button>
             <button
               onClick={() => language !== "bn" && toggleLanguage()}
-              className={`px-2.5 py-1 rounded-lg transition-all text-[11px] ${
+              className={`px-2.5 py-1 rounded-lg transition-all text-[11px] font-semibold whitespace-nowrap ${
                 language === "bn"
                   ? "bg-white text-slate-900 font-bold shadow-2xs"
                   : "text-slate-500 hover:text-slate-800"
@@ -165,26 +165,26 @@ export default function Navbar({
           {user?.role === "ADMIN" ? (
             <Link
               href="/admin"
-              className="bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 text-xs font-bold px-3 py-1.5 rounded-xl flex items-center gap-1.5 transition-all shadow-2xs"
+              className="bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 text-xs font-bold px-3 py-1.5 rounded-xl inline-flex items-center gap-1.5 transition-all shadow-2xs shrink-0 whitespace-nowrap"
               title="Open Admin Moderation Console"
             >
-              <Lock className="w-3.5 h-3.5 text-purple-600" />
-              <span className="hidden sm:inline">Admin</span>
+              <Lock className="w-3.5 h-3.5 text-purple-600 shrink-0" />
+              <span className="hidden sm:inline whitespace-nowrap">Admin</span>
             </Link>
           ) : (
             <Link
               href="/profile"
-              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-xs text-slate-700 transition shadow-2xs"
+              className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200/90 rounded-xl text-xs text-slate-700 transition shadow-2xs shrink-0 whitespace-nowrap"
               title="Citizen Trust Score & Identity"
             >
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              <span className="font-semibold text-slate-800">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+              <span className="font-semibold text-slate-800 whitespace-nowrap">
                 {user?.role === "VERIFIED_RESPONDER"
                   ? language === "en" ? "Verified" : "যাচাইকৃত"
                   : language === "en" ? "Citizen" : "নাগরিক"}
               </span>
-              <span className="text-slate-500 font-mono text-[11px]">
-                ({user?.trustScore ?? 50})
+              <span className="text-slate-500 font-mono text-[11px] whitespace-nowrap">
+                ({user?.trustScore ?? 0})
               </span>
             </Link>
           )}
@@ -192,17 +192,17 @@ export default function Navbar({
           {/* High-Visibility Primary Report Hazard CTA */}
           <Link
             href="/report"
-            className="relative group overflow-hidden bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-700 hover:to-rose-700 text-white text-xs sm:text-sm font-bold px-3.5 sm:px-4 py-2 rounded-xl flex items-center gap-1.5 transition-all shadow-md shadow-red-600/20 active:scale-95 ring-1 ring-red-500/30"
+            className="relative group overflow-hidden bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-700 hover:to-rose-700 text-white text-xs sm:text-sm font-bold px-3.5 sm:px-4 py-2 rounded-xl inline-flex items-center gap-1.5 transition-all shadow-md shadow-red-600/20 active:scale-95 ring-1 ring-red-500/30 shrink-0 whitespace-nowrap"
             id="report-incident-btn"
           >
             <PlusCircle className="w-4 h-4 shrink-0" />
-            <span>{language === "en" ? "Report Threat" : "বিপদ রিপোর্ট"}</span>
+            <span className="whitespace-nowrap">{language === "en" ? "Report Threat" : "বিপদ রিপোর্ট"}</span>
           </Link>
 
           {/* Mobile Navigation Drawer Toggle */}
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="xl:hidden p-2 rounded-xl border border-slate-200 bg-slate-50 text-slate-700 hover:text-slate-900 hover:bg-slate-100 transition-colors shadow-2xs"
+            className="lg:hidden p-2 rounded-xl border border-slate-200 bg-slate-50 text-slate-700 hover:text-slate-900 hover:bg-slate-100 transition-colors shadow-2xs shrink-0"
             aria-label="Toggle menu"
           >
             {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
@@ -212,7 +212,7 @@ export default function Navbar({
 
       {/* Mobile Drawer Menu */}
       {mobileMenuOpen && (
-        <div className="xl:hidden border-t border-slate-200 bg-white/98 backdrop-blur-2xl px-4 py-3 space-y-2 shadow-xl animate-in slide-in-from-top-2 duration-150">
+        <div className="lg:hidden border-t border-slate-200 bg-white/98 backdrop-blur-2xl px-4 py-3 space-y-2 shadow-xl animate-in slide-in-from-top-2 duration-150">
           <div className="grid grid-cols-2 gap-1.5 pb-2 border-b border-slate-100">
             {navLinks.map((link) => {
               const isActive = link.href === "/" ? pathname === "/" : pathname?.startsWith(link.href);
@@ -244,7 +244,7 @@ export default function Navbar({
               <span className="w-2 h-2 rounded-full bg-emerald-500" />
               <span>
                 {language === "en" ? "Citizen Trust Score:" : "নাগরিক ট্রাস্ট স্কোর:"}{" "}
-                <span className="font-mono text-slate-900 font-bold">{user?.trustScore ?? 50}</span>
+                <span className="font-mono text-slate-900 font-bold">{user?.trustScore ?? 0}</span>
               </span>
             </Link>
 

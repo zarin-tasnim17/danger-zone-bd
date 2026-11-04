@@ -461,7 +461,7 @@ export default function ReportDetailsPage() {
                             )}
                           </span>
                           <span>•</span>
-                          <span>Trust Score: {up.user?.trustScore ?? 50}</span>
+                          <span>Trust Score: {up.user?.trustScore ?? 0}</span>
                         </div>
                         <span>{new Date(up.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                       </div>
