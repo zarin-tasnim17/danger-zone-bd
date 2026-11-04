@@ -80,26 +80,26 @@ export function EmergencySosPill() {
 
       {/* Emergency Action Sheet Modal */}
       {isOpen && (
-        <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fadeIn">
-          <div className="bg-slate-900 border border-red-500/50 rounded-2xl max-w-md w-full p-6 text-white shadow-2xl shadow-red-950/80 space-y-5 relative">
+        <div className="fixed inset-0 z-[2000] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-white border border-red-200 rounded-2xl max-w-md w-full p-6 text-slate-900 shadow-2xl space-y-5 relative">
             {/* Header */}
             <div className="flex items-start justify-between">
               <div className="flex items-center gap-2.5">
-                <div className="p-2 rounded-xl bg-red-500/20 border border-red-500/40 text-red-400">
+                <div className="p-2 rounded-xl bg-red-50 border border-red-200 text-red-600 shadow-2xs">
                   <ShieldAlert className="w-6 h-6 animate-pulse" />
                 </div>
                 <div>
-                  <h3 className="font-extrabold text-lg text-white">
+                  <h3 className="font-extrabold text-lg text-slate-900">
                     {isBn ? "জরুরি সহায়তা কেন্দ্র (৯৯৯)" : "Emergency SOS Command"}
                   </h3>
-                  <p className="text-xs text-red-300 font-medium">
+                  <p className="text-xs text-red-600 font-semibold">
                     {isBn ? "জাতীয় জরুরি সেবা ও পুলিশ কল" : "National Emergency Dispatch Hotline"}
                   </p>
                 </div>
               </div>
               <button
                 onClick={() => setIsOpen(false)}
-                className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -108,38 +108,38 @@ export function EmergencySosPill() {
             {/* Direct 999 Call Button */}
             <a
               href="tel:999"
-              className="flex items-center justify-center gap-3 w-full py-4 rounded-xl bg-red-600 hover:bg-red-500 active:scale-98 text-white font-black text-lg tracking-wide shadow-xl shadow-red-600/40 border border-red-400/50 transition-all cursor-pointer"
+              className="flex items-center justify-center gap-3 w-full py-4 rounded-xl bg-red-600 hover:bg-red-700 active:scale-98 text-white font-black text-lg tracking-wide shadow-lg shadow-red-600/30 transition-all cursor-pointer"
             >
               <PhoneCall className="w-6 h-6 animate-bounce" />
               <span>{isBn ? "এখনই ৯৯৯ এ কল করুন" : "CALL 999 NOW"}</span>
             </a>
 
             {/* Live GPS Coordinates Readout Box */}
-            <div className="bg-slate-950/80 border border-slate-700/80 rounded-xl p-3.5 space-y-2">
-              <div className="flex items-center justify-between text-xs text-slate-400">
-                <span className="flex items-center gap-1.5 font-semibold text-slate-300">
-                  <Navigation className="w-3.5 h-3.5 text-cyan-400" />
+            <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 space-y-2">
+              <div className="flex items-center justify-between text-xs text-slate-600">
+                <span className="flex items-center gap-1.5 font-semibold text-slate-800">
+                  <Navigation className="w-3.5 h-3.5 text-blue-600" />
                   {isBn ? "আপনার বর্তমান জিপিএস অবস্থান" : "Your Exact Live GPS Coordinates"}
                 </span>
                 {coords?.accuracy && (
-                  <span className="text-[10px] text-emerald-400 font-mono">
+                  <span className="text-[10px] text-emerald-700 font-mono font-semibold">
                     ±{coords.accuracy}m accuracy
                   </span>
                 )}
               </div>
 
-              <div className="flex items-center justify-between gap-2 bg-slate-900 border border-slate-800 rounded-lg p-2.5">
-                <span className="font-mono text-sm font-bold text-cyan-300 tracking-wider">
+              <div className="flex items-center justify-between gap-2 bg-white border border-slate-200 rounded-lg p-2.5 shadow-2xs">
+                <span className="font-mono text-sm font-bold text-slate-900 tracking-wider">
                   {coordsText}
                 </span>
                 {coords && (
                   <button
                     onClick={handleCopy}
-                    className="p-1.5 rounded-md hover:bg-slate-800 text-slate-300 hover:text-white transition-colors cursor-pointer flex items-center gap-1 text-xs"
+                    className="p-1.5 rounded-md hover:bg-slate-100 text-slate-600 hover:text-slate-900 transition-colors cursor-pointer flex items-center gap-1 text-xs"
                     title="Copy coordinates"
                   >
                     {copied ? (
-                      <Check className="w-4 h-4 text-emerald-400" />
+                      <Check className="w-4 h-4 text-emerald-600" />
                     ) : (
                       <Copy className="w-4 h-4" />
                     )}
@@ -148,13 +148,13 @@ export function EmergencySosPill() {
               </div>
 
               {gpsError && (
-                <p className="text-[11px] text-amber-400 flex items-center gap-1">
+                <p className="text-[11px] text-amber-700 flex items-center gap-1">
                   <AlertTriangle className="w-3.5 h-3.5" />
                   {gpsError}
                 </p>
               )}
 
-              <p className="text-[11px] text-slate-400 leading-relaxed">
+              <p className="text-[11px] text-slate-500 leading-relaxed">
                 {isBn
                   ? "পুলিশ বা উদ্ধারকর্মীদের সরাসরি উপরোক্ত অক্ষাংশ ও দ্রাঘিমাংশ (Latitude, Longitude) বলুন।"
                   : "Read these coordinates out loud to the 999 dispatcher to pinpoint your location."}
@@ -167,7 +167,7 @@ export function EmergencySosPill() {
                 href={whatsappUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/40 text-emerald-300 font-semibold text-xs transition-colors"
+                className="flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-700 font-semibold text-xs transition-colors shadow-2xs"
               >
                 <Send className="w-3.5 h-3.5" />
                 <span>{isBn ? "হোয়াটসঅ্যাপে পাঠান" : "WhatsApp SOS"}</span>
@@ -175,7 +175,7 @@ export function EmergencySosPill() {
 
               <a
                 href={smsUrl}
-                className="flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg bg-blue-600/20 hover:bg-blue-600/30 border border-blue-500/40 text-blue-300 font-semibold text-xs transition-colors"
+                className="flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-700 font-semibold text-xs transition-colors shadow-2xs"
               >
                 <AlertTriangle className="w-3.5 h-3.5" />
                 <span>{isBn ? "এসএমএস পাঠান" : "SMS Alert"}</span>

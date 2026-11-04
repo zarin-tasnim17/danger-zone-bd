@@ -5,7 +5,6 @@ import {
   MapContainer,
   TileLayer,
   Polygon,
-  Marker,
   CircleMarker,
   useMapEvents,
 } from "react-leaflet";
@@ -19,7 +18,6 @@ interface PolygonDrawerMapProps {
 function MapClickHandler({ onAddPoint }: { onAddPoint: (point: [number, number]) => void }) {
   useMapEvents({
     click: (e) => {
-      // e.latlng contains lat and lng
       onAddPoint([
         parseFloat(e.latlng.lng.toFixed(5)),
         parseFloat(e.latlng.lat.toFixed(5)),
@@ -37,7 +35,7 @@ export default function PolygonDrawerMap({
   const leafletPositions: [number, number][] = coordinates.map(([lng, lat]) => [lat, lng]);
 
   return (
-    <div className="w-full h-64 sm:h-72 rounded-xl overflow-hidden border border-slate-700 relative z-0">
+    <div className="w-full h-64 sm:h-72 rounded-xl overflow-hidden border border-slate-200 shadow-sm relative z-0">
       <MapContainer
         center={[23.7925, 90.4078]} // Dhaka center default
         zoom={13}
@@ -47,8 +45,8 @@ export default function PolygonDrawerMap({
         style={{ height: "100%", width: "100%" }}
       >
         <TileLayer
-          url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-          attribution='&copy; CartoDB'
+          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
         />
 
         <MapClickHandler onAddPoint={onAddPoint} />
@@ -58,10 +56,10 @@ export default function PolygonDrawerMap({
           <Polygon
             positions={leafletPositions}
             pathOptions={{
-              color: "#6366F1",
-              fillColor: "#6366F1",
+              color: "#2563EB",
+              fillColor: "#3B82F6",
               fillOpacity: 0.25,
-              weight: 2,
+              weight: 2.5,
             }}
           />
         )}
@@ -71,10 +69,10 @@ export default function PolygonDrawerMap({
           <CircleMarker
             key={idx}
             center={pos}
-            radius={5}
+            radius={6}
             pathOptions={{
               color: "#FFFFFF",
-              fillColor: idx === 0 ? "#10B981" : "#6366F1",
+              fillColor: idx === 0 ? "#10B981" : "#2563EB",
               fillOpacity: 1,
               weight: 2,
             }}
