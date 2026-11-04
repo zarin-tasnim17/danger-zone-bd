@@ -19,3 +19,6 @@ out/
 
 # Prisma
 # (Optional) ignore generated client if not storing it in node_modules, but default is in node_modules
+
+# Agent Skills
+.agents/
