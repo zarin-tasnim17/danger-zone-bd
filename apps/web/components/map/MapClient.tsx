@@ -31,8 +31,6 @@ import {
   ThumbsDown,
   Navigation,
   Loader2,
-  AlertTriangle,
-  PhoneCall,
 } from "lucide-react";
 
 // Bounding box covering all 64 districts of Bangladesh with comfortable padding
@@ -127,15 +125,23 @@ function createSafeZoneIcon(type: string) {
   });
 }
 
-// Map events handler to update store on user movement
+// Map events handler to update store on user movement and trigger viewport incident loading
 function MapEventsHandler() {
   const setCenter = useMapStore((state) => state.setCenter);
   const setZoom = useMapStore((state) => state.setZoom);
+  const fetchIncidentsInBounds = useIncidentStore((state) => state.fetchIncidentsInBounds);
 
   const map = useMapEvents({
     moveend: () => {
       const c = map.getCenter();
       setCenter({ lat: c.lat, lng: c.lng });
+      const b = map.getBounds();
+      fetchIncidentsInBounds({
+        minLat: b.getSouth(),
+        maxLat: b.getNorth(),
+        minLng: b.getWest(),
+        maxLng: b.getEast(),
+      });
     },
     zoomend: () => {
       setZoom(map.getZoom());
@@ -169,6 +175,8 @@ export default function MapClient() {
   const setZoom = useMapStore((state) => state.setZoom);
   const incidents = useIncidentStore((state) => state.incidents);
   const safeZones = useIncidentStore((state) => state.safeZones);
+  const fetchSafeZones = useIncidentStore((state) => state.fetchSafeZones);
+  const initSocketListeners = useIncidentStore((state) => state.initSocketListeners);
   const voteIncident = useIncidentStore((state) => state.voteIncident);
   const { selectedSeverity, selectedCategory, searchQuery } = useFilterStore();
   const { language } = useLanguageStore();
@@ -180,7 +188,12 @@ export default function MapClient() {
   const [tileTheme, setTileTheme] = useState<"dark" | "osm">("dark");
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [isLocating, setIsLocating] = useState(false);
-  const [sosModalOpen, setSosModalOpen] = useState(false);
+
+  // Mount: fetch verified safe zones and start socket listeners
+  useEffect(() => {
+    fetchSafeZones();
+    initSocketListeners();
+  }, [fetchSafeZones, initSocketListeners]);
 
   // Filter incidents based on active global filter states
   const filteredIncidents = useMemo(() => {
@@ -335,54 +348,8 @@ export default function MapClient() {
               {tileTheme === "dark" ? "Dark Grid" : "Street"}
             </span>
           </button>
-
-          {/* SOS 999 Trigger */}
-          <button
-            onClick={() => setSosModalOpen(true)}
-            className="p-2 rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-500 text-white transition-all flex items-center gap-1 shadow-lg shadow-rose-950/60 active:scale-95"
-            title="Emergency 999 Helpline"
-          >
-            <PhoneCall className="w-4 h-4" />
-            <span className="text-xs font-black">999</span>
-          </button>
         </div>
       </div>
-
-      {/* SOS Modal Dialog */}
-      {sosModalOpen && (
-        <div className="fixed inset-0 z-[600] flex items-center justify-center bg-black/70 backdrop-blur-md p-4 animate-in fade-in duration-150">
-          <div className="bg-slate-900 border border-red-700/80 rounded-3xl p-6 max-w-sm w-full shadow-2xl text-center space-y-4">
-            <div className="w-14 h-14 rounded-full bg-red-950 border border-red-700 flex items-center justify-center mx-auto text-red-400 shadow-lg shadow-red-950/80">
-              <PhoneCall className="w-7 h-7 animate-pulse" />
-            </div>
-            <div>
-              <h3 className="text-lg font-black text-white">
-                {language === "en" ? "Emergency Dispatch (999)" : "জরুরি জাতীয় সেবা (৯৯৯)"}
-              </h3>
-              <p className="text-xs text-slate-300 mt-1 leading-relaxed">
-                {language === "en"
-                  ? "Are you currently in immediate life-threatening danger? This will connect you directly to Bangladesh Police, Fire Service, and Ambulance."
-                  : "আপনি কি তাৎক্ষণিক বিপদের সম্মুখীন? এটি আপনাকে সরাসরি বাংলাদেশ পুলিশ, ফায়ার সার্ভিস ও অ্যাম্বুলেন্সের সাথে সংযুক্ত করবে।"}
-              </p>
-            </div>
-            <div className="flex gap-2 pt-2">
-              <button
-                onClick={() => setSosModalOpen(false)}
-                className="flex-1 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold transition"
-              >
-                {language === "en" ? "Cancel" : "বাতিল"}
-              </button>
-              <a
-                href="tel:999"
-                className="flex-1 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-black flex items-center justify-center gap-1.5 transition shadow-lg shadow-red-950/60"
-              >
-                <PhoneCall className="w-3.5 h-3.5" />
-                <span>{language === "en" ? "Call 999 Now" : "৯৯৯ কল করুন"}</span>
-              </a>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Main Leaflet Map Container */}
       <MapContainer
@@ -403,18 +370,13 @@ export default function MapClient() {
         {/* Zoom Control repositioned neatly at bottom-left */}
         <ZoomControl position="bottomleft" />
 
-        {/* Tile Provider Layer */}
-        {tileTheme === "dark" ? (
-          <TileLayer
-            url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-            attribution='&copy; CartoDB'
-          />
-        ) : (
-          <TileLayer
-            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-            attribution='&copy; OpenStreetMap'
-          />
-        )}
+        {/* Tactical Tile Provider (Zero API Key, Zero Watermarks) */}
+        <TileLayer
+          className={tileTheme === "dark" ? "tactical-dark-tiles" : ""}
+          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+          maxZoom={19}
+        />
 
         {/* User GPS Pin (if enabled) */}
         {userLocation && (
