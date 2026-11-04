@@ -148,6 +148,19 @@ function MapEventsHandler() {
     },
   });
 
+  // Initial bounds load on map readiness
+  useEffect(() => {
+    if (map) {
+      const b = map.getBounds();
+      fetchIncidentsInBounds({
+        minLat: b.getSouth(),
+        maxLat: b.getNorth(),
+        minLng: b.getWest(),
+        maxLng: b.getEast(),
+      });
+    }
+  }, [map, fetchIncidentsInBounds]);
+
   return null;
 }
 

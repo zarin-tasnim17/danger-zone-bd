@@ -42,15 +42,17 @@ export default function ReportIncidentModal({ isOpen, onClose }: ReportModalProp
   const setMapCenter = useMapStore((state) => state.setCenter);
   const [deviceGps, setDeviceGps] = useState<{ lat: number; lng: number } | null>(null);
 
-  // Attempt to fetch current device GPS on modal open
+  // Attempt to fetch current device GPS on modal open and align map pin to citizen's live location
   useEffect(() => {
     if (isOpen && typeof window !== "undefined" && "geolocation" in navigator) {
       navigator.geolocation.getCurrentPosition(
         (pos) => {
-          setDeviceGps({
+          const coords = {
             lat: pos.coords.latitude,
             lng: pos.coords.longitude,
-          });
+          };
+          setDeviceGps(coords);
+          setMapCenter(coords);
         },
         (err) => {
           console.warn("[GPS Proximity Radar] Geolocation unavailable:", err.message);
@@ -58,7 +60,7 @@ export default function ReportIncidentModal({ isOpen, onClose }: ReportModalProp
         { enableHighAccuracy: true, timeout: 5000 }
       );
     }
-  }, [isOpen]);
+  }, [isOpen, setMapCenter]);
 
   // Live distance calculation between user's real GPS and map incident pin
   const proximityDistance = useMemo(() => {
