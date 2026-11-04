@@ -90,6 +90,9 @@ export default function IncidentFeed({ onIncidentSelect }: { onIncidentSelect?: 
     });
   }, [incidents, selectedSeverity, selectedCategory, searchQuery]);
 
+  const hasActiveFilters =
+    selectedSeverity !== "all" || selectedCategory !== "all" || searchQuery.trim() !== "";
+
   const handleFocusIncident = (incident: DangerIncident) => {
     setSelectedIncidentId(incident.id);
     setCenter(incident.coordinates);
