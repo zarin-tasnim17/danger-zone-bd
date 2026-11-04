@@ -16,6 +16,8 @@ import {
   FlaskConical,
   Lock,
   Activity,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 
 interface RouteItem {
@@ -42,6 +44,7 @@ export default function RouteTestNav() {
   const pathname = usePathname();
   const user = useAuthStore((state) => state.user);
   const [backendOnline, setBackendOnline] = useState<boolean | null>(null);
+  const [isCollapsed, setIsCollapsed] = useState(true);
 
   useEffect(() => {
     // Check backend health
@@ -50,66 +53,93 @@ export default function RouteTestNav() {
       .catch(() => setBackendOnline(false));
   }, []);
 
-  return (
-    <div className="bg-slate-900 border-b border-slate-800 text-white text-xs px-4 py-2 sticky top-0 z-40 shadow-sm">
-      <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-2">
-        {/* Left: Backend Status and Route Guide */}
-        <div className="flex items-center gap-3 shrink-0">
-          <div className="flex items-center gap-1.5 font-bold tracking-wider uppercase text-[10px] text-amber-400">
-            <Activity className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
-            <span>Route Explorer</span>
-          </div>
-
-          <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-slate-800 border border-slate-700 text-[10px]">
-            <span
-              className={`w-1.5 h-1.5 rounded-full ${
-                backendOnline === true
-                  ? "bg-emerald-400 animate-pulse"
-                  : backendOnline === false
-                  ? "bg-rose-500"
-                  : "bg-amber-400"
-              }`}
-            />
-            <span className="text-slate-300">
-              {backendOnline === true
-                ? "Backend Connected"
-                : backendOnline === false
-                ? "Backend Disconnected"
-                : "Checking API..."}
-            </span>
-          </div>
-
+  if (isCollapsed) {
+    return (
+      <div className="bg-slate-950/80 border-b border-slate-800/80 text-slate-400 text-[11px] px-3 sm:px-4 py-1 flex items-center justify-between z-40 relative backdrop-blur-md">
+        <div className="flex items-center gap-2">
+          <span
+            className={`w-1.5 h-1.5 rounded-full ${
+              backendOnline === true ? "bg-emerald-400 animate-pulse" : "bg-rose-500"
+            }`}
+          />
+          <span className="font-mono text-slate-300">
+            API: {backendOnline === true ? "Online" : backendOnline === false ? "Offline" : "Connecting..."}
+          </span>
           {user && (
-            <div className="hidden sm:flex items-center gap-1 px-2 py-0.5 rounded bg-slate-800 text-[10px] text-slate-300 border border-slate-700">
-              <span className="text-slate-400">Role:</span>
-              <span className="font-semibold text-emerald-400">{user.role}</span>
-              <span className="text-slate-500">•</span>
-              <span className="text-slate-400">Trust:</span>
-              <span className="font-semibold text-amber-300">{user.trustScore}</span>
-            </div>
+            <span className="hidden sm:inline text-slate-400">
+              • {user.role} (Trust: {user.trustScore})
+            </span>
           )}
         </div>
+        <button
+          onClick={() => setIsCollapsed(false)}
+          className="flex items-center gap-1 text-slate-400 hover:text-white transition-colors px-2 py-0.5 rounded-md hover:bg-slate-800/60"
+        >
+          <span className="text-[10px] font-semibold tracking-wide uppercase">Route Explorer</span>
+          <ChevronDown className="w-3 h-3 text-slate-400" />
+        </button>
+      </div>
+    );
+  }
 
-        {/* Right: Quick-jump Pills */}
-        <nav className="flex items-center gap-1 overflow-x-auto w-full md:w-auto pb-1 md:pb-0 scrollbar-none">
+  return (
+    <div className="bg-slate-950/95 border-b border-slate-800 text-white text-xs px-3 sm:px-4 py-2 z-40 relative backdrop-blur-md animate-in slide-in-from-top-1 duration-150">
+      <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-2">
+        {/* Left: Backend Status and Route Guide */}
+        <div className="flex items-center justify-between w-full md:w-auto gap-3 shrink-0">
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 font-bold tracking-wider uppercase text-[10px] text-amber-400">
+              <Activity className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
+              <span>Route Explorer</span>
+            </div>
+
+            <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-slate-900 border border-slate-800 text-[10px]">
+              <span
+                className={`w-1.5 h-1.5 rounded-full ${
+                  backendOnline === true
+                    ? "bg-emerald-400 animate-pulse"
+                    : backendOnline === false
+                    ? "bg-rose-500"
+                    : "bg-amber-400 animate-pulse"
+                }`}
+              />
+              <span className="font-mono text-slate-300">
+                {backendOnline === true
+                  ? "API: Online"
+                  : backendOnline === false
+                  ? "API: Offline"
+                  : "API: Connecting..."}
+              </span>
+            </div>
+          </div>
+
+          <button
+            onClick={() => setIsCollapsed(true)}
+            className="md:hidden flex items-center gap-1 text-slate-400 hover:text-white text-xs px-2 py-0.5 rounded bg-slate-900"
+          >
+            <span>Hide</span>
+            <ChevronUp className="w-3.5 h-3.5" />
+          </button>
+        </div>
+
+        {/* Center: Quick navigation links */}
+        <div className="flex items-center gap-1 overflow-x-auto w-full md:w-auto pb-1 md:pb-0 scrollbar-none">
           {ROUTES.map((route) => {
-            const isActive =
-              route.href === "/"
-                ? pathname === "/"
-                : pathname?.startsWith(route.href);
+            const isActive = route.href === "/" ? pathname === "/" : pathname?.startsWith(route.href);
             const Icon = route.icon;
+
+            // Only show admin route to admin
+            if (route.adminOnly && user?.role !== "ADMIN") return null;
 
             return (
               <Link
                 key={route.href}
                 href={route.href}
                 title={route.description}
-                className={`flex items-center gap-1 px-2.5 py-1 rounded text-[11px] font-medium transition-all shrink-0 ${
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all whitespace-nowrap shrink-0 ${
                   isActive
-                    ? "bg-brand-primary text-white shadow-sm ring-1 ring-blue-400"
-                    : route.adminOnly
-                    ? "bg-purple-950/60 text-purple-300 hover:bg-purple-900 border border-purple-800/50"
-                    : "bg-slate-800/80 text-slate-300 hover:bg-slate-700 hover:text-white border border-slate-700/50"
+                    ? "bg-blue-600 text-white shadow-sm font-semibold"
+                    : "text-slate-300 hover:text-white hover:bg-slate-800"
                 }`}
               >
                 <Icon className="w-3 h-3 shrink-0" />
@@ -117,7 +147,17 @@ export default function RouteTestNav() {
               </Link>
             );
           })}
-        </nav>
+        </div>
+
+        {/* Right: Collapse toggle button on desktop */}
+        <button
+          onClick={() => setIsCollapsed(true)}
+          className="hidden md:flex items-center gap-1 text-slate-400 hover:text-white text-xs px-2 py-1 rounded hover:bg-slate-800 transition"
+          title="Collapse Route Explorer"
+        >
+          <span>Hide</span>
+          <ChevronUp className="w-3.5 h-3.5" />
+        </button>
       </div>
     </div>
   );
