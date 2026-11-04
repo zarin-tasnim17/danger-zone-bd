@@ -147,6 +147,7 @@ const INITIAL_TESTS: TestCase[] = [
     },
     frontendRoute: "/report",
     status: "IDLE",
+    expectedStatus: [200, 201, 429],
   },
 
   // 5. Safe Zones
@@ -279,13 +280,16 @@ export default function DevTestPage() {
       const isExpected =
         target.expectedStatus?.includes(err.statusCode) ||
         (target.id.startsWith("admin-") && (err.statusCode === 403 || err.statusCode === 401)) ||
-        (target.id === "user-verify" && err.statusCode === 400);
+        (target.id === "user-verify" && err.statusCode === 400) ||
+        (target.id === "reports-create" && err.statusCode === 429);
 
       if (isExpected) {
         const policyMessage = target.id.startsWith("admin-")
           ? "Security Policy Enforced: Non-admin citizen correctly blocked by RBAC security gate."
           : target.id === "user-verify"
           ? "Deduplication Policy Enforced: Citizen already has a pending or completed KYC verification request in database."
+          : target.id === "reports-create" && err.statusCode === 429
+          ? "Anti-Spam Policy Enforced: Standard accounts must wait 15 minutes between incident submissions to prevent spam."
           : `Policy Enforced: Received expected status ${err.statusCode} (${err.message || "Expected result"}).`;
 
         setTests((prev) =>
@@ -303,6 +307,8 @@ export default function DevTestPage() {
                         ? "403 Forbidden (RBAC Protected)"
                         : err.statusCode === 401
                         ? "401 Unauthorized"
+                        : err.statusCode === 429
+                        ? "429 Rate Limited (Anti-Spam Cooldown)"
                         : `${err.statusCode} Verified Business Gate`,
                     message: policyMessage,
                     serverDetails: err.data || err.message,
