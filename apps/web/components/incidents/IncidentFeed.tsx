@@ -23,6 +23,7 @@ import {
   Radio,
   Search,
   RotateCcw,
+  PlusCircle,
 } from "lucide-react";
 
 function formatRelativeTime(dateString: string, lang: "en" | "bn"): string {
@@ -51,6 +52,10 @@ function formatRelativeTime(dateString: string, lang: "en" | "bn"): string {
 export default function IncidentFeed({ onIncidentSelect }: { onIncidentSelect?: () => void }) {
   const { language } = useLanguageStore();
   const incidents = useIncidentStore((state) => state.incidents);
+  const isLoading = useIncidentStore((state) => state.isLoading);
+  const error = useIncidentStore((state) => state.error);
+  const activeBounds = useIncidentStore((state) => state.activeBounds);
+  const fetchIncidentsInBounds = useIncidentStore((state) => state.fetchIncidentsInBounds);
   const voteIncident = useIncidentStore((state) => state.voteIncident);
   const addContextUpdate = useIncidentStore((state) => state.addContextUpdate);
   const { selectedSeverity, selectedCategory, searchQuery, resetFilters } = useFilterStore();
@@ -135,31 +140,93 @@ export default function IncidentFeed({ onIncidentSelect }: { onIncidentSelect?: 
 
       {/* Scrollable Incident Cards List */}
       <div className="flex-1 overflow-y-auto p-3 space-y-3 bg-slate-50/40">
-        {filtered.length === 0 ? (
+        {isLoading ? (
+          <div className="space-y-3 py-1">
+            {[1, 2, 3].map((n) => (
+              <div
+                key={n}
+                className="p-3.5 rounded-xl border border-slate-200 bg-white shadow-2xs space-y-2.5 animate-pulse"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="h-4 w-20 bg-slate-200 rounded-full" />
+                  <div className="h-3 w-14 bg-slate-200 rounded" />
+                </div>
+                <div className="h-4 w-3/4 bg-slate-200 rounded" />
+                <div className="h-3 w-full bg-slate-100 rounded" />
+                <div className="h-3 w-2/3 bg-slate-100 rounded" />
+                <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
+                  <div className="h-3 w-24 bg-slate-200 rounded" />
+                  <div className="h-5 w-16 bg-slate-200 rounded" />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : error ? (
+          <div className="p-5 rounded-2xl bg-red-50/80 border border-red-200 text-center space-y-3 my-2 shadow-2xs">
+            <div className="w-10 h-10 rounded-xl bg-red-100 border border-red-200 flex items-center justify-center mx-auto text-red-600">
+              <AlertCircle className="w-5 h-5" />
+            </div>
+            <div>
+              <h4 className="text-xs font-bold text-red-900">
+                {language === "en" ? "Safety Network Notice" : "নেটওয়ার্ক সংযোগ সতর্কতা"}
+              </h4>
+              <p className="text-[11px] text-red-700 mt-1 max-w-[240px] mx-auto leading-relaxed">
+                {error}
+              </p>
+            </div>
+            <button
+              onClick={() => {
+                if (activeBounds) {
+                  fetchIncidentsInBounds(activeBounds);
+                }
+              }}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-semibold shadow-sm transition-all active:scale-95"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span>{language === "en" ? "Retry Connection" : "পুনরায় চেষ্টা করুন"}</span>
+            </button>
+          </div>
+        ) : filtered.length === 0 ? (
           <div className="p-8 text-center text-slate-500 space-y-3">
             <div className="w-12 h-12 rounded-2xl bg-white border border-slate-200 flex items-center justify-center mx-auto text-slate-400 shadow-sm">
               <Crosshair className="w-6 h-6 animate-pulse" />
             </div>
             <div>
-              <p className="text-xs font-semibold text-slate-800">
-                {language === "en"
-                  ? "No active hazards match your filter"
-                  : "আপনার ফিল্টারে কোনো সক্রিয় বিপদ পাওয়া যায়নি"}
+              <p className="text-xs font-bold text-slate-900">
+                {hasActiveFilters
+                  ? language === "en"
+                    ? "No active hazards match your filter"
+                    : "আপনার ফিল্টারে কোনো সক্রিয় বিপদ পাওয়া যায়নি"
+                  : language === "en"
+                  ? "No Active Hazards in Current Viewport"
+                  : "বর্তমান মানচিত্র এলাকায় কোনো সক্রিয় বিপদ নেই"}
               </p>
-              <p className="text-[11px] text-slate-500 mt-1 max-w-[220px] mx-auto">
-                {language === "en"
-                  ? "Try resetting filters or pan the map to scan other districts."
-                  : "ফিল্টার মুছে ফেলুন অথবা অন্যান্য জেলার তথ্য দেখতে মানচিত্রটি সরান।"}
+              <p className="text-[11px] text-slate-500 mt-1 max-w-[230px] mx-auto leading-relaxed">
+                {hasActiveFilters
+                  ? language === "en"
+                    ? "Try resetting filters or pan the map to scan other districts."
+                    : "ফিল্টার মুছে ফেলুন অথবা অন্যান্য জেলার তথ্য দেখতে মানচিত্রটি সরান।"
+                  : language === "en"
+                  ? "All clear in this sector. Pan the map to explore other districts, or report an incident to protect your community."
+                  : "এই এলাকায় কোনো বিপদ সংকেত নেই। অন্যান্য জেলা দেখতে মানচিত্রটি সরান অথবা নতুন তথ্য জানান।"}
               </p>
             </div>
-            {(selectedSeverity !== "all" || selectedCategory !== "all" || searchQuery.trim() !== "") && (
+            {hasActiveFilters ? (
               <button
                 onClick={resetFilters}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white hover:bg-slate-100 text-xs font-semibold text-blue-600 transition-all border border-slate-200 shadow-2xs"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white hover:bg-slate-100 text-xs font-semibold text-blue-600 transition-all border border-slate-200 shadow-2xs active:scale-95"
               >
                 <RotateCcw className="w-3.5 h-3.5" />
                 <span>{language === "en" ? "Reset Filters" : "ফিল্টার রিসেট করুন"}</span>
               </button>
+            ) : (
+              <Link
+                href="/report"
+                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold shadow-sm transition-all active:scale-95"
+              >
+                <PlusCircle className="w-3.5 h-3.5" />
+                <span>{language === "en" ? "Report Threat Here" : "নতুন রিপোর্ট করুন"}</span>
+              </Link>
             )}
           </div>
         ) : (
