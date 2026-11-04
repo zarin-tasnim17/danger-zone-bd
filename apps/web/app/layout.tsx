@@ -9,7 +9,7 @@ export const metadata: Metadata = {
   title: "Danger Zone ⚡ — Bangladesh Safety & Alert Map",
   description: "Real-time, crowdsourced community safety, alert, and danger zone map for Bangladesh",
   manifest: "/manifest.json",
-  themeColor: "#0B0F19",
+  themeColor: "#FFFFFF",
 };
 
 export default function RootLayout({
@@ -28,7 +28,7 @@ export default function RootLayout({
         />
         <link rel="manifest" href="/manifest.json" />
       </head>
-      <body className="antialiased bg-slate-950 text-slate-100">
+      <body className="antialiased bg-slate-50 text-slate-900">
         {children}
         <EmergencySosPill />
         <SafetyTutorialModal />
