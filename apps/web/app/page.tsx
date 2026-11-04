@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useMemo } from "react";
 import Navbar from "@/components/layout/Navbar";
-import RouteTestNav from "@/components/layout/RouteTestNav";
 import DynamicMap from "@/components/map/DynamicMap";
 import IncidentFeed from "@/components/incidents/IncidentFeed";
 import ReportIncidentModal from "@/components/incidents/ReportIncidentModal";
@@ -14,12 +13,10 @@ import {
   ListFilter,
   ShieldAlert,
   Shield,
-  Radio,
   ChevronLeft,
   ChevronRight,
   ChevronUp,
   X,
-  AlertTriangle,
 } from "lucide-react";
 
 export default function Home() {
@@ -30,13 +27,17 @@ export default function Home() {
   const { language } = useLanguageStore();
   const incidents = useIncidentStore((state) => state.incidents);
   const safeZones = useIncidentStore((state) => state.safeZones);
+  const fetchSafeZones = useIncidentStore((state) => state.fetchSafeZones);
+  const initSocketListeners = useIncidentStore((state) => state.initSocketListeners);
   const initAuth = useAuthStore((state) => state.initAuth);
   const { selectedSeverity, setSeverity, resetFilters } = useFilterStore();
 
-  // Initialize transparent device authentication on mount
+  // Initialize transparent device authentication and safe zones on mount
   useEffect(() => {
     initAuth();
-  }, [initAuth]);
+    fetchSafeZones();
+    initSocketListeners();
+  }, [initAuth, fetchSafeZones, initSocketListeners]);
 
   // Telemetry Metrics
   const criticalCount = useMemo(() => {
@@ -47,10 +48,7 @@ export default function Home() {
 
   return (
     <main className="flex h-screen flex-col bg-slate-950 text-slate-100 overflow-hidden font-sans select-none">
-      {/* Route Quick-Tester Strip (Defaults to collapsed for clean look) */}
-      <RouteTestNav />
-
-      {/* Top Command Navigation Header with integrated Filters and Search */}
+      {/* Top Command Navigation Header with integrated Filters & Search */}
       <Navbar
         totalIncidents={incidents.length}
         onOpenReportModal={() => setReportModalOpen(true)}
@@ -177,7 +175,7 @@ export default function Home() {
 
       {/* Mobile Sliding Bottom Sheet Modal */}
       {mobileSheetOpen && (
-        <div className="md:hidden fixed inset-0 z-50 flex flex-col justify-end bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+        <div className="md:hidden fixed inset-0 z-[1500] flex flex-col justify-end bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
           <div
             className="fixed inset-0 -z-10"
             onClick={() => setMobileSheetOpen(false)}
@@ -209,7 +207,7 @@ export default function Home() {
         </div>
       )}
 
-      {/* Report Incident Modal */}
+      {/* Report Incident Modal (Mounted with z-[2000] above all HUD elements) */}
       <ReportIncidentModal
         isOpen={reportModalOpen}
         onClose={() => setReportModalOpen(false)}
