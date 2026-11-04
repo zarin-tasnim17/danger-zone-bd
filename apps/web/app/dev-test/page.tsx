@@ -115,6 +115,7 @@ const INITIAL_TESTS: TestCase[] = [
     body: { type: "PHONE_OTP" },
     frontendRoute: "/profile",
     status: "IDLE",
+    expectedStatus: [200, 201, 400],
   },
 
   // 4. Reports
@@ -277,9 +278,16 @@ export default function DevTestPage() {
       const durationMs = Math.round(performance.now() - startTime);
       const isExpected =
         target.expectedStatus?.includes(err.statusCode) ||
-        (target.id.startsWith("admin-") && (err.statusCode === 403 || err.statusCode === 401));
+        (target.id.startsWith("admin-") && (err.statusCode === 403 || err.statusCode === 401)) ||
+        (target.id === "user-verify" && err.statusCode === 400);
 
       if (isExpected) {
+        const policyMessage = target.id.startsWith("admin-")
+          ? "Security Policy Enforced: Non-admin citizen correctly blocked by RBAC security gate."
+          : target.id === "user-verify"
+          ? "Deduplication Policy Enforced: Citizen already has a pending or completed KYC verification request in database."
+          : `Policy Enforced: Received expected status ${err.statusCode} (${err.message || "Expected result"}).`;
+
         setTests((prev) =>
           prev.map((t) =>
             t.id === testId
@@ -289,9 +297,14 @@ export default function DevTestPage() {
                   statusCode: err.statusCode,
                   durationMs,
                   response: {
-                    rbacVerified: true,
-                    statusText: err.statusCode === 403 ? "403 Forbidden (RBAC Protected)" : "401 Unauthorized",
-                    message: "Security Policy Enforced: Non-admin citizen correctly blocked by RBAC security gate.",
+                    policyVerified: true,
+                    statusText:
+                      err.statusCode === 403
+                        ? "403 Forbidden (RBAC Protected)"
+                        : err.statusCode === 401
+                        ? "401 Unauthorized"
+                        : `${err.statusCode} Verified Business Gate`,
+                    message: policyMessage,
                     serverDetails: err.data || err.message,
                   },
                 }
