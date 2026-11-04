@@ -67,6 +67,17 @@ export default function RoutesPage() {
 
   useEffect(() => {
     initAuth();
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const qStartLat = params.get('startLat');
+      const qStartLng = params.get('startLng');
+      const qEndLat = params.get('endLat');
+      const qEndLng = params.get('endLng');
+      if (qStartLat) setStartLat(qStartLat);
+      if (qStartLng) setStartLng(qStartLng);
+      if (qEndLat) setEndLat(qEndLat);
+      if (qEndLng) setEndLng(qEndLng);
+    }
   }, [initAuth]);
 
   const handleApplyPreset = (preset: typeof ROUTE_PRESETS[0]) => {

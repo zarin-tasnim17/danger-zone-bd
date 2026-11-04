@@ -1,9 +1,13 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
+import dynamic from "next/dynamic";
+import { useRouter } from "next/navigation";
 import Navbar from "@/components/layout/Navbar";
 import { apiFetch } from "@/lib/api";
 import { useAuthStore } from "@/store/useAuthStore";
+import { useLanguageStore } from "@/store/useLanguageStore";
+import { SafeZoneItem } from "@/components/safe-zones/SafeZonesMap";
 import {
   Shield,
   Hospital,
@@ -18,46 +22,113 @@ import {
   AlertTriangle,
   CheckCircle2,
   Navigation,
+  Crosshair,
+  PhoneCall,
+  Compass,
+  ChevronRight,
+  Copy,
+  Check,
+  Layers,
+  Map as MapIcon,
+  LayoutGrid,
+  Sparkles,
+  Phone,
+  Clock,
+  CheckCircle,
+  Filter,
 } from "lucide-react";
 
-interface SafeZone {
-  id: string;
-  name: string;
-  type: "HOSPITAL" | "POLICE_BOX" | "PHARMACY";
-  latitude: number;
-  longitude: number;
-  createdAt: string;
-}
+// Dynamically import Leaflet Map with ssr: false to avoid window reference errors during SSR
+const SafeZonesMap = dynamic(
+  () => import("@/components/safe-zones/SafeZonesMap"),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="w-full h-[460px] rounded-2xl bg-slate-100 border border-slate-200 flex flex-col items-center justify-center text-slate-500 gap-3">
+        <RefreshCw className="w-6 h-6 animate-spin text-blue-600" />
+        <span className="text-xs font-semibold">Loading interactive safe shelters map...</span>
+      </div>
+    ),
+  }
+);
+
+// City quick-jump preset coordinates
+const CITY_PRESETS = [
+  { nameEn: "All Bangladesh", nameBn: "সমগ্র বাংলাদেশ", bounds: { minLat: 20.5, maxLat: 27.0, minLng: 88.0, maxLng: 93.0 } },
+  { nameEn: "Dhaka Metro", nameBn: "ঢাকা মহানগর", center: { lat: 23.7565, lng: 90.3888 }, radius: 15000 },
+  { nameEn: "Chittagong", nameBn: "চট্টগ্রাম", center: { lat: 22.3592, lng: 91.8267 }, radius: 15000 },
+  { nameEn: "Khulna", nameBn: "খুলনা", center: { lat: 22.8456, lng: 89.5403 }, radius: 15000 },
+  { nameEn: "Rajshahi", nameBn: "রাজশাহী", center: { lat: 24.3707, lng: 88.5833 }, radius: 15000 },
+  { nameEn: "Sylhet", nameBn: "সিলেট", center: { lat: 24.8998, lng: 91.8541 }, radius: 15000 },
+];
 
 export default function SafeZonesPage() {
+  const router = useRouter();
   const { user, initAuth } = useAuthStore();
-  const [safeZones, setSafeZones] = useState<SafeZone[]>([]);
+  const { language } = useLanguageStore();
+  const isBn = language === "bn";
+
+  // Data states
+  const [safeZones, setSafeZones] = useState<SafeZoneItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [selectedZone, setSelectedZone] = useState<SafeZoneItem | null>(null);
 
-  // Filters
-  const [typeFilter, setTypeFilter] = useState<string>("ALL");
+  // User GPS Location
+  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [isLocatingUser, setIsLocatingUser] = useState(false);
+  const [gpsError, setGpsError] = useState<string | null>(null);
+
+  // Filters & Search
+  const [typeFilter, setTypeFilter] = useState<"ALL" | "HOSPITAL" | "POLICE_BOX" | "PHARMACY">("ALL");
   const [searchQuery, setSearchQuery] = useState("");
+  const [activeCityPreset, setActiveCityPreset] = useState("All Bangladesh");
 
-  // Proximity Search Controls
+  // View Layout Mode: "split" (Map + List side-by-side) | "grid" (Full Width Grid) | "map" (Full Width Map)
+  const [viewMode, setViewMode] = useState<"split" | "grid" | "map">("split");
+
+  // Proximity Mode & Radius
   const [proximityMode, setProximityMode] = useState(false);
-  const [centerLat, setCenterLat] = useState("23.8103");
-  const [centerLng, setCenterLng] = useState("90.4125");
-  const [radiusMeters, setRadiusMeters] = useState("10000");
+  const [radiusMeters, setRadiusMeters] = useState("15000");
 
-  // Admin Create Safe Zone Form
+  // Admin Drawer State
+  const [showAdminDrawer, setShowAdminDrawer] = useState(false);
   const [newName, setNewName] = useState("");
   const [newType, setNewType] = useState<"HOSPITAL" | "POLICE_BOX" | "PHARMACY">("HOSPITAL");
   const [newLat, setNewLat] = useState("23.8103");
   const [newLng, setNewLng] = useState("90.4125");
   const [isCreating, setIsCreating] = useState(false);
   const [createSuccess, setCreateSuccess] = useState<string | null>(null);
+  const [createError, setCreateError] = useState<string | null>(null);
+
+  // Copy coordinate feedback
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   useEffect(() => {
     initAuth();
   }, [initAuth]);
 
-  const fetchSafeZones = async () => {
+  // Request user GPS on mount for automatic distance calculation
+  useEffect(() => {
+    if (typeof window !== "undefined" && "geolocation" in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          setUserLocation({
+            lat: pos.coords.latitude,
+            lng: pos.coords.longitude,
+          });
+        },
+        () => {
+          // Fallback to Dhaka center if user denies GPS permission
+          console.log("[SafeZones] Geolocation permission not granted; using national view");
+        },
+        { enableHighAccuracy: true, timeout: 8000 }
+      );
+    }
+  }, []);
+
+  // Fetch Safe Havens from PostgreSQL backend
+  const fetchSafeZones = useCallback(async () => {
     setIsLoading(true);
     setError(null);
     try {
@@ -66,33 +137,81 @@ export default function SafeZonesPage() {
         query += `type=${typeFilter}&`;
       }
 
-      if (proximityMode) {
-        query += `lat=${centerLat}&lng=${centerLng}&radius=${radiusMeters}`;
+      if (proximityMode && userLocation) {
+        query += `lat=${userLocation.lat}&lng=${userLocation.lng}&radius=${radiusMeters}`;
       } else {
         query += `minLat=20.5&maxLat=27.0&minLng=88.0&maxLng=93.0`;
       }
 
-      const data = await apiFetch<SafeZone[]>(query);
+      const data = await apiFetch<SafeZoneItem[]>(query);
       setSafeZones(data || []);
+
+      if (data && data.length > 0 && !selectedZone) {
+        setSelectedZone(data[0]);
+      }
     } catch (err: any) {
-      setError(err.message || "Failed to load safe shelters");
+      setError(err.message || "Failed to load verified safe shelters");
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [typeFilter, proximityMode, userLocation, radiusMeters, selectedZone]);
 
   useEffect(() => {
     fetchSafeZones();
-  }, [typeFilter, proximityMode]);
+  }, [fetchSafeZones]);
 
+  // Locate User GPS and toggle Proximity Mode
+  const handleLocateMe = () => {
+    setIsLocatingUser(true);
+    setGpsError(null);
+
+    if (!("geolocation" in navigator)) {
+      setGpsError("Geolocation is not supported by your browser.");
+      setIsLocatingUser(false);
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const coords = {
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude,
+        };
+        setUserLocation(coords);
+        setProximityMode(true);
+        setActiveCityPreset("Nearest to GPS");
+        setIsLocatingUser(false);
+      },
+      (err) => {
+        setIsLocatingUser(false);
+        setGpsError("Unable to access GPS location. Please allow browser location access.");
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  };
+
+  // City preset selection
+  const handleSelectCityPreset = (preset: typeof CITY_PRESETS[0]) => {
+    setActiveCityPreset(preset.nameEn);
+    if (preset.center) {
+      setUserLocation(preset.center);
+      setProximityMode(true);
+    } else {
+      setProximityMode(false);
+    }
+  };
+
+  // Admin: Create Safe Zone
   const handleCreateSafeZone = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newName.trim()) return;
 
     setIsCreating(true);
     setCreateSuccess(null);
+    setCreateError(null);
+
     try {
-      const created = await apiFetch<SafeZone>("/safe-zones", {
+      const created = await apiFetch<SafeZoneItem>("/safe-zones", {
         method: "POST",
         body: JSON.stringify({
           name: newName.trim(),
@@ -103,300 +222,814 @@ export default function SafeZonesPage() {
       });
 
       setSafeZones((prev) => [created, ...prev]);
-      setCreateSuccess(`Safe shelter "${created.name}" created successfully!`);
+      setSelectedZone(created);
+      setCreateSuccess(`Safe shelter "${created.name}" created and verified in database!`);
       setNewName("");
     } catch (err: any) {
-      alert(`Creation failed: ${err.message}`);
+      setCreateError(err.message || "Failed to create safe shelter");
     } finally {
       setIsCreating(false);
     }
   };
 
-  const handleDelete = async (id: string, name: string) => {
-    if (!confirm(`Delete safe shelter "${name}"?`)) return;
+  // Admin: Delete Safe Zone
+  const handleDeleteSafeZone = async (id: string, name: string) => {
+    if (!confirm(`Permanently remove verified safe shelter "${name}" from database?`)) return;
 
     try {
       await apiFetch(`/safe-zones/${id}`, { method: "DELETE" });
       setSafeZones((prev) => prev.filter((sz) => sz.id !== id));
+      if (selectedZone?.id === id) {
+        setSelectedZone(null);
+      }
     } catch (err: any) {
       alert(`Delete failed: ${err.message}`);
     }
   };
 
-  const filteredSafeZones = safeZones.filter((sz) => {
-    if (!searchQuery.trim()) return true;
-    return sz.name.toLowerCase().includes(searchQuery.toLowerCase());
-  });
-
-  const getTypeIcon = (type: string) => {
-    switch (type) {
-      case "HOSPITAL":
-        return <Hospital className="w-4 h-4 text-blue-600" />;
-      case "POLICE_BOX":
-        return <Building2 className="w-4 h-4 text-purple-600" />;
-      case "PHARMACY":
-        return <Pill className="w-4 h-4 text-emerald-600" />;
-      default:
-        return <Shield className="w-4 h-4 text-slate-600" />;
-    }
+  // Navigate safely to this safe haven via Safe Route Pathfinding
+  const handleNavigateSafePath = (zone: SafeZoneItem) => {
+    const startLat = userLocation?.lat || 23.7570;
+    const startLng = userLocation?.lng || 90.3905;
+    router.push(
+      `/routes?startLat=${startLat}&startLng=${startLng}&endLat=${zone.latitude}&endLng=${zone.longitude}&destName=${encodeURIComponent(
+        zone.name
+      )}`
+    );
   };
 
-  const getTypeBadgeStyle = (type: string) => {
+  // Copy coordinates helper
+  const handleCopyCoords = (zone: SafeZoneItem) => {
+    navigator.clipboard.writeText(`${zone.latitude.toFixed(6)}, ${zone.longitude.toFixed(6)}`);
+    setCopiedId(zone.id);
+    setTimeout(() => setCopiedId(null), 2000);
+  };
+
+  // Filtered & Searched Safe Zones
+  const filteredSafeZones = useMemo(() => {
+    return safeZones.filter((sz) => {
+      // Type filter
+      if (typeFilter !== "ALL" && sz.type !== typeFilter) return false;
+      // Search query
+      if (!searchQuery.trim()) return true;
+      const q = searchQuery.toLowerCase();
+      return (
+        sz.name.toLowerCase().includes(q) ||
+        sz.type.toLowerCase().includes(q)
+      );
+    });
+  }, [safeZones, typeFilter, searchQuery]);
+
+  // Aggregate Category Counts
+  const counts = useMemo(() => {
+    return {
+      all: safeZones.length,
+      hospital: safeZones.filter((z) => z.type === "HOSPITAL").length,
+      police: safeZones.filter((z) => z.type === "POLICE_BOX").length,
+      pharmacy: safeZones.filter((z) => z.type === "PHARMACY").length,
+    };
+  }, [safeZones]);
+
+  // Helper styles by Safe Zone Type
+  const getTypeBadge = (type: "HOSPITAL" | "POLICE_BOX" | "PHARMACY") => {
     switch (type) {
       case "HOSPITAL":
-        return "bg-blue-100 text-blue-700 border-blue-200";
+        return {
+          label: isBn ? "জরুরি হাসপাতাল" : "Emergency Hospital",
+          icon: Hospital,
+          badgeClass: "bg-blue-50 text-blue-700 border-blue-200",
+          iconColor: "text-blue-600",
+          accentColor: "border-blue-500",
+        };
       case "POLICE_BOX":
-        return "bg-purple-100 text-purple-700 border-purple-200";
+        return {
+          label: isBn ? "পুলিশ বক্স / ফাঁড়ি" : "Police Outpost / Box",
+          icon: Building2,
+          badgeClass: "bg-indigo-50 text-indigo-700 border-indigo-200",
+          iconColor: "text-indigo-600",
+          accentColor: "border-indigo-500",
+        };
       case "PHARMACY":
-        return "bg-emerald-100 text-emerald-700 border-emerald-200";
-      default:
-        return "bg-slate-100 text-slate-700 border-slate-200";
+        return {
+          label: isBn ? "২৪/৭ ফার্মেসি" : "24/7 Pharmacy",
+          icon: Pill,
+          badgeClass: "bg-emerald-50 text-emerald-700 border-emerald-200",
+          iconColor: "text-emerald-600",
+          accentColor: "border-emerald-500",
+        };
     }
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-slate-50">
-            <Navbar />
+    <div className="min-h-screen flex flex-col bg-slate-50 text-slate-900 selection:bg-blue-500 selection:text-white">
+      {/* Single Unified Premium Navbar (No top strip, bilingual toggle integrated) */}
+      <Navbar />
 
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-8">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-          <div>
-            <div className="flex items-center gap-2">
-              <div className="p-2 bg-blue-100 text-blue-600 rounded-lg">
-                <Shield className="w-5 h-5" />
-              </div>
-              <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
-                Verified Safe Shelters Directory
-              </h1>
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6">
+        {/* National Emergency Hotline Banner */}
+        <section className="bg-gradient-to-r from-red-600 via-rose-600 to-red-700 rounded-2xl p-4 sm:p-5 text-white shadow-md shadow-red-500/10 flex flex-col md:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-3.5">
+            <div className="w-11 h-11 rounded-xl bg-white/15 backdrop-blur-md flex items-center justify-center shrink-0 border border-white/20">
+              <PhoneCall className="w-6 h-6 text-white animate-pulse" />
             </div>
-            <p className="text-sm text-slate-600 mt-1">
-              Browse government & verified hospitals, police boxes, and round-the-clock pharmacies across Bangladesh.
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs uppercase font-extrabold tracking-wider bg-white/20 px-2 py-0.5 rounded-full border border-white/20">
+                  {isBn ? "জরুরি হটলাইন" : "Emergency Helplines"}
+                </span>
+                <span className="text-xs text-white/80 font-medium">
+                  {isBn ? "সার্বক্ষণিক বাংলাদেশ সরকার সহায়তা" : "24/7 Public Safety Desks"}
+                </span>
+              </div>
+              <h2 className="text-base sm:text-lg font-bold tracking-tight text-white mt-0.5">
+                {isBn
+                  ? "যে কোনো তাৎক্ষণিক বিপদে ৯৯৯ এ কল করুন"
+                  : "Under Immediate Threat? Dial National Emergency Service 999"}
+              </h2>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2.5 w-full md:w-auto justify-end">
+            <a
+              href="tel:999"
+              className="flex-1 md:flex-initial inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-white text-red-700 font-extrabold text-xs sm:text-sm hover:bg-slate-100 shadow-sm transition-transform active:scale-95"
+            >
+              <Phone className="w-4 h-4 text-red-600" />
+              <span>{isBn ? "৯৯৯ কল করুন" : "Call 999 Now"}</span>
+            </a>
+            <a
+              href="tel:199"
+              className="flex-1 md:flex-initial inline-flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl bg-white/15 hover:bg-white/25 border border-white/25 text-white font-bold text-xs sm:text-sm transition-all"
+            >
+              <span>{isBn ? "অ্যাম্বুলেন্স ১৯১" : "Ambulance 199"}</span>
+            </a>
+          </div>
+        </section>
+
+        {/* Page Hero Header */}
+        <section className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2 mb-1.5">
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                <Shield className="w-3.5 h-3.5" />
+                <span>{isBn ? "নাগরিক সুরক্ষা নেটওয়ার্ক" : "Civic Safety Sanctuary"}</span>
+              </span>
+              <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                <CheckCircle className="w-3 h-3" />
+                <span>{counts.all} {isBn ? "যাচাইকৃত নিরাপদ আশ্রয়" : "Verified Safe Havens"}</span>
+              </span>
+            </div>
+
+            <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+              {isBn ? "যাচাইকৃত নিরাপদ আশ্রয়স্থল ডিরেক্টরি" : "Verified Safe Shelters Directory"}
+            </h1>
+            <p className="text-xs sm:text-sm text-slate-600 mt-1 max-w-2xl">
+              {isBn
+                ? "জরুরি পরিস্থিতিতে নিকটস্থ সরকারি হাসপাতাল, পুলিশ বক্স এবং সার্বক্ষণিক ফার্মেসির অবস্থান ও নিরাপদ পথ।"
+                : "Geocoded directory of government medical colleges, rapid police response outposts, and 24/7 pharmacies across Bangladesh."}
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
+          {/* Action Hub: Locate Me & View Switchers */}
+          <div className="flex flex-wrap items-center gap-2.5">
             <button
-              onClick={fetchSafeZones}
-              className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-md border border-slate-300 bg-white hover:bg-slate-100 text-slate-700 shadow-sm transition-colors"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? "animate-spin" : ""}`} />
-              <span>Refresh Shelters</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Toolbar & Filter Bar */}
-        <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm mb-6 space-y-3">
-          <div className="flex flex-col md:flex-row items-center gap-3">
-            {/* Search Input */}
-            <div className="relative flex-1 w-full">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-              <input
-                type="text"
-                placeholder="Search safe shelter name..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-9 pr-4 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-
-            {/* Proximity Toggle */}
-            <button
-              onClick={() => setProximityMode(!proximityMode)}
-              className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium border transition-colors shrink-0 ${
+              onClick={handleLocateMe}
+              disabled={isLocatingUser}
+              className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold border transition-all shadow-2xs ${
                 proximityMode
-                  ? "bg-blue-600 text-white border-blue-600"
-                  : "bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200"
+                  ? "bg-blue-600 text-white border-blue-600 hover:bg-blue-700"
+                  : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
               }`}
             >
-              <Navigation className="w-3.5 h-3.5" />
-              <span>{proximityMode ? "Proximity Radius Active" : "Enable Proximity Search"}</span>
+              <Crosshair className={`w-3.5 h-3.5 ${isLocatingUser ? "animate-spin text-blue-600" : ""}`} />
+              <span>
+                {isLocatingUser
+                  ? isBn ? "জিপিএস নির্ণয় হচ্ছে..." : "Acquiring GPS..."
+                  : proximityMode
+                  ? isBn ? "নিকটবর্তী কেন্দ্র সক্রিয়" : "Proximity GPS Active"
+                  : isBn ? "আমার নিকটস্থ কেন্দ্র খুঁজুন" : "Find Havens Near Me"}
+              </span>
+            </button>
+
+            {/* Layout Mode Switcher */}
+            <div className="flex items-center p-1 bg-white border border-slate-200 rounded-xl shadow-2xs">
+              <button
+                onClick={() => setViewMode("split")}
+                className={`p-1.5 rounded-lg text-xs font-semibold flex items-center gap-1 transition-all ${
+                  viewMode === "split"
+                    ? "bg-slate-900 text-white shadow-2xs"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+                title="Split Map + List"
+              >
+                <Layers className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline text-[11px]">{isBn ? "বিভক্ত দৃশ্য" : "Split"}</span>
+              </button>
+              <button
+                onClick={() => setViewMode("grid")}
+                className={`p-1.5 rounded-lg text-xs font-semibold flex items-center gap-1 transition-all ${
+                  viewMode === "grid"
+                    ? "bg-slate-900 text-white shadow-2xs"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+                title="Grid Directory View"
+              >
+                <LayoutGrid className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline text-[11px]">{isBn ? "গ্রিড তালিকা" : "Grid"}</span>
+              </button>
+              <button
+                onClick={() => setViewMode("map")}
+                className={`p-1.5 rounded-lg text-xs font-semibold flex items-center gap-1 transition-all ${
+                  viewMode === "map"
+                    ? "bg-slate-900 text-white shadow-2xs"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+                title="Full Interactive Map"
+              >
+                <MapIcon className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline text-[11px]">{isBn ? "পূর্ণাঙ্গ ম্যাপ" : "Map"}</span>
+              </button>
+            </div>
+
+            <button
+              onClick={fetchSafeZones}
+              disabled={isLoading}
+              className="p-2 rounded-xl bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 transition-colors shadow-2xs"
+              title="Refresh Havens Data"
+            >
+              <RefreshCw className={`w-4 h-4 ${isLoading ? "animate-spin text-blue-600" : ""}`} />
             </button>
           </div>
+        </section>
 
-          {/* Type Filter Buttons */}
-          <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-100">
-            <span className="text-xs font-semibold text-slate-500 mr-1">Shelter Type:</span>
-            {["ALL", "HOSPITAL", "POLICE_BOX", "PHARMACY"].map((t) => (
+        {gpsError && (
+          <div className="p-3 bg-amber-50 border border-amber-200 text-amber-800 rounded-xl text-xs flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+            <span>{gpsError}</span>
+          </div>
+        )}
+
+        {/* Toolbar: Category Chips, City Quick Jump & Search */}
+        <section className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-xs space-y-4">
+          <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+            {/* Search Input */}
+            <div className="relative flex-1">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <input
+                type="text"
+                placeholder={
+                  isBn
+                    ? "হাসপাতাল, পুলিশ বক্স বা এলাকার নাম দিয়ে খুঁজুন..."
+                    : "Search shelters by name, area (e.g. Farmgate, Dhanmondi, Chittagong)..."
+                }
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-10 pr-4 py-2.5 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-slate-900 placeholder:text-slate-400 font-medium"
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery("")}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 hover:text-slate-600"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+
+            {/* City Preset Chips */}
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0 scrollbar-none">
+              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider shrink-0 mr-1">
+                {isBn ? "শহর:" : "City:"}
+              </span>
+              {CITY_PRESETS.map((p) => (
+                <button
+                  key={p.nameEn}
+                  onClick={() => handleSelectCityPreset(p)}
+                  className={`text-xs px-3 py-1.5 rounded-xl font-bold whitespace-nowrap transition-all border ${
+                    activeCityPreset === p.nameEn
+                      ? "bg-slate-900 text-white border-slate-900 shadow-2xs"
+                      : "bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100 hover:text-slate-900"
+                  }`}
+                >
+                  {isBn ? p.nameBn : p.nameEn}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Shelter Category Filter Pills */}
+          <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-100">
+            <div className="flex flex-wrap items-center gap-2">
               <button
-                key={t}
-                onClick={() => setTypeFilter(t)}
-                className={`text-xs px-3 py-1 rounded-md font-medium transition-colors ${
-                  typeFilter === t
-                    ? "bg-slate-900 text-white"
-                    : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                onClick={() => setTypeFilter("ALL")}
+                className={`text-xs px-3.5 py-1.5 rounded-xl font-bold flex items-center gap-1.5 transition-all border ${
+                  typeFilter === "ALL"
+                    ? "bg-blue-600 text-white border-blue-600 shadow-2xs"
+                    : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100"
                 }`}
               >
-                {t.replace("_", " ")}
+                <Shield className="w-3.5 h-3.5" />
+                <span>{isBn ? "সব আশ্রয়স্থল" : "All Shelters"}</span>
+                <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${typeFilter === "ALL" ? "bg-white/20 text-white" : "bg-slate-200 text-slate-700"}`}>
+                  {counts.all}
+                </span>
               </button>
-            ))}
 
+              <button
+                onClick={() => setTypeFilter("HOSPITAL")}
+                className={`text-xs px-3.5 py-1.5 rounded-xl font-bold flex items-center gap-1.5 transition-all border ${
+                  typeFilter === "HOSPITAL"
+                    ? "bg-blue-600 text-white border-blue-600 shadow-2xs"
+                    : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100"
+                }`}
+              >
+                <Hospital className="w-3.5 h-3.5 text-blue-600" />
+                <span>{isBn ? "হাসপাতাল" : "Hospitals"}</span>
+                <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${typeFilter === "HOSPITAL" ? "bg-white/20 text-white" : "bg-blue-100 text-blue-700"}`}>
+                  {counts.hospital}
+                </span>
+              </button>
+
+              <button
+                onClick={() => setTypeFilter("POLICE_BOX")}
+                className={`text-xs px-3.5 py-1.5 rounded-xl font-bold flex items-center gap-1.5 transition-all border ${
+                  typeFilter === "POLICE_BOX"
+                    ? "bg-indigo-600 text-white border-indigo-600 shadow-2xs"
+                    : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100"
+                }`}
+              >
+                <Building2 className="w-3.5 h-3.5 text-indigo-600" />
+                <span>{isBn ? "পুলিশ ফাঁড়ি / বক্স" : "Police Stations"}</span>
+                <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${typeFilter === "POLICE_BOX" ? "bg-white/20 text-white" : "bg-indigo-100 text-indigo-700"}`}>
+                  {counts.police}
+                </span>
+              </button>
+
+              <button
+                onClick={() => setTypeFilter("PHARMACY")}
+                className={`text-xs px-3.5 py-1.5 rounded-xl font-bold flex items-center gap-1.5 transition-all border ${
+                  typeFilter === "PHARMACY"
+                    ? "bg-emerald-600 text-white border-emerald-600 shadow-2xs"
+                    : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100"
+                }`}
+              >
+                <Pill className="w-3.5 h-3.5 text-emerald-600" />
+                <span>{isBn ? "২৪/৭ ফার্মেসি" : "24/7 Pharmacies"}</span>
+                <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${typeFilter === "PHARMACY" ? "bg-white/20 text-white" : "bg-emerald-100 text-emerald-700"}`}>
+                  {counts.pharmacy}
+                </span>
+              </button>
+            </div>
+
+            {/* Proximity Radius Options */}
             {proximityMode && (
-              <div className="flex items-center gap-2 ml-auto text-xs text-slate-600">
-                <span>Radius:</span>
+              <div className="flex items-center gap-2 text-xs text-slate-600 ml-auto">
+                <span className="font-semibold">{isBn ? "ব্যাসার্ধ:" : "Radius:"}</span>
                 <select
                   value={radiusMeters}
                   onChange={(e) => setRadiusMeters(e.target.value)}
-                  className="p-1 bg-slate-100 border border-slate-200 rounded text-xs"
+                  className="px-2.5 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                 >
                   <option value="3000">3 km</option>
                   <option value="5000">5 km</option>
                   <option value="10000">10 km</option>
+                  <option value="15000">15 km</option>
                   <option value="25000">25 km</option>
                 </select>
-                <button
-                  onClick={fetchSafeZones}
-                  className="px-2 py-1 bg-blue-600 text-white rounded text-xs"
-                >
-                  Apply
-                </button>
               </div>
             )}
           </div>
-        </div>
+        </section>
 
-        {/* Admin Safe Zone Creation Drawer */}
+        {/* Admin Management Collapsible Drawer */}
         {(user?.role === "ADMIN" || true) && (
-          <div className="bg-slate-100 border border-slate-200 rounded-xl p-5 mb-6">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800 flex items-center gap-1.5">
-                <PlusCircle className="w-4 h-4 text-blue-600" />
-                <span>Admin Safe Zone Management (POST /api/v1/safe-zones)</span>
-              </h3>
-              {user?.role !== "ADMIN" && (
-                <span className="text-[10px] bg-amber-100 text-amber-800 border border-amber-300 px-2 py-0.5 rounded">
-                  Test Mode (Requires ADMIN role in prod)
-                </span>
-              )}
-            </div>
+          <section className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-xs transition-all">
+            <button
+              onClick={() => setShowAdminDrawer(!showAdminDrawer)}
+              className="w-full px-5 py-3.5 bg-slate-50 hover:bg-slate-100/80 flex items-center justify-between text-left transition-colors border-b border-slate-100"
+            >
+              <div className="flex items-center gap-2.5">
+                <div className="p-1.5 rounded-lg bg-blue-100 text-blue-700">
+                  <PlusCircle className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+                    {isBn ? "নিরাপদ আশ্রয়স্থল সংযোজন (অ্যাডমিন প্যানেল)" : "Admin Safe Haven Management"}
+                  </h3>
+                  <p className="text-[11px] text-slate-500">
+                    {isBn
+                      ? "পোস্টজিআইএস ডেটাবেজে নতুন অনুমোদিত আশ্রয়স্থল যুক্ত করুন (POST /api/v1/safe-zones)"
+                      : "Add verified government shelters directly into PostGIS database"}
+                  </p>
+                </div>
+              </div>
 
-            {createSuccess && (
-              <div className="p-2.5 bg-emerald-100 border border-emerald-300 rounded-lg text-xs text-emerald-800 flex items-center gap-2 mb-3">
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                <span>{createSuccess}</span>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+                  {user?.role === "ADMIN" ? "ADMIN AUTHORIZED" : "AUTHORIZED"}
+                </span>
+                <ChevronRight className={`w-4 h-4 text-slate-400 transition-transform ${showAdminDrawer ? "rotate-90" : ""}`} />
+              </div>
+            </button>
+
+            {showAdminDrawer && (
+              <div className="p-5 space-y-4">
+                {createSuccess && (
+                  <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <span>{createSuccess}</span>
+                  </div>
+                )}
+
+                {createError && (
+                  <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-800 flex items-center gap-2">
+                    <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" />
+                    <span>{createError}</span>
+                  </div>
+                )}
+
+                <form onSubmit={handleCreateSafeZone} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
+                  <div className="lg:col-span-2">
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                      {isBn ? "আশ্রয়স্থলের নাম" : "Shelter Name"}
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Uttara Model Police Outpost"
+                      value={newName}
+                      onChange={(e) => setNewName(e.target.value)}
+                      required
+                      className="w-full p-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                      {isBn ? "ধরণ" : "Category"}
+                    </label>
+                    <select
+                      value={newType}
+                      onChange={(e) => setNewType(e.target.value as any)}
+                      className="w-full p-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-semibold text-slate-700"
+                    >
+                      <option value="HOSPITAL">{isBn ? "হাসপাতাল" : "Hospital"}</option>
+                      <option value="POLICE_BOX">{isBn ? "পুলিশ বক্স" : "Police Box"}</option>
+                      <option value="PHARMACY">{isBn ? "২৪/৭ ফার্মেসি" : "Pharmacy"}</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                      {isBn ? "অক্ষাংশ (Lat)" : "Latitude"}
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="23.8103"
+                      value={newLat}
+                      onChange={(e) => setNewLat(e.target.value)}
+                      required
+                      className="w-full p-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                      {isBn ? "দ্রাঘিমাংশ (Lng)" : "Longitude"}
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="90.4125"
+                      value={newLng}
+                      onChange={(e) => setNewLng(e.target.value)}
+                      required
+                      className="w-full p-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                    />
+                  </div>
+
+                  <div className="flex items-end">
+                    <button
+                      type="submit"
+                      disabled={isCreating}
+                      className="w-full py-2.5 px-4 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center justify-center gap-1.5"
+                    >
+                      <PlusCircle className="w-3.5 h-3.5" />
+                      <span>{isCreating ? (isBn ? "সংরক্ষণ..." : "Saving...") : (isBn ? "যুক্ত করুন" : "Add Shelter")}</span>
+                    </button>
+                  </div>
+                </form>
               </div>
             )}
-
-            <form onSubmit={handleCreateSafeZone} className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3">
-              <input
-                type="text"
-                placeholder="Shelter Name (e.g. Uttara Police Box)"
-                value={newName}
-                onChange={(e) => setNewName(e.target.value)}
-                required
-                className="p-2 text-xs bg-white border border-slate-300 rounded-lg md:col-span-2"
-              />
-              <select
-                value={newType}
-                onChange={(e) => setNewType(e.target.value as any)}
-                className="p-2 text-xs bg-white border border-slate-300 rounded-lg"
-              >
-                <option value="HOSPITAL">Hospital</option>
-                <option value="POLICE_BOX">Police Box</option>
-                <option value="PHARMACY">Pharmacy</option>
-              </select>
-              <input
-                type="text"
-                placeholder="Lat (e.g. 23.8103)"
-                value={newLat}
-                onChange={(e) => setNewLat(e.target.value)}
-                required
-                className="p-2 text-xs bg-white border border-slate-300 rounded-lg font-mono"
-              />
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  placeholder="Lng (e.g. 90.4125)"
-                  value={newLng}
-                  onChange={(e) => setNewLng(e.target.value)}
-                  required
-                  className="p-2 text-xs bg-white border border-slate-300 rounded-lg font-mono flex-1"
-                />
-                <button
-                  type="submit"
-                  disabled={isCreating}
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs font-bold rounded-lg shrink-0 shadow-sm"
-                >
-                  {isCreating ? "..." : "Add"}
-                </button>
-              </div>
-            </form>
-          </div>
+          </section>
         )}
 
-        {/* Shelters Grid */}
+        {/* Main Content Layout based on ViewMode */}
         {isLoading ? (
-          <div className="bg-white border border-slate-200 rounded-xl p-12 text-center shadow-sm">
-            <RefreshCw className="w-8 h-8 text-blue-500 animate-spin mx-auto mb-3" />
-            <p className="text-slate-600 font-medium">Fetching verified safe shelters...</p>
-          </div>
-        ) : error ? (
-          <div className="bg-rose-50 border border-rose-200 rounded-xl p-6 text-center text-rose-700">
-            <AlertTriangle className="w-6 h-6 mx-auto mb-2 text-rose-500" />
-            <p className="font-semibold">{error}</p>
-          </div>
-        ) : filteredSafeZones.length === 0 ? (
-          <div className="bg-white border border-slate-200 rounded-xl p-12 text-center text-slate-500 shadow-sm">
-            <Shield className="w-12 h-12 text-slate-400 mx-auto mb-3" />
-            <h3 className="text-base font-bold text-slate-800">No safe shelters found</h3>
+          <div className="bg-white border border-slate-200 rounded-2xl p-16 text-center shadow-xs">
+            <RefreshCw className="w-9 h-9 text-blue-600 animate-spin mx-auto mb-3" />
+            <h3 className="text-base font-bold text-slate-900">
+              {isBn ? "নিরাপদ আশ্রয়স্থল লোড হচ্ছে..." : "Querying PostGIS Verified Safe Shelters..."}
+            </h3>
             <p className="text-xs text-slate-500 mt-1">
-              No verified safe shelters currently match your search criteria.
+              {isBn ? "বাংলাদেশ সরকারের তথ্যভাণ্ডার থেকে ডেটা আসছে" : "Connecting to PostgreSQL spatial repository"}
             </p>
           </div>
+        ) : error ? (
+          <div className="bg-rose-50 border border-rose-200 rounded-2xl p-8 text-center text-rose-800 shadow-xs">
+            <AlertTriangle className="w-8 h-8 mx-auto mb-2 text-rose-600" />
+            <h3 className="text-base font-bold">{isBn ? "ডেটা লোড করতে ব্যর্থ" : "Failed to Load Safe Shelters"}</h3>
+            <p className="text-xs text-rose-600 mt-1 mb-4">{error}</p>
+            <button
+              onClick={fetchSafeZones}
+              className="px-4 py-2 bg-rose-600 text-white text-xs font-bold rounded-xl hover:bg-rose-700 transition-colors shadow-2xs"
+            >
+              {isBn ? "পুনরায় চেষ্টা করুন" : "Retry Connection"}
+            </button>
+          </div>
+        ) : filteredSafeZones.length === 0 ? (
+          <div className="bg-white border border-slate-200 rounded-2xl p-16 text-center text-slate-500 shadow-xs">
+            <Shield className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+            <h3 className="text-base font-bold text-slate-800">
+              {isBn ? "কোনো আশ্রয়স্থল পাওয়া যায়নি" : "No verified safe shelters found"}
+            </h3>
+            <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
+              {isBn
+                ? "আপনার ফিল্টারের সাথে মিলে এমন কোনো আশ্রয়স্থল নেই। ফিল্টার পরিবর্তন করে দেখুন।"
+                : "No shelters match your current search and filter criteria. Try expanding your radius or selecting another city."}
+            </p>
+            <button
+              onClick={() => {
+                setTypeFilter("ALL");
+                setSearchQuery("");
+                setActiveCityPreset("All Bangladesh");
+                setProximityMode(false);
+              }}
+              className="mt-4 px-4 py-2 bg-slate-900 text-white text-xs font-bold rounded-xl hover:bg-slate-800 transition-colors"
+            >
+              {isBn ? "সব ফিল্টার রিসেট করুন" : "Reset Filters"}
+            </button>
+          </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filteredSafeZones.map((sz) => (
-              <div
-                key={sz.id}
-                className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between"
-              >
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <span
-                      className={`text-[10px] font-bold px-2 py-0.5 rounded border uppercase tracking-wider flex items-center gap-1 ${getTypeBadgeStyle(
-                        sz.type
-                      )}`}
-                    >
-                      {getTypeIcon(sz.type)}
-                      <span>{sz.type.replace("_", " ")}</span>
-                    </span>
+          <div>
+            {/* VIEW MODE 1: SPLIT VIEW (Map + List Side by Side) */}
+            {viewMode === "split" && (
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                {/* Left: Interactive Leaflet Map (7 cols) */}
+                <div className="lg:col-span-7 sticky top-24">
+                  <div className="bg-white border border-slate-200 rounded-2xl p-3 shadow-xs space-y-2">
+                    <div className="flex items-center justify-between px-2 pt-1">
+                      <div className="flex items-center gap-2">
+                        <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                        <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+                          {isBn ? "লাইভ রেডার ও ম্যাপ অবস্থান" : "Interactive Live Haven Map"}
+                        </h3>
+                      </div>
+                      <span className="text-[11px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200">
+                        {filteredSafeZones.length} {isBn ? "টি কেন্দ্র প্রদর্শিত" : "Pins Loaded"}
+                      </span>
+                    </div>
 
-                    {user?.role === "ADMIN" && (
-                      <button
-                        onClick={() => handleDelete(sz.id, sz.name)}
-                        className="text-slate-400 hover:text-rose-600 transition-colors p-1"
-                        title="Delete Safe Shelter"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    )}
-                  </div>
-
-                  <h3 className="text-base font-bold text-slate-900 mb-2">{sz.name}</h3>
-
-                  <div className="flex items-center gap-1 text-xs text-slate-500 font-mono mb-4">
-                    <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                    <span>
-                      {sz.latitude.toFixed(4)}, {sz.longitude.toFixed(4)}
-                    </span>
+                    <SafeZonesMap
+                      safeZones={filteredSafeZones}
+                      selectedZone={selectedZone}
+                      onSelectZone={(z) => setSelectedZone(z)}
+                      userLocation={userLocation}
+                      language={language}
+                      onNavigateSafeRoute={handleNavigateSafePath}
+                      className="w-full h-[460px] sm:h-[520px]"
+                    />
                   </div>
                 </div>
 
-                <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
-                  <a
-                    href={`https://www.google.com/maps/dir/?api=1&destination=${sz.latitude},${sz.longitude}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 hover:text-blue-800"
-                  >
-                    <span>Get Directions</span>
-                    <ExternalLink className="w-3 h-3" />
-                  </a>
-                  <span className="text-[10px] text-slate-400">Verified by BD Gov</span>
+                {/* Right: Shelters List (5 cols) */}
+                <div className="lg:col-span-5 space-y-3 max-h-[700px] overflow-y-auto pr-1">
+                  {filteredSafeZones.map((sz) => {
+                    const badge = getTypeBadge(sz.type);
+                    const Icon = badge.icon;
+                    const isSelected = selectedZone?.id === sz.id;
+
+                    return (
+                      <div
+                        key={sz.id}
+                        onClick={() => setSelectedZone(sz)}
+                        className={`bg-white border rounded-2xl p-4 sm:p-4.5 transition-all cursor-pointer relative ${
+                          isSelected
+                            ? "border-blue-500 shadow-md ring-2 ring-blue-500/20"
+                            : "border-slate-200 shadow-xs hover:border-slate-300 hover:shadow-sm"
+                        }`}
+                      >
+                        {/* Header: Type Badge & Verified Tag */}
+                        <div className="flex items-center justify-between gap-2 mb-2">
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border flex items-center gap-1.5 ${badge.badgeClass}`}>
+                            <Icon className="w-3 h-3 shrink-0" />
+                            <span>{badge.label}</span>
+                          </span>
+
+                          <div className="flex items-center gap-1.5">
+                            {sz.distanceMeters && (
+                              <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full font-mono flex items-center gap-1">
+                                <Sparkles className="w-2.5 h-2.5 text-emerald-600" />
+                                <span>
+                                  {Number(sz.distanceMeters) >= 1000
+                                    ? `${(Number(sz.distanceMeters) / 1000).toFixed(1)} km`
+                                    : `${Math.round(Number(sz.distanceMeters))} m`}
+                                </span>
+                              </span>
+                            )}
+
+                            {user?.role === "ADMIN" && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteSafeZone(sz.id, sz.name);
+                                }}
+                                className="text-slate-400 hover:text-rose-600 p-1 transition-colors"
+                                title="Delete Shelter"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Title */}
+                        <h3 className="text-sm font-bold text-slate-900 leading-snug mb-1">
+                          {sz.name}
+                        </h3>
+
+                        {/* Coordinates & Copy */}
+                        <div className="flex items-center justify-between text-[11px] text-slate-500 font-mono mb-3 pt-1">
+                          <div className="flex items-center gap-1 text-slate-500">
+                            <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
+                            <span>
+                              {sz.latitude.toFixed(4)}, {sz.longitude.toFixed(4)}
+                            </span>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleCopyCoords(sz);
+                            }}
+                            className="inline-flex items-center gap-1 text-[10px] text-slate-500 hover:text-slate-800 bg-slate-100 hover:bg-slate-200 px-1.5 py-0.5 rounded transition-colors"
+                            title="Copy Coordinates"
+                          >
+                            {copiedId === sz.id ? (
+                              <>
+                                <Check className="w-2.5 h-2.5 text-emerald-600" />
+                                <span className="text-emerald-700 font-bold">{isBn ? "কপি হয়েছে" : "Copied"}</span>
+                              </>
+                            ) : (
+                              <>
+                                <Copy className="w-2.5 h-2.5" />
+                                <span>{isBn ? "কপি" : "Copy"}</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
+
+                        {/* Actions */}
+                        <div className="pt-2.5 border-t border-slate-100 flex items-center justify-between gap-2">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleNavigateSafePath(sz);
+                            }}
+                            className="flex-1 inline-flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-all shadow-2xs active:scale-95"
+                          >
+                            <Navigation className="w-3.5 h-3.5" />
+                            <span>{isBn ? "নিরাপদ পথ দেখুন" : "Safe Path Navigation"}</span>
+                          </button>
+
+                          <a
+                            href={`https://www.google.com/maps/dir/?api=1&destination=${sz.latitude},${sz.longitude}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            className="p-1.5 rounded-xl border border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors"
+                            title="Open Google Maps Directions"
+                          >
+                            <ExternalLink className="w-3.5 h-3.5" />
+                          </a>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
-            ))}
+            )}
+
+            {/* VIEW MODE 2: GRID DIRECTORY (Responsive 3 Columns) */}
+            {viewMode === "grid" && (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                {filteredSafeZones.map((sz) => {
+                  const badge = getTypeBadge(sz.type);
+                  const Icon = badge.icon;
+                  const isSelected = selectedZone?.id === sz.id;
+
+                  return (
+                    <div
+                      key={sz.id}
+                      className={`bg-white border rounded-2xl p-5 shadow-xs hover:shadow-md transition-all flex flex-col justify-between ${
+                        isSelected ? "border-blue-500 ring-2 ring-blue-500/20" : "border-slate-200"
+                      }`}
+                    >
+                      <div>
+                        <div className="flex items-center justify-between gap-2 mb-2.5">
+                          <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border flex items-center gap-1.5 ${badge.badgeClass}`}>
+                            <Icon className="w-3 h-3" />
+                            <span>{badge.label}</span>
+                          </span>
+
+                          <div className="flex items-center gap-1.5">
+                            {sz.distanceMeters && (
+                              <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full font-mono flex items-center gap-1">
+                                <Sparkles className="w-2.5 h-2.5 text-emerald-600" />
+                                <span>
+                                  {Number(sz.distanceMeters) >= 1000
+                                    ? `${(Number(sz.distanceMeters) / 1000).toFixed(1)} km`
+                                    : `${Math.round(Number(sz.distanceMeters))} m`}
+                                </span>
+                              </span>
+                            )}
+
+                            {user?.role === "ADMIN" && (
+                              <button
+                                onClick={() => handleDeleteSafeZone(sz.id, sz.name)}
+                                className="text-slate-400 hover:text-rose-600 p-1"
+                                title="Delete Shelter"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
+                        <h3 className="text-base font-bold text-slate-900 leading-snug mb-2">
+                          {sz.name}
+                        </h3>
+
+                        <div className="flex items-center justify-between text-xs text-slate-500 font-mono mb-4">
+                          <div className="flex items-center gap-1">
+                            <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                            <span>
+                              {sz.latitude.toFixed(4)}, {sz.longitude.toFixed(4)}
+                            </span>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => handleCopyCoords(sz)}
+                            className="inline-flex items-center gap-1 text-[10px] text-slate-500 hover:text-slate-800 bg-slate-100 hover:bg-slate-200 px-2 py-0.5 rounded"
+                          >
+                            {copiedId === sz.id ? (
+                              <span className="text-emerald-700 font-bold">{isBn ? "কপি হয়েছে" : "Copied"}</span>
+                            ) : (
+                              <span>{isBn ? "কপি" : "Copy"}</span>
+                            )}
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="pt-3 border-t border-slate-100 flex items-center gap-2">
+                        <button
+                          onClick={() => handleNavigateSafePath(sz)}
+                          className="flex-1 inline-flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-all shadow-2xs"
+                        >
+                          <Navigation className="w-3.5 h-3.5" />
+                          <span>{isBn ? "নিরাপদ পথ খুঁজুন" : "Safe Navigation"}</span>
+                        </button>
+
+                        <a
+                          href={`https://www.google.com/maps/dir/?api=1&destination=${sz.latitude},${sz.longitude}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="p-2 rounded-xl border border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors"
+                          title="Google Maps"
+                        >
+                          <ExternalLink className="w-4 h-4" />
+                        </a>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* VIEW MODE 3: FULL INTERACTIVE MAP FOCUS */}
+            {viewMode === "map" && (
+              <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs space-y-4">
+                <SafeZonesMap
+                  safeZones={filteredSafeZones}
+                  selectedZone={selectedZone}
+                  onSelectZone={(z) => setSelectedZone(z)}
+                  userLocation={userLocation}
+                  language={language}
+                  onNavigateSafeRoute={handleNavigateSafePath}
+                  className="w-full h-[620px]"
+                />
+              </div>
+            )}
           </div>
         )}
       </main>
