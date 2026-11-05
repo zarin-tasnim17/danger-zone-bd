@@ -15,6 +15,7 @@ import { useMapStore, MAP_LAYERS } from "@/store/useMapStore";
 import MapLayerSwitcher from "@/components/map/MapLayerSwitcher";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
+import { createDangerMarkerIcon } from "@/lib/mapMarkerUtils";
 import { MapPin, Navigation, AlertTriangle, ShieldCheck, Flag } from "lucide-react";
 
 export interface BypassedHazardItem {
@@ -384,7 +385,7 @@ export default function RoutePathMap({
             />
             <Marker
               position={[hazard.latitude, hazard.longitude]}
-              icon={hazardIcon}
+              icon={createDangerMarkerIcon(hazard.category || "GENERAL", (hazard.severity as any) || "HIGH", 14)}
             >
               <Popup className="clean-white-popup">
                 <div className="p-1.5 font-sans min-w-[180px]">

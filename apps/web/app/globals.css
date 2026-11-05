@@ -64,6 +64,66 @@
 }
 
 /* Clean White Leaflet Popups */
+/* Zero out default Leaflet divIcon square boxes and borders */
+.leaflet-div-icon {
+  background: transparent !important;
+  border: none !important;
+}
+
+/* Tactical Danger Pin Smooth Transitions & Interactive Lift */
+.custom-danger-pin {
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), z-index 0.15s ease;
+}
+
+.custom-danger-pin:hover {
+  z-index: 9999 !important;
+}
+
+.custom-danger-pin .danger-pin-badge {
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s ease;
+}
+
+.custom-danger-pin:hover .danger-pin-badge {
+  transform: scale(1.16) translateY(-2px);
+}
+
+/* Subtle Tactical Sonar Pulse Ring (Replaces the hyperactive full-screen animate-ping) */
+@keyframes tactical-danger-halo {
+  0% {
+    transform: scale(1);
+    opacity: 0.65;
+  }
+  50% {
+    transform: scale(1.26);
+    opacity: 0.12;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 0.65;
+  }
+}
+
+.tactical-halo-pulse {
+  animation: tactical-danger-halo 2.2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Tactical Quick-Glance Leaflet Tooltip */
+.leaflet-tooltip.tactical-marker-tooltip {
+  background: rgba(15, 23, 42, 0.94) !important;
+  backdrop-filter: blur(8px) !important;
+  -webkit-backdrop-filter: blur(8px) !important;
+  border: 1px solid rgba(51, 65, 85, 0.8) !important;
+  border-radius: 10px !important;
+  color: #ffffff !important;
+  font-family: inherit !important;
+  padding: 4px 8px !important;
+  box-shadow: 0 10px 20px -5px rgba(0, 0, 0, 0.4) !important;
+  white-space: nowrap !important;
+}
+
+.leaflet-tooltip.tactical-marker-tooltip::before {
+  border-top-color: rgba(15, 23, 42, 0.94) !important;
+}
 .leaflet-popup-content-wrapper {
   background: #ffffff !important;
   backdrop-filter: blur(12px) !important;

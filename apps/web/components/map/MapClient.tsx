@@ -7,12 +7,14 @@ import {
   TileLayer,
   Marker,
   Popup,
+  Tooltip,
   Circle,
   ZoomControl,
   useMap,
   useMapEvents,
 } from "react-leaflet";
 import { useMapStore, MAP_LAYERS, LocationSource } from "@/store/useMapStore";
+import { createDangerMarkerIcon, createSafeZoneIcon } from "@/lib/mapMarkerUtils";
 import MapLayerSwitcher from "./MapLayerSwitcher";
 import LocationSearchBar, { GeocodedLocation } from "./LocationSearchBar";
 import LocationCalibrationModal from "./LocationCalibrationModal";
@@ -40,100 +42,18 @@ import {
   MapPin,
 } from "lucide-react";
 
-// Custom high-visibility solid marker icons with animated radar pulse on high severity
-function createCustomIcon(severity: IncidentSeverity) {
-  const normalized = (severity || "").toUpperCase();
-  const isHigh = normalized === "HIGH" || normalized === "CRITICAL";
-  const colorMap: Record<string, { bg: string; border: string; glow: string }> = {
-    HIGH: { bg: "#DC2626", border: "#FFFFFF", glow: "rgba(220, 38, 38, 0.45)" },
-    CRITICAL: { bg: "#DC2626", border: "#FFFFFF", glow: "rgba(220, 38, 38, 0.45)" },
-    MEDIUM: { bg: "#EA580C", border: "#FFFFFF", glow: "rgba(234, 88, 12, 0.35)" },
-    LOW: { bg: "#CA8A04", border: "#FFFFFF", glow: "rgba(202, 138, 4, 0.3)" },
-  };
-
-  const config = colorMap[normalized] || colorMap.MEDIUM;
-  const alertSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`;
-
-  return L.divIcon({
-    className: "custom-danger-pin",
-    html: `
-      <div style="position: relative; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center;">
-        ${
-          isHigh
-            ? `<span class="animate-ping" style="
-                position: absolute;
-                width: 100%;
-                height: 100%;
-                border-radius: 50%;
-                background-color: #EF4444;
-                opacity: 0.75;
-              "></span>`
-            : ""
-        }
-        <div style="
-          position: relative;
-          background-color: ${config.bg};
-          border: 2.5px solid ${config.border};
-          width: 32px;
-          height: 32px;
-          border-radius: 50%;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          color: #FFFFFF;
-          box-shadow: 0 4px 14px ${config.glow}, 0 2px 4px rgba(15, 23, 42, 0.25);
-          cursor: pointer;
-          transition: transform 0.15s ease;
-        ">
-          ${alertSvg}
-        </div>
-      </div>
-    `,
-    iconSize: [36, 36],
-    iconAnchor: [18, 18],
-    popupAnchor: [0, -20],
-  });
-}
-
-// Verified Safe Zone icon (Police / Hospital) with crisp vector SVG
-function createSafeZoneIcon(type: string) {
-  const isPolice = type === "POLICE_STATION";
-  const iconSvg = isPolice
-    ? `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>`
-    : `<svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 6v12"/><path d="M6 12h12"/></svg>`;
-
-  return L.divIcon({
-    className: "custom-safe-pin",
-    html: `
-      <div style="
-        background-color: ${isPolice ? "#2563EB" : "#059669"};
-        border: 2.5px solid #FFFFFF;
-        width: 32px;
-        height: 32px;
-        border-radius: 10px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        color: #FFFFFF;
-        box-shadow: 0 4px 12px ${isPolice ? "rgba(37, 99, 235, 0.35)" : "rgba(5, 150, 105, 0.35)"}, 0 2px 4px rgba(15,23,42,0.15);
-        cursor: pointer;
-      ">
-        ${iconSvg}
-      </div>
-    `,
-    iconSize: [32, 32],
-    iconAnchor: [16, 16],
-    popupAnchor: [0, -18],
-  });
-}
-
-// Map events handler to trigger viewport incident loading on user pan or zoom
+// Map events handler to trigger viewport incident loading and sync zoom to map store
 function MapEventsHandler() {
   const fetchIncidentsInBounds = useIncidentStore((state) => state.fetchIncidentsInBounds);
+  const setZoom = useMapStore((state) => state.setZoom);
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
 
   const map = useMapEvents({
+    zoomend: () => {
+      setZoom(map.getZoom());
+    },
     moveend: () => {
+      setZoom(map.getZoom());
       // Debounce viewport bounds query to prevent re-fetching on continuous zoom or pan
       if (debounceRef.current) {
         clearTimeout(debounceRef.current);
@@ -474,9 +394,12 @@ export default function MapClient() {
     );
   };
 
-  // User GPS Pin icon (Dynamic icon: Green star badge for calibrated, blue pulse for network GPS)
+  // User GPS Pin icon (Dynamic icon: Green star badge for calibrated, blue beacon for network GPS)
   const userGpsIcon = useMemo(() => {
     const isCalibrated = locationSource === 'calibrated';
+    const starSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>`;
+    const pinSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>`;
+
     return L.divIcon({
       className: "user-gps-pulse",
       html: `
@@ -487,12 +410,12 @@ export default function MapClient() {
             height: 100%;
             border-radius: 50%;
             background-color: ${isCalibrated ? '#10B981' : '#3B82F6'};
-            opacity: 0.75;
+            opacity: 0.65;
           "></span>
           <div style="
             position: relative;
             background-color: ${isCalibrated ? '#059669' : '#2563EB'};
-            border: 3px solid #FFFFFF;
+            border: 2.5px solid #FFFFFF;
             width: 26px;
             height: 26px;
             border-radius: 50%;
@@ -501,16 +424,14 @@ export default function MapClient() {
             justify-content: center;
             color: #FFFFFF;
             box-shadow: 0 0 14px ${isCalibrated ? 'rgba(5, 150, 105, 0.7)' : 'rgba(37, 99, 235, 0.7)'};
-            font-size: 11px;
-            font-weight: bold;
           ">
-            ${isCalibrated ? '★' : '📍'}
+            ${isCalibrated ? starSvg : pinSvg}
           </div>
         </div>
       `,
       iconSize: [28, 28],
       iconAnchor: [14, 14],
-      popupAnchor: [0, -14],
+      popupAnchor: [0, -16],
     });
   }, [locationSource]);
 
@@ -817,10 +738,11 @@ export default function MapClient() {
 
         {/* Render Live Danger Incidents */}
         {filteredIncidents.map((incident: DangerIncident) => {
-          const icon = createCustomIcon(incident.severity);
+          const icon = createDangerMarkerIcon(incident.category, incident.severity, zoom);
           const isHigh =
             incident.severity.toUpperCase() === "HIGH" || incident.severity.toLowerCase() === "critical";
           const isMed = incident.severity.toUpperCase() === "MEDIUM";
+          const tooltipOffset = zoom <= 11 ? 11 : zoom <= 14 ? 14 : 16;
 
           return (
             <Fragment key={incident.id}>
@@ -832,9 +754,9 @@ export default function MapClient() {
                   pathOptions={{
                     color: "#DC2626",
                     fillColor: "#DC2626",
-                    fillOpacity: 0.14,
-                    weight: 2,
-                    dashArray: "5, 5",
+                    fillOpacity: 0.12,
+                    weight: 1.5,
+                    dashArray: "4, 4",
                   }}
                 />
               )}
@@ -842,12 +764,42 @@ export default function MapClient() {
               <Marker
                 position={[incident.coordinates.lat, incident.coordinates.lng]}
                 icon={icon}
+                zIndexOffset={isHigh ? 500 : isMed ? 200 : 50}
                 eventHandlers={{
                   click: () => {
                     setCenter(incident.coordinates);
                   },
+                  mouseover: (e) => {
+                    e.target.setZIndexOffset(10000);
+                  },
+                  mouseout: (e) => {
+                    e.target.setZIndexOffset(isHigh ? 500 : isMed ? 200 : 50);
+                  },
                 }}
               >
+                {/* Tactical Quick-Glance Tooltip on Desktop */}
+                <Tooltip
+                  direction="top"
+                  offset={[0, -tooltipOffset - 4]}
+                  opacity={0.96}
+                  className="tactical-marker-tooltip"
+                >
+                  <div className="flex items-center gap-1.5 text-xs font-semibold">
+                    <span
+                      className={`w-2 h-2 rounded-full shrink-0 ${
+                        isHigh ? "bg-rose-500" : isMed ? "bg-orange-500" : "bg-amber-500"
+                      }`}
+                    />
+                    <span className="font-bold">
+                      {(t.categories as any)[incident.category.toLowerCase()] || incident.category}
+                    </span>
+                    <span className="text-slate-400 font-normal">|</span>
+                    <span className="text-slate-200 truncate max-w-[200px]">
+                      {isBn && incident.titleBn ? incident.titleBn : incident.title}
+                    </span>
+                  </div>
+                </Tooltip>
+
                 <Popup>
                   <div className="p-3.5 min-w-[280px] sm:min-w-[300px] max-w-[320px] text-slate-900 space-y-2">
                     {/* Header */}
