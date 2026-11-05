@@ -12,6 +12,7 @@ import {
   ShieldAlert,
 } from "lucide-react";
 import { useLanguageStore } from "@/store/useLanguageStore";
+import { useMapStore } from "@/store/useMapStore";
 
 export default function EmergencySosPill() {
   const [isOpen, setIsOpen] = useState(false);
@@ -23,20 +24,38 @@ export default function EmergencySosPill() {
   const isBn = language === "bn";
 
   useEffect(() => {
-    if (isOpen && !coords && typeof window !== "undefined" && navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          setCoords({
-            lat: Number(pos.coords.latitude.toFixed(6)),
-            lng: Number(pos.coords.longitude.toFixed(6)),
-            accuracy: Math.round(pos.coords.accuracy),
-          });
-        },
-        (err) => {
-          setGpsError(err.message || "Failed to retrieve live coordinates");
-        },
-        { enableHighAccuracy: true, timeout: 10000 }
-      );
+    if (isOpen && !coords && typeof window !== "undefined") {
+      // 1. Check if user previously calibrated their location
+      const saved = useMapStore.getState().loadSavedLocation();
+      if (saved) {
+        setCoords({
+          lat: saved.lat,
+          lng: saved.lng,
+          accuracy: saved.accuracy || 25,
+        });
+      }
+
+      // 2. Query browser geolocation
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            // Prioritize live GPS if accuracy is high or no saved calibration
+            if (!saved || pos.coords.accuracy <= 100) {
+              setCoords({
+                lat: Number(pos.coords.latitude.toFixed(6)),
+                lng: Number(pos.coords.longitude.toFixed(6)),
+                accuracy: Math.round(pos.coords.accuracy),
+              });
+            }
+          },
+          (err) => {
+            if (!saved) {
+              setGpsError(err.message || "Failed to retrieve live coordinates");
+            }
+          },
+          { enableHighAccuracy: true, timeout: 8000 }
+        );
+      }
     }
   }, [isOpen, coords]);
 

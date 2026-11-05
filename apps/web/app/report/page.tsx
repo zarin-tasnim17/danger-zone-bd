@@ -8,6 +8,7 @@ import Navbar from "@/components/layout/Navbar";
 import { apiFetch } from "@/lib/api";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useLanguageStore } from "@/store/useLanguageStore";
+import { useMapStore } from "@/store/useMapStore";
 import { getTranslation } from "@/lib/translations";
 import {
   Siren,
@@ -207,35 +208,53 @@ export default function ReportPage() {
     initAuth();
   }, [initAuth]);
 
-  // Automatically request device GPS once on load
+  // Automatically request device GPS once on load (respecting calibrated location)
   useEffect(() => {
+    let hasCalibrated = false;
+    if (typeof window !== "undefined") {
+      const saved = useMapStore.getState().loadSavedLocation();
+      if (saved) {
+        hasCalibrated = true;
+        setLatitude(saved.lat);
+        setLongitude(saved.lng);
+        setDeviceGps({ lat: saved.lat, lng: saved.lng });
+        setGpsAccuracy(saved.accuracy || 25);
+        setGpsNotice(
+          isBn
+            ? "✓ আপনার সংরক্ষিত সঠিক অবস্থান থেকে পিন শুরু হয়েছে।"
+            : "✓ Initialized from your saved calibrated location."
+        );
+      }
+    }
+
     if (typeof window !== "undefined" && "geolocation" in navigator) {
-      setIsAcquiringGps(true);
+      if (!hasCalibrated) setIsAcquiringGps(true);
       navigator.geolocation.getCurrentPosition(
         (pos) => {
           const lat = Number(pos.coords.latitude.toFixed(6));
           const lng = Number(pos.coords.longitude.toFixed(6));
-          setDeviceGps({ lat, lng });
-          setGpsAccuracy(pos.coords.accuracy || null);
-          setLatitude(lat);
-          setLongitude(lng);
+          if (!hasCalibrated) {
+            setDeviceGps({ lat, lng });
+            setGpsAccuracy(pos.coords.accuracy || null);
+            setLatitude(lat);
+            setLongitude(lng);
+            setGpsNotice(
+              isBn
+                ? "✓ আপনার বর্তমান জিপিএস অবস্থান সফলভাবে সনাক্ত হয়েছে।"
+                : "✓ Live device GPS location successfully acquired."
+            );
+          }
           setIsAcquiringGps(false);
-          setGpsNotice(
-            isBn
-              ? "✓ আপনার বর্তমান জিপিএস অবস্থান সফলভাবে সনাক্ত হয়েছে।"
-              : "✓ Live device GPS location successfully acquired."
-          );
         },
         (err) => {
           console.warn("[Report] Geolocation notice:", err.message);
           setIsAcquiringGps(false);
-          // Default device GPS to Banani Dhaka if browser blocks GPS so user can still test
-          setDeviceGps(null);
+          if (!hasCalibrated) {
+            setDeviceGps(null);
+          }
         },
         { enableHighAccuracy: true, timeout: 8000 }
       );
-    } else {
-      setDeviceGps(null);
     }
   }, [isBn]);
 
