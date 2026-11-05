@@ -34,16 +34,21 @@ import {
   X,
   Check,
   Zap,
+  Eye,
+  EyeOff,
+  Mail,
 } from "lucide-react";
 
 export default function AdminPage() {
-  const { user, loginAdmin, logout, initAuth } = useAuthStore();
+  const { user, loginAdminWithPassword, logout, initAuth } = useAuthStore();
   const { language } = useLanguageStore();
   const isBn = language === "bn";
 
   // Login Gate State
-  const [adminAuthInput, setAdminAuthInput] = useState("");
-  const [adminEmail, setAdminEmail] = useState("");
+  const [adminEmail, setAdminEmail] = useState("admin@safetymap.bd");
+  const [adminPassword, setAdminPassword] = useState("AdminSafety@2026");
+  const [showPassword, setShowPassword] = useState(false);
+
   const [authError, setAuthError] = useState<string | null>(null);
   const [isAuthenticating, setIsAuthenticating] = useState(false);
 
@@ -227,7 +232,7 @@ export default function AdminPage() {
     setIsAuthenticating(true);
 
     try {
-      await loginAdmin(adminAuthInput.trim(), adminEmail.trim() || undefined);
+      await loginAdminWithPassword(adminEmail.trim(), adminPassword);
     } catch (err: any) {
       setAuthError(
         err.message ||
@@ -362,30 +367,44 @@ export default function AdminPage() {
             <form onSubmit={handleAdminLogin} className="space-y-4">
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
-                  {isBn ? "অ্যাডমিন ডিভাইস / অ্যানোনিমাস আইডি *" : "Admin Device / Anonymous ID *"}
+                  {isBn ? "অ্যাডমিন ইমেইল *" : "Admin Email *"}
                 </label>
-                <input
-                  type="text"
-                  required
-                  value={adminAuthInput}
-                  onChange={(e) => setAdminAuthInput(e.target.value)}
-                  placeholder="e.g. admin-master-device-uuid"
-                  className="w-full px-3.5 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-mono focus:bg-white focus:ring-1 focus:ring-purple-500 focus:outline-none transition-colors"
-                />
+                <div className="relative">
+                  <input
+                    type="email"
+                    required
+                    value={adminEmail}
+                    onChange={(e) => setAdminEmail(e.target.value)}
+                    placeholder="admin@safetymap.bd"
+                    className="w-full pl-9 pr-3.5 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-900 focus:bg-white focus:ring-1 focus:ring-purple-500 focus:outline-none transition-colors"
+                  />
+                  <Mail className="w-4 h-4 text-slate-400 absolute left-3 top-3 pointer-events-none" />
+                </div>
               </div>
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
-                  {isBn ? "অ্যাডমিন ইমেইল (যাচাইকরণ) *" : "Admin Email (Verification) *"}
+                  {isBn ? "পাসওয়ার্ড *" : "Password *"}
                 </label>
-                <input
-                  type="email"
-                  required
-                  value={adminEmail}
-                  onChange={(e) => setAdminEmail(e.target.value)}
-                  placeholder="e.g. admin@safetymap.bd"
-                  className="w-full px-3.5 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-900 focus:bg-white focus:ring-1 focus:ring-purple-500 focus:outline-none transition-colors"
-                />
+                <div className="relative">
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    required
+                    value={adminPassword}
+                    onChange={(e) => setAdminPassword(e.target.value)}
+                    placeholder="••••••••••••"
+                    className="w-full pl-9 pr-10 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-900 focus:bg-white focus:ring-1 focus:ring-purple-500 focus:outline-none transition-colors"
+                  />
+                  <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-3 pointer-events-none" />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600 focus:outline-none"
+                    aria-label={showPassword ? "Hide password" : "Show password"}
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
               </div>
 
               <button
@@ -411,13 +430,13 @@ export default function AdminPage() {
               <button
                 type="button"
                 onClick={() => {
-                  setAdminAuthInput("admin-device-master-uuid");
                   setAdminEmail("admin@safetymap.bd");
+                  setAdminPassword("AdminSafety@2026");
                 }}
                 className="text-purple-700 hover:text-purple-800 font-bold flex items-center gap-1 cursor-pointer"
               >
                 <Zap className="w-3.5 h-3.5" />
-                <span>{isBn ? "ডেমো অ্যাডমিন তথ্য পূরণ" : "Fill Demo Admin Keys"}</span>
+                <span>{isBn ? "অ্যাডমিন তথ্য পূরণ" : "Fill Admin Credentials"}</span>
               </button>
 
               <Link

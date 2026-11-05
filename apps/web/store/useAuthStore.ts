@@ -30,6 +30,7 @@ interface AuthState {
   error: string | null;
   initAuth: () => Promise<AuthUser | null>;
   loginAdmin: (anonymousId: string, email?: string) => Promise<AuthUser>;
+  loginAdminWithPassword: (email: string, password: string) => Promise<AuthUser>;
   logout: () => Promise<void>;
   refreshProfile: () => Promise<void>;
 }
@@ -86,6 +87,36 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       await apiFetch("/auth/device", {
         method: "POST",
         body: JSON.stringify({ anonymousId, email }),
+      });
+
+      const profile = await apiFetch<AuthUser>("/users/me");
+
+      if (profile.role !== "ADMIN") {
+        throw new Error("This account does not have administrator privileges.");
+      }
+
+      set({ user: profile, isLoading: false });
+
+      // Refresh socket connection with admin authorization
+      const socket = getSocket();
+      if (socket) {
+        socket.disconnect();
+        socket.connect();
+      }
+
+      return profile;
+    } catch (err: any) {
+      set({ isLoading: false, error: err.message });
+      throw err;
+    }
+  },
+
+  loginAdminWithPassword: async (email: string, password: string) => {
+    set({ isLoading: true, error: null });
+    try {
+      await apiFetch("/auth/login", {
+        method: "POST",
+        body: JSON.stringify({ email, password }),
       });
 
       const profile = await apiFetch<AuthUser>("/users/me");
