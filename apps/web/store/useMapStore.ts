@@ -68,6 +68,9 @@ interface MapState {
   userAccuracy: number | null;
   locationSource: LocationSource | null;
   locationLabel: string | null;
+  isCalibrationModalOpen: boolean;
+  isLowAccuracy: boolean;
+  dismissedCalibrationBanner: boolean;
 
   setMode: (mode: MapMode) => void;
   setCenter: (center: Coordinates) => void;
@@ -82,6 +85,10 @@ interface MapState {
   calibrateUserLocation: (coords: { lat: number; lng: number }, label?: string) => void;
   resetToBrowserGps: () => void;
   loadSavedLocation: () => SavedUserLocation | null;
+  openCalibrationModal: () => void;
+  closeCalibrationModal: () => void;
+  setIsLowAccuracy: (isLow: boolean) => void;
+  setDismissedCalibrationBanner: (dismissed: boolean) => void;
 }
 
 export const useMapStore = create<MapState>((set) => ({
@@ -93,11 +100,18 @@ export const useMapStore = create<MapState>((set) => ({
   userAccuracy: null,
   locationSource: null,
   locationLabel: null,
+  isCalibrationModalOpen: false,
+  isLowAccuracy: false,
+  dismissedCalibrationBanner: false,
 
   setMode: (mode) => set({ mode }),
   setCenter: (center) => set({ center }),
   setZoom: (zoom) => set({ zoom }),
   setActiveTileLayer: (activeTileLayer) => set({ activeTileLayer }),
+  openCalibrationModal: () => set({ isCalibrationModalOpen: true }),
+  closeCalibrationModal: () => set({ isCalibrationModalOpen: false }),
+  setIsLowAccuracy: (isLowAccuracy) => set({ isLowAccuracy }),
+  setDismissedCalibrationBanner: (dismissedCalibrationBanner) => set({ dismissedCalibrationBanner }),
 
   setUserLocation: (coords, accuracy = null, source = 'gps', label = undefined) => {
     set({
