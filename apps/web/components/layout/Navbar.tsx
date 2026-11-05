@@ -71,14 +71,15 @@ export default function Navbar({
   const isBn = language === "bn";
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
+  // Core navigation links (Prioritized for 1024px+ screens)
   const navLinks = [
-    { name: isBn ? "লাইভ ম্যাপ" : "Live Map", href: "/", icon: Map },
-    { name: isBn ? "ফিড" : "Feed", href: "/feed", icon: ListFilter },
-    { name: isBn ? "আশ্রয়স্থল" : "Safe Shelters", href: "/safe-zones", icon: Shield },
-    { name: isBn ? "নিরাপদ পথ" : "Safe Routes", href: "/routes", icon: Navigation },
-    { name: isBn ? "সতর্কতা" : "Alerts", href: "/alerts", icon: Bell },
-    { name: isBn ? "প্রোফাইল" : "Profile", href: "/profile", icon: UserCheck },
-    { name: "Dev Test", href: "/dev-test", icon: FlaskConical },
+    { name: isBn ? "লাইভ ম্যাপ" : "Live Map", href: "/", icon: Map, isPrimary: true },
+    { name: isBn ? "ফিড" : "Feed", href: "/feed", icon: ListFilter, isPrimary: true },
+    { name: isBn ? "আশ্রয়স্থল" : "Safe Shelters", href: "/safe-zones", icon: Shield, isPrimary: true },
+    { name: isBn ? "নিরাপদ পথ" : "Safe Routes", href: "/routes", icon: Navigation, isPrimary: true },
+    { name: isBn ? "সতর্কতা" : "Alerts", href: "/alerts", icon: Bell, isPrimary: true },
+    { name: isBn ? "প্রোফাইল" : "Profile", href: "/profile", icon: UserCheck, isPrimary: false },
+    { name: "Dev Test", href: "/dev-test", icon: FlaskConical, isPrimary: false },
   ];
 
   const hasActiveFilters =
@@ -87,18 +88,18 @@ export default function Navbar({
   return (
     <header className="w-full bg-white/95 backdrop-blur-xl border-b border-slate-200 text-slate-800 sticky top-0 z-30 shadow-xs transition-all select-none">
       {/* Main Single Command Navbar */}
-      <div className="max-w-[1536px] w-full mx-auto px-3.5 sm:px-6 h-16 flex items-center justify-between gap-2.5 sm:gap-4">
+      <div className="max-w-[1536px] w-full mx-auto px-3 sm:px-4 lg:px-6 h-16 flex items-center justify-between gap-2 sm:gap-3 lg:gap-4">
         {/* Brand Logo & Live Threat Counter */}
-        <Link href="/" className="flex items-center gap-2.5 sm:gap-3 shrink-0 group">
-          <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-red-600 to-rose-500 flex items-center justify-center text-white shrink-0 shadow-md shadow-red-500/25 ring-1 ring-red-400/30 group-hover:scale-105 transition-all">
-            <ShieldAlert className="w-5 h-5 sm:w-6 sm:h-6" />
+        <Link href="/" className="flex items-center gap-2 sm:gap-2.5 shrink-0 group">
+          <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-2xl bg-gradient-to-tr from-red-600 to-rose-500 flex items-center justify-center text-white shrink-0 shadow-md shadow-red-500/25 ring-1 ring-red-400/30 group-hover:scale-105 transition-all">
+            <ShieldAlert className="w-5 h-5 sm:w-5.5 sm:h-5.5" />
           </div>
           <div className="flex flex-col">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 sm:gap-2">
               <span className="text-base sm:text-lg font-black tracking-tight text-slate-900 group-hover:text-red-600 transition-colors whitespace-nowrap">
                 {isBn ? "বিপদ সংকেত" : "DANGER ZONE"}
               </span>
-              <span className="inline-flex items-center gap-1.5 text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-red-50 text-red-700 border border-red-200 shadow-2xs font-mono whitespace-nowrap">
+              <span className="inline-flex items-center gap-1.5 text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-50 text-red-700 border border-red-200 shadow-2xs font-mono whitespace-nowrap">
                 <span className="relative flex h-2 w-2">
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
                   <span className="relative inline-flex rounded-full h-2 w-2 bg-red-600" />
@@ -114,7 +115,7 @@ export default function Navbar({
           </div>
         </Link>
 
-        {/* Primary Desktop Navigation Links */}
+        {/* Primary Desktop Navigation Links: Adaptive density to prevent pushing right controls */}
         <nav className="hidden lg:flex items-center gap-0.5 xl:gap-1 bg-slate-100/90 p-1 rounded-2xl border border-slate-200/90 shrink-0">
           {navLinks.map((link) => {
             const isActive = link.href === "/" ? pathname === "/" : pathname?.startsWith(link.href);
@@ -123,7 +124,9 @@ export default function Navbar({
               <Link
                 key={link.href}
                 href={link.href}
-                className={`whitespace-nowrap inline-flex items-center gap-1.5 px-2.5 xl:px-3 py-1.5 rounded-xl text-xs font-semibold transition-all shrink-0 select-none ${
+                className={`whitespace-nowrap inline-flex items-center gap-1.5 px-2 xl:px-3 py-1.5 rounded-xl text-xs font-semibold transition-all shrink-0 select-none ${
+                  !link.isPrimary ? "hidden xl:inline-flex" : ""
+                } ${
                   isActive
                     ? "bg-white text-slate-900 shadow-xs border border-slate-200/90 font-bold"
                     : "text-slate-600 hover:text-slate-900 hover:bg-white/60"
@@ -137,7 +140,7 @@ export default function Navbar({
         </nav>
 
         {/* Right Controls: Hotline, Language Switcher, Citizen Badge & Primary CTA */}
-        <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
+        <div className="flex items-center gap-1.5 sm:gap-2 xl:gap-2.5 shrink-0">
           {/* National 999 Emergency Dispatch Hotline Button */}
           <a
             href="tel:999"
@@ -152,7 +155,7 @@ export default function Navbar({
           <div className="flex items-center p-0.5 bg-slate-100 border border-slate-200/90 rounded-xl text-xs font-semibold shadow-2xs shrink-0">
             <button
               onClick={() => language !== "en" && toggleLanguage()}
-              className={`px-2.5 py-1 rounded-lg transition-all text-[11px] font-semibold whitespace-nowrap cursor-pointer ${
+              className={`px-2 sm:px-2.5 py-1 rounded-lg transition-all text-[11px] font-semibold whitespace-nowrap cursor-pointer ${
                 language === "en"
                   ? "bg-white text-slate-900 font-bold shadow-2xs"
                   : "text-slate-500 hover:text-slate-800"
@@ -163,7 +166,7 @@ export default function Navbar({
             </button>
             <button
               onClick={() => language !== "bn" && toggleLanguage()}
-              className={`px-2.5 py-1 rounded-lg transition-all text-[11px] font-semibold whitespace-nowrap cursor-pointer ${
+              className={`px-2 sm:px-2.5 py-1 rounded-lg transition-all text-[11px] font-semibold whitespace-nowrap cursor-pointer ${
                 language === "bn"
                   ? "bg-white text-slate-900 font-bold shadow-2xs"
                   : "text-slate-500 hover:text-slate-800"
@@ -178,7 +181,7 @@ export default function Navbar({
           {user?.role === "ADMIN" ? (
             <Link
               href="/admin"
-              className="bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 text-xs font-bold px-3 py-1.5 rounded-xl inline-flex items-center gap-1.5 transition-all shadow-2xs shrink-0 whitespace-nowrap"
+              className="bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 text-xs font-bold px-2.5 sm:px-3 py-1.5 rounded-xl inline-flex items-center gap-1.5 transition-all shadow-2xs shrink-0 whitespace-nowrap"
               title="Open Admin Moderation Console"
             >
               <Lock className="w-3.5 h-3.5 text-purple-600 shrink-0" />
@@ -187,7 +190,7 @@ export default function Navbar({
           ) : (
             <Link
               href="/profile"
-              className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200/90 rounded-xl text-xs text-slate-700 transition shadow-2xs shrink-0 whitespace-nowrap"
+              className="hidden xl:inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200/90 rounded-xl text-xs text-slate-700 transition shadow-2xs shrink-0 whitespace-nowrap"
               title="Citizen Trust Score & Identity"
             >
               <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
@@ -202,7 +205,7 @@ export default function Navbar({
             </Link>
           )}
 
-          {/* High-Visibility Primary Report Hazard CTA */}
+          {/* High-Visibility Primary Report Hazard CTA (Always with safe margins) */}
           <Link
             href="/report"
             className="relative group overflow-hidden bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-700 hover:to-rose-700 text-white text-xs sm:text-sm font-bold px-3 sm:px-4 py-2 rounded-xl inline-flex items-center gap-1.5 transition-all shadow-md shadow-red-600/20 active:scale-95 ring-1 ring-red-500/30 shrink-0 whitespace-nowrap cursor-pointer"
@@ -274,7 +277,7 @@ export default function Navbar({
 
       {/* Filter Ribbon & Fast Keyword Search (Streamlined Command Strip) */}
       {showFilters && (
-        <div className="border-t border-slate-200/90 bg-slate-50/80 backdrop-blur-md px-3 sm:px-6 py-2 overflow-x-auto scrollbar-none">
+        <div className="border-t border-slate-200/90 bg-slate-50/80 backdrop-blur-md px-3 sm:px-4 lg:px-6 py-2 overflow-x-auto scrollbar-none">
           <div className="max-w-[1536px] mx-auto flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
             {/* Quick Filter Chips */}
             <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 scrollbar-none shrink-0">
