@@ -12,7 +12,7 @@ import {
   useMap,
   useMapEvents,
 } from "react-leaflet";
-import { useMapStore, MAP_LAYERS } from "@/store/useMapStore";
+import { useMapStore, MAP_LAYERS, LocationSource } from "@/store/useMapStore";
 import MapLayerSwitcher from "./MapLayerSwitcher";
 import LocationSearchBar, { GeocodedLocation } from "./LocationSearchBar";
 import { useFilterStore } from "@/store/useFilterStore";
@@ -34,8 +34,9 @@ import {
   Navigation,
   Loader2,
   X,
-  PhoneCall,
-  Flame,
+  RotateCcw,
+  Sparkles,
+  MapPin,
 } from "lucide-react";
 
 // Custom high-visibility solid marker icons with animated radar pulse on high severity
@@ -263,6 +264,15 @@ export default function MapClient() {
   const setZoom = useMapStore((state) => state.setZoom);
   const activeTileLayer = useMapStore((state) => state.activeTileLayer);
   const currentTileConfig = MAP_LAYERS[activeTileLayer] || MAP_LAYERS.google_streets;
+  const userLocation = useMapStore((state) => state.userLocation);
+  const userAccuracy = useMapStore((state) => state.userAccuracy);
+  const locationSource = useMapStore((state) => state.locationSource);
+  const locationLabel = useMapStore((state) => state.locationLabel);
+  const setUserLocation = useMapStore((state) => state.setUserLocation);
+  const calibrateUserLocation = useMapStore((state) => state.calibrateUserLocation);
+  const resetToBrowserGps = useMapStore((state) => state.resetToBrowserGps);
+  const loadSavedLocation = useMapStore((state) => state.loadSavedLocation);
+
   const incidents = useIncidentStore((state) => state.incidents);
   const safeZones = useIncidentStore((state) => state.safeZones);
   const fetchAllIncidents = useIncidentStore((state) => state.fetchAllIncidents);
@@ -277,8 +287,6 @@ export default function MapClient() {
   // Tactical Layer States
   const [showSafeZones, setShowSafeZones] = useState(true);
   const [showDangerCircles, setShowDangerCircles] = useState(true);
-  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
-  const [userAccuracy, setUserAccuracy] = useState<number | null>(null);
   const [isLocating, setIsLocating] = useState(false);
   const hasAutoLocatedRef = useRef(false);
 
@@ -320,33 +328,59 @@ export default function MapClient() {
     return lat >= 20.3 && lat <= 26.8 && lng >= 87.8 && lng <= 92.9;
   };
 
-  // Automatically detect user location once on mount and smoothly zoom into their local neighborhood
+  // Smart Location Initialization: Prioritize saved calibrated location, otherwise query browser geolocation
   useEffect(() => {
-    if (typeof window === "undefined" || !navigator.geolocation || hasAutoLocatedRef.current) return;
-
+    if (typeof window === "undefined" || hasAutoLocatedRef.current) return;
     hasAutoLocatedRef.current = true;
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-        setUserLocation(coords);
-        setUserAccuracy(pos.coords.accuracy || null);
 
-        if (isWithinBangladesh(coords.lat, coords.lng)) {
-          setCenter(coords);
-          setZoom(13);
-        } else {
-          console.info("[Geo] Device is outside Bangladesh boundaries. Displaying national view.");
-        }
-      },
-      (err) => {
-        console.info("[Geo] Auto-location skipped:", err.message);
-      },
-      { enableHighAccuracy: true, timeout: 6000, maximumAge: 0 }
-    );
-  }, [setCenter, setZoom]);
+    // 1. Check if user previously calibrated their location in localStorage
+    const saved = loadSavedLocation();
+    if (saved && isWithinBangladesh(saved.lat, saved.lng)) {
+      setUserLocation(
+        { lat: saved.lat, lng: saved.lng },
+        saved.accuracy || 25,
+        'calibrated',
+        saved.label
+      );
+      setCenter({ lat: saved.lat, lng: saved.lng });
+      setZoom(15);
+      return;
+    }
+
+    // 2. Otherwise request browser geolocation
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+          const acc = pos.coords.accuracy || null;
+          setUserLocation(coords, acc, 'gps');
+
+          if (isWithinBangladesh(coords.lat, coords.lng)) {
+            setCenter(coords);
+            setZoom(13);
+          } else {
+            console.info("[Geo] Device is outside Bangladesh boundaries. Displaying national view.");
+          }
+        },
+        (err) => {
+          console.info("[Geo] Auto-location skipped:", err.message);
+        },
+        { enableHighAccuracy: true, timeout: 6000, maximumAge: 0 }
+      );
+    }
+  }, [setCenter, setZoom, loadSavedLocation, setUserLocation]);
 
   // Request browser geolocation (manual button click)
   const handleLocateMe = () => {
+    // If a saved calibrated location exists, fly to it
+    const saved = loadSavedLocation();
+    if (saved && isWithinBangladesh(saved.lat, saved.lng)) {
+      setUserLocation({ lat: saved.lat, lng: saved.lng }, saved.accuracy || 25, 'calibrated', saved.label);
+      setCenter({ lat: saved.lat, lng: saved.lng });
+      setZoom(16);
+      return;
+    }
+
     if (!navigator.geolocation) {
       alert("Geolocation is not supported by your browser");
       return;
@@ -355,7 +389,8 @@ export default function MapClient() {
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-        setUserLocation(coords);
+        const acc = pos.coords.accuracy || null;
+        setUserLocation(coords, acc, 'gps');
 
         if (isWithinBangladesh(coords.lat, coords.lng)) {
           setCenter(coords);
@@ -373,35 +408,67 @@ export default function MapClient() {
     );
   };
 
-  // User GPS Pin icon
+  // Re-query fresh browser GPS (clearing any saved calibration)
+  const handleForceGpsRefresh = () => {
+    resetToBrowserGps();
+    if (!navigator.geolocation) return;
+    setIsLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        const acc = pos.coords.accuracy || null;
+        setUserLocation(coords, acc, 'gps');
+        setCenter(coords);
+        setZoom(14);
+        setIsLocating(false);
+      },
+      (err) => {
+        alert(isBn ? "জিপিএস অবস্থান পাওয়া যায়নি: " + err.message : "Could not retrieve GPS: " + err.message);
+        setIsLocating(false);
+      },
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
+    );
+  };
+
+  // User GPS Pin icon (Dynamic icon: Green star badge for calibrated, blue pulse for network GPS)
   const userGpsIcon = useMemo(() => {
+    const isCalibrated = locationSource === 'calibrated';
     return L.divIcon({
       className: "user-gps-pulse",
       html: `
-        <div style="position: relative; width: 24px; height: 24px;">
+        <div style="position: relative; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;">
           <span class="animate-ping" style="
             position: absolute;
             width: 100%;
             height: 100%;
             border-radius: 50%;
-            background-color: #3B82F6;
+            background-color: ${isCalibrated ? '#10B981' : '#3B82F6'};
             opacity: 0.75;
           "></span>
           <div style="
             position: relative;
-            background-color: #2563EB;
+            background-color: ${isCalibrated ? '#059669' : '#2563EB'};
             border: 3px solid #FFFFFF;
-            width: 24px;
-            height: 24px;
+            width: 26px;
+            height: 26px;
             border-radius: 50%;
-            box-shadow: 0 0 12px rgba(37, 99, 235, 0.6);
-          "></div>
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #FFFFFF;
+            box-shadow: 0 0 14px ${isCalibrated ? 'rgba(5, 150, 105, 0.7)' : 'rgba(37, 99, 235, 0.7)'};
+            font-size: 11px;
+            font-weight: bold;
+          ">
+            ${isCalibrated ? '★' : '📍'}
+          </div>
         </div>
       `,
-      iconSize: [24, 24],
-      iconAnchor: [12, 12],
+      iconSize: [28, 28],
+      iconAnchor: [14, 14],
+      popupAnchor: [0, -14],
     });
-  }, []);
+  }, [locationSource]);
 
   return (
     <div className="relative w-full h-full min-h-0 bg-slate-100">
@@ -422,24 +489,34 @@ export default function MapClient() {
           {/* Map Layer Switcher (Google Streets / Hybrid / OSM) */}
           <MapLayerSwitcher />
 
-          {/* Locate Me (GPS) */}
+          {/* Locate Me (GPS / Calibrated Location) */}
           <button
             onClick={handleLocateMe}
             disabled={isLocating}
             className={`px-2 sm:px-2.5 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1 sm:gap-1.5 transition-all cursor-pointer ${
               userLocation
-                ? "bg-blue-600 text-white shadow-sm shadow-blue-600/30"
+                ? locationSource === 'calibrated'
+                  ? "bg-emerald-600 text-white shadow-sm shadow-emerald-600/30"
+                  : "bg-blue-600 text-white shadow-sm shadow-blue-600/30"
                 : "text-slate-700 hover:text-slate-900 hover:bg-slate-100"
             }`}
-            title="Locate Me (Current GPS)"
+            title={
+              locationSource === 'calibrated'
+                ? isBn ? "সংরক্ষিত সঠিক অবস্থান" : "Saved Calibrated Location"
+                : isBn ? "আমার অবস্থান সনাক্ত করুন" : "Locate Me (Current GPS)"
+            }
           >
             {isLocating ? (
-              <Loader2 className={`w-3.5 h-3.5 sm:w-4 sm:h-4 animate-spin ${userLocation ? "text-white" : "text-blue-600"}`} />
+              <Loader2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 animate-spin text-white" />
+            ) : locationSource === 'calibrated' ? (
+              <Sparkles className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-300" />
             ) : (
               <Crosshair className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${userLocation ? "text-white" : "text-blue-600"}`} />
             )}
             <span className="hidden sm:inline text-xs">
-              {isBn ? "আমার অবস্থান" : "My Location"}
+              {locationSource === 'calibrated'
+                ? isBn ? "সঠিক অবস্থান" : "Calibrated"
+                : isBn ? "আমার অবস্থান" : "My Location"}
             </span>
           </button>
 
@@ -527,10 +604,16 @@ export default function MapClient() {
           <>
             <Circle
               center={[userLocation.lat, userLocation.lng]}
-              radius={userAccuracy ? Math.min(Math.max(userAccuracy, 40), 500) : 150}
+              radius={
+                locationSource === 'calibrated'
+                  ? 40
+                  : userAccuracy
+                  ? Math.min(Math.max(userAccuracy, 40), 500)
+                  : 150
+              }
               pathOptions={{
-                color: "#2563EB",
-                fillColor: "#3B82F6",
+                color: locationSource === 'calibrated' ? "#059669" : "#2563EB",
+                fillColor: locationSource === 'calibrated' ? "#10B981" : "#3B82F6",
                 fillOpacity: 0.12,
                 weight: 1.5,
                 dashArray: "4, 6",
@@ -544,37 +627,89 @@ export default function MapClient() {
                 dragend: (e) => {
                   const marker = e.target;
                   const newPos = marker.getLatLng();
-                  setUserLocation({ lat: newPos.lat, lng: newPos.lng });
+                  // Automatically calibrate and save to localStorage!
+                  calibrateUserLocation(
+                    { lat: newPos.lat, lng: newPos.lng },
+                    isBn ? "ক্যালিব্রেটেড অবস্থান" : "Calibrated Pin Location"
+                  );
                 },
               }}
             >
               <Popup>
-                <div className="p-2.5 min-w-[210px] text-slate-800 text-xs space-y-1.5 font-sans">
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-blue-600 flex items-center gap-1">
-                      📍 {isBn ? "আপনার অবস্থান" : "Your Location"}
-                    </span>
-                    {userAccuracy && (
+                <div className="p-3 min-w-[240px] max-w-[280px] text-slate-800 text-xs space-y-2 font-sans">
+                  {/* Status Header */}
+                  <div className="flex items-center justify-between gap-1">
+                    {locationSource === 'calibrated' ? (
+                      <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">
+                        <Sparkles className="w-3 h-3 text-emerald-600" />
+                        <span>{isBn ? "ক্যালিব্রেটেড (সংরক্ষিত)" : "Calibrated (Saved)"}</span>
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-800 border border-blue-200">
+                        <span>📡 {isBn ? "ব্রাউজার নেটওয়ার্ক জিপিএস" : "Browser Network GPS"}</span>
+                      </span>
+                    )}
+
+                    {userAccuracy && locationSource !== 'calibrated' && (
                       <span className="text-[10px] text-slate-400 font-mono">
                         ±{Math.round(userAccuracy)}m
                       </span>
                     )}
                   </div>
-                  <p className="text-[10px] text-slate-500 font-mono">
-                    {userLocation.lat.toFixed(5)}, {userLocation.lng.toFixed(5)}
-                  </p>
-                  <p className="text-[10px] text-slate-600 leading-tight bg-blue-50/80 p-2 rounded-lg border border-blue-100">
-                    {isBn
-                      ? "💡 অবস্থান ভুল হলে পিনটি টেনে আপনার সঠিক স্থান বা রাস্তায় বসান।"
-                      : "💡 Inaccurate? Drag this pin to your exact building or street."}
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => setUserLocation(null)}
-                    className="w-full text-[11px] font-bold text-red-600 hover:bg-red-50 py-1 rounded-lg border border-red-200 transition-colors cursor-pointer"
-                  >
-                    {isBn ? "অবস্থান পিন সরান" : "Remove Location Pin"}
-                  </button>
+
+                  {/* Coordinates & Landmark Label */}
+                  <div>
+                    <div className="font-bold text-slate-900 text-xs flex items-center gap-1">
+                      <MapPin className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                      <span>{locationLabel || (isBn ? "আপনার বর্তমান অবস্থান" : "Your Location")}</span>
+                    </div>
+                    <p className="text-[10px] text-slate-500 font-mono mt-0.5">
+                      {userLocation.lat.toFixed(5)}, {userLocation.lng.toFixed(5)}
+                    </p>
+                  </div>
+
+                  {/* Guidance Box */}
+                  <div className={`p-2 rounded-xl text-[10.5px] leading-relaxed border ${
+                    locationSource === 'calibrated'
+                      ? "bg-emerald-50/80 border-emerald-200/80 text-emerald-900"
+                      : "bg-blue-50/80 border-blue-200/80 text-blue-900"
+                  }`}>
+                    {locationSource === 'calibrated' ? (
+                      <span>
+                        {isBn
+                          ? "✓ আপনার সঠিক অবস্থান ব্রাউজারে সংরক্ষিত রয়েছে। রিলোড করলেও এটি মনে থাকবে।"
+                          : "✓ Your calibrated location is saved permanently in this browser across refreshes."}
+                      </span>
+                    ) : (
+                      <span>
+                        {isBn
+                          ? "💡 ব্রাউজার ওয়াইফাই/আইএসপির কারণে অবস্থান ভুল হলে পিনটি টেনে আপনার সঠিক স্থান বা রাস্তায় বসান।"
+                          : "💡 Inaccurate due to ISP Wi-Fi? Drag this pin to your exact building or street to calibrate."}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Actions */}
+                  <div className="pt-1 space-y-1.5 border-t border-slate-100">
+                    {locationSource === 'calibrated' && (
+                      <button
+                        type="button"
+                        onClick={handleForceGpsRefresh}
+                        className="w-full flex items-center justify-center gap-1 text-[11px] font-bold text-slate-700 hover:text-slate-900 hover:bg-slate-100 py-1.5 rounded-lg border border-slate-200 transition-colors cursor-pointer"
+                      >
+                        <RotateCcw className="w-3 h-3 text-slate-500" />
+                        <span>{isBn ? "ব্রাউজার জিপিএসে ফিরুন" : "Reset to Browser GPS"}</span>
+                      </button>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={() => setUserLocation(null)}
+                      className="w-full text-[11px] font-bold text-red-600 hover:bg-red-50 py-1 rounded-lg border border-red-200 transition-colors cursor-pointer"
+                    >
+                      {isBn ? "অবস্থান পিন সরান" : "Remove Location Pin"}
+                    </button>
+                  </div>
                 </div>
               </Popup>
             </Marker>
