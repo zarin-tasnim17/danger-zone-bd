@@ -8,7 +8,8 @@
     "start": "node dist/server.js",
     "typecheck": "tsc --noEmit",
     "db:generate": "prisma generate",
-    "db:migrate": "prisma migrate dev"
+    "db:migrate": "prisma migrate dev",
+    "db:seed:admin": "tsx src/scripts/seedAdmin.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1157.0",

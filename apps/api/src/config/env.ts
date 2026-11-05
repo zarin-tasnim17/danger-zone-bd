@@ -11,6 +11,8 @@ const envSchema = z.object({
   DIRECT_URL: z.string().optional(),
   JWT_SECRET: z.string().default('super-secret-access-key-replace-in-prod'),
   JWT_REFRESH_SECRET: z.string().default('super-secret-refresh-key-replace-in-prod'),
+  ADMIN_EMAIL: z.string().default('admin@safetymap.bd'),
+  ADMIN_PASSWORD: z.string().default('AdminSafety@2026'),
   S3_BUCKET: z.string().default('danger-zone-reports'),
   S3_REGION: z.string().default('ap-south-1'),
   S3_ENDPOINT: z.string().optional(),

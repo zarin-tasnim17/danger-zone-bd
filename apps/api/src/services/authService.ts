@@ -1,3 +1,4 @@
+import bcrypt from 'bcrypt';
 import { prisma } from '../db/prisma';
 import { generateAccessToken, generateRefreshToken } from '../utils/jwt';
 
@@ -56,4 +57,47 @@ export const logout = async (token: string) => {
   }).catch(() => {
     // Ignore if token doesn't exist
   });
+};
+
+export const loginWithPassword = async (email: string, password: string) => {
+  const normalizedEmail = email.trim().toLowerCase();
+  const user = await prisma.user.findFirst({
+    where: {
+      email: {
+        equals: normalizedEmail,
+        mode: 'insensitive',
+      },
+    },
+  });
+
+  if (!user) {
+    throw new Error('Invalid email or password');
+  }
+
+  if (user.isBanned) {
+    throw new Error('This account has been suspended');
+  }
+
+  if (!user.passwordHash) {
+    throw new Error('Password authentication is not configured for this account');
+  }
+
+  const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
+  if (!isPasswordValid) {
+    throw new Error('Invalid email or password');
+  }
+
+  const accessToken = generateAccessToken({ id: user.id, role: user.role, isVerified: user.isVerified });
+  const refreshToken = generateRefreshToken({ id: user.id });
+
+  // Save refresh token to db
+  await prisma.refreshToken.create({
+    data: {
+      userId: user.id,
+      token: refreshToken,
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
+    },
+  });
+
+  return { user, accessToken, refreshToken };
 };

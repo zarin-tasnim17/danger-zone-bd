@@ -10,12 +10,51 @@ export const loginDevice = async (req: Request, res: Response) => {
     const { user, accessToken, refreshToken } = await authService.loginOrRegisterDevice(anonymousId, email);
 
     // Set cookies
-    res.cookie('accessToken', accessToken, { httpOnly: true, secure: env.NODE_ENV === 'production', sameSite: 'strict', maxAge: 15 * 60 * 1000 });
-    res.cookie('refreshToken', refreshToken, { httpOnly: true, secure: env.NODE_ENV === 'production', sameSite: 'strict', maxAge: 7 * 24 * 60 * 60 * 1000 });
+    res.cookie('accessToken', accessToken, { httpOnly: true, secure: env.NODE_ENV === 'production', sameSite: 'lax', maxAge: 15 * 60 * 1000 });
+    res.cookie('refreshToken', refreshToken, { httpOnly: true, secure: env.NODE_ENV === 'production', sameSite: 'lax', maxAge: 7 * 24 * 60 * 60 * 1000 });
 
     return successResponse(res, { user: { id: user.id, role: user.role } }, 201);
   } catch (error: any) {
     return errorResponse(res, error.message, 400);
+  }
+};
+
+export const loginPassword = async (req: Request, res: Response) => {
+  try {
+    const { email, password } = req.body;
+    const { user, accessToken, refreshToken } = await authService.loginWithPassword(email, password);
+
+    // Set cookies
+    res.cookie('accessToken', accessToken, {
+      httpOnly: true,
+      secure: env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 15 * 60 * 1000,
+    });
+    res.cookie('refreshToken', refreshToken, {
+      httpOnly: true,
+      secure: env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
+
+    return successResponse(
+      res,
+      {
+        user: {
+          id: user.id,
+          email: user.email,
+          role: user.role,
+          isVerified: user.isVerified,
+          trustScore: user.trustScore,
+        },
+        accessToken,
+        refreshToken,
+      },
+      200
+    );
+  } catch (error: any) {
+    return errorResponse(res, error.message, 401);
   }
 };
 
@@ -27,7 +66,7 @@ export const refresh = async (req: Request, res: Response) => {
     const decoded = verifyRefreshToken(refreshToken);
     const { accessToken } = await authService.refreshSession(refreshToken, decoded.id);
 
-    res.cookie('accessToken', accessToken, { httpOnly: true, secure: env.NODE_ENV === 'production', sameSite: 'strict', maxAge: 15 * 60 * 1000 });
+    res.cookie('accessToken', accessToken, { httpOnly: true, secure: env.NODE_ENV === 'production', sameSite: 'lax', maxAge: 15 * 60 * 1000 });
 
     return successResponse(res, {}, 200);
   } catch (error: any) {
