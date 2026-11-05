@@ -501,7 +501,7 @@ export default function MapClient() {
           url={currentTileConfig.url}
           attribution={currentTileConfig.attribution}
           maxZoom={currentTileConfig.maxZoom}
-          subdomains={currentTileConfig.subdomains}
+          subdomains={currentTileConfig.subdomains || ['0', '1', '2', '3']}
         />
 
         {/* User GPS Pin & Accuracy Radar Circle */}

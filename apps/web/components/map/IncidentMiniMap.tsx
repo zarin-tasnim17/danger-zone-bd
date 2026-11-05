@@ -104,7 +104,7 @@ export default function IncidentMiniMap({
           url={currentTileConfig.url}
           attribution={currentTileConfig.attribution}
           maxZoom={currentTileConfig.maxZoom}
-          subdomains={currentTileConfig.subdomains}
+          subdomains={currentTileConfig.subdomains || ['0', '1', '2', '3']}
         />
         <Circle
           center={[latitude, longitude]}

@@ -104,7 +104,7 @@ export default function ReportPinMap({
           url={currentTileConfig.url}
           attribution={currentTileConfig.attribution}
           maxZoom={currentTileConfig.maxZoom}
-          subdomains={currentTileConfig.subdomains}
+          subdomains={currentTileConfig.subdomains || ['0', '1', '2', '3']}
         />
 
         {/* 200m Proximity Radar Zone around Citizen's Real Device GPS */}

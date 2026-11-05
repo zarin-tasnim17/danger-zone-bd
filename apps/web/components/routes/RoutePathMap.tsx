@@ -288,7 +288,7 @@ export default function RoutePathMap({
           url={currentTileConfig.url}
           attribution={currentTileConfig.attribution}
           maxZoom={currentTileConfig.maxZoom}
-          subdomains={currentTileConfig.subdomains}
+          subdomains={currentTileConfig.subdomains || ['0', '1', '2', '3']}
         />
 
         {/* If route is diverted, show direct red dashed line indicating the risky path */}

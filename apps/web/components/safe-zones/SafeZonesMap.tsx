@@ -209,7 +209,7 @@ export default function SafeZonesMap({
           url={currentTileConfig.url}
           attribution={currentTileConfig.attribution}
           maxZoom={currentTileConfig.maxZoom}
-          subdomains={currentTileConfig.subdomains}
+          subdomains={currentTileConfig.subdomains || ['0', '1', '2', '3']}
         />
 
         {/* User live position circle and marker */}

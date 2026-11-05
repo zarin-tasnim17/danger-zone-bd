@@ -9,7 +9,7 @@ export interface MapLayerConfig {
   nameBn: string;
   url: string;
   maxZoom: number;
-  subdomains?: string[];
+  subdomains: string[];
   attribution: string;
 }
 
@@ -18,16 +18,18 @@ export const MAP_LAYERS: Record<MapTileLayer, MapLayerConfig> = {
     id: 'google_streets',
     nameEn: 'Google Streets',
     nameBn: 'গুগল স্ট্রিট ম্যাপ',
-    url: 'https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
+    url: 'https://mt{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
     maxZoom: 20,
+    subdomains: ['0', '1', '2', '3'],
     attribution: '&copy; Google Maps',
   },
   google_hybrid: {
     id: 'google_hybrid',
     nameEn: 'Satellite Hybrid',
     nameBn: 'স্যাটেলাইট হাইব্রিড',
-    url: 'https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}',
+    url: 'https://mt{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}',
     maxZoom: 20,
+    subdomains: ['0', '1', '2', '3'],
     attribution: '&copy; Google Maps Satellite',
   },
   osm: {
