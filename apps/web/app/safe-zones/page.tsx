@@ -774,7 +774,7 @@ export default function SafeZonesPage() {
             {viewMode === "split" && (
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
                 {/* Left: Interactive Leaflet Map (7 cols) */}
-                <div className="lg:col-span-7 sticky top-24">
+                <div className="lg:col-span-7 lg:sticky lg:top-24">
                   <div className="bg-white border border-slate-200 rounded-2xl p-3 shadow-xs space-y-2">
                     <div className="flex items-center justify-between px-2 pt-1">
                       <div className="flex items-center gap-2">
@@ -795,13 +795,13 @@ export default function SafeZonesPage() {
                       userLocation={userLocation}
                       language={language}
                       onNavigateSafeRoute={handleNavigateSafePath}
-                      className="w-full h-[460px] sm:h-[520px]"
+                      className="w-full h-[300px] sm:h-[380px] lg:h-[520px]"
                     />
                   </div>
                 </div>
 
                 {/* Right: Shelters List (5 cols) */}
-                <div className="lg:col-span-5 space-y-3 max-h-[700px] overflow-y-auto pr-1">
+                <div className="lg:col-span-5 space-y-3 lg:max-h-[calc(100vh-8rem)] lg:overflow-y-auto pr-1">
                   {filteredSafeZones.map((sz) => {
                     const badge = getTypeBadge(sz.type);
                     const Icon = badge.icon;
@@ -895,7 +895,7 @@ export default function SafeZonesPage() {
                               e.stopPropagation();
                               handleNavigateSafePath(sz);
                             }}
-                            className="flex-1 inline-flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-all shadow-2xs active:scale-95"
+                            className="flex-1 inline-flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-all shadow-2xs active:scale-95 min-h-[38px]"
                           >
                             <Navigation className="w-3.5 h-3.5" />
                             <span>{isBn ? "নিরাপদ পথ দেখুন" : "Safe Path Navigation"}</span>
@@ -906,7 +906,7 @@ export default function SafeZonesPage() {
                             target="_blank"
                             rel="noreferrer"
                             onClick={(e) => e.stopPropagation()}
-                            className="p-1.5 rounded-xl border border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors"
+                            className="p-2 rounded-xl border border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors flex items-center justify-center min-w-[38px] min-h-[38px]"
                             title="Open Google Maps Directions"
                           >
                             <ExternalLink className="w-3.5 h-3.5" />

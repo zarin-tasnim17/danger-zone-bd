@@ -185,8 +185,8 @@ export default function SafeZonesMap({
   }, [selectedZone, userLocation]);
 
   return (
-    <div className={`relative rounded-2xl overflow-hidden border border-slate-200 shadow-sm bg-slate-100 z-0 select-none ${className}`}>
-      <div className="absolute top-3 right-3 z-[500]">
+    <div className={`relative isolate rounded-2xl overflow-hidden border border-slate-200 shadow-sm bg-slate-100 z-0 select-none ${className}`}>
+      <div className="absolute top-2.5 right-2.5 sm:top-3 sm:right-3 z-[500]">
         <MapLayerSwitcher compact />
       </div>
       <MapContainer
@@ -341,7 +341,7 @@ export default function SafeZonesMap({
       </MapContainer>
 
       {/* Floating Map Legend */}
-      <div className="absolute bottom-3 left-3 bg-white/95 backdrop-blur-md border border-slate-200/90 rounded-xl px-3 py-2 shadow-md z-[1000] text-[10px] font-semibold text-slate-700 flex items-center gap-3">
+      <div className="absolute bottom-2.5 left-2.5 sm:bottom-3 sm:left-3 bg-white/95 backdrop-blur-md border border-slate-200/90 rounded-xl px-2.5 py-1.5 sm:px-3 sm:py-2 shadow-md z-[450] text-[9px] sm:text-[10px] font-semibold text-slate-700 flex items-center gap-2 sm:gap-3">
         <div className="flex items-center gap-1.5">
           <span className="w-2.5 h-2.5 rounded-full bg-blue-600"></span>
           <span>{isBn ? "হাসপাতাল" : "Hospital"}</span>
