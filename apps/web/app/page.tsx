@@ -9,6 +9,7 @@ import { useIncidentStore } from "@/store/useIncidentStore";
 import { useFilterStore } from "@/store/useFilterStore";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useStatsStore } from "@/store/useStatsStore";
+import { useMapStore } from "@/store/useMapStore";
 import {
   ListFilter,
   ShieldAlert,
@@ -23,6 +24,7 @@ import {
 export default function Home() {
   const [desktopSidebarOpen, setDesktopSidebarOpen] = useState(true);
   const [mobileSheetOpen, setMobileSheetOpen] = useState(false);
+  const openSosModal = useMapStore((state) => state.openSosModal);
 
   const { language } = useLanguageStore();
   const isBn = language === "bn";
@@ -170,22 +172,37 @@ export default function Home() {
           {/* Dynamic Leaflet Map Component */}
           <DynamicMap />
 
-          {/* Mobile Floating Bottom Action Dock (Feed Trigger positioned to sit side-by-side with EmergencySosPill) */}
-          <div className="md:hidden absolute bottom-5 left-3 right-[118px] z-[400] flex pointer-events-none">
+          {/* Mobile Floating Bottom Action Dock: Unified Hazards Feed + SOS 999 Side-by-Side */}
+          <div className="md:hidden fixed bottom-4 inset-x-3 z-[1000] flex items-center gap-2 pointer-events-none">
+            {/* Hazards in View Trigger */}
             <button
               onClick={() => setMobileSheetOpen(true)}
-              className="pointer-events-auto w-full flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-full bg-white/95 backdrop-blur-2xl border border-slate-200 text-slate-800 text-xs font-bold shadow-xl active:scale-95 transition-all ring-1 ring-blue-500/20 cursor-pointer"
+              className="pointer-events-auto flex-1 flex items-center justify-between px-3.5 py-2.5 rounded-full bg-white/95 backdrop-blur-2xl border border-slate-200 text-slate-800 text-xs font-bold shadow-xl active:scale-95 transition-all ring-1 ring-blue-500/20 cursor-pointer min-w-0"
             >
-              <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse shrink-0" />
-              <span className="truncate">
-                {isBn
-                  ? `${incidents.length}টি সক্রিয় বিপদ`
-                  : `${incidents.length} Hazards in View`}
-              </span>
-              <span className="text-slate-300 font-normal">|</span>
-              <span className="text-blue-600 flex items-center gap-0.5 font-bold shrink-0">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse shrink-0" />
+                <span className="truncate text-xs">
+                  {isBn
+                    ? `${incidents.length}টি সক্রিয় বিপদ`
+                    : `${incidents.length} Hazards in View`}
+                </span>
+              </div>
+              <span className="text-blue-600 flex items-center gap-0.5 font-bold shrink-0 ml-1.5 text-xs">
                 <span>{isBn ? "ফিড" : "Feed"}</span>
                 <ChevronUp className="w-3.5 h-3.5" />
+              </span>
+            </button>
+
+            {/* Mobile Emergency SOS 999 Button */}
+            <button
+              onClick={openSosModal}
+              className="pointer-events-auto shrink-0 flex items-center gap-1.5 bg-slate-900/95 hover:bg-slate-950 text-white font-semibold px-3.5 py-2.5 rounded-full shadow-xl border border-slate-700/60 backdrop-blur-md active:scale-95 transition-all cursor-pointer group hover:border-rose-500/50"
+              title={isBn ? "জরুরি জাতীয় সহায়তা (৯৯৯)" : "Emergency SOS Help (999)"}
+            >
+              <span className="w-2 h-2 rounded-full bg-rose-500 shrink-0 group-hover:bg-rose-400" />
+              <PhoneCall className="w-3.5 h-3.5 text-rose-400 group-hover:text-white transition-colors" />
+              <span className="text-xs uppercase tracking-wider font-bold text-slate-200 group-hover:text-white whitespace-nowrap">
+                {isBn ? "৯৯৯" : "SOS 999"}
               </span>
             </button>
           </div>

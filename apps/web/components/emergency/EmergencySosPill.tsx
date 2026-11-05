@@ -16,7 +16,9 @@ import { useMapStore } from "@/store/useMapStore";
 import { usePathname } from "next/navigation";
 
 export default function EmergencySosPill() {
-  const [isOpen, setIsOpen] = useState(false);
+  const isSosModalOpen = useMapStore((state) => state.isSosModalOpen);
+  const openSosModal = useMapStore((state) => state.openSosModal);
+  const closeSosModal = useMapStore((state) => state.closeSosModal);
   const [coords, setCoords] = useState<{ lat: number; lng: number; accuracy?: number } | null>(null);
   const [gpsError, setGpsError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -26,7 +28,7 @@ export default function EmergencySosPill() {
   const isBn = language === "bn";
 
   useEffect(() => {
-    if (isOpen && !coords && typeof window !== "undefined") {
+    if (isSosModalOpen && !coords && typeof window !== "undefined") {
       // 1. Check if user previously calibrated their location
       const saved = useMapStore.getState().loadSavedLocation();
       if (saved) {
@@ -59,7 +61,7 @@ export default function EmergencySosPill() {
         );
       }
     }
-  }, [isOpen, coords]);
+  }, [isSosModalOpen, coords]);
 
   const coordsText = coords
     ? `${coords.lat}, ${coords.lng}`
@@ -86,23 +88,23 @@ export default function EmergencySosPill() {
 
   return (
     <>
-      {/* Floating Emergency SOS Pill: Sleek obsidian glassmorphic pill on the Live Threat Map */}
+      {/* Desktop Floating Emergency SOS Pill: Sleek obsidian glassmorphic pill on the Live Threat Map */}
       <aside aria-label={isBn ? "জরুরি সহায়তা প্যানেল" : "Emergency SOS Panel"}>
         <button
-          onClick={() => setIsOpen(true)}
-          className="fixed bottom-5 right-3 sm:bottom-6 sm:right-6 z-[999] flex items-center gap-2 bg-slate-900/90 hover:bg-slate-950 text-white font-semibold px-3 sm:px-3.5 py-2 rounded-full shadow-lg shadow-slate-950/25 border border-slate-700/60 backdrop-blur-md active:scale-95 transition-all duration-200 cursor-pointer group hover:border-rose-500/50"
+          onClick={openSosModal}
+          className="hidden md:flex fixed bottom-6 right-6 z-[999] items-center gap-2 bg-slate-900/90 hover:bg-slate-950 text-white font-semibold px-3.5 py-2 rounded-full shadow-lg shadow-slate-950/25 border border-slate-700/60 backdrop-blur-md active:scale-95 transition-all duration-200 cursor-pointer group hover:border-rose-500/50"
           title={isBn ? "জরুরি জাতীয় সহায়তা (৯৯৯)" : "Emergency SOS Help (999)"}
         >
           <span className="w-2 h-2 rounded-full bg-rose-500 shrink-0 group-hover:bg-rose-400" />
           <PhoneCall className="w-3.5 h-3.5 text-rose-400 group-hover:text-white transition-colors" />
-          <span className="text-[11px] sm:text-xs uppercase tracking-wider font-bold text-slate-200 group-hover:text-white whitespace-nowrap">
+          <span className="text-xs uppercase tracking-wider font-bold text-slate-200 group-hover:text-white whitespace-nowrap">
             {isBn ? "৯৯৯" : "SOS 999"}
           </span>
         </button>
       </aside>
 
       {/* Emergency Action Sheet Modal */}
-      {isOpen && (
+      {isSosModalOpen && (
         <div className="fixed inset-0 z-[2000] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fadeIn">
           <div className="bg-white border border-red-200 rounded-2xl max-w-md w-full p-6 text-slate-900 shadow-2xl space-y-5 relative">
             {/* Header */}
@@ -121,7 +123,7 @@ export default function EmergencySosPill() {
                 </div>
               </div>
               <button
-                onClick={() => setIsOpen(false)}
+                onClick={closeSosModal}
                 className="p-1 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 transition"
               >
                 <X className="w-5 h-5" />

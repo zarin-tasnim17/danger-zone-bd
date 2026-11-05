@@ -71,6 +71,7 @@ interface MapState {
   isCalibrationModalOpen: boolean;
   isLowAccuracy: boolean;
   dismissedCalibrationBanner: boolean;
+  isSosModalOpen: boolean;
 
   setMode: (mode: MapMode) => void;
   setCenter: (center: Coordinates) => void;
@@ -87,6 +88,8 @@ interface MapState {
   loadSavedLocation: () => SavedUserLocation | null;
   openCalibrationModal: () => void;
   closeCalibrationModal: () => void;
+  openSosModal: () => void;
+  closeSosModal: () => void;
   setIsLowAccuracy: (isLow: boolean) => void;
   setDismissedCalibrationBanner: (dismissed: boolean) => void;
 }
@@ -103,6 +106,7 @@ export const useMapStore = create<MapState>((set) => ({
   isCalibrationModalOpen: false,
   isLowAccuracy: false,
   dismissedCalibrationBanner: false,
+  isSosModalOpen: false,
 
   setMode: (mode) => set({ mode }),
   setCenter: (center) => set({ center }),
@@ -110,6 +114,8 @@ export const useMapStore = create<MapState>((set) => ({
   setActiveTileLayer: (activeTileLayer) => set({ activeTileLayer }),
   openCalibrationModal: () => set({ isCalibrationModalOpen: true }),
   closeCalibrationModal: () => set({ isCalibrationModalOpen: false }),
+  openSosModal: () => set({ isSosModalOpen: true }),
+  closeSosModal: () => set({ isSosModalOpen: false }),
   setIsLowAccuracy: (isLowAccuracy) => set({ isLowAccuracy }),
   setDismissedCalibrationBanner: (dismissedCalibrationBanner) => set({ dismissedCalibrationBanner }),
 

@@ -16,7 +16,6 @@ import { useMapStore, MAP_LAYERS, LocationSource } from "@/store/useMapStore";
 import MapLayerSwitcher from "./MapLayerSwitcher";
 import LocationSearchBar, { GeocodedLocation } from "./LocationSearchBar";
 import LocationCalibrationModal from "./LocationCalibrationModal";
-import LocationAccuracyBanner from "./LocationAccuracyBanner";
 import { useFilterStore } from "@/store/useFilterStore";
 import { useLanguageStore } from "@/store/useLanguageStore";
 import { useIncidentStore } from "@/store/useIncidentStore";
@@ -941,8 +940,7 @@ export default function MapClient() {
         })}
       </MapContainer>
 
-      {/* Floating Smart Geolocation Accuracy Alert Banner */}
-      <LocationAccuracyBanner />
+
 
       {/* Guided Location Calibration Assistant Modal */}
       <LocationCalibrationModal />
