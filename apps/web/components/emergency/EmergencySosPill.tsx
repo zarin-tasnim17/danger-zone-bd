@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { useLanguageStore } from "@/store/useLanguageStore";
 
-export function EmergencySosPill() {
+export default function EmergencySosPill() {
   const [isOpen, setIsOpen] = useState(false);
   const [coords, setCoords] = useState<{ lat: number; lng: number; accuracy?: number } | null>(null);
   const [gpsError, setGpsError] = useState<string | null>(null);
@@ -60,20 +60,20 @@ export function EmergencySosPill() {
 
   return (
     <>
-      {/* Floating Panic Pill */}
+      {/* Floating Panic Pill: Carefully positioned on mobile to dock seamlessly with feed trigger bar */}
       <aside aria-label={isBn ? "জরুরি সহায়তা প্যানেল" : "Emergency SOS Panel"}>
         <button
           onClick={() => setIsOpen(true)}
-          className="fixed bottom-6 right-6 z-[999] flex items-center gap-2 bg-gradient-to-r from-red-600 to-rose-700 hover:from-red-500 hover:to-rose-600 text-white font-bold px-4 py-3 rounded-full shadow-2xl shadow-red-950/60 border border-red-400/40 active:scale-95 transition-all duration-150 cursor-pointer group"
+          className="fixed bottom-5 right-3 sm:bottom-6 sm:right-6 z-[999] flex items-center gap-1.5 sm:gap-2 bg-gradient-to-r from-red-600 to-rose-700 hover:from-red-500 hover:to-rose-600 text-white font-bold px-3.5 sm:px-4 py-2.5 sm:py-3 rounded-full shadow-2xl shadow-red-950/60 border border-red-400/40 active:scale-95 transition-all duration-150 cursor-pointer group"
           title={isBn ? "জরুরি জাতীয় সহায়তা (৯৯৯)" : "Emergency SOS Help (999)"}
         >
-          <span className="relative flex h-3.5 w-3.5">
+          <span className="relative flex h-2.5 w-2.5 sm:h-3.5 sm:w-3.5">
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75" />
-            <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-white" />
+            <span className="relative inline-flex rounded-full h-2.5 w-2.5 sm:h-3.5 sm:w-3.5 bg-white" />
           </span>
-          <PhoneCall className="w-4 h-4 text-white group-hover:rotate-12 transition-transform duration-200" />
-          <span className="text-xs uppercase tracking-wider font-extrabold">
-            {isBn ? "জরুরি ৯৯৯" : "SOS 999"}
+          <PhoneCall className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white group-hover:rotate-12 transition-transform duration-200" />
+          <span className="text-[11px] sm:text-xs uppercase tracking-wider font-extrabold whitespace-nowrap">
+            {isBn ? "৯৯৯" : "SOS 999"}
           </span>
         </button>
       </aside>
@@ -99,7 +99,7 @@ export function EmergencySosPill() {
               </div>
               <button
                 onClick={() => setIsOpen(false)}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+                className="p-1 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 transition"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -108,84 +108,93 @@ export function EmergencySosPill() {
             {/* Direct 999 Call Button */}
             <a
               href="tel:999"
-              className="flex items-center justify-center gap-3 w-full py-4 rounded-xl bg-red-600 hover:bg-red-700 active:scale-98 text-white font-black text-lg tracking-wide shadow-lg shadow-red-600/30 transition-all cursor-pointer"
+              className="w-full flex items-center justify-center gap-3 py-4 rounded-xl bg-gradient-to-r from-red-600 via-rose-600 to-red-700 hover:from-red-500 hover:to-rose-600 text-white font-extrabold text-lg shadow-xl shadow-red-600/30 active:scale-[0.98] transition-transform"
             >
               <PhoneCall className="w-6 h-6 animate-bounce" />
-              <span>{isBn ? "এখনই ৯৯৯ এ কল করুন" : "CALL 999 NOW"}</span>
+              <span>{isBn ? "৯৯৯ এ কল করুন (বিনামূল্যে)" : "Call 999 Dispatch Now"}</span>
             </a>
 
-            {/* Live GPS Coordinates Readout Box */}
-            <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 space-y-2">
-              <div className="flex items-center justify-between text-xs text-slate-600">
-                <span className="flex items-center gap-1.5 font-semibold text-slate-800">
+            {/* Coordinates & Location Copy */}
+            <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+              <div className="flex items-center justify-between text-xs text-slate-500">
+                <span className="flex items-center gap-1 font-semibold text-slate-700">
                   <Navigation className="w-3.5 h-3.5 text-blue-600" />
-                  {isBn ? "আপনার বর্তমান জিপিএস অবস্থান" : "Your Exact Live GPS Coordinates"}
+                  {isBn ? "আপনার বর্তমান অবস্থান (GPS)" : "Your Current GPS Location"}
                 </span>
                 {coords?.accuracy && (
-                  <span className="text-[10px] text-emerald-700 font-mono font-semibold">
-                    ±{coords.accuracy}m accuracy
+                  <span className="text-[10px] text-slate-400 font-mono">
+                    ±{coords.accuracy}m
                   </span>
                 )}
               </div>
 
-              <div className="flex items-center justify-between gap-2 bg-white border border-slate-200 rounded-lg p-2.5 shadow-2xs">
-                <span className="font-mono text-sm font-bold text-slate-900 tracking-wider">
+              <div className="flex items-center justify-between gap-2 bg-white px-3 py-2 rounded-lg border border-slate-200">
+                <span className="font-mono text-xs text-slate-800 truncate">
                   {coordsText}
                 </span>
-                {coords && (
-                  <button
-                    onClick={handleCopy}
-                    className="p-1.5 rounded-md hover:bg-slate-100 text-slate-600 hover:text-slate-900 transition-colors cursor-pointer flex items-center gap-1 text-xs"
-                    title="Copy coordinates"
-                  >
-                    {copied ? (
-                      <Check className="w-4 h-4 text-emerald-600" />
-                    ) : (
-                      <Copy className="w-4 h-4" />
-                    )}
-                  </button>
-                )}
+                <button
+                  disabled={!coords}
+                  onClick={handleCopy}
+                  className="flex items-center gap-1 text-[11px] font-bold text-blue-600 hover:text-blue-700 disabled:opacity-40 transition shrink-0"
+                >
+                  {copied ? (
+                    <>
+                      <Check className="w-3 h-3 text-emerald-600" />
+                      <span className="text-emerald-600">{isBn ? "কপি হয়েছে" : "Copied"}</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-3 h-3" />
+                      <span>{isBn ? "কপি" : "Copy"}</span>
+                    </>
+                  )}
+                </button>
               </div>
 
               {gpsError && (
-                <p className="text-[11px] text-amber-700 flex items-center gap-1">
-                  <AlertTriangle className="w-3.5 h-3.5" />
-                  {gpsError}
+                <p className="text-[10px] text-red-500 font-semibold">
+                  ⚠️ {gpsError}
                 </p>
               )}
-
-              <p className="text-[11px] text-slate-500 leading-relaxed">
-                {isBn
-                  ? "পুলিশ বা উদ্ধারকর্মীদের সরাসরি উপরোক্ত অক্ষাংশ ও দ্রাঘিমাংশ (Latitude, Longitude) বলুন।"
-                  : "Read these coordinates out loud to the 999 dispatcher to pinpoint your location."}
-              </p>
             </div>
 
-            {/* Quick Share to Contacts */}
-            <div className="grid grid-cols-2 gap-2.5 pt-1">
-              <a
-                href={whatsappUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-700 font-semibold text-xs transition-colors shadow-2xs"
-              >
-                <Send className="w-3.5 h-3.5" />
-                <span>{isBn ? "হোয়াটসঅ্যাপে পাঠান" : "WhatsApp SOS"}</span>
-              </a>
+            {/* Quick Share with Family & Friends */}
+            <div className="space-y-2">
+              <span className="text-xs font-bold text-slate-700 block">
+                {isBn ? "পরিবার বা বন্ধুদের অবস্থান পাঠান:" : "Dispatch Location to Contacts:"}
+              </span>
 
-              <a
-                href={smsUrl}
-                className="flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-700 font-semibold text-xs transition-colors shadow-2xs"
-              >
-                <AlertTriangle className="w-3.5 h-3.5" />
-                <span>{isBn ? "এসএমএস পাঠান" : "SMS Alert"}</span>
-              </a>
+              <div className="grid grid-cols-2 gap-2">
+                <a
+                  href={whatsappUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-xs font-bold transition shadow-2xs"
+                >
+                  <Send className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>WhatsApp</span>
+                </a>
+
+                <a
+                  href={smsUrl}
+                  className="flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-xs font-bold transition shadow-2xs"
+                >
+                  <Send className="w-3.5 h-3.5 text-blue-600" />
+                  <span>SMS</span>
+                </a>
+              </div>
             </div>
+
+            {/* Disclaimer */}
+            <p className="text-[10px] text-slate-400 text-center leading-normal">
+              {isBn
+                ? "৯৯৯ বাংলাদেশ সরকারের জাতীয় জরুরি হেল্পলাইন (পুলিশ, ফায়ার সার্ভিস, অ্যাম্বুলেন্স)।"
+                : "999 is Bangladesh Government's toll-free emergency dispatch (Police, Fire, Ambulance)."}
+            </p>
           </div>
         </div>
       )}
     </>
   );
 }
-
-export default EmergencySosPill;
+export { EmergencySosPill };

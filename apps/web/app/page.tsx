@@ -91,8 +91,8 @@ export default function Home() {
 
         {/* Map Viewport Area */}
         <div className="flex-1 w-full h-full relative min-h-0 bg-slate-100">
-          {/* Floating Situational Telemetry & Sidebar Toggle HUD (Top-Left) */}
-          <div className="absolute top-4 left-4 z-[400] flex flex-wrap items-center gap-2 pointer-events-none max-w-[calc(100%-80px)]">
+          {/* Floating Situational Telemetry & Sidebar Toggle HUD (Top-Left, Desktop/Tablet only to avoid mobile overlap) */}
+          <div className="hidden sm:flex absolute top-4 left-4 z-[400] flex-wrap items-center gap-2 pointer-events-none max-w-[calc(100%-80px)]">
             {/* Desktop Sidebar Toggle Button */}
             <button
               onClick={() => setDesktopSidebarOpen(!desktopSidebarOpen)}
@@ -170,21 +170,21 @@ export default function Home() {
           {/* Dynamic Leaflet Map Component */}
           <DynamicMap />
 
-          {/* Mobile Floating Bottom Sheet Trigger Bar */}
-          <div className="md:hidden absolute bottom-5 inset-x-4 z-[400] flex justify-center pointer-events-none">
+          {/* Mobile Floating Bottom Action Dock (Feed Trigger positioned to sit side-by-side with EmergencySosPill) */}
+          <div className="md:hidden absolute bottom-5 left-3 right-[118px] z-[400] flex pointer-events-none">
             <button
               onClick={() => setMobileSheetOpen(true)}
-              className="pointer-events-auto flex items-center gap-2.5 px-5 py-2.5 rounded-full bg-white/95 backdrop-blur-2xl border border-slate-200 text-slate-800 text-xs font-bold shadow-xl active:scale-95 transition-all ring-1 ring-blue-500/20 cursor-pointer"
+              className="pointer-events-auto w-full flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-full bg-white/95 backdrop-blur-2xl border border-slate-200 text-slate-800 text-xs font-bold shadow-xl active:scale-95 transition-all ring-1 ring-blue-500/20 cursor-pointer"
             >
-              <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-              <span>
+              <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse shrink-0" />
+              <span className="truncate">
                 {isBn
                   ? `${incidents.length}টি সক্রিয় বিপদ`
                   : `${incidents.length} Hazards in View`}
               </span>
               <span className="text-slate-300 font-normal">|</span>
-              <span className="text-blue-600 flex items-center gap-0.5 font-bold">
-                <span>{isBn ? "ফিড দেখুন" : "View Feed"}</span>
+              <span className="text-blue-600 flex items-center gap-0.5 font-bold shrink-0">
+                <span>{isBn ? "ফিড" : "Feed"}</span>
                 <ChevronUp className="w-3.5 h-3.5" />
               </span>
             </button>
