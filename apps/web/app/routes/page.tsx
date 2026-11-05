@@ -95,10 +95,10 @@ export default function RoutesPage() {
   const isBn = language === "bn";
 
   // Coordinates
-  const [startLat, setStartLat] = useState("23.7570");
-  const [startLng, setStartLng] = useState("90.3905");
-  const [endLat, setEndLat] = useState("23.7925");
-  const [endLng, setEndLng] = useState("90.4078");
+  const [startLat, setStartLat] = useState("");
+  const [startLng, setStartLng] = useState("");
+  const [endLat, setEndLat] = useState("");
+  const [endLng, setEndLng] = useState("");
   const [destinationLabel, setDestinationLabel] = useState<string | null>(null);
 
   // Map Click Picking Mode

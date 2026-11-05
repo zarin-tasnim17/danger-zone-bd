@@ -95,8 +95,8 @@ export default function SafeZonesPage() {
   const [showAdminDrawer, setShowAdminDrawer] = useState(false);
   const [newName, setNewName] = useState("");
   const [newType, setNewType] = useState<"HOSPITAL" | "POLICE_BOX" | "PHARMACY">("HOSPITAL");
-  const [newLat, setNewLat] = useState("23.8103");
-  const [newLng, setNewLng] = useState("90.4125");
+  const [newLat, setNewLat] = useState("");
+  const [newLng, setNewLng] = useState("");
   const [isCreating, setIsCreating] = useState(false);
   const [createSuccess, setCreateSuccess] = useState<string | null>(null);
   const [createError, setCreateError] = useState<string | null>(null);

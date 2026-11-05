@@ -44,10 +44,8 @@ export default function ProfilePage() {
 
   // Verification Form State
   const [verifyType, setVerifyType] = useState<"PHONE_OTP" | "NID_DOCUMENT">("PHONE_OTP");
-  const [phoneNumber, setPhoneNumber] = useState("+8801712345678");
-  const [documentUrl, setDocumentUrl] = useState(
-    "https://storage.supabase.co/storage/v1/object/public/verifications/sample-smart-nid.jpg"
-  );
+  const [phoneNumber, setPhoneNumber] = useState("");
+  const [documentUrl, setDocumentUrl] = useState("");
   const [isSubmittingVerify, setIsSubmittingVerify] = useState(false);
   const [verifySuccess, setVerifySuccess] = useState<string | null>(null);
   const [verifyError, setVerifyError] = useState<string | null>(null);

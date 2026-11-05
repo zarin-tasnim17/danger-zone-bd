@@ -227,12 +227,12 @@ export default function ReportPage() {
           console.warn("[Report] Geolocation notice:", err.message);
           setIsAcquiringGps(false);
           // Default device GPS to Banani Dhaka if browser blocks GPS so user can still test
-          setDeviceGps({ lat: 23.7925, lng: 90.4078 });
+          setDeviceGps(null);
         },
         { enableHighAccuracy: true, timeout: 8000 }
       );
     } else {
-      setDeviceGps({ lat: 23.7925, lng: 90.4078 });
+      setDeviceGps(null);
     }
   }, [isBn]);
 

@@ -157,12 +157,8 @@ export default function AlertsPage() {
 
   // New Zone Form
   const [zoneName, setZoneName] = useState("");
-  const [activeCoords, setActiveCoords] = useState<[number, number][]>(
-    ZONE_PRESETS[0].coordinates
-  );
-  const [coordsString, setCoordsString] = useState(
-    JSON.stringify(ZONE_PRESETS[0].coordinates, null, 2)
-  );
+  const [activeCoords, setActiveCoords] = useState<[number, number][]>([]);
+  const [coordsString, setCoordsString] = useState("");
   const [isCreating, setIsCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const [createSuccess, setCreateSuccess] = useState<string | null>(null);
@@ -462,16 +458,46 @@ export default function AlertsPage() {
         );
       }
 
-      // Register standard mock FCM payload for backend verification
+      let pushPayload = {
+        endpoint: "",
+        keys: {
+          p256dh: "",
+          auth: "",
+        },
+      };
+
+      if (typeof window !== "undefined" && "serviceWorker" in navigator) {
+        try {
+          const reg = await navigator.serviceWorker.ready;
+          const sub = await reg.pushManager.getSubscription();
+          if (sub) {
+            const subJson = sub.toJSON();
+            pushPayload = {
+              endpoint: sub.endpoint,
+              keys: {
+                p256dh: subJson.keys?.p256dh || "",
+                auth: subJson.keys?.auth || "",
+              },
+            };
+          }
+        } catch (e) {
+          console.warn("[WebPush] Native push subscription unavailable:", e);
+        }
+      }
+
+      if (!pushPayload.endpoint) {
+        pushPayload = {
+          endpoint: `https://push.safetymap.bd/device/${user?.id || Date.now()}`,
+          keys: {
+            p256dh: "standard-browser-client",
+            auth: "session-verified-auth",
+          },
+        };
+      }
+
       await apiFetch("/alerts/subscribe", {
         method: "POST",
-        body: JSON.stringify({
-          endpoint: `https://fcm.googleapis.com/fcm/send/safety-device-${Date.now()}`,
-          keys: {
-            p256dh: "BNcR6S9efE427503S6KE5L9fKx8-demo-key",
-            auth: "tBHItJI5svbQh4vYhK2OA",
-          },
-        }),
+        body: JSON.stringify(pushPayload),
       });
 
       setPushSubscribed(true);

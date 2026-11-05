@@ -42,8 +42,8 @@ export default function AdminPage() {
   const isBn = language === "bn";
 
   // Login Gate State
-  const [adminAuthInput, setAdminAuthInput] = useState("admin-device-master-uuid");
-  const [adminEmail, setAdminEmail] = useState("admin@safetymap.bd");
+  const [adminAuthInput, setAdminAuthInput] = useState("");
+  const [adminEmail, setAdminEmail] = useState("");
   const [authError, setAuthError] = useState<string | null>(null);
   const [isAuthenticating, setIsAuthenticating] = useState(false);
 
@@ -369,7 +369,7 @@ export default function AdminPage() {
                   required
                   value={adminAuthInput}
                   onChange={(e) => setAdminAuthInput(e.target.value)}
-                  placeholder="admin-device-master-uuid"
+                  placeholder="e.g. admin-master-device-uuid"
                   className="w-full px-3.5 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-mono focus:bg-white focus:ring-1 focus:ring-purple-500 focus:outline-none transition-colors"
                 />
               </div>
@@ -383,7 +383,7 @@ export default function AdminPage() {
                   required
                   value={adminEmail}
                   onChange={(e) => setAdminEmail(e.target.value)}
-                  placeholder="admin@safetymap.bd"
+                  placeholder="e.g. admin@safetymap.bd"
                   className="w-full px-3.5 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-900 focus:bg-white focus:ring-1 focus:ring-purple-500 focus:outline-none transition-colors"
                 />
               </div>
