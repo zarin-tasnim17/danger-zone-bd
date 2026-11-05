@@ -15,6 +15,7 @@ import "leaflet/dist/leaflet.css";
 import { Crosshair, MapPin, CheckCircle2, AlertTriangle } from "lucide-react";
 
 interface ReportPinMapProps {
+  proximityRadius?: number;
   incidentLat: number;
   incidentLng: number;
   deviceLat?: number | null;
@@ -56,6 +57,7 @@ export default function ReportPinMap({
   deviceLat,
   deviceLng,
   proximityDistance,
+  proximityRadius = 200,
   onLocationChange,
   onSnapToDevice,
   severity,
@@ -67,7 +69,7 @@ export default function ReportPinMap({
   const isWithinProximity =
     proximityDistance === null ||
     proximityDistance === undefined ||
-    proximityDistance <= 200;
+    proximityDistance <= (proximityRadius || 200);
 
   const severityColor =
     severity === "HIGH"
@@ -112,7 +114,7 @@ export default function ReportPinMap({
           <>
             <Circle
               center={[deviceLat!, deviceLng!]}
-              radius={200}
+              radius={proximityRadius || 200}
               pathOptions={{
                 color: isWithinProximity ? "#10B981" : "#EF4444",
                 fillColor: isWithinProximity ? "#10B981" : "#EF4444",

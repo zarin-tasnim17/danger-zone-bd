@@ -33,6 +33,7 @@ import {
   ThumbsDown,
   Navigation,
   Loader2,
+  X,
 } from "lucide-react";
 
 // Custom high-visibility solid marker icons with animated radar pulse on high severity
@@ -275,6 +276,7 @@ export default function MapClient() {
   const [showSafeZones, setShowSafeZones] = useState(true);
   const [showDangerCircles, setShowDangerCircles] = useState(true);
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [userAccuracy, setUserAccuracy] = useState<number | null>(null);
   const [isLocating, setIsLocating] = useState(false);
   const hasAutoLocatedRef = useRef(false);
 
@@ -325,6 +327,7 @@ export default function MapClient() {
       (pos) => {
         const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
         setUserLocation(coords);
+        setUserAccuracy(pos.coords.accuracy || null);
 
         if (isWithinBangladesh(coords.lat, coords.lng)) {
           setCenter(coords);
@@ -338,7 +341,7 @@ export default function MapClient() {
         // Silent graceful fallback if permission denied, timeout, or location unavailable
         console.info("[Geo] Auto-location skipped:", err.message);
       },
-      { enableHighAccuracy: true, timeout: 6000, maximumAge: 60000 }
+      { enableHighAccuracy: true, timeout: 6000, maximumAge: 0 }
     );
   }, [setCenter, setZoom]);
 
@@ -439,6 +442,19 @@ export default function MapClient() {
               {language === "en" ? "My Location" : "আমার অবস্থান"}
             </span>
           </button>
+          {userLocation && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setUserLocation(null);
+              }}
+              className="p-1.5 rounded-xl hover:bg-slate-100 text-slate-400 hover:text-red-600 transition-colors cursor-pointer"
+              title={isBn ? "অবস্থান পিন মুছুন" : "Dismiss My Location"}
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
 
           {/* Safe Havens Toggle */}
           <button
@@ -510,7 +526,7 @@ export default function MapClient() {
           <>
             <Circle
               center={[userLocation.lat, userLocation.lng]}
-              radius={300}
+              radius={userAccuracy ? Math.min(Math.max(userAccuracy, 40), 500) : 150}
               pathOptions={{
                 color: "#2563EB",
                 fillColor: "#3B82F6",
@@ -519,13 +535,45 @@ export default function MapClient() {
                 dashArray: "4, 6",
               }}
             />
-            <Marker position={[userLocation.lat, userLocation.lng]} icon={userGpsIcon}>
+            <Marker
+              position={[userLocation.lat, userLocation.lng]}
+              icon={userGpsIcon}
+              draggable={true}
+              eventHandlers={{
+                dragend: (e) => {
+                  const marker = e.target;
+                  const newPos = marker.getLatLng();
+                  setUserLocation({ lat: newPos.lat, lng: newPos.lng });
+                },
+              }}
+            >
               <Popup>
-                <div className="p-2 text-slate-800 text-xs">
-                  <span className="font-bold text-blue-600">📍 You Are Here</span>
-                  <p className="text-[10px] text-slate-500 font-mono mt-0.5">
-                    ({userLocation.lat.toFixed(4)}, {userLocation.lng.toFixed(4)})
+                <div className="p-2.5 min-w-[210px] text-slate-800 text-xs space-y-1.5 font-sans">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-blue-600 flex items-center gap-1">
+                      📍 {isBn ? "আপনার অবস্থান" : "Your Location"}
+                    </span>
+                    {userAccuracy && (
+                      <span className="text-[10px] text-slate-400 font-mono">
+                        ±{Math.round(userAccuracy)}m
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[10px] text-slate-500 font-mono">
+                    {userLocation.lat.toFixed(5)}, {userLocation.lng.toFixed(5)}
                   </p>
+                  <p className="text-[10px] text-slate-600 leading-tight bg-blue-50/80 p-2 rounded-lg border border-blue-100">
+                    {isBn
+                      ? "💡 অবস্থান ভুল হলে পিনটি টেনে আপনার সঠিক স্থান বা রাস্তায় বসান।"
+                      : "💡 Inaccurate? Drag this pin to your exact building or street."}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setUserLocation(null)}
+                    className="w-full text-[11px] font-bold text-red-600 hover:bg-red-50 py-1 rounded-lg border border-red-200 transition-colors cursor-pointer"
+                  >
+                    {isBn ? "অবস্থান পিন সরান" : "Remove Location Pin"}
+                  </button>
                 </div>
               </Popup>
             </Marker>

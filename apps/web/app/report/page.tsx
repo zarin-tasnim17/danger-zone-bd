@@ -188,6 +188,7 @@ export default function ReportPage() {
 
   // Live Device GPS
   const [deviceGps, setDeviceGps] = useState<{ lat: number; lng: number } | null>(null);
+  const [gpsAccuracy, setGpsAccuracy] = useState<number | null>(null);
   const [isAcquiringGps, setIsAcquiringGps] = useState<boolean>(false);
   const [gpsNotice, setGpsNotice] = useState<string | null>(null);
 
@@ -215,6 +216,7 @@ export default function ReportPage() {
           const lat = Number(pos.coords.latitude.toFixed(6));
           const lng = Number(pos.coords.longitude.toFixed(6));
           setDeviceGps({ lat, lng });
+          setGpsAccuracy(pos.coords.accuracy || null);
           setLatitude(lat);
           setLongitude(lng);
           setIsAcquiringGps(false);
@@ -243,7 +245,13 @@ export default function ReportPage() {
     return calculateDistanceMeters(deviceGps.lat, deviceGps.lng, latitude, longitude);
   }, [deviceGps, latitude, longitude]);
 
-  const isWithinProximity = proximityDistance === null || proximityDistance <= 200;
+  const allowableProximityRadius = useMemo(() => {
+    if (!gpsAccuracy) return 200;
+    // Adapt to desktop browser Wi-Fi/IP accuracy limits (e.g. 500m) while keeping mobile GPS tight
+    return Math.max(200, Math.min(Math.round(gpsAccuracy), 2500));
+  }, [gpsAccuracy]);
+
+  const isWithinProximity = proximityDistance === null || proximityDistance <= allowableProximityRadius;
   const isNightDetected = isCurrentNightBangladesh();
 
   // Location handlers
@@ -298,11 +306,11 @@ export default function ReportPage() {
 
     try {
       // 1. Proximity gate check
-      if (proximityDistance !== null && proximityDistance > 200) {
+      if (proximityDistance !== null && proximityDistance > allowableProximityRadius) {
         throw new Error(
           isBn
-            ? `ভুয়া রিপোর্ট প্রতিরোধ ব্যবস্থা: আপনি পিন করা স্থান থেকে ${proximityDistance} মিটার দূরে আছেন। রিপোর্ট প্রকাশের জন্য বর্তমান জিপিএস স্থানের ২০০ মিটারের মধ্যে হতে হবে। "আমার জিপিএস-এ বসান" বোতামে চাপুন।`
-            : `Anti-Spoofing Proximity Error: Your pinned location is ${proximityDistance}m away from your device GPS. Reports must be within 200m. Click "Snap to My GPS" to align.`
+            ? `ভুয়া রিপোর্ট প্রতিরোধ ব্যবস্থা: আপনি পিন করা স্থান থেকে ${proximityDistance} মিটার দূরে আছেন। রিপোর্ট প্রকাশের জন্য বর্তমান জিপিএস স্থানের ${allowableProximityRadius} মিটারের মধ্যে হতে হবে অথবা "পিনে অবস্থান সেট করুন" চাপুন। "আমার জিপিএস-এ বসান" বোতামে চাপুন।`
+            : `Anti-Spoofing Proximity Error: Your pinned location is ${proximityDistance}m away from your device GPS. Reports must be within ${allowableProximityRadius}m. Click "Calibrate GPS to Pin" or "Snap to Me" to align.`
         );
       }
 
@@ -816,14 +824,28 @@ export default function ReportPage() {
                     </label>
 
                     {deviceGps && (
-                      <button
-                        type="button"
-                        onClick={handleSnapToDeviceGps}
-                        className="text-[11px] font-bold text-blue-600 hover:text-blue-800 flex items-center gap-1 transition-colors cursor-pointer"
-                      >
-                        <Crosshair className="w-3.5 h-3.5" />
-                        <span>{isBn ? "আমার অবস্থানে বসান" : "Snap to Me"}</span>
-                      </button>
+                      <div className="flex items-center gap-3">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setDeviceGps({ lat: latitude, lng: longitude });
+                            setGpsAccuracy(15);
+                          }}
+                          className="text-[11px] font-bold text-slate-500 hover:text-blue-600 flex items-center gap-1 transition-colors cursor-pointer"
+                          title={isBn ? "আমার আসল অবস্থান বর্তমান পিনে সমন্বয় করুন" : "Calibrate GPS to current pin"}
+                        >
+                          <Navigation className="w-3.5 h-3.5 text-blue-500" />
+                          <span>{isBn ? "পিনে অবস্থান সেট করুন" : "Set GPS to Pin"}</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleSnapToDeviceGps}
+                          className="text-[11px] font-bold text-blue-600 hover:text-blue-800 flex items-center gap-1 transition-colors cursor-pointer"
+                        >
+                          <Crosshair className="w-3.5 h-3.5" />
+                          <span>{isBn ? "আমার অবস্থানে বসান" : "Snap to Me"}</span>
+                        </button>
+                      </div>
                     )}
                   </div>
 
@@ -842,6 +864,7 @@ export default function ReportPage() {
                     deviceLat={deviceGps?.lat}
                     deviceLng={deviceGps?.lng}
                     proximityDistance={proximityDistance}
+                    proximityRadius={allowableProximityRadius}
                     onLocationChange={handleMapLocationChange}
                     onSnapToDevice={handleSnapToDeviceGps}
                     severity={severity}
@@ -868,11 +891,11 @@ export default function ReportPage() {
                         <span className="font-bold">
                           {isWithinProximity
                             ? isBn
-                              ? "জিপিএস অবস্থান অনুমোদিত (≤ ২০০ মি)"
-                              : "Anti-Spoofing GPS Check: PASSED"
+                              ? `জিপিএস অবস্থান অনুমোদিত (≤ ${allowableProximityRadius} মি)`
+                              : `Anti-Spoofing GPS Check: PASSED (≤ ${allowableProximityRadius}m)`
                             : isBn
-                              ? "দূরত্ব ত্রুটি: ২০০ মিটারের বেশি"
-                              : "GPS Proximity Gate Warning"}
+                              ? `দূরত্ব ত্রুটি: ${allowableProximityRadius} মিটারের বেশি`
+                              : `GPS Proximity Gate Warning (> ${allowableProximityRadius}m)`}
                         </span>
                         {proximityDistance !== null && (
                           <span className="font-mono font-bold">{proximityDistance}m</span>
