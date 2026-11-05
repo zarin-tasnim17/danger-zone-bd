@@ -25,6 +25,9 @@ import {
   RotateCcw,
   PlusCircle,
   Loader2,
+  ShieldAlert,
+  PhoneCall,
+  Flame,
 } from "lucide-react";
 
 function formatRelativeTime(dateString: string, lang: "en" | "bn"): string {
@@ -60,18 +63,29 @@ export default function IncidentFeed({ onIncidentSelect }: { onIncidentSelect?: 
   const fetchIncidentsInBounds = useIncidentStore((state) => state.fetchIncidentsInBounds);
   const voteIncident = useIncidentStore((state) => state.voteIncident);
   const addContextUpdate = useIncidentStore((state) => state.addContextUpdate);
-  const { selectedSeverity, selectedCategory, searchQuery, resetFilters } = useFilterStore();
+  const { selectedSeverity, setSeverity, selectedCategory, searchQuery, resetFilters } = useFilterStore();
   const setCenter = useMapStore((state) => state.setCenter);
   const setZoom = useMapStore((state) => state.setZoom);
   const t = getTranslation(language);
+  const isBn = language === "bn";
 
   const [activeCommentIncidentId, setActiveCommentIncidentId] = useState<string | null>(null);
   const [commentText, setCommentText] = useState("");
   const [isSubmittingComment, setIsSubmittingComment] = useState(false);
   const [selectedIncidentId, setSelectedIncidentId] = useState<string | null>(null);
+  const [feedTab, setFeedTab] = useState<"all" | "critical" | "verified">("all");
 
   const filtered = useMemo(() => {
     return incidents.filter((item) => {
+      // Feed-specific tab filter
+      if (feedTab === "critical") {
+        const isCrit = item.severity.toUpperCase() === "HIGH" || item.severity.toLowerCase() === "critical";
+        if (!isCrit) return false;
+      } else if (feedTab === "verified") {
+        if (!item.sourceUrl) return false;
+      }
+
+      // Global store filters
       if (selectedSeverity !== "all" && item.severity.toUpperCase() !== selectedSeverity.toUpperCase()) {
         return false;
       }
@@ -90,15 +104,15 @@ export default function IncidentFeed({ onIncidentSelect }: { onIncidentSelect?: 
       }
       return true;
     });
-  }, [incidents, selectedSeverity, selectedCategory, searchQuery]);
+  }, [incidents, feedTab, selectedSeverity, selectedCategory, searchQuery]);
 
   const hasActiveFilters =
-    selectedSeverity !== "all" || selectedCategory !== "all" || searchQuery.trim() !== "";
+    selectedSeverity !== "all" || selectedCategory !== "all" || searchQuery.trim() !== "" || feedTab !== "all";
 
   const handleFocusIncident = (incident: DangerIncident) => {
     setSelectedIncidentId(incident.id);
     setCenter(incident.coordinates);
-    setZoom(15);
+    setZoom(16);
     if (onIncidentSelect) {
       onIncidentSelect();
     }
@@ -119,46 +133,84 @@ export default function IncidentFeed({ onIncidentSelect }: { onIncidentSelect?: 
   };
 
   return (
-    <aside className="w-full bg-white text-slate-800 flex flex-col h-full z-10 shadow-sm select-text">
+    <aside className="w-full bg-white text-slate-800 flex flex-col h-full z-10 shadow-sm select-text border-r border-slate-200">
       {/* Feed Header */}
-      <div className="p-3.5 border-b border-slate-200 bg-slate-50/80 flex items-center justify-between shrink-0">
-        <div className="flex items-center gap-2">
-          <div className="p-1.5 rounded-lg bg-red-50 border border-red-200 text-red-600 shadow-2xs">
-            <Radio className="w-4 h-4 animate-pulse" />
+      <div className="p-3.5 border-b border-slate-200 bg-slate-50/90 shrink-0 space-y-2.5">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-xl bg-red-100/80 border border-red-200 flex items-center justify-center text-red-600 shadow-2xs">
+              <Radio className="w-4 h-4 animate-pulse" />
+            </div>
+            <div>
+              <h2 className="font-bold text-xs sm:text-sm text-slate-900 leading-tight">
+                {isBn ? "সরাসরি বিপদ সংকেতসমূহ" : "Live Threat Feed"}
+              </h2>
+              <p className="text-[10px] text-slate-500 font-mono">
+                {isBn ? "পোস্টজিআইএস সরাসরি উপাত্ত" : "PostGIS Real-Time Stream"}
+              </p>
+            </div>
           </div>
-          <div>
-            <h2 className="font-bold text-xs sm:text-sm text-slate-900 flex items-center gap-1.5">
-              <span>{language === "en" ? "Live Threat Feed" : "সরাসরি বিপদ সংকেতসমূহ"}</span>
-            </h2>
-            <p className="text-[10px] text-slate-500 font-mono">
-              {language === "en" ? "PostGIS Real-Time Stream" : "সরাসরি মানচিত্র উপাত্ত"}
-            </p>
+
+          <div className="flex items-center gap-1.5">
+            {isUpdatingBounds && (
+              <span className="text-[10px] text-slate-500 flex items-center gap-1 font-medium bg-white px-2 py-0.5 rounded-full border border-slate-200 shadow-2xs">
+                <Loader2 className="w-3 h-3 animate-spin text-blue-600" />
+                <span className="hidden sm:inline">
+                  {isBn ? "সিঙ্ক হচ্ছে..." : "Syncing..."}
+                </span>
+              </span>
+            )}
+            <span className="text-[11px] font-mono font-bold px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200 shadow-2xs">
+              {filtered.length} {isBn ? "টি" : "reports"}
+            </span>
           </div>
         </div>
 
-        <div className="flex items-center gap-1.5">
-          {isUpdatingBounds && (
-            <span className="text-[10px] text-slate-500 flex items-center gap-1 font-medium bg-slate-100 px-2 py-0.5 rounded-full border border-slate-200 shadow-2xs">
-              <Loader2 className="w-3 h-3 animate-spin text-blue-600" />
-              <span className="hidden sm:inline">
-                {language === "en" ? "Syncing..." : "সিঙ্ক হচ্ছে..."}
-              </span>
-            </span>
-          )}
-          <span className="text-[11px] font-mono font-bold px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200 shadow-2xs">
-            {filtered.length} {language === "en" ? "reports" : "টি"}
-          </span>
+        {/* Quick Segmented Filter Tabs */}
+        <div className="grid grid-cols-3 gap-1 p-0.5 bg-slate-200/60 rounded-xl text-xs font-semibold">
+          <button
+            onClick={() => setFeedTab("all")}
+            className={`py-1 rounded-lg text-center transition-all ${
+              feedTab === "all"
+                ? "bg-white text-slate-900 shadow-2xs font-bold"
+                : "text-slate-600 hover:text-slate-900"
+            }`}
+          >
+            {isBn ? "সকল রিপোর্ট" : "All Threats"}
+          </button>
+          <button
+            onClick={() => setFeedTab("critical")}
+            className={`py-1 rounded-lg text-center transition-all flex items-center justify-center gap-1 ${
+              feedTab === "critical"
+                ? "bg-red-600 text-white shadow-2xs font-bold"
+                : "text-red-700 hover:text-red-800"
+            }`}
+          >
+            <span className="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse" />
+            <span>{isBn ? "উচ্চ ঝুঁকি" : "Critical"}</span>
+          </button>
+          <button
+            onClick={() => setFeedTab("verified")}
+            className={`py-1 rounded-lg text-center transition-all flex items-center justify-center gap-1 ${
+              feedTab === "verified"
+                ? "bg-blue-600 text-white shadow-2xs font-bold"
+                : "text-blue-700 hover:text-blue-800"
+            }`}
+          >
+            <ShieldCheck className="w-3 h-3" />
+            <span>{isBn ? "যাচাইকৃত" : "Verified"}</span>
+          </button>
         </div>
       </div>
 
       {/* Scrollable Incident Cards List */}
-      <div className="flex-1 overflow-y-auto p-3 space-y-3 bg-slate-50/40">
+      <div className="flex-1 overflow-y-auto p-3 space-y-2.5 bg-slate-50/50">
         {isLoading && incidents.length === 0 ? (
           <div className="space-y-3 py-1">
             {[1, 2, 3].map((n) => (
               <div
                 key={n}
-                className="p-3.5 rounded-xl border border-slate-200 bg-white shadow-2xs space-y-2.5 animate-pulse"
+                className="p-3.5 rounded-2xl border border-slate-200 bg-white shadow-2xs space-y-2.5 animate-pulse"
               >
                 <div className="flex items-center justify-between">
                   <div className="h-4 w-20 bg-slate-200 rounded-full" />
@@ -181,7 +233,7 @@ export default function IncidentFeed({ onIncidentSelect }: { onIncidentSelect?: 
             </div>
             <div>
               <h4 className="text-xs font-bold text-red-900">
-                {language === "en" ? "Safety Network Notice" : "নেটওয়ার্ক সংযোগ সতর্কতা"}
+                {isBn ? "নেটওয়ার্ক সংযোগ সতর্কতা" : "Safety Network Notice"}
               </h4>
               <p className="text-[11px] text-red-700 mt-1 max-w-[240px] mx-auto leading-relaxed">
                 {error}
@@ -196,41 +248,44 @@ export default function IncidentFeed({ onIncidentSelect }: { onIncidentSelect?: 
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-semibold shadow-sm transition-all active:scale-95"
             >
               <RotateCcw className="w-3.5 h-3.5" />
-              <span>{language === "en" ? "Retry Connection" : "পুনরায় চেষ্টা করুন"}</span>
+              <span>{isBn ? "পুনরায় চেষ্টা করুন" : "Retry Connection"}</span>
             </button>
           </div>
         ) : filtered.length === 0 ? (
-          <div className="p-8 text-center text-slate-500 space-y-3">
-            <div className="w-12 h-12 rounded-2xl bg-white border border-slate-200 flex items-center justify-center mx-auto text-slate-400 shadow-sm">
-              <Crosshair className="w-6 h-6 animate-pulse" />
+          <div className="p-8 text-center text-slate-500 space-y-3.5 bg-white rounded-2xl border border-slate-200/90 shadow-2xs my-2">
+            <div className="w-12 h-12 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-center mx-auto text-slate-400 shadow-2xs">
+              <Crosshair className="w-6 h-6 animate-pulse text-blue-500" />
             </div>
             <div>
               <p className="text-xs font-bold text-slate-900">
                 {hasActiveFilters
-                  ? language === "en"
-                    ? "No active hazards match your filter"
-                    : "আপনার ফিল্টারে কোনো সক্রিয় বিপদ পাওয়া যায়নি"
-                  : language === "en"
-                  ? "Sector All Clear — 0 Local Threats"
-                  : "এই এলাকা নিরাপদ — কোনো বিপদ নেই"}
+                  ? isBn
+                    ? "ফিল্টারে কোনো সক্রিয় বিপদ পাওয়া যায়নি"
+                    : "No active hazards match your filter"
+                  : isBn
+                  ? "এই এলাকা নিরাপদ — কোনো বিপদ নেই"
+                  : "Sector All Clear — 0 Local Threats"}
               </p>
               <p className="text-[11px] text-slate-500 mt-1 max-w-[240px] mx-auto leading-relaxed">
                 {hasActiveFilters
-                  ? language === "en"
-                    ? "Try resetting filters or pan the map to scan other districts."
-                    : "ফিল্টার মুছে ফেলুন অথবা অন্যান্য জেলার তথ্য দেখতে মানচিত্রটি সরান।"
-                  : language === "en"
-                  ? "No incidents reported in your immediate vicinity. Pan the map or zoom out to inspect national threat zones."
-                  : "আপনার এলাকায় কোনো সক্রিয় বিপদ নেই। সারা দেশের বিপদের তথ্য দেখতে জুম আউট করুন।"}
+                  ? isBn
+                    ? "ফিল্টার রিসেট করুন অথবা অন্যান্য জেলার তথ্য দেখতে মানচিত্রটি সরান।"
+                    : "Try resetting filters or pan the map to scan other districts."
+                  : isBn
+                  ? "আপনার তাৎক্ষণিক এলাকায় কোনো রিপোর্ট নেই। সারা দেশের ম্যাপ দেখতে জুম আউট করুন।"
+                  : "No incidents reported in your immediate vicinity. Pan or zoom to inspect nationwide zones."}
               </p>
             </div>
             {hasActiveFilters ? (
               <button
-                onClick={resetFilters}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white hover:bg-slate-100 text-xs font-semibold text-blue-600 transition-all border border-slate-200 shadow-2xs active:scale-95"
+                onClick={() => {
+                  resetFilters();
+                  setFeedTab("all");
+                }}
+                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-xs font-bold text-white transition-all shadow-sm active:scale-95 cursor-pointer"
               >
                 <RotateCcw className="w-3.5 h-3.5" />
-                <span>{language === "en" ? "Reset Filters" : "ফিল্টার রিসেট করুন"}</span>
+                <span>{isBn ? "ফিল্টার রিসেট করুন" : "Reset All Filters"}</span>
               </button>
             ) : (
               <div className="flex flex-col gap-2 pt-1 items-center">
@@ -239,17 +294,17 @@ export default function IncidentFeed({ onIncidentSelect }: { onIncidentSelect?: 
                     setCenter({ lat: 23.685, lng: 90.3563 });
                     setZoom(7);
                   }}
-                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold shadow-xs transition-all active:scale-95"
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold shadow-xs transition-all active:scale-95 cursor-pointer"
                 >
                   <MapPin className="w-3.5 h-3.5 text-blue-400" />
-                  <span>{language === "en" ? "View All Bangladesh Threats" : "সারা দেশের ম্যাপ দেখুন"}</span>
+                  <span>{isBn ? "সারা দেশের ম্যাপ দেখুন" : "View All Bangladesh Threats"}</span>
                 </button>
                 <Link
                   href="/report"
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white hover:bg-slate-100 text-slate-700 text-xs font-semibold border border-slate-200 transition-all active:scale-95 shadow-2xs"
+                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-red-50 hover:bg-red-100 text-red-700 text-xs font-bold border border-red-200 transition-all active:scale-95 shadow-2xs"
                 >
                   <PlusCircle className="w-3.5 h-3.5 text-red-600" />
-                  <span>{language === "en" ? "Report Threat in Area" : "নতুন রিপোর্ট করুন"}</span>
+                  <span>{isBn ? "নতুন রিপোর্ট করুন" : "Report Threat in Area"}</span>
                 </Link>
               </div>
             )}
@@ -257,21 +312,21 @@ export default function IncidentFeed({ onIncidentSelect }: { onIncidentSelect?: 
         ) : (
           filtered.map((item) => {
             const isCritical =
-              item.severity.toUpperCase() === "HIGH" || item.severity === "critical";
+              item.severity.toUpperCase() === "HIGH" || item.severity.toLowerCase() === "critical";
             const isMedium = item.severity.toUpperCase() === "MEDIUM";
             const isSelected = selectedIncidentId === item.id;
 
             return (
               <div
                 key={item.id}
-                className={`p-3.5 rounded-xl border transition-all relative group cursor-pointer ${
+                className={`p-3.5 rounded-2xl border transition-all duration-150 relative group cursor-pointer ${
                   isSelected
-                    ? "bg-blue-50/50 border-blue-500 shadow-md ring-1 ring-blue-500/20"
+                    ? "bg-blue-50/60 border-blue-500 shadow-md ring-2 ring-blue-500/20"
                     : isCritical
-                    ? "bg-white hover:bg-slate-50/80 border-slate-200 hover:border-red-300 border-l-4 border-l-red-500 shadow-2xs"
+                    ? "bg-white hover:bg-slate-50/90 border-slate-200/90 hover:border-red-300 border-l-[5px] border-l-red-600 shadow-2xs"
                     : isMedium
-                    ? "bg-white hover:bg-slate-50/80 border-slate-200 hover:border-amber-300 border-l-4 border-l-amber-500 shadow-2xs"
-                    : "bg-white hover:bg-slate-50/80 border-slate-200 hover:border-yellow-300 border-l-4 border-l-yellow-400 shadow-2xs"
+                    ? "bg-white hover:bg-slate-50/90 border-slate-200/90 hover:border-amber-300 border-l-[5px] border-l-amber-500 shadow-2xs"
+                    : "bg-white hover:bg-slate-50/90 border-slate-200/90 hover:border-yellow-300 border-l-[5px] border-l-yellow-400 shadow-2xs"
                 }`}
                 onClick={() => handleFocusIncident(item)}
               >
@@ -281,25 +336,29 @@ export default function IncidentFeed({ onIncidentSelect }: { onIncidentSelect?: 
                     <span
                       className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full border flex items-center gap-1 ${
                         isCritical
-                          ? "bg-red-50 text-red-700 border-red-200"
+                          ? "bg-red-50 text-red-700 border-red-200 font-black"
                           : isMedium
                           ? "bg-amber-50 text-amber-800 border-amber-200"
                           : "bg-yellow-50 text-yellow-800 border-yellow-200"
                       }`}
                     >
-                      {isCritical && <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-ping" />}
+                      {isCritical && <span className="w-1.5 h-1.5 rounded-full bg-red-600 animate-ping" />}
                       {(t.severity as any)[item.severity.toLowerCase()] || item.severity}
                     </span>
 
                     {item.sourceUrl && (
                       <span className="flex items-center gap-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-sky-50 text-sky-700 border border-sky-200">
                         <ShieldCheck className="w-3 h-3 text-sky-600" />
-                        <span>Press</span>
+                        <span>{isBn ? "প্রেস রিপোর্ট" : "Press"}</span>
                       </span>
                     )}
+
+                    <span className="text-[10px] font-medium text-slate-500 font-mono">
+                      {(t.categories as any)[item.category.toLowerCase()] || item.category}
+                    </span>
                   </div>
 
-                  <span className="text-[10px] text-slate-400 font-mono flex items-center gap-1">
+                  <span className="text-[10px] text-slate-400 font-mono flex items-center gap-1 shrink-0">
                     <Clock className="w-3 h-3 text-slate-400" />
                     <span>{formatRelativeTime(item.timestamp, language as any)}</span>
                   </span>
@@ -307,28 +366,28 @@ export default function IncidentFeed({ onIncidentSelect }: { onIncidentSelect?: 
 
                 {/* Title */}
                 <h3 className="text-xs sm:text-sm font-bold text-slate-900 group-hover:text-blue-600 leading-snug mb-1 transition-colors">
-                  {language === "bn" && item.titleBn ? item.titleBn : item.title}
+                  {isBn && item.titleBn ? item.titleBn : item.title}
                 </h3>
 
                 {/* Description */}
                 <p className="text-xs text-slate-600 line-clamp-2 mb-2 leading-relaxed">
-                  {language === "bn" && item.descriptionBn ? item.descriptionBn : item.description}
+                  {isBn && item.descriptionBn ? item.descriptionBn : item.description}
                 </p>
 
                 {/* Location and Category */}
                 <div className="flex items-center justify-between text-[11px] text-slate-500 pt-1.5 border-t border-slate-100 mb-2.5">
-                  <span className="flex items-center gap-1 truncate max-w-[170px] text-slate-700 font-medium">
+                  <span className="flex items-center gap-1 truncate max-w-[200px] text-slate-700 font-medium">
                     <MapPin className="w-3 h-3 text-red-500 shrink-0" />
                     <span className="truncate">{item.locationName}</span>
                   </span>
 
-                  <span className="text-[10px] font-medium text-slate-500 font-mono">
-                    {(t.categories as any)[item.category.toLowerCase()] || item.category}
+                  <span className="text-[10px] text-slate-400 font-mono">
+                    {item.reportedBy}
                   </span>
                 </div>
 
                 {/* Interactive Action Strip */}
-                <div className="flex items-center justify-between gap-1 pt-1 border-t border-slate-100">
+                <div className="flex items-center justify-between gap-1 pt-1.5 border-t border-slate-100">
                   {/* Upvote & Downvote */}
                   <div className="flex items-center gap-1">
                     <button
@@ -336,7 +395,7 @@ export default function IncidentFeed({ onIncidentSelect }: { onIncidentSelect?: 
                         e.stopPropagation();
                         voteIncident(item.id, 1).catch((err) => alert(err.message));
                       }}
-                      className="flex items-center gap-1 px-2 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-[10px] font-semibold transition active:scale-95"
+                      className="flex items-center gap-1 px-2 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-[10px] font-semibold transition active:scale-95 cursor-pointer"
                       title="Upvote / Corroborate"
                     >
                       <ThumbsUp className="w-3 h-3 text-emerald-600" />
@@ -348,7 +407,7 @@ export default function IncidentFeed({ onIncidentSelect }: { onIncidentSelect?: 
                         e.stopPropagation();
                         voteIncident(item.id, -1).catch((err) => alert(err.message));
                       }}
-                      className="flex items-center gap-1 px-2 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-[10px] font-semibold transition active:scale-95"
+                      className="flex items-center gap-1 px-2 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-[10px] font-semibold transition active:scale-95 cursor-pointer"
                       title="Downvote / Dispute"
                     >
                       <ThumbsDown className="w-3 h-3 text-rose-600" />
@@ -363,7 +422,11 @@ export default function IncidentFeed({ onIncidentSelect }: { onIncidentSelect?: 
                           activeCommentIncidentId === item.id ? null : item.id
                         );
                       }}
-                      className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition"
+                      className={`p-1 rounded-lg border transition cursor-pointer ${
+                        activeCommentIncidentId === item.id
+                          ? "bg-blue-50 text-blue-600 border-blue-200"
+                          : "text-slate-400 hover:text-slate-700 hover:bg-slate-100 border-transparent"
+                      }`}
                       title="Add status update"
                     >
                       <MessageSquare className="w-3.5 h-3.5" />
@@ -371,27 +434,30 @@ export default function IncidentFeed({ onIncidentSelect }: { onIncidentSelect?: 
                   </div>
 
                   {/* Deep-Dive Links: War Room & Focus */}
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-1.5">
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
                         handleFocusIncident(item);
                       }}
-                      className="px-2 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10px] font-bold flex items-center gap-1 transition"
+                      className="px-2 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10px] font-bold flex items-center gap-1 transition cursor-pointer"
                       title="Center Map on Incident"
                     >
                       <Crosshair className="w-3 h-3 text-blue-600" />
-                      <span className="hidden sm:inline">Center</span>
+                      <span className="hidden sm:inline">{isBn ? "ম্যাপে দেখুন" : "Center"}</span>
                     </button>
 
                     <Link
                       href={`/reports/${item.id}`}
                       onClick={(e) => e.stopPropagation()}
-                      className="px-2 py-1 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-bold flex items-center gap-0.5 transition shadow-2xs"
+                      className="px-2.5 py-1 rounded-lg bg-blue-600 hover:bg-blue-700 !text-white text-[10px] font-bold flex items-center gap-1 transition shadow-2xs cursor-pointer"
                       title="Open Incident War Room & Details"
+                      style={{ color: "#ffffff", textDecoration: "none" }}
                     >
-                      <span>War Room</span>
-                      <ArrowUpRight className="w-3 h-3" />
+                      <span className="!text-white font-bold" style={{ color: "#ffffff" }}>
+                        {isBn ? "ওয়ার রুম" : "War Room"}
+                      </span>
+                      <ArrowUpRight className="w-3 h-3 !text-white shrink-0" style={{ color: "#ffffff" }} />
                     </Link>
                   </div>
                 </div>
@@ -407,16 +473,16 @@ export default function IncidentFeed({ onIncidentSelect }: { onIncidentSelect?: 
                       value={commentText}
                       onChange={(e) => setCommentText(e.target.value)}
                       placeholder={
-                        language === "en"
-                          ? "Status update (e.g. Police arrived)..."
-                          : "পরিস্থিতি আপডেট লিখুন..."
+                        isBn
+                          ? "পরিস্থিতি আপডেট লিখুন (যেমন: পুলিশ এসেছে)..."
+                          : "Status update (e.g. Police arrived)..."
                       }
-                      className="flex-1 px-2.5 py-1 text-xs border border-slate-200 rounded-lg bg-white text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                      className="flex-1 px-2.5 py-1 text-xs border border-slate-200 rounded-lg bg-white text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 shadow-2xs"
                     />
                     <button
                       disabled={isSubmittingComment || !commentText.trim()}
                       onClick={() => handlePostUpdate(item.id)}
-                      className="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg disabled:opacity-50 transition flex items-center gap-1 shadow-2xs"
+                      className="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg disabled:opacity-50 transition flex items-center gap-1 shadow-2xs cursor-pointer"
                     >
                       <Send className="w-3 h-3" />
                     </button>
@@ -428,14 +494,17 @@ export default function IncidentFeed({ onIncidentSelect }: { onIncidentSelect?: 
         )}
       </div>
 
-      {/* Safety Notice Footer */}
-      <div className="p-2.5 bg-slate-50 border-t border-slate-200 text-[10px] text-slate-500 flex items-center justify-between px-3.5 shrink-0">
-        <span className="truncate">
-          {language === "en"
-            ? "⚠️ Dial 999 for emergency dispatch"
-            : "⚠️ জরুরি প্রয়োজনে ৯৯৯ এ কল করুন"}
-        </span>
-        <span className="font-mono text-slate-400 shrink-0">BD-OSM v2.1</span>
+      {/* Emergency Notice & 999 Speed Dial Footer */}
+      <div className="p-2.5 bg-slate-50 border-t border-slate-200 text-slate-600 flex items-center justify-between px-3.5 shrink-0">
+        <a
+          href="tel:999"
+          className="flex items-center gap-1.5 text-[11px] font-bold text-red-600 hover:text-red-700 hover:underline transition-colors"
+          title="National Emergency Dispatch Hotline"
+        >
+          <PhoneCall className="w-3.5 h-3.5" />
+          <span>{isBn ? "জরুরি প্রয়োজনে ৯৯৯ এ কল করুন" : "Dial 999 for Emergency"}</span>
+        </a>
+        <span className="font-mono text-[10px] text-slate-400 shrink-0">BD-OSM v2.1</span>
       </div>
     </aside>
   );

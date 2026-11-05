@@ -17,6 +17,7 @@ import {
   ChevronRight,
   ChevronUp,
   X,
+  PhoneCall,
 } from "lucide-react";
 
 export default function Home() {
@@ -24,6 +25,7 @@ export default function Home() {
   const [mobileSheetOpen, setMobileSheetOpen] = useState(false);
 
   const { language } = useLanguageStore();
+  const isBn = language === "bn";
   const incidents = useIncidentStore((state) => state.incidents);
   const safeZones = useIncidentStore((state) => state.safeZones);
   const fetchSafeZones = useIncidentStore((state) => state.fetchSafeZones);
@@ -50,7 +52,7 @@ export default function Home() {
       return stats.criticalThreats;
     }
     return incidents.filter(
-      (i) => i.severity.toUpperCase() === "HIGH" || i.severity === "critical"
+      (i) => i.severity.toUpperCase() === "HIGH" || i.severity.toLowerCase() === "critical"
     ).length;
   }, [stats, incidents]);
 
@@ -81,7 +83,7 @@ export default function Home() {
         {/* Desktop Collapsible Left Sidebar */}
         <div
           className={`hidden md:flex flex-col h-full border-r border-slate-200 transition-all duration-300 ease-in-out shrink-0 ${
-            desktopSidebarOpen ? "w-80 lg:w-96" : "w-0 overflow-hidden border-none"
+            desktopSidebarOpen ? "w-80 lg:w-[380px] xl:w-[420px]" : "w-0 overflow-hidden border-none"
           }`}
         >
           <IncidentFeed />
@@ -90,22 +92,18 @@ export default function Home() {
         {/* Map Viewport Area */}
         <div className="flex-1 w-full h-full relative min-h-0 bg-slate-100">
           {/* Floating Situational Telemetry & Sidebar Toggle HUD (Top-Left) */}
-          <div className="absolute top-4 left-4 z-[400] flex flex-wrap items-center gap-2 pointer-events-none">
+          <div className="absolute top-4 left-4 z-[400] flex flex-wrap items-center gap-2 pointer-events-none max-w-[calc(100%-80px)]">
             {/* Desktop Sidebar Toggle Button */}
             <button
               onClick={() => setDesktopSidebarOpen(!desktopSidebarOpen)}
-              className="pointer-events-auto hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-2xl bg-white/95 backdrop-blur-xl border border-slate-200/90 hover:bg-slate-50 text-slate-800 text-xs font-bold shadow-md transition-all active:scale-95"
-              title={desktopSidebarOpen ? "Collapse Feed" : "Expand Feed"}
+              className="pointer-events-auto hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-2xl bg-white/95 backdrop-blur-xl border border-slate-200/90 hover:bg-slate-50 text-slate-800 text-xs font-bold shadow-md transition-all active:scale-95 cursor-pointer"
+              title={desktopSidebarOpen ? (isBn ? "ফিড লুকান" : "Collapse Feed") : (isBn ? "ফিড দেখুন" : "Expand Feed")}
             >
               <ListFilter className="w-3.5 h-3.5 text-red-600" />
               <span>
                 {desktopSidebarOpen
-                  ? language === "en"
-                    ? "Hide Feed"
-                    : "ফিড লুকান"
-                  : language === "en"
-                  ? "Show Feed"
-                  : "ফিড দেখুন"}
+                  ? isBn ? "ফিড লুকান" : "Hide Feed"
+                  : isBn ? "ফিড দেখুন" : "Show Feed"}
               </span>
               {desktopSidebarOpen ? (
                 <ChevronLeft className="w-3 h-3 text-slate-400" />
@@ -121,7 +119,7 @@ export default function Home() {
                 onClick={() =>
                   setSeverity(selectedSeverity === "HIGH" ? "all" : "HIGH")
                 }
-                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-bold transition ${
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-bold transition cursor-pointer ${
                   selectedSeverity === "HIGH" || selectedSeverity === "critical"
                     ? "bg-red-50 text-red-700 border border-red-200 shadow-2xs"
                     : "text-slate-700 hover:text-slate-900 hover:bg-slate-100"
@@ -129,12 +127,12 @@ export default function Home() {
                 title="Filter High Severity Threats"
               >
                 <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-red-600"></span>
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-red-600" />
                 </span>
                 <span>{criticalCount}</span>
                 <span className="hidden lg:inline text-[10px] text-red-700 uppercase font-mono">
-                  {language === "en" ? "Critical" : "উচ্চ ঝুঁকি"}
+                  {isBn ? "উচ্চ ঝুঁকি" : "Critical"}
                 </span>
               </button>
 
@@ -143,13 +141,13 @@ export default function Home() {
               {/* Total Active Threats */}
               <button
                 onClick={resetFilters}
-                className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-bold text-slate-700 hover:text-slate-900 hover:bg-slate-100 transition"
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-bold text-slate-700 hover:text-slate-900 hover:bg-slate-100 transition cursor-pointer"
                 title="View All Incidents"
               >
                 <ShieldAlert className="w-3.5 h-3.5 text-orange-500" />
                 <span>{activeCount}</span>
                 <span className="hidden lg:inline text-[10px] text-slate-500 font-mono">
-                  {language === "en" ? "Active" : "সক্রিয়"}
+                  {isBn ? "সক্রিয়" : "Active"}
                 </span>
               </button>
 
@@ -163,7 +161,7 @@ export default function Home() {
                 <Shield className="w-3.5 h-3.5 text-emerald-600" />
                 <span>{safeCount}</span>
                 <span className="hidden lg:inline text-[10px] text-emerald-700 font-mono">
-                  {language === "en" ? "Safe Havens" : "আশ্রয়স্থল"}
+                  {isBn ? "আশ্রয়স্থল" : "Safe Havens"}
                 </span>
               </div>
             </div>
@@ -172,21 +170,21 @@ export default function Home() {
           {/* Dynamic Leaflet Map Component */}
           <DynamicMap />
 
-          {/* Mobile Bottom Sheet Trigger Bar */}
+          {/* Mobile Floating Bottom Sheet Trigger Bar */}
           <div className="md:hidden absolute bottom-5 inset-x-4 z-[400] flex justify-center pointer-events-none">
             <button
               onClick={() => setMobileSheetOpen(true)}
-              className="pointer-events-auto flex items-center gap-2 px-4 py-2.5 rounded-full bg-white/95 backdrop-blur-2xl border border-slate-200 text-slate-800 text-xs font-bold shadow-xl active:scale-95 transition-all ring-1 ring-blue-500/20"
+              className="pointer-events-auto flex items-center gap-2.5 px-5 py-2.5 rounded-full bg-white/95 backdrop-blur-2xl border border-slate-200 text-slate-800 text-xs font-bold shadow-xl active:scale-95 transition-all ring-1 ring-blue-500/20 cursor-pointer"
             >
               <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
               <span>
-                {language === "en"
-                  ? `${incidents.length} Hazards in View`
-                  : `${incidents.length}টি সক্রিয় বিপদ`}
+                {isBn
+                  ? `${incidents.length}টি সক্রিয় বিপদ`
+                  : `${incidents.length} Hazards in View`}
               </span>
               <span className="text-slate-300 font-normal">|</span>
               <span className="text-blue-600 flex items-center gap-0.5 font-bold">
-                <span>{language === "en" ? "View Feed" : "ফিড দেখুন"}</span>
+                <span>{isBn ? "ফিড দেখুন" : "View Feed"}</span>
                 <ChevronUp className="w-3.5 h-3.5" />
               </span>
             </button>
@@ -203,17 +201,18 @@ export default function Home() {
             aria-hidden="true"
           />
 
-          <div className="bg-white border-t border-slate-200 rounded-t-3xl shadow-2xl flex flex-col max-h-[80vh] overflow-hidden animate-in slide-in-from-bottom duration-200">
+          <div className="bg-white border-t border-slate-200 rounded-t-3xl shadow-2xl flex flex-col max-h-[82vh] overflow-hidden animate-in slide-in-from-bottom duration-200">
             {/* Sheet Handle */}
-            <div className="p-3 pb-1 flex flex-col items-center border-b border-slate-100">
+            <div className="p-3 pb-1.5 flex flex-col items-center border-b border-slate-100">
               <div className="w-12 h-1.5 rounded-full bg-slate-300 mb-2" />
               <div className="w-full flex items-center justify-between px-2">
                 <span className="text-xs font-bold text-slate-900 uppercase tracking-wider">
-                  {language === "en" ? "Live Danger Feed" : "সরাসরি বিপদ সংকেতসমূহ"}
+                  {isBn ? "সরাসরি বিপদ সংকেতসমূহ" : "Live Threat Feed"}
                 </span>
                 <button
                   onClick={() => setMobileSheetOpen(false)}
-                  className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100"
+                  className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer"
+                  aria-label="Close feed"
                 >
                   <X className="w-4 h-4" />
                 </button>
