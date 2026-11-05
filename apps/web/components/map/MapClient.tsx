@@ -15,6 +15,8 @@ import {
 import { useMapStore, MAP_LAYERS, LocationSource } from "@/store/useMapStore";
 import MapLayerSwitcher from "./MapLayerSwitcher";
 import LocationSearchBar, { GeocodedLocation } from "./LocationSearchBar";
+import LocationCalibrationModal from "./LocationCalibrationModal";
+import LocationAccuracyBanner from "./LocationAccuracyBanner";
 import { useFilterStore } from "@/store/useFilterStore";
 import { useLanguageStore } from "@/store/useLanguageStore";
 import { useIncidentStore } from "@/store/useIncidentStore";
@@ -272,6 +274,8 @@ export default function MapClient() {
   const calibrateUserLocation = useMapStore((state) => state.calibrateUserLocation);
   const resetToBrowserGps = useMapStore((state) => state.resetToBrowserGps);
   const loadSavedLocation = useMapStore((state) => state.loadSavedLocation);
+  const openCalibrationModal = useMapStore((state) => state.openCalibrationModal);
+  const setIsLowAccuracy = useMapStore((state) => state.setIsLowAccuracy);
 
   const incidents = useIncidentStore((state) => state.incidents);
   const safeZones = useIncidentStore((state) => state.safeZones);
@@ -358,6 +362,9 @@ export default function MapClient() {
           if (isWithinBangladesh(coords.lat, coords.lng)) {
             setCenter(coords);
             setZoom(13);
+            if (!acc || acc > 75) {
+              setIsLowAccuracy(true);
+            }
           } else {
             console.info("[Geo] Device is outside Bangladesh boundaries. Displaying national view.");
           }
@@ -368,21 +375,26 @@ export default function MapClient() {
         { enableHighAccuracy: true, timeout: 6000, maximumAge: 0 }
       );
     }
-  }, [setCenter, setZoom, loadSavedLocation, setUserLocation]);
+  }, [setCenter, setZoom, loadSavedLocation, setUserLocation, setIsLowAccuracy]);
 
   // Request browser geolocation (manual button click)
   const handleLocateMe = () => {
-    // If a saved calibrated location exists, fly to it
+    // If a saved calibrated location exists, fly straight to it!
     const saved = loadSavedLocation();
     if (saved && isWithinBangladesh(saved.lat, saved.lng)) {
-      setUserLocation({ lat: saved.lat, lng: saved.lng }, saved.accuracy || 25, 'calibrated', saved.label);
+      setUserLocation(
+        { lat: saved.lat, lng: saved.lng },
+        saved.accuracy || 25,
+        'calibrated',
+        saved.label
+      );
       setCenter({ lat: saved.lat, lng: saved.lng });
-      setZoom(16);
+      setZoom(17);
       return;
     }
 
     if (!navigator.geolocation) {
-      alert("Geolocation is not supported by your browser");
+      openCalibrationModal();
       return;
     }
     setIsLocating(true);
@@ -395,14 +407,20 @@ export default function MapClient() {
         if (isWithinBangladesh(coords.lat, coords.lng)) {
           setCenter(coords);
           setZoom(14);
+          // If accuracy is poor (typical of ISP triangulation > 75m), open the calibration assistant!
+          if (!acc || acc > 75) {
+            setIsLowAccuracy(true);
+            openCalibrationModal();
+          }
         } else {
-          alert("Your detected GPS location is outside Bangladesh boundaries.");
+          openCalibrationModal();
         }
         setIsLocating(false);
       },
       (err) => {
-        alert("Could not access your location: " + err.message);
+        console.warn("[MapClient] Could not access location:", err.message);
         setIsLocating(false);
+        openCalibrationModal();
       },
       { enableHighAccuracy: true, timeout: 8000 }
     );
@@ -411,7 +429,10 @@ export default function MapClient() {
   // Re-query fresh browser GPS (clearing any saved calibration)
   const handleForceGpsRefresh = () => {
     resetToBrowserGps();
-    if (!navigator.geolocation) return;
+    if (!navigator.geolocation) {
+      openCalibrationModal();
+      return;
+    }
     setIsLocating(true);
     navigator.geolocation.getCurrentPosition(
       (pos) => {
@@ -420,11 +441,15 @@ export default function MapClient() {
         setUserLocation(coords, acc, 'gps');
         setCenter(coords);
         setZoom(14);
+        if (!acc || acc > 75) {
+          setIsLowAccuracy(true);
+          openCalibrationModal();
+        }
         setIsLocating(false);
       },
       (err) => {
-        alert(isBn ? "জিপিএস অবস্থান পাওয়া যায়নি: " + err.message : "Could not retrieve GPS: " + err.message);
         setIsLocating(false);
+        openCalibrationModal();
       },
       { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
     );
@@ -518,6 +543,16 @@ export default function MapClient() {
                 ? isBn ? "সঠিক অবস্থান" : "Calibrated"
                 : isBn ? "আমার অবস্থান" : "My Location"}
             </span>
+          </button>
+
+          {/* Calibrate / Pinpoint Exact Location Button */}
+          <button
+            type="button"
+            onClick={openCalibrationModal}
+            className="p-1.5 rounded-xl hover:bg-emerald-50 text-slate-500 hover:text-emerald-700 transition-colors cursor-pointer"
+            title={isBn ? "সঠিক অবস্থান নির্ধারণ / পরিবর্তন" : "Calibrate / Pinpoint Real Location"}
+          >
+            <Compass className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-600" />
           </button>
 
           {userLocation && (
@@ -691,6 +726,15 @@ export default function MapClient() {
 
                   {/* Actions */}
                   <div className="pt-1 space-y-1.5 border-t border-slate-100">
+                    <button
+                      type="button"
+                      onClick={openCalibrationModal}
+                      className="w-full flex items-center justify-center gap-1 text-[11px] font-bold text-white bg-emerald-600 hover:bg-emerald-700 py-1.5 rounded-lg shadow-xs transition-colors cursor-pointer"
+                    >
+                      <Crosshair className="w-3.5 h-3.5" />
+                      <span>{isBn ? "সঠিক অবস্থান নির্বাচন / অনুসন্ধান" : "Calibrate / Search Real Spot"}</span>
+                    </button>
+
                     {locationSource === 'calibrated' && (
                       <button
                         type="button"
@@ -874,6 +918,12 @@ export default function MapClient() {
           );
         })}
       </MapContainer>
+
+      {/* Floating Smart Geolocation Accuracy Alert Banner */}
+      <LocationAccuracyBanner />
+
+      {/* Guided Location Calibration Assistant Modal */}
+      <LocationCalibrationModal />
     </div>
   );
 }
