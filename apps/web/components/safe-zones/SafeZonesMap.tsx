@@ -304,10 +304,11 @@ export default function SafeZonesMap({
                     {onNavigateSafeRoute && (
                       <button
                         onClick={() => onNavigateSafeRoute(zone)}
-                        className="w-full flex items-center justify-center gap-1.5 py-1.5 px-2 bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-bold rounded-lg transition-all shadow-2xs"
+                        className="w-full flex items-center justify-center gap-1.5 py-1.5 px-2 bg-blue-600 hover:bg-blue-700 !text-white text-[11px] font-bold rounded-lg transition-all shadow-xs cursor-pointer"
+                        style={{ color: '#ffffff' }}
                       >
-                        <Navigation className="w-3 h-3" />
-                        <span>{isBn ? "নিরাপদ পথে চলুন" : "Navigate via Safe Path"}</span>
+                        <Navigation className="w-3 h-3 !text-white" style={{ color: '#ffffff' }} />
+                        <span className="!text-white font-bold" style={{ color: '#ffffff' }}>{isBn ? "নিরাপদ পথে চলুন" : "Navigate via Safe Path"}</span>
                       </button>
                     )}
 

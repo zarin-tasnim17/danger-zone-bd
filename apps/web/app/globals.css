@@ -99,6 +99,12 @@
   color: #0f172a !important;
 }
 
+/* Ensure all links and text inside Leaflet popups inherit their intended Tailwind colors */
+.leaflet-container .leaflet-popup-content a {
+  color: inherit;
+  text-decoration: none;
+}
+
 /* Sleek custom scrollbars for light feeds */
 ::-webkit-scrollbar {
   width: 6px;
