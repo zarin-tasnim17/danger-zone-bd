@@ -9,6 +9,8 @@ import {
   useMap,
   useMapEvents,
 } from "react-leaflet";
+import { useMapStore, MAP_LAYERS } from "@/store/useMapStore";
+import MapLayerSwitcher from "@/components/map/MapLayerSwitcher";
 import "leaflet/dist/leaflet.css";
 import { Crosshair, MapPin, CheckCircle2, AlertTriangle } from "lucide-react";
 
@@ -59,6 +61,8 @@ export default function ReportPinMap({
   severity,
   language = "en",
 }: ReportPinMapProps) {
+  const activeTileLayer = useMapStore((state) => state.activeTileLayer);
+  const currentTileConfig = MAP_LAYERS[activeTileLayer] || MAP_LAYERS.google_streets;
   const isBn = language === "bn";
   const isWithinProximity =
     proximityDistance === null ||
@@ -80,21 +84,27 @@ export default function ReportPinMap({
 
   return (
     <div className="relative w-full h-72 sm:h-80 rounded-2xl overflow-hidden border border-slate-200 shadow-xs z-0 select-none bg-slate-100">
+      <div className="absolute top-3 right-3 z-[500]">
+        <MapLayerSwitcher compact />
+      </div>
       <MapContainer
         center={[incidentLat, incidentLng]}
         zoom={15}
         minZoom={6}
-        maxZoom={18}
+        maxZoom={20}
         attributionControl={false}
         className="w-full h-full"
       >
         <ChangeView center={[incidentLat, incidentLng]} />
         <MapClickHandler onLocationChange={onLocationChange} />
 
-        {/* Daylight OpenStreetMap Tiles */}
+        {/* Active High-Detail Tile Layer (Google Streets / Satellite Hybrid / OSM) */}
         <TileLayer
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+          key={activeTileLayer}
+          url={currentTileConfig.url}
+          attribution={currentTileConfig.attribution}
+          maxZoom={currentTileConfig.maxZoom}
+          subdomains={currentTileConfig.subdomains}
         />
 
         {/* 200m Proximity Radar Zone around Citizen's Real Device GPS */}

@@ -32,6 +32,7 @@ import {
 } from "lucide-react";
 
 // Dynamically import Leaflet Map with ssr: false
+import LocationSearchBar, { GeocodedLocation } from "@/components/map/LocationSearchBar";
 const RoutePathMap = dynamic(
   () => import("@/components/routes/RoutePathMap"),
   {
@@ -443,6 +444,14 @@ export default function RoutesPage() {
                   </div>
                 </div>
 
+                <LocationSearchBar
+                  placeholder={isBn ? "যাত্রার শুরু অনুসন্ধান করুন (যেমন: ফার্মগেট)..." : "Search origin location (e.g. Farmgate)..."}
+                  onSelectLocation={(loc: GeocodedLocation) => {
+                    setStartLat(loc.lat.toString());
+                    setStartLng(loc.lng.toString());
+                  }}
+                />
+
                 <div className="grid grid-cols-2 gap-2">
                   <div>
                     <label className="block text-[10px] text-slate-500 font-semibold mb-0.5">Latitude</label>
@@ -504,6 +513,15 @@ export default function RoutesPage() {
                     </button>
                   </div>
                 )}
+
+                <LocationSearchBar
+                  placeholder={isBn ? "গন্তব্য অনুসন্ধান করুন (যেমন: বনানী ১১)..." : "Search destination (e.g. Banani 11)..."}
+                  onSelectLocation={(loc: GeocodedLocation) => {
+                    setEndLat(loc.lat.toString());
+                    setEndLng(loc.lng.toString());
+                    setDestinationLabel(loc.name);
+                  }}
+                />
 
                 <div className="grid grid-cols-2 gap-2">
                   <div>

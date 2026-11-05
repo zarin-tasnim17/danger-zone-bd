@@ -12,6 +12,8 @@ import {
   useMap,
   useMapEvents,
 } from "react-leaflet";
+import { useMapStore, MAP_LAYERS } from "@/store/useMapStore";
+import MapLayerSwitcher from "@/components/map/MapLayerSwitcher";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 
@@ -127,6 +129,8 @@ export default function PolygonDrawerMap({
   selectedZoneId,
   onSelectZone,
 }: PolygonDrawerMapProps) {
+  const activeTileLayer = useMapStore((state) => state.activeTileLayer);
+  const currentTileConfig = MAP_LAYERS[activeTileLayer] || MAP_LAYERS.google_streets;
   // Convert [lng, lat] GeoJSON coordinates to Leaflet [lat, lng]
   const leafletActivePositions: [number, number][] = activeCoords.map(([lng, lat]) => [
     lat,
@@ -166,9 +170,13 @@ export default function PolygonDrawerMap({
         className="w-full h-full"
         style={{ height: "100%", width: "100%" }}
       >
+        {/* Active High-Detail Tile Layer (Google Streets / Satellite Hybrid / OSM) */}
         <TileLayer
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+          key={activeTileLayer}
+          url={currentTileConfig.url}
+          attribution={currentTileConfig.attribution}
+          maxZoom={currentTileConfig.maxZoom}
+          subdomains={currentTileConfig.subdomains}
         />
 
         <MapClickHandler onAddPoint={onAddPoint} />

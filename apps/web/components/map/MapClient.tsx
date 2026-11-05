@@ -12,7 +12,9 @@ import {
   useMap,
   useMapEvents,
 } from "react-leaflet";
-import { useMapStore } from "@/store/useMapStore";
+import { useMapStore, MAP_LAYERS } from "@/store/useMapStore";
+import MapLayerSwitcher from "./MapLayerSwitcher";
+import LocationSearchBar, { GeocodedLocation } from "./LocationSearchBar";
 import { useFilterStore } from "@/store/useFilterStore";
 import { useLanguageStore } from "@/store/useLanguageStore";
 import { useIncidentStore } from "@/store/useIncidentStore";
@@ -256,6 +258,8 @@ export default function MapClient() {
   const zoom = useMapStore((state) => state.zoom);
   const setCenter = useMapStore((state) => state.setCenter);
   const setZoom = useMapStore((state) => state.setZoom);
+  const activeTileLayer = useMapStore((state) => state.activeTileLayer);
+  const currentTileConfig = MAP_LAYERS[activeTileLayer] || MAP_LAYERS.google_streets;
   const incidents = useIncidentStore((state) => state.incidents);
   const safeZones = useIncidentStore((state) => state.safeZones);
   const fetchAllIncidents = useIncidentStore((state) => state.fetchAllIncidents);
@@ -399,9 +403,21 @@ export default function MapClient() {
   return (
     <div className="relative w-full h-full min-h-0 bg-slate-100">
       {/* Floating Tactical Command HUD Dock (Top-Right) */}
-      <div className="absolute top-4 right-4 z-[400] flex flex-col items-end gap-2 pointer-events-none">
+      <div className="absolute top-4 right-4 z-[400] flex flex-col items-end gap-2 pointer-events-none max-w-[calc(100%-2rem)]">
+        {/* Quick Place Search on Live Map */}
+        <div className="pointer-events-auto w-64 sm:w-80 shadow-md">
+          <LocationSearchBar
+            onSelectLocation={(loc: GeocodedLocation) => {
+              setCenter({ lat: loc.lat, lng: loc.lng });
+              setZoom(17);
+            }}
+          />
+        </div>
+
         {/* Layer & Utility Controls */}
-        <div className="pointer-events-auto flex items-center gap-1 p-1 bg-white/95 backdrop-blur-xl border border-slate-200/90 rounded-2xl shadow-md">
+        <div className="pointer-events-auto flex items-center gap-1.5 p-1 bg-white/95 backdrop-blur-xl border border-slate-200/90 rounded-2xl shadow-md">
+          {/* Map Layer Switcher (Google Streets / Hybrid / OSM) */}
+          <MapLayerSwitcher />
           {/* Locate Me (GPS) */}
           <button
             onClick={handleLocateMe}
@@ -466,7 +482,7 @@ export default function MapClient() {
         center={[center.lat, center.lng]}
         zoom={zoom}
         minZoom={5}
-        maxZoom={18}
+        maxZoom={20}
         attributionControl={false}
         zoomControl={false}
         scrollWheelZoom={true}
@@ -479,11 +495,13 @@ export default function MapClient() {
         {/* Zoom Control repositioned neatly at bottom-left */}
         <ZoomControl position="bottomleft" />
 
-        {/* Standard High-Resolution OpenStreetMap Tiles (Clean, Daylight, Zero Watermarks) */}
+        {/* Active High-Detail Tile Layer (Google Streets / Satellite Hybrid / OSM) */}
         <TileLayer
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-          maxZoom={19}
+          key={activeTileLayer}
+          url={currentTileConfig.url}
+          attribution={currentTileConfig.attribution}
+          maxZoom={currentTileConfig.maxZoom}
+          subdomains={currentTileConfig.subdomains}
         />
 
         {/* User GPS Pin & Accuracy Radar Circle */}

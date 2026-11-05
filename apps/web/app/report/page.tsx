@@ -41,6 +41,7 @@ import {
 } from "lucide-react";
 
 // Dynamically import Leaflet Map with ssr: false
+import LocationSearchBar, { GeocodedLocation } from "@/components/map/LocationSearchBar";
 const ReportPinMap = dynamic(() => import("@/components/report/ReportPinMap"), {
   ssr: false,
   loading: () => (
@@ -827,6 +828,14 @@ export default function ReportPage() {
                   </div>
 
                   {/* Interactive Leaflet Pin Placement Map */}
+                  {/* Fast Geocoding Location Search */}
+                  <LocationSearchBar
+                    onSelectLocation={(loc: GeocodedLocation) => {
+                      setLatitude(loc.lat);
+                      setLongitude(loc.lng);
+                    }}
+                  />
+
                   <ReportPinMap
                     incidentLat={latitude}
                     incidentLng={longitude}

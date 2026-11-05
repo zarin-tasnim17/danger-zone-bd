@@ -2,6 +2,8 @@
 
 import React, { useMemo } from "react";
 import { MapContainer, TileLayer, Marker, Circle, ZoomControl } from "react-leaflet";
+import { useMapStore, MAP_LAYERS } from "@/store/useMapStore";
+import MapLayerSwitcher from "@/components/map/MapLayerSwitcher";
 import L from "leaflet";
 import Link from "next/link";
 import { ExternalLink, Navigation } from "lucide-react";
@@ -21,6 +23,8 @@ export default function IncidentMiniMap({
   category,
   radiusMeters = 150,
 }: IncidentMiniMapProps) {
+  const activeTileLayer = useMapStore((state) => state.activeTileLayer);
+  const currentTileConfig = MAP_LAYERS[activeTileLayer] || MAP_LAYERS.google_streets;
   const isHigh = severity === "HIGH";
   const isMedium = severity === "MEDIUM";
 
@@ -83,6 +87,9 @@ export default function IncidentMiniMap({
 
   return (
     <div className="relative w-full h-64 sm:h-72 rounded-2xl overflow-hidden border border-slate-200/90 shadow-xs bg-slate-100 select-none">
+      <div className="absolute top-3 right-3 z-[500]">
+        <MapLayerSwitcher compact />
+      </div>
       <MapContainer
         center={[latitude, longitude]}
         zoom={15}
@@ -91,12 +98,14 @@ export default function IncidentMiniMap({
         dragging={true}
         style={{ width: "100%", height: "100%" }}
       >
+        {/* Active High-Detail Tile Layer (Google Streets / Satellite Hybrid / OSM) */}
         <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-          maxZoom={19}
+          key={activeTileLayer}
+          url={currentTileConfig.url}
+          attribution={currentTileConfig.attribution}
+          maxZoom={currentTileConfig.maxZoom}
+          subdomains={currentTileConfig.subdomains}
         />
-
         <Circle
           center={[latitude, longitude]}
           radius={radiusMeters}
