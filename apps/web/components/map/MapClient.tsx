@@ -473,7 +473,7 @@ export default function MapClient() {
   return (
     <div className="relative w-full h-full min-h-0 bg-slate-100">
       {/* Floating Tactical Command HUD Dock (Adaptive: Spans full width on mobile, top-right on desktop) */}
-      <div className="absolute top-3 inset-x-3 sm:inset-x-auto sm:top-4 sm:right-4 z-[400] flex flex-col items-end gap-2 pointer-events-none max-w-full sm:max-w-md">
+      <div className="absolute top-3 inset-x-3 sm:inset-x-auto sm:top-4 sm:right-4 z-[400] flex flex-col items-end gap-2 pointer-events-none max-w-[calc(100%-1.5rem)] sm:max-w-md">
         {/* Quick Place Search on Live Map */}
         <div className="pointer-events-auto w-full sm:w-72 md:w-80 shadow-md">
           <LocationSearchBar

@@ -71,15 +71,20 @@ export default function Navbar({
   const isBn = language === "bn";
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  // Core navigation links (Prioritized for 1024px+ screens)
-  const navLinks = [
-    { name: isBn ? "লাইভ ম্যাপ" : "Live Map", href: "/", icon: Map, isPrimary: true },
-    { name: isBn ? "ফিড" : "Feed", href: "/feed", icon: ListFilter, isPrimary: true },
-    { name: isBn ? "আশ্রয়স্থল" : "Safe Shelters", href: "/safe-zones", icon: Shield, isPrimary: true },
-    { name: isBn ? "নিরাপদ পথ" : "Safe Routes", href: "/routes", icon: Navigation, isPrimary: true },
-    { name: isBn ? "সতর্কতা" : "Alerts", href: "/alerts", icon: Bell, isPrimary: true },
-    { name: isBn ? "প্রোফাইল" : "Profile", href: "/profile", icon: UserCheck, isPrimary: false },
-    { name: "Dev Test", href: "/dev-test", icon: FlaskConical, isPrimary: false },
+  // Core navigation links for desktop header (5 essential views)
+  const primaryNavLinks = [
+    { name: isBn ? "লাইভ ম্যাপ" : "Live Map", href: "/", icon: Map },
+    { name: isBn ? "ফিড" : "Feed", href: "/feed", icon: ListFilter },
+    { name: isBn ? "আশ্রয়স্থল" : "Safe Shelters", href: "/safe-zones", icon: Shield },
+    { name: isBn ? "নিরাপদ পথ" : "Safe Routes", href: "/routes", icon: Navigation },
+    { name: isBn ? "সতর্কতা" : "Alerts", href: "/alerts", icon: Bell },
+  ];
+
+  // Extended links for mobile drawer
+  const mobileNavLinks = [
+    ...primaryNavLinks,
+    { name: isBn ? "প্রোফাইল" : "Profile", href: "/profile", icon: UserCheck },
+    { name: "Dev Test", href: "/dev-test", icon: FlaskConical },
   ];
 
   const hasActiveFilters =
@@ -115,18 +120,16 @@ export default function Navbar({
           </div>
         </Link>
 
-        {/* Primary Desktop Navigation Links: Adaptive density to prevent pushing right controls */}
+        {/* Primary Desktop Navigation Links: Streamlined 5 core views */}
         <nav className="hidden lg:flex items-center gap-0.5 xl:gap-1 bg-slate-100/90 p-1 rounded-2xl border border-slate-200/90 shrink-0">
-          {navLinks.map((link) => {
+          {primaryNavLinks.map((link) => {
             const isActive = link.href === "/" ? pathname === "/" : pathname?.startsWith(link.href);
             const Icon = link.icon;
             return (
               <Link
                 key={link.href}
                 href={link.href}
-                className={`whitespace-nowrap inline-flex items-center gap-1.5 px-2 xl:px-3 py-1.5 rounded-xl text-xs font-semibold transition-all shrink-0 select-none ${
-                  !link.isPrimary ? "hidden xl:inline-flex" : ""
-                } ${
+                className={`whitespace-nowrap inline-flex items-center gap-1.5 px-2 lg:px-2.5 xl:px-3 py-1.5 rounded-xl text-xs font-semibold transition-all shrink-0 select-none ${
                   isActive
                     ? "bg-white text-slate-900 shadow-xs border border-slate-200/90 font-bold"
                     : "text-slate-600 hover:text-slate-900 hover:bg-white/60"
@@ -236,7 +239,7 @@ export default function Navbar({
       {mobileMenuOpen && (
         <div className="lg:hidden border-t border-slate-200 bg-white/98 backdrop-blur-2xl px-4 py-3 space-y-2.5 shadow-xl animate-in slide-in-from-top-2 duration-150">
           <div className="grid grid-cols-2 gap-1.5 pb-2 border-b border-slate-100">
-            {navLinks.map((link) => {
+            {mobileNavLinks.map((link) => {
               const isActive = link.href === "/" ? pathname === "/" : pathname?.startsWith(link.href);
               const Icon = link.icon;
               return (
@@ -283,10 +286,10 @@ export default function Navbar({
 
       {/* Filter Ribbon & Fast Keyword Search (Streamlined Command Strip) */}
       {showFilters && (
-        <div className="border-t border-slate-200/90 bg-slate-50/80 backdrop-blur-md px-3 sm:px-4 lg:px-6 py-2 overflow-x-auto scrollbar-none">
-          <div className="max-w-[1536px] mx-auto flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
+        <div className="border-t border-slate-200/90 bg-slate-50/80 backdrop-blur-md px-3 sm:px-4 lg:px-6 py-2 overflow-hidden">
+          <div className="max-w-[1536px] mx-auto flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 min-w-0">
             {/* Quick Filter Chips */}
-            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 scrollbar-none shrink-0">
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 scrollbar-none min-w-0 flex-1">
               {/* All Incidents */}
               <button
                 onClick={() => {
