@@ -623,14 +623,7 @@ export default function ReportDetailsPage() {
               <span>{copiedLink ? (language === "en" ? "Copied!" : "কপি হয়েছে!") : language === "en" ? "Share" : "শেয়ার"}</span>
             </button>
 
-            {/* Emergency Hotline 999 Direct Dialer */}
-            <a
-              href="tel:999"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold transition shadow-sm shadow-red-600/20 active:scale-95"
-            >
-              <PhoneCall className="w-3.5 h-3.5 animate-pulse" />
-              <span>{language === "en" ? "Call 999 Hotline" : "জরুরি ৯৯৯"}</span>
-            </a>
+
           </div>
         </div>
 

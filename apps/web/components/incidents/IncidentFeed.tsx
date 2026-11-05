@@ -494,17 +494,10 @@ export default function IncidentFeed({ onIncidentSelect }: { onIncidentSelect?: 
         )}
       </div>
 
-      {/* Emergency Notice & 999 Speed Dial Footer */}
-      <div className="p-2.5 bg-slate-50 border-t border-slate-200 text-slate-600 flex items-center justify-between px-3.5 shrink-0">
-        <a
-          href="tel:999"
-          className="flex items-center gap-1.5 text-[11px] font-bold text-red-600 hover:text-red-700 hover:underline transition-colors"
-          title="National Emergency Dispatch Hotline"
-        >
-          <PhoneCall className="w-3.5 h-3.5" />
-          <span>{isBn ? "জরুরি প্রয়োজনে ৯৯৯ এ কল করুন" : "Dial 999 for Emergency"}</span>
-        </a>
-        <span className="font-mono text-[10px] text-slate-400 shrink-0">BD-OSM v2.1</span>
+      {/* Feed Status Footer */}
+      <div className="p-2.5 bg-slate-50 border-t border-slate-200 text-slate-500 flex items-center justify-between px-3.5 shrink-0 text-[11px]">
+        <span className="font-medium text-slate-600">{isBn ? "লাইভ বিপদ প্রবাহ" : "Live Threat Feed"}</span>
+        <span className="font-mono text-[10px] text-slate-400">BD-OSM v2.1</span>
       </div>
     </aside>
   );

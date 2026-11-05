@@ -148,36 +148,6 @@ export default function ProfilePage() {
       <Navbar />
 
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6">
-        {/* National Emergency Hotline Banner */}
-        <section className="bg-gradient-to-r from-red-600 via-rose-600 to-red-700 rounded-2xl p-4 sm:p-5 text-white shadow-md shadow-red-500/10 flex flex-col md:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-3.5">
-            <div className="w-11 h-11 rounded-xl bg-white/15 backdrop-blur-md flex items-center justify-center shrink-0 border border-white/20">
-              <PhoneCall className="w-6 h-6 text-white animate-pulse" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs uppercase font-extrabold tracking-wider bg-white/20 px-2 py-0.5 rounded-full border border-white/20">
-                  {isBn ? "জরুরি নিরাপত্তা" : "Emergency Safety"}
-                </span>
-                <span className="text-xs text-white/80 font-medium">
-                  {isBn ? "সরাসরি সহায়তা হেল্পলাইন" : "Immediate Crisis Helpline"}
-                </span>
-              </div>
-              <p className="text-sm font-semibold text-white/95 mt-0.5">
-                {isBn
-                  ? "জরুরি অবস্থায় পুলিশ, অ্যাম্বুলেন্স বা ফায়ার সার্ভিসের জন্য সরাসরি ৯৯৯ নম্বরে ডায়াল করুন।"
-                  : "If facing immediate physical threat or requiring urgent rescue, dial 999 directly."}
-              </p>
-            </div>
-          </div>
-          <a
-            href="tel:999"
-            className="w-full md:w-auto px-6 py-2.5 rounded-xl bg-white text-red-600 font-extrabold text-sm hover:bg-red-50 transition-all flex items-center justify-center gap-2 shadow-sm shrink-0"
-          >
-            <PhoneCall className="w-4 h-4" />
-            <span>{isBn ? "কল করুন ৯৯৯" : "Call 999 Hotline"}</span>
-          </a>
-        </section>
 
         {/* Page Title & Breadcrumb Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">

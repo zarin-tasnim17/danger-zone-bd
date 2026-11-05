@@ -139,15 +139,7 @@ export default function Navbar({
 
         {/* Right Controls: Hotline, Language Switcher, Citizen Badge & Primary CTA */}
         <div className="flex items-center gap-1 sm:gap-1.5 xl:gap-2 shrink-0">
-          {/* National 999 Emergency Dispatch Hotline Button (Desktop) */}
-          <a
-            href="tel:999"
-            className="hidden sm:inline-flex items-center gap-1 px-2 sm:px-2.5 py-1.5 rounded-xl bg-red-50 hover:bg-red-100 border border-red-200/80 text-red-700 text-xs font-black shadow-2xs transition-all active:scale-95 whitespace-nowrap"
-            title="Dial National Emergency Hotline 999"
-          >
-            <PhoneCall className="w-3.5 h-3.5 text-red-600 animate-pulse" />
-            <span>999</span>
-          </a>
+
 
           {/* Integrated Language Switcher (EN | বাংলা) */}
           <div className="flex items-center p-0.5 bg-slate-100 border border-slate-200/90 rounded-xl text-xs font-semibold shadow-2xs shrink-0">
@@ -268,13 +260,7 @@ export default function Navbar({
               </span>
             </Link>
 
-            <a
-              href="tel:999"
-              className="flex items-center gap-1 px-3 py-1 rounded-xl text-xs font-black bg-red-600 text-white shadow-xs"
-            >
-              <PhoneCall className="w-3.5 h-3.5" />
-              <span>999 Emergency</span>
-            </a>
+
           </div>
         </div>
       )}

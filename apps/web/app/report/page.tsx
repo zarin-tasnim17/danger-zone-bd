@@ -408,35 +408,22 @@ export default function ReportPage() {
       <Navbar />
 
       <main className="flex-1 max-w-5xl w-full mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6">
-        {/* Emergency Hotline Header Callout */}
-        <div className="bg-gradient-to-r from-red-50 via-rose-50 to-orange-50 border border-red-200/80 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xs">
-          <div className="flex items-start gap-3">
-            <div className="p-2.5 rounded-xl bg-red-600 text-white shrink-0 shadow-sm shadow-red-500/30">
-              <PhoneCall className="w-5 h-5 animate-bounce" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-black uppercase tracking-wider text-red-700 bg-red-100/80 px-2 py-0.5 rounded-md">
-                  {isBn ? "জরুরি সতর্কতা" : "Immediate Emergency"}
-                </span>
-                <span className="text-xs font-semibold text-slate-500">
-                  {isBn ? "জীবনঝুঁকি থাকলে আগে কল করুন" : "National Hotline"}
-                </span>
-              </div>
-              <p className="text-xs sm:text-sm font-semibold text-slate-800 mt-1 leading-snug">
-                {isBn
-                  ? "সরাসরি বা জীবননাশের আশঙ্কা থাকলে অনলাইনের অপেক্ষায় না থেকে এখনই ৯৯৯-এ ফোন করুন।"
-                  : "If in immediate life-threatening danger, call 999 directly before filing a community report."}
-              </p>
-            </div>
+        {/* Subtle Emergency Dispatch Advisory */}
+        <div className="bg-slate-100/90 border border-slate-200/90 rounded-xl px-4 py-2.5 flex items-center justify-between gap-3 text-xs text-slate-600 shadow-2xs">
+          <div className="flex items-center gap-2 min-w-0">
+            <ShieldAlert className="w-4 h-4 text-amber-600 shrink-0" />
+            <span className="truncate">
+              {isBn
+                ? "সরাসরি বা জীবননাশের আশঙ্কা থাকলে অনলাইনের অপেক্ষায় না থেকে এখনই ৯৯৯-এ ফোন করুন।"
+                : "If in immediate life-threatening danger, dial 999 dispatch directly before filing."}
+            </span>
           </div>
-
           <a
             href="tel:999"
-            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-black text-xs sm:text-sm shadow-sm shadow-red-600/30 active:scale-95 transition-all cursor-pointer shrink-0"
+            className="font-bold text-red-600 hover:text-red-700 hover:underline shrink-0 text-xs flex items-center gap-1"
           >
-            <PhoneCall className="w-4 h-4" />
-            <span>{isBn ? "জরুরি ৯৯৯ কল" : "Emergency SOS: 999"}</span>
+            <PhoneCall className="w-3.5 h-3.5" />
+            <span>999</span>
           </a>
         </div>
 

@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { useLanguageStore } from "@/store/useLanguageStore";
 import { useMapStore } from "@/store/useMapStore";
+import { usePathname } from "next/navigation";
 
 export default function EmergencySosPill() {
   const [isOpen, setIsOpen] = useState(false);
@@ -20,6 +21,7 @@ export default function EmergencySosPill() {
   const [gpsError, setGpsError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const { language } = useLanguageStore();
+  const pathname = usePathname();
 
   const isBn = language === "bn";
 
@@ -77,21 +79,23 @@ export default function EmergencySosPill() {
   const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(distressMessage)}`;
   const smsUrl = `sms:?body=${encodeURIComponent(distressMessage)}`;
 
+  // Only display the floating SOS button on the Live Threat Map to eliminate visual overpopulation
+  if (pathname !== "/") {
+    return null;
+  }
+
   return (
     <>
-      {/* Floating Panic Pill: Carefully positioned on mobile to dock seamlessly with feed trigger bar */}
+      {/* Floating Emergency SOS Pill: Sleek obsidian glassmorphic pill on the Live Threat Map */}
       <aside aria-label={isBn ? "জরুরি সহায়তা প্যানেল" : "Emergency SOS Panel"}>
         <button
           onClick={() => setIsOpen(true)}
-          className="fixed bottom-5 right-3 sm:bottom-6 sm:right-6 z-[999] flex items-center gap-1.5 sm:gap-2 bg-gradient-to-r from-red-600 to-rose-700 hover:from-red-500 hover:to-rose-600 text-white font-bold px-3.5 sm:px-4 py-2.5 sm:py-3 rounded-full shadow-2xl shadow-red-950/60 border border-red-400/40 active:scale-95 transition-all duration-150 cursor-pointer group"
+          className="fixed bottom-5 right-3 sm:bottom-6 sm:right-6 z-[999] flex items-center gap-2 bg-slate-900/90 hover:bg-slate-950 text-white font-semibold px-3 sm:px-3.5 py-2 rounded-full shadow-lg shadow-slate-950/25 border border-slate-700/60 backdrop-blur-md active:scale-95 transition-all duration-200 cursor-pointer group hover:border-rose-500/50"
           title={isBn ? "জরুরি জাতীয় সহায়তা (৯৯৯)" : "Emergency SOS Help (999)"}
         >
-          <span className="relative flex h-2.5 w-2.5 sm:h-3.5 sm:w-3.5">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75" />
-            <span className="relative inline-flex rounded-full h-2.5 w-2.5 sm:h-3.5 sm:w-3.5 bg-white" />
-          </span>
-          <PhoneCall className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white group-hover:rotate-12 transition-transform duration-200" />
-          <span className="text-[11px] sm:text-xs uppercase tracking-wider font-extrabold whitespace-nowrap">
+          <span className="w-2 h-2 rounded-full bg-rose-500 shrink-0 group-hover:bg-rose-400" />
+          <PhoneCall className="w-3.5 h-3.5 text-rose-400 group-hover:text-white transition-colors" />
+          <span className="text-[11px] sm:text-xs uppercase tracking-wider font-bold text-slate-200 group-hover:text-white whitespace-nowrap">
             {isBn ? "৯৯৯" : "SOS 999"}
           </span>
         </button>
