@@ -71,18 +71,13 @@ export default function Navbar({
   const isBn = language === "bn";
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  // Core navigation links for desktop header (5 essential views)
-  const primaryNavLinks = [
+  // All primary navigation links for the desktop and mobile header
+  const navLinks = [
     { name: isBn ? "লাইভ ম্যাপ" : "Live Map", href: "/", icon: Map },
     { name: isBn ? "ফিড" : "Feed", href: "/feed", icon: ListFilter },
     { name: isBn ? "আশ্রয়স্থল" : "Safe Shelters", href: "/safe-zones", icon: Shield },
     { name: isBn ? "নিরাপদ পথ" : "Safe Routes", href: "/routes", icon: Navigation },
     { name: isBn ? "সতর্কতা" : "Alerts", href: "/alerts", icon: Bell },
-  ];
-
-  // Extended links for mobile drawer
-  const mobileNavLinks = [
-    ...primaryNavLinks,
     { name: isBn ? "প্রোফাইল" : "Profile", href: "/profile", icon: UserCheck },
     { name: "Dev Test", href: "/dev-test", icon: FlaskConical },
   ];
@@ -120,16 +115,16 @@ export default function Navbar({
           </div>
         </Link>
 
-        {/* Primary Desktop Navigation Links: Streamlined 5 core views */}
-        <nav className="hidden lg:flex items-center gap-0.5 xl:gap-1 bg-slate-100/90 p-1 rounded-2xl border border-slate-200/90 shrink-0">
-          {primaryNavLinks.map((link) => {
+        {/* Primary Desktop Navigation Links: All 7 core views */}
+        <nav className="hidden lg:flex items-center gap-0.5 xl:gap-1 bg-slate-100/90 p-0.5 xl:p-1 rounded-2xl border border-slate-200/90 shrink-0">
+          {navLinks.map((link) => {
             const isActive = link.href === "/" ? pathname === "/" : pathname?.startsWith(link.href);
             const Icon = link.icon;
             return (
               <Link
                 key={link.href}
                 href={link.href}
-                className={`whitespace-nowrap inline-flex items-center gap-1.5 px-2 lg:px-2.5 xl:px-3 py-1.5 rounded-xl text-xs font-semibold transition-all shrink-0 select-none ${
+                className={`whitespace-nowrap inline-flex items-center gap-1 xl:gap-1.5 px-2 xl:px-2.5 py-1 xl:py-1.5 rounded-xl text-[11px] xl:text-xs font-semibold transition-all shrink-0 select-none ${
                   isActive
                     ? "bg-white text-slate-900 shadow-xs border border-slate-200/90 font-bold"
                     : "text-slate-600 hover:text-slate-900 hover:bg-white/60"
@@ -143,11 +138,11 @@ export default function Navbar({
         </nav>
 
         {/* Right Controls: Hotline, Language Switcher, Citizen Badge & Primary CTA */}
-        <div className="flex items-center gap-1 sm:gap-2 xl:gap-2.5 shrink-0">
+        <div className="flex items-center gap-1 sm:gap-1.5 xl:gap-2 shrink-0">
           {/* National 999 Emergency Dispatch Hotline Button (Desktop) */}
           <a
             href="tel:999"
-            className="hidden sm:inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-red-50 hover:bg-red-100 border border-red-200/80 text-red-700 text-xs font-black shadow-2xs transition-all active:scale-95 whitespace-nowrap"
+            className="hidden sm:inline-flex items-center gap-1 px-2 sm:px-2.5 py-1.5 rounded-xl bg-red-50 hover:bg-red-100 border border-red-200/80 text-red-700 text-xs font-black shadow-2xs transition-all active:scale-95 whitespace-nowrap"
             title="Dial National Emergency Hotline 999"
           >
             <PhoneCall className="w-3.5 h-3.5 text-red-600 animate-pulse" />
@@ -158,7 +153,7 @@ export default function Navbar({
           <div className="flex items-center p-0.5 bg-slate-100 border border-slate-200/90 rounded-xl text-xs font-semibold shadow-2xs shrink-0">
             <button
               onClick={() => language !== "en" && toggleLanguage()}
-              className={`px-1.5 sm:px-2.5 py-0.5 sm:py-1 rounded-lg transition-all text-[10px] sm:text-[11px] font-semibold whitespace-nowrap cursor-pointer ${
+              className={`px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-lg transition-all text-[10px] sm:text-[11px] font-semibold whitespace-nowrap cursor-pointer ${
                 language === "en"
                   ? "bg-white text-slate-900 font-bold shadow-2xs"
                   : "text-slate-500 hover:text-slate-800"
@@ -169,7 +164,7 @@ export default function Navbar({
             </button>
             <button
               onClick={() => language !== "bn" && toggleLanguage()}
-              className={`px-1.5 sm:px-2.5 py-0.5 sm:py-1 rounded-lg transition-all text-[10px] sm:text-[11px] font-semibold whitespace-nowrap cursor-pointer ${
+              className={`px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-lg transition-all text-[10px] sm:text-[11px] font-semibold whitespace-nowrap cursor-pointer ${
                 language === "bn"
                   ? "bg-white text-slate-900 font-bold shadow-2xs"
                   : "text-slate-500 hover:text-slate-800"
@@ -193,7 +188,7 @@ export default function Navbar({
           ) : (
             <Link
               href="/profile"
-              className="hidden xl:inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200/90 rounded-xl text-xs text-slate-700 transition shadow-2xs shrink-0 whitespace-nowrap"
+              className="hidden 2xl:inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200/90 rounded-xl text-xs text-slate-700 transition shadow-2xs shrink-0 whitespace-nowrap"
               title="Citizen Trust Score & Identity"
             >
               <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
@@ -211,7 +206,7 @@ export default function Navbar({
           {/* High-Visibility Primary Report Hazard CTA */}
           <Link
             href="/report"
-            className="relative group overflow-hidden bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-700 hover:to-rose-700 text-white font-bold px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-xl inline-flex items-center gap-1 sm:gap-1.5 transition-all shadow-md shadow-red-600/20 active:scale-95 ring-1 ring-red-500/30 shrink-0 whitespace-nowrap cursor-pointer"
+            className="relative group overflow-hidden bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-700 hover:to-rose-700 text-white font-bold px-3 sm:px-3.5 py-1.5 sm:py-2 rounded-xl inline-flex items-center gap-1 sm:gap-1.5 transition-all shadow-md shadow-red-600/20 active:scale-95 ring-1 ring-red-500/30 shrink-0 whitespace-nowrap cursor-pointer"
             id="report-incident-btn"
             title={isBn ? "বিপদ রিপোর্ট" : "Report Threat"}
           >
@@ -239,7 +234,7 @@ export default function Navbar({
       {mobileMenuOpen && (
         <div className="lg:hidden border-t border-slate-200 bg-white/98 backdrop-blur-2xl px-4 py-3 space-y-2.5 shadow-xl animate-in slide-in-from-top-2 duration-150">
           <div className="grid grid-cols-2 gap-1.5 pb-2 border-b border-slate-100">
-            {mobileNavLinks.map((link) => {
+            {navLinks.map((link) => {
               const isActive = link.href === "/" ? pathname === "/" : pathname?.startsWith(link.href);
               const Icon = link.icon;
               return (
