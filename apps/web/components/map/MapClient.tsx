@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect, useRef, Fragment } from "react";
+import { useState, useMemo, useEffect, useRef, useCallback, Fragment } from "react";
 import Link from "next/link";
 import {
   MapContainer,
@@ -185,7 +185,6 @@ function MapViewUpdater({
   zoom: number;
 }) {
   const map = useMap();
-  const lastTargetRef = useRef<{ lat: number; lng: number; zoom: number } | null>(null);
 
   useEffect(() => {
     const currentCenter = map.getCenter();
@@ -200,20 +199,20 @@ function MapViewUpdater({
       return;
     }
 
-    // If already commanded to this exact target, do not re-fly
-    if (
-      lastTargetRef.current &&
-      lastTargetRef.current.lat === center.lat &&
-      lastTargetRef.current.lng === center.lng &&
-      lastTargetRef.current.zoom === zoom
-    ) {
-      return;
-    }
-
-    lastTargetRef.current = { lat: center.lat, lng: center.lng, zoom };
     map.flyTo([center.lat, center.lng], zoom, { duration: 1.0 });
   }, [center.lat, center.lng, zoom, map]);
 
+  return null;
+}
+
+// Child component that captures the active Leaflet Map instance into parent mapRef
+function MapInstanceRegistrar({ onMapReady }: { onMapReady: (map: L.Map) => void }) {
+  const map = useMap();
+  useEffect(() => {
+    if (map) {
+      onMapReady(map);
+    }
+  }, [map, onMapReady]);
   return null;
 }
 
@@ -260,6 +259,11 @@ function MapResizeHandler() {
 }
 
 export default function MapClient() {
+  const mapRef = useRef<L.Map | null>(null);
+  const onMapReady = useCallback((map: L.Map) => {
+    mapRef.current = map;
+  }, []);
+
   const center = useMapStore((state) => state.center);
   const zoom = useMapStore((state) => state.zoom);
   const setCenter = useMapStore((state) => state.setCenter);
@@ -347,7 +351,10 @@ export default function MapClient() {
         saved.label
       );
       setCenter({ lat: saved.lat, lng: saved.lng });
-      setZoom(15);
+      setZoom(16);
+      setTimeout(() => {
+        mapRef.current?.flyTo([saved.lat, saved.lng], 16, { animate: true, duration: 1.2 });
+      }, 100);
       return;
     }
 
@@ -361,7 +368,10 @@ export default function MapClient() {
 
           if (isWithinBangladesh(coords.lat, coords.lng)) {
             setCenter(coords);
-            setZoom(13);
+            setZoom(16);
+            setTimeout(() => {
+              mapRef.current?.flyTo([coords.lat, coords.lng], 16, { animate: true, duration: 1.2 });
+            }, 100);
             if (!acc || acc > 75) {
               setIsLowAccuracy(true);
             }
@@ -379,7 +389,7 @@ export default function MapClient() {
 
   // Request browser geolocation (manual button click)
   const handleLocateMe = () => {
-    // If a saved calibrated location exists, fly straight to it!
+    // 1. If a saved calibrated location exists, fly straight to it!
     const saved = loadSavedLocation();
     if (saved && isWithinBangladesh(saved.lat, saved.lng)) {
       setUserLocation(
@@ -390,7 +400,15 @@ export default function MapClient() {
       );
       setCenter({ lat: saved.lat, lng: saved.lng });
       setZoom(17);
+      mapRef.current?.flyTo([saved.lat, saved.lng], 17, { animate: true, duration: 1.2 });
       return;
+    }
+
+    // 2. If user already has an active location pin, fly directly to it immediately
+    if (userLocation && isWithinBangladesh(userLocation.lat, userLocation.lng)) {
+      setCenter(userLocation);
+      setZoom(17);
+      mapRef.current?.flyTo([userLocation.lat, userLocation.lng], 17, { animate: true, duration: 1.2 });
     }
 
     if (!navigator.geolocation) {
@@ -406,7 +424,8 @@ export default function MapClient() {
 
         if (isWithinBangladesh(coords.lat, coords.lng)) {
           setCenter(coords);
-          setZoom(14);
+          setZoom(16);
+          mapRef.current?.flyTo([coords.lat, coords.lng], 16, { animate: true, duration: 1.2 });
           // If accuracy is poor (typical of ISP triangulation > 75m), open the calibration assistant!
           if (!acc || acc > 75) {
             setIsLowAccuracy(true);
@@ -440,7 +459,8 @@ export default function MapClient() {
         const acc = pos.coords.accuracy || null;
         setUserLocation(coords, acc, 'gps');
         setCenter(coords);
-        setZoom(14);
+        setZoom(16);
+        mapRef.current?.flyTo([coords.lat, coords.lng], 16, { animate: true, duration: 1.2 });
         if (!acc || acc > 75) {
           setIsLowAccuracy(true);
           openCalibrationModal();
@@ -505,6 +525,7 @@ export default function MapClient() {
             onSelectLocation={(loc: GeocodedLocation) => {
               setCenter({ lat: loc.lat, lng: loc.lng });
               setZoom(17);
+              mapRef.current?.flyTo([loc.lat, loc.lng], 17, { animate: true, duration: 1.2 });
             }}
           />
         </div>
@@ -618,6 +639,7 @@ export default function MapClient() {
         scrollWheelZoom={true}
         style={{ height: "100%", width: "100%" }}
       >
+        <MapInstanceRegistrar onMapReady={onMapReady} />
         <MapViewUpdater center={center} zoom={zoom} />
         <MapEventsHandler />
         <MapResizeHandler />
