@@ -273,6 +273,31 @@ export default function MapClient() {
     });
   }, [incidents, selectedSeverity, selectedCategory, searchQuery]);
 
+  // Deduplicate coincident danger perimeter circles to avoid dense multi-ring red blobs
+  const dangerPerimeterCircles = useMemo(() => {
+    if (!showDangerCircles) return [];
+    const seen = new Set<string>();
+    const circles: { id: string; center: [number, number]; radius: number }[] = [];
+
+    for (const inc of filteredIncidents) {
+      const isHigh =
+        inc.severity.toUpperCase() === 'HIGH' || inc.severity.toLowerCase() === 'critical';
+      if (!isHigh) continue;
+
+      // Group nearby/identical coordinates (~15m cluster grid)
+      const key = `${inc.coordinates.lat.toFixed(4)},${inc.coordinates.lng.toFixed(4)}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        circles.push({
+          id: `circle-${inc.id}`,
+          center: [inc.coordinates.lat, inc.coordinates.lng],
+          radius: inc.fuzzedRadiusMeters || 150,
+        });
+      }
+    }
+    return circles;
+  }, [filteredIncidents, showDangerCircles]);
+
   // Boundary validator: ensure coordinates lie inside Bangladesh bounds
   const isWithinBangladesh = (lat: number, lng: number) => {
     return lat >= 20.3 && lat <= 26.8 && lng >= 87.8 && lng <= 92.9;
@@ -759,7 +784,23 @@ export default function MapClient() {
             </Marker>
           ))}
 
-        {/* Render Live Danger Incidents */}
+        {/* Render Deduplicated Danger Perimeter Circles (Clean cartographic perimeters without blob stacking) */}
+        {dangerPerimeterCircles.map((circle) => (
+          <Circle
+            key={circle.id}
+            center={circle.center}
+            radius={circle.radius}
+            pathOptions={{
+              color: "#DC2626",
+              fillColor: "#DC2626",
+              fillOpacity: 0.11,
+              weight: 1.5,
+              dashArray: "4, 4",
+            }}
+          />
+        ))}
+
+        {/* Render Live Danger Incident Markers */}
         {filteredIncidents.map((incident: DangerIncident) => {
           const icon = createDangerMarkerIcon(incident.category, incident.severity, zoom);
           const isHigh =
@@ -769,21 +810,6 @@ export default function MapClient() {
 
           return (
             <Fragment key={incident.id}>
-              {/* 150m Fuzzed Danger Perimeter Circle */}
-              {showDangerCircles && isHigh && (
-                <Circle
-                  center={[incident.coordinates.lat, incident.coordinates.lng]}
-                  radius={incident.fuzzedRadiusMeters || 150}
-                  pathOptions={{
-                    color: "#DC2626",
-                    fillColor: "#DC2626",
-                    fillOpacity: 0.12,
-                    weight: 1.5,
-                    dashArray: "4, 4",
-                  }}
-                />
-              )}
-
               <Marker
                 position={[incident.coordinates.lat, incident.coordinates.lng]}
                 icon={icon}

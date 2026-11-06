@@ -2,10 +2,18 @@ export type MapMode = "basic" | "heatmap" | "labeled";
 
 export const REPORT_CATEGORIES = [
   "MUGGING",
+  "SNATCHING",
   "THEFT",
-  "UNLIT_ROAD",
+  "DACOITY",
+  "THEFT_DACOITY",
+  "ARMED_ASSAULT",
+  "SNATCHING_ARMED_ASSAULT",
+  "TEEN_GANG",
+  "TEEN_GANG_ARMED_ASSAULT",
   "EXTORTION",
   "DRUG_ACTIVITY",
+  "UNLIT_ROAD",
+  "ROAD_ACCIDENT",
 ] as const;
 export type ReportCategory = (typeof REPORT_CATEGORIES)[number];
 

@@ -16,6 +16,10 @@ import {
   LightbulbOff,
   AlertOctagon,
   Pill,
+  Swords,
+  Users,
+  Car,
+  Sparkles,
   MapPin,
   Crosshair,
   Navigation,
@@ -73,7 +77,8 @@ function isCurrentNightBangladesh(): boolean {
   return bdHour >= 20 || bdHour < 5;
 }
 
-type IncidentCategory = "MUGGING" | "THEFT" | "UNLIT_ROAD" | "EXTORTION" | "DRUG_ACTIVITY";
+import { ReportCategory } from "@repo/shared";
+type IncidentCategory = ReportCategory;
 type IncidentSeverity = "LOW" | "MEDIUM" | "HIGH";
 
 interface CategoryDefinition {
@@ -92,25 +97,51 @@ interface CategoryDefinition {
 
 const CATEGORIES: CategoryDefinition[] = [
   {
-    id: "MUGGING",
-    labelEn: "Mugging & Assault",
-    labelBn: "ছিনতাই বা আক্রমণ",
-    descEn: "Armed robbery, knife/gunpoint snatching, physical violence",
-    descBn: "অস্ত্রধারী ছিনতাই, ডাকাতি, শারীরিক আক্রমণ বা বলপ্রয়োগ",
+    id: "SNATCHING",
+    labelEn: "Snatching / Mugging",
+    labelBn: "ছিনতাই",
+    descEn: "Bag snatching, phone grabbing, fast intercept",
+    descBn: "রাস্তায় ব্যাগ টানা, ফোন ছিনতাই বা গতিরোধ",
     icon: Siren,
-    color: "text-red-700",
-    bgColor: "bg-red-50",
-    borderColor: "border-red-200",
+    color: "text-orange-700",
+    bgColor: "bg-orange-50",
+    borderColor: "border-orange-200",
     expiryHintEn: "Active for 3 hours",
     expiryHintBn: "৩ ঘণ্টা সক্রিয় থাকবে",
   },
   {
+    id: "ARMED_ASSAULT",
+    labelEn: "Armed Assault",
+    labelBn: "অস্ত্রসহ হামলা",
+    descEn: "Sharp weapons, stabbing, gunfire attack",
+    descBn: "ধারালো অস্ত্র, কোপানো, ছুরিকাঘাত বা গুলি বর্ষণ",
+    icon: Swords,
+    color: "text-rose-700",
+    bgColor: "bg-rose-50",
+    borderColor: "border-rose-200",
+    expiryHintEn: "Active for 4 hours",
+    expiryHintBn: "৪ ঘণ্টা সক্রিয় থাকবে",
+  },
+  {
+    id: "SNATCHING_ARMED_ASSAULT",
+    labelEn: "Armed Snatching & Assault",
+    labelBn: "ছিনতাই ও অস্ত্রসহ হামলা",
+    descEn: "Snatching accompanied by sharp weapon assault or gunfire",
+    descBn: "ছিনতাইকালে ধারালো অস্ত্র দিয়ে কুপিয়ে বা গুলি করে জখম",
+    icon: ShieldAlert,
+    color: "text-red-800",
+    bgColor: "bg-red-50",
+    borderColor: "border-red-300",
+    expiryHintEn: "Active for 4 hours",
+    expiryHintBn: "৪ ঘণ্টা সক্রিয় থাকবে",
+  },
+  {
     id: "THEFT",
-    labelEn: "Theft & Pickpocketing",
-    labelBn: "চুরি বা পকেটমার",
-    descEn: "Vehicle theft, bag snatching, mobile snatching, burglary",
-    descBn: "গাড়ি চুরি, ব্যাগ বা ফোন টানা, দোকানে বা বাসায় চুরি",
-    icon: AlertTriangle,
+    labelEn: "Theft & Burglary",
+    labelBn: "চুরি",
+    descEn: "Residential burglary, vehicle theft, covert stealing",
+    descBn: "বাসাবাড়িতে বা দোকানে চুরি, গাড়ি চুরি",
+    icon: Lock,
     color: "text-amber-700",
     bgColor: "bg-amber-50",
     borderColor: "border-amber-200",
@@ -118,24 +149,63 @@ const CATEGORIES: CategoryDefinition[] = [
     expiryHintBn: "৩ ঘণ্টা সক্রিয় থাকবে",
   },
   {
-    id: "UNLIT_ROAD",
-    labelEn: "Unlit or Broken Road",
-    labelBn: "অন্ধকার বা বিপজ্জনক সড়ক",
-    descEn: "Broken streetlamps, dark alleys, open manholes, hazardous stretches",
-    descBn: "বাতিহীন অন্ধকার গলি, ভাঙা পথ, খোলা ম্যানহোল",
-    icon: LightbulbOff,
-    color: "text-indigo-700",
-    bgColor: "bg-indigo-50",
-    borderColor: "border-indigo-200",
-    expiryHintEn: "Active for 14 days",
-    expiryHintBn: "১৪ দিন সক্রিয় থাকবে",
+    id: "DACOITY",
+    labelEn: "Dacoity / Armed Robbery",
+    labelBn: "ডাকাতি",
+    descEn: "Group armed robbery, home invasion, looting",
+    descBn: "দলবদ্ধ সশস্ত্র ডাকাতি, মালামাল লুণ্ঠন",
+    icon: ShieldAlert,
+    color: "text-red-700",
+    bgColor: "bg-red-50",
+    borderColor: "border-red-200",
+    expiryHintEn: "Active for 4 hours",
+    expiryHintBn: "৪ ঘণ্টা সক্রিয় থাকবে",
+  },
+  {
+    id: "THEFT_DACOITY",
+    labelEn: "Theft & Dacoity (Combined)",
+    labelBn: "চুরি ডাকাতি",
+    descEn: "Covert break-in escalating to armed gang robbery",
+    descBn: "চুরির উদ্দেশ্যে প্রবেশ করে সশস্ত্র ডাকাতিতে রূপ নেওয়া",
+    icon: ShieldAlert,
+    color: "text-red-800",
+    bgColor: "bg-red-50",
+    borderColor: "border-red-300",
+    expiryHintEn: "Active for 4 hours",
+    expiryHintBn: "৪ ঘণ্টা সক্রিয় থাকবে",
+  },
+  {
+    id: "TEEN_GANG",
+    labelEn: "Teen Gang Activity",
+    labelBn: "কিশোর গ্যাং",
+    descEn: "Juvenile gang intimidation, turf clash, neighborhood menace",
+    descBn: "কিশোর গ্যাংয়ের মহড়া, হুমকি, আধিপত্য বিস্তার",
+    icon: Users,
+    color: "text-violet-700",
+    bgColor: "bg-violet-50",
+    borderColor: "border-violet-200",
+    expiryHintEn: "Active for 24 hours",
+    expiryHintBn: "২৪ ঘণ্টা সক্রিয় থাকবে",
+  },
+  {
+    id: "TEEN_GANG_ARMED_ASSAULT",
+    labelEn: "Teen Gang Armed Clash",
+    labelBn: "কিশোর গ্যাং ও অস্ত্রসহ হামলা",
+    descEn: "Juvenile gangs attacking with sharp weapons and machetes",
+    descBn: "কিশোর গ্যাং কর্তৃক ধারালো অস্ত্র নিয়ে রক্তক্ষয়ী হামলা",
+    icon: ShieldAlert,
+    color: "text-purple-800",
+    bgColor: "bg-purple-50",
+    borderColor: "border-purple-300",
+    expiryHintEn: "Active for 6 hours",
+    expiryHintBn: "৬ ঘণ্টা সক্রিয় থাকবে",
   },
   {
     id: "EXTORTION",
     labelEn: "Extortion & Gang Toll",
-    labelBn: "চাঁদাবাজি বা সন্ত্রাসী চাঁদা",
-    descEn: "Chanda collection, illegal checkpoints, gang harassment",
-    descBn: "অবৈধ চাঁদা দাবি, হুমকি, স্থানীয় সন্ত্রাসী দৌরাত্ম্য",
+    labelBn: "চাঁদাবাজি",
+    descEn: "Illegal toll collection, blackmail, commercial harassment",
+    descBn: "অবৈধ চাঁদা দাবি, হুমকি, দোকানে চাঁদা তোলা",
     icon: AlertOctagon,
     color: "text-purple-700",
     bgColor: "bg-purple-50",
@@ -146,8 +216,8 @@ const CATEGORIES: CategoryDefinition[] = [
   {
     id: "DRUG_ACTIVITY",
     labelEn: "Narcotics & Open Dealing",
-    labelBn: "মাদক কারবার বা আড্ডা",
-    descEn: "Drug dens, open selling, unsafe gathered hotspots",
+    labelBn: "মাদক সংক্রান্ত অপরাধ",
+    descEn: "Drug peddling, open narcotics dealing, addict gatherings",
     descBn: "প্রকাশ্যে মাদক কেনাবেচা, অপরাধীদের জমায়েত",
     icon: Pill,
     color: "text-blue-700",
@@ -155,6 +225,45 @@ const CATEGORIES: CategoryDefinition[] = [
     borderColor: "border-blue-200",
     expiryHintEn: "Active for 24 hours",
     expiryHintBn: "২৪ ঘণ্টা সক্রিয় থাকবে",
+  },
+  {
+    id: "ROAD_ACCIDENT",
+    labelEn: "Road / Traffic Accident",
+    labelBn: "সড়ক দুর্ঘটনা / এক্সিডেন্ট",
+    descEn: "Vehicular collisions, overturned buses, pedestrian hit-and-run",
+    descBn: "যানবাহন দুর্ঘটনা, গাড়ি উল্টে যাওয়া, পথচারী আহত",
+    icon: Car,
+    color: "text-emerald-700",
+    bgColor: "bg-emerald-50",
+    borderColor: "border-emerald-200",
+    expiryHintEn: "Active for 6 hours",
+    expiryHintBn: "৬ ঘণ্টা সক্রিয় থাকবে",
+  },
+  {
+    id: "UNLIT_ROAD",
+    labelEn: "Unlit or Broken Road Hazard",
+    labelBn: "অন্ধকার রাস্তা",
+    descEn: "Broken streetlamps, pitch black alleys, hazardous open manholes",
+    descBn: "বাতিহীন অন্ধকার সড়ক, ভাঙা পথ, খোলা ম্যানহোল",
+    icon: LightbulbOff,
+    color: "text-slate-700",
+    bgColor: "bg-slate-100",
+    borderColor: "border-slate-300",
+    expiryHintEn: "Active for 14 days",
+    expiryHintBn: "১৪ দিন সক্রিয় থাকবে",
+  },
+  {
+    id: "MUGGING",
+    labelEn: "Mugging",
+    labelBn: "ছিনতাই",
+    descEn: "Street mugging (legacy alias)",
+    descBn: "ছিনতাই",
+    icon: Siren,
+    color: "text-orange-700",
+    bgColor: "bg-orange-50",
+    borderColor: "border-orange-200",
+    expiryHintEn: "Active for 3 hours",
+    expiryHintBn: "৩ ঘণ্টা সক্রিয় থাকবে",
   },
 ];
 
@@ -180,8 +289,59 @@ export default function ReportPage() {
   const t = getTranslation(language);
   const isBn = language === "bn";
 
-  // Form State
-  const [category, setCategory] = useState<IncidentCategory>("MUGGING");
+  // Form State (Option A Smart Combine)
+  const [selectedTags, setSelectedTags] = useState<string[]>(["SNATCHING"]);
+  const resolvedCategory = useMemo<ReportCategory>(() => {
+    const hasTheft = selectedTags.includes("THEFT");
+    const hasDacoity = selectedTags.includes("DACOITY");
+    const hasSnatching = selectedTags.includes("SNATCHING");
+    const hasArmedAssault = selectedTags.includes("ARMED_ASSAULT");
+    const hasTeenGang = selectedTags.includes("TEEN_GANG");
+
+    if (hasTheft && hasDacoity) return "THEFT_DACOITY";
+    if (hasSnatching && hasArmedAssault) return "SNATCHING_ARMED_ASSAULT";
+    if (hasTeenGang && hasArmedAssault) return "TEEN_GANG_ARMED_ASSAULT";
+
+    const lastTag = selectedTags[selectedTags.length - 1];
+    if (lastTag) return lastTag as ReportCategory;
+    return "SNATCHING";
+  }, [selectedTags]);
+
+  const handleToggleTag = (tagId: string) => {
+    if (selectedTags.includes(tagId)) {
+      if (selectedTags.length > 1) {
+        setSelectedTags((prev) => prev.filter((id) => id !== tagId));
+      }
+      return;
+    }
+    if (tagId === "THEFT") {
+      if (selectedTags.includes("DACOITY")) setSelectedTags(["DACOITY", "THEFT"]);
+      else setSelectedTags(["THEFT"]);
+      return;
+    }
+    if (tagId === "DACOITY") {
+      if (selectedTags.includes("THEFT")) setSelectedTags(["THEFT", "DACOITY"]);
+      else setSelectedTags(["DACOITY"]);
+      return;
+    }
+    if (tagId === "SNATCHING") {
+      if (selectedTags.includes("ARMED_ASSAULT")) setSelectedTags(["ARMED_ASSAULT", "SNATCHING"]);
+      else setSelectedTags(["SNATCHING"]);
+      return;
+    }
+    if (tagId === "TEEN_GANG") {
+      if (selectedTags.includes("ARMED_ASSAULT")) setSelectedTags(["ARMED_ASSAULT", "TEEN_GANG"]);
+      else setSelectedTags(["TEEN_GANG"]);
+      return;
+    }
+    if (tagId === "ARMED_ASSAULT") {
+      if (selectedTags.includes("SNATCHING")) setSelectedTags(["SNATCHING", "ARMED_ASSAULT"]);
+      else if (selectedTags.includes("TEEN_GANG")) setSelectedTags(["TEEN_GANG", "ARMED_ASSAULT"]);
+      else setSelectedTags(["ARMED_ASSAULT"]);
+      return;
+    }
+    setSelectedTags([tagId]);
+  };
   const [severity, setSeverity] = useState<IncidentSeverity>("HIGH");
   const [latitude, setLatitude] = useState<number>(23.7925);
   const [longitude, setLongitude] = useState<number>(90.4078);
@@ -338,7 +498,7 @@ export default function ReportPage() {
 
       // 2. Submit report to backend
       const reportPayload = {
-        category,
+        category: resolvedCategory,
         severity,
         latitude,
         longitude,
@@ -400,7 +560,7 @@ export default function ReportPage() {
     setErrorMessage(null);
   };
 
-  const selectedCategoryDef = CATEGORIES.find((c) => c.id === category)!;
+  const selectedCategoryDef = CATEGORIES.find((c) => c.id === resolvedCategory) || CATEGORIES[0];
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 text-slate-900 selection:bg-red-500 selection:text-white">
@@ -569,62 +729,73 @@ export default function ReportPage() {
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
               {/* Left Column: Category, Severity, Description, Evidence (7 cols) */}
               <div className="lg:col-span-7 space-y-6">
-                {/* Step 1: Category Selection */}
+                {/* Step 1: Category Selection (Option A: Smart Combine) */}
                 <div className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-xs space-y-3">
                   <div className="flex items-center justify-between">
                     <label className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-2">
                       <span className="w-5 h-5 rounded-full bg-slate-900 text-white flex items-center justify-center text-[10px] font-black">
                         1
                       </span>
-                      <span>{isBn ? "বিপদের ধরন নির্বাচন করুন" : "Select Hazard Category"}</span>
+                      <span>{isBn ? "বিপদের ক্যাটাগরি ট্যাগ নির্বাচন (Option A)" : "Select Incident Category Tags"}</span>
                     </label>
-                    <span className="text-[11px] font-medium text-slate-400">
-                      {isBn ? "বাধ্যতামূলক" : "Required"}
+                    <span className="text-[11px] font-medium text-slate-500">
+                      {isBn ? "প্রয়োজনে দুটি ট্যাগ একসাথে নির্বাচন করুন" : "Select tags (auto-combines)"}
                     </span>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                    {CATEGORIES.map((cat) => {
-                      const Icon = cat.icon;
-                      const isSelected = category === cat.id;
+                  <div className="flex flex-wrap gap-2 p-2 bg-slate-50/80 border border-slate-200 rounded-xl">
+                    {[
+                      { id: "SNATCHING", labelEn: "Snatching", labelBn: "ছিনতাই", icon: Siren, color: "text-orange-700" },
+                      { id: "ARMED_ASSAULT", labelEn: "Armed Assault", labelBn: "অস্ত্রসহ হামলা", icon: Swords, color: "text-rose-700" },
+                      { id: "THEFT", labelEn: "Theft", labelBn: "চুরি", icon: Lock, color: "text-amber-700" },
+                      { id: "DACOITY", labelEn: "Dacoity", labelBn: "ডাকাতি", icon: ShieldAlert, color: "text-red-700" },
+                      { id: "TEEN_GANG", labelEn: "Teen Gang", labelBn: "কিশোর গ্যাং", icon: Users, color: "text-violet-700" },
+                      { id: "EXTORTION", labelEn: "Extortion", labelBn: "চাঁদাবাজি", icon: AlertOctagon, color: "text-purple-700" },
+                      { id: "DRUG_ACTIVITY", labelEn: "Narcotics", labelBn: "মাদক অপরাধ", icon: Pill, color: "text-blue-700" },
+                      { id: "ROAD_ACCIDENT", labelEn: "Road Accident", labelBn: "সড়ক দুর্ঘটনা", icon: Car, color: "text-emerald-700" },
+                      { id: "UNLIT_ROAD", labelEn: "Unlit Road", labelBn: "অন্ধকার রাস্তা", icon: LightbulbOff, color: "text-slate-700" },
+                    ].map((tag) => {
+                      const isSelected = selectedTags.includes(tag.id);
+                      const Icon = tag.icon;
                       return (
                         <button
-                          key={cat.id}
+                          key={tag.id}
                           type="button"
-                          onClick={() => setCategory(cat.id)}
-                          className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer flex items-start gap-3 ${
+                          onClick={() => handleToggleTag(tag.id)}
+                          className={`text-xs px-3 py-2 rounded-xl font-bold border flex items-center gap-2 transition-all select-none cursor-pointer ${
                             isSelected
-                              ? `${cat.bgColor} ${cat.borderColor} ring-2 ring-red-500/20 shadow-xs`
-                              : "bg-white border-slate-200 hover:bg-slate-50 hover:border-slate-300"
+                              ? "bg-slate-900 text-white border-slate-900 shadow-xs scale-[1.02]"
+                              : "bg-white text-slate-700 border-slate-200 hover:bg-slate-100 hover:border-slate-300"
                           }`}
                         >
-                          <div
-                            className={`p-2 rounded-lg shrink-0 ${
-                              isSelected ? "bg-white shadow-2xs " + cat.color : "bg-slate-100 text-slate-600"
-                            }`}
-                          >
-                            <Icon className="w-4 h-4" />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center justify-between gap-1">
-                              <span
-                                className={`text-xs font-bold tracking-tight truncate ${
-                                  isSelected ? "text-slate-900" : "text-slate-800"
-                                }`}
-                              >
-                                {isBn ? cat.labelBn : cat.labelEn}
-                              </span>
-                              {isSelected && (
-                                <span className="w-2 h-2 rounded-full bg-red-600 shrink-0" />
-                              )}
-                            </div>
-                            <p className="text-[10px] text-slate-500 line-clamp-2 mt-0.5 leading-snug">
-                              {isBn ? cat.descBn : cat.descEn}
-                            </p>
-                          </div>
+                          <Icon className={`w-3.5 h-3.5 ${isSelected ? "text-white" : tag.color}`} />
+                          <span>{isBn ? tag.labelBn : tag.labelEn}</span>
                         </button>
                       );
                     })}
+                  </div>
+
+                  {/* Reactive Resolved Category Status Banner */}
+                  <div className="p-3 rounded-xl border flex items-center justify-between gap-2 transition-all bg-blue-50 border-blue-200 text-blue-900">
+                    <div className="flex items-center gap-2.5">
+                      <Sparkles className="w-4 h-4 text-blue-600 shrink-0" />
+                      <div>
+                        <span className="text-xs font-bold block">
+                          {isBn ? "কার্যকর ক্যাটাগরি:" : "Resolved Incident Category:"}{" "}
+                          <span className="underline decoration-blue-500 underline-offset-2">
+                            {isBn ? selectedCategoryDef.labelBn : selectedCategoryDef.labelEn}
+                          </span>
+                        </span>
+                        <span className="text-[11px] text-blue-700/80 block mt-0.5">
+                          {isBn ? selectedCategoryDef.descBn : selectedCategoryDef.descEn}
+                        </span>
+                      </div>
+                    </div>
+                    {resolvedCategory.includes("_") && (
+                      <span className="text-[10px] font-extrabold uppercase px-2.5 py-1 rounded-full bg-blue-600 text-white shadow-xs shrink-0">
+                        {isBn ? "সমন্বিত অ্যালার্ট" : "Combined Alert"}
+                      </span>
+                    )}
                   </div>
                 </div>
 

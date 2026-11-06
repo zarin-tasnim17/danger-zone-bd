@@ -30,6 +30,7 @@ import {
   RotateCcw,
 } from "lucide-react";
 import { IncidentCategory } from "@repo/shared";
+import CategoryFilterPopover from "./CategoryFilterPopover";
 
 interface NavbarProps {
   totalIncidents?: number;
@@ -299,25 +300,29 @@ export default function Navbar({
                 <span>{isBn ? "উচ্চ বিপদ" : "High Risk"}</span>
               </button>
 
-              {/* Dynamic Category Chips */}
-              {CATEGORY_CHIPS.map((cat) => {
-                const isSelected = selectedCategory === cat.id;
-                const Icon = cat.icon;
-                return (
+              {/* Modern Grouped Category Filter Popover */}
+              <CategoryFilterPopover
+                selectedCategory={selectedCategory}
+                onSelectCategory={setCategory}
+                isBn={isBn}
+              />
+
+              {/* Active Filter Clear Tag */}
+              {selectedCategory !== "all" && (
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-blue-50 text-blue-800 border border-blue-200 text-xs font-bold animate-in fade-in shrink-0">
+                  <span>
+                    {t.categories[selectedCategory] || selectedCategory}
+                  </span>
                   <button
-                    key={cat.id}
-                    onClick={() => setCategory(isSelected ? "all" : cat.id)}
-                    className={`text-xs px-2.5 py-1.5 rounded-xl font-medium border flex items-center gap-1.5 transition-all shrink-0 cursor-pointer ${
-                      isSelected
-                        ? "bg-blue-600 text-white border-blue-600 shadow-2xs font-semibold"
-                        : "bg-white text-slate-600 border-slate-200 hover:text-slate-900 hover:bg-slate-100"
-                    }`}
+                    type="button"
+                    onClick={() => setCategory("all")}
+                    className="p-0.5 hover:bg-blue-200/60 rounded-full transition-colors text-blue-600 hover:text-blue-900 cursor-pointer"
+                    title="Clear filter"
                   >
-                    <Icon className={`w-3.5 h-3.5 ${isSelected ? "text-white" : "text-slate-500"}`} />
-                    <span>{isBn ? cat.labelBn : cat.labelEn}</span>
+                    <X className="w-3 h-3" />
                   </button>
-                );
-              })}
+                </div>
+              )}
 
               {/* Reset filter pill */}
               {hasActiveFilters && (

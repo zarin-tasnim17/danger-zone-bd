@@ -8,54 +8,148 @@ export interface ClassifiedNews {
 }
 
 const CATEGORY_KEYWORDS: Record<ReportCategory, string[]> = {
-  MUGGING: [
-    'ছিনতাই',
-    'ছিনতাইকারী',
-    'ধারালো অস্ত্র',
-    'কোপানো',
-    'ছুরিকাঘাত',
-    'ছুরি',
-    'কোপাল',
-    'mugging',
-    'mugger',
-    'snatching',
-    'snatcher',
-    'stabbed',
-    'stabbing',
-    'knife attack',
+  ROAD_ACCIDENT: [
+    'সড়ক দুর্ঘটনা',
+    'সড়ক দুর্ঘটনায়',
+    'দুর্ঘটনা',
+    'বাস উল্টে',
+    'ট্রাক ধাক্কা',
+    'সংঘর্ষ',
+    'মুখোমুখি সংঘর্ষ',
+    'মোটরসাইকেল দুর্ঘটনা',
+    'ট্রেন দুর্ঘটনা',
+    'ট্রেন ও সড়ক দুর্ঘটনা',
+    'অটোরিকশা দুর্ঘটনা',
+    'চাপা পড়ে নিহত',
+    'চাপা দিয়েছে',
+    'road accident',
+    'traffic accident',
+    'deadly crash',
+    'collision',
+    'overturned',
+    'hit and run',
+    'car crash',
+    'bus crash',
+    'train crash',
+  ],
+  DACOITY: [
+    'ডাকাতি',
+    'ডাকাত দল',
+    'ডাকাত',
+    'সশস্ত্র ডাকাত',
+    'লুণ্ঠন',
+    'লুটপাট',
+    'সিন্দুক ভেঙে',
+    'গৃহকর্তাকে বেঁধে',
+    'dacoity',
+    'dacoits',
+    'armed robbery',
+    'robbers looted',
+    'gang robbery',
+    'home invasion',
   ],
   THEFT: [
     'চুরি',
     'চোর',
-    'ডাকাতি',
-    'ডাকাত',
-    'লুট',
-    'সিন্দুক',
-    'লুণ্ঠন',
+    'সিঁধেল চুরি',
+    'গাড়ি চুরি',
+    'টাকা চুরি',
+    'মোটরসাইকেল চুরি',
+    'স্বর্ণালঙ্কার চুরি',
     'theft',
     'thief',
     'thieves',
-    'robbery',
-    'robbers',
     'burglary',
     'burgled',
     'stolen',
-    'looted',
+  ],
+  SNATCHING: [
+    'ছিনতাই',
+    'ছিনতাইকারী',
+    'ব্যাগ টান',
+    'ব্যাগ ছিনতাই',
+    'মোবাইল ছিনতাই',
+    'snatching',
+    'snatcher',
+    'mugging',
+    'mugger',
+    'bag snatched',
+    'phone snatched',
+  ],
+  MUGGING: [
+    'ছিনতাই',
+    'ছিনতাইকারী',
+    'ব্যাগ ছিনতাই',
+    'snatching',
+    'mugging',
+    'mugger',
+  ],
+  ARMED_ASSAULT: [
+    'অস্ত্রসহ হামলা',
+    'ধারালো অস্ত্র',
+    'কোপানো',
+    'কুপিয়ে জখম',
+    'ছুরিকাঘাত',
+    'ছুরি মেরে',
+    'গুলিবিদ্ধ',
+    'গুলি বর্ষণ',
+    'আগ্নেয়াস্ত্র',
+    'বন্দুকধারী',
+    'বোমা হামলা',
+    'knife attack',
+    'stabbed',
+    'stabbing',
+    'machete attack',
+    'gunfire',
+    'armed attack',
+    'shot and injured',
+    'bomb attack',
+  ],
+  THEFT_DACOITY: [
+    'চুরি ও ডাকাতি',
+    'চুরি ডাকাতি',
+    'theft and dacoity',
+    'burglary and robbery',
+  ],
+  SNATCHING_ARMED_ASSAULT: [
+    'ছিনতাই ও হামলা',
+    'ছিনতাইকালে কুপিয়ে',
+    'ছিনতাইকালে গুলি',
+    'ছিনতাই ও কোপানো',
+    'armed mugging',
+    'violent snatching',
+  ],
+  TEEN_GANG: [
+    'কিশোর গ্যাং',
+    'কিশোর গ্যাংয়ের',
+    'কিশোর অপরাধী',
+    'কিশোরদের মারামারি',
+    'teenage gang',
+    'teen gang',
+    'juvenile delinquency',
+    'youth gang',
+  ],
+  TEEN_GANG_ARMED_ASSAULT: [
+    'কিশোর গ্যাংয়ের হামলা',
+    'কিশোর গ্যাংয়ের কোপানো',
+    'কিশোর গ্যাংয়ের মহড়া',
+    'কিশোর গ্যাং ধারালো অস্ত্র',
+    'teen gang clash',
+    'teen gang attack',
   ],
   EXTORTION: [
     'চাঁদাবাজি',
-    'চাঁদা',
-    'কিশোর গ্যাং',
-    'মারধর',
-    'মারপিট',
+    'চাঁদা দাবি',
+    'চাঁদাবাজ',
+    'দখলবাজি',
     'দখল',
+    'অবৈধ চাঁদা',
+    'চাঁদা না দেওয়ায়',
     'extortion',
     'extortionist',
     'extorted',
-    'gang violence',
-    'teenage gang',
-    'assault',
-    'clash',
+    'protection money',
+    'illegal toll',
   ],
   DRUG_ACTIVITY: [
     'মাদক',
@@ -65,6 +159,9 @@ const CATEGORY_KEYWORDS: Record<ReportCategory, string[]> = {
     'হেরোইন',
     'মাদক কারবারি',
     'মাদকদ্রব্য',
+    'আইস',
+    'ট্যাপেন্টাডল',
+    'মাদকের আড্ডা',
     'narcotics',
     'yaba',
     'drug peddler',
@@ -73,33 +170,27 @@ const CATEGORY_KEYWORDS: Record<ReportCategory, string[]> = {
     'phensedyl',
     'heroin',
     'cannabis',
+    'meth',
   ],
   UNLIT_ROAD: [
-    'সড়ক দুর্ঘটনা',
-    'দুর্ঘটনা',
+    'অন্ধকার রাস্তা',
+    'বাতি নেই',
+    'বাতি বন্ধ',
+    'স্ট্রিট লাইট নষ্ট',
+    'সড়ক বাতি নেই',
+    'অন্ধকার সড়ক',
     'ভাঙা রাস্তা',
     'খানাখন্দ',
-    'গর্ত',
-    'আগুন',
-    'অগ্নিকাণ্ড',
-    'অন্ধকার',
-    'বাতি নেই',
-    'অন্ধকার রাস্তা',
-    'সড়ক বাতি',
-    'স্ট্রিট লাইট',
+    'বিপজ্জনক গর্ত',
+    'ম্যানহোল খোলা',
     'ঝুঁকিপূর্ণ সড়ক',
-    'road accident',
-    'deadly crash',
-    'collision',
-    'overturned',
-    'fire',
-    'blaze',
-    'gas leak',
-    'collapsed',
     'unlit',
     'dark street',
-    'street light',
+    'street light off',
     'blackout',
+    'broken road',
+    'pothole hazard',
+    'open manhole',
   ],
 };
 
@@ -162,14 +253,13 @@ const MEDIUM_SEVERITY_KEYWORDS = [
 
 /**
  * Classifies an article's headline and summary into a public safety category and severity level.
- * Supports both Bangla and English news content.
+ * Supports both Bangla and English news content with smart combination resolution.
  */
 export const classifyNewsText = (title: string, summary: string = ''): ClassifiedNews => {
   const combinedText = `${title} ${summary}`.toLowerCase();
   const matchedKeywords: string[] = [];
 
-  let matchedCategory: ReportCategory | null = null;
-  let maxCategoryMatches = 0;
+  const categoryScores: Partial<Record<ReportCategory, number>> = {};
 
   for (const [category, keywords] of Object.entries(CATEGORY_KEYWORDS) as [ReportCategory, string[]][]) {
     let count = 0;
@@ -179,16 +269,41 @@ export const classifyNewsText = (title: string, summary: string = ''): Classifie
         matchedKeywords.push(kw);
       }
     }
-    if (count > maxCategoryMatches) {
-      maxCategoryMatches = count;
-      matchedCategory = category;
+    if (count > 0) {
+      categoryScores[category] = count;
     }
   }
 
-  if (!matchedCategory || maxCategoryMatches === 0) {
+  // Detect Smart Combinations
+  const hasTheft = (categoryScores['THEFT'] || 0) > 0;
+  const hasDacoity = (categoryScores['DACOITY'] || 0) > 0;
+  const hasSnatching = (categoryScores['SNATCHING'] || 0) > 0 || (categoryScores['MUGGING'] || 0) > 0;
+  const hasArmedAssault = (categoryScores['ARMED_ASSAULT'] || 0) > 0;
+  const hasTeenGang = (categoryScores['TEEN_GANG'] || 0) > 0;
+
+  let resolvedCategory: ReportCategory | null = null;
+
+  if (hasTheft && hasDacoity) {
+    resolvedCategory = 'THEFT_DACOITY';
+  } else if (hasSnatching && hasArmedAssault) {
+    resolvedCategory = 'SNATCHING_ARMED_ASSAULT';
+  } else if (hasTeenGang && hasArmedAssault) {
+    resolvedCategory = 'TEEN_GANG_ARMED_ASSAULT';
+  } else {
+    // Pick category with highest score
+    let maxScore = 0;
+    for (const [cat, score] of Object.entries(categoryScores) as [ReportCategory, number][]) {
+      if (score > maxScore) {
+        maxScore = score;
+        resolvedCategory = cat;
+      }
+    }
+  }
+
+  if (!resolvedCategory) {
     return {
       isSafetyRelated: false,
-      category: 'MUGGING',
+      category: 'ROAD_ACCIDENT',
       severity: 'LOW',
       matchedKeywords: [],
     };
@@ -214,7 +329,7 @@ export const classifyNewsText = (title: string, summary: string = ''): Classifie
 
   return {
     isSafetyRelated: true,
-    category: matchedCategory,
+    category: resolvedCategory,
     severity,
     matchedKeywords,
   };

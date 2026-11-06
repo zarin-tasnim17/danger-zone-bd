@@ -9,6 +9,7 @@ import { useAuthStore } from "@/store/useAuthStore";
 import { useIncidentStore } from "@/store/useIncidentStore";
 import { useLanguageStore } from "@/store/useLanguageStore";
 import { getSocket } from "@/lib/socket";
+import { ReportCategory } from "@repo/shared";
 import DynamicIncidentMiniMap from "@/components/map/DynamicIncidentMiniMap";
 import {
   ArrowLeft,
@@ -32,6 +33,10 @@ import {
   LightbulbOff,
   AlertOctagon,
   Pill,
+  Lock,
+  Swords,
+  Users,
+  Car,
   Moon,
   Copy,
   Check,
@@ -62,7 +67,7 @@ interface ReportUpdate {
 interface ReportDetails {
   id: string;
   userId?: string;
-  category: "MUGGING" | "THEFT" | "UNLIT_ROAD" | "EXTORTION" | "DRUG_ACTIVITY";
+  category: ReportCategory;
   severity: "LOW" | "MEDIUM" | "HIGH";
   isNightReport?: boolean;
   latitude: number;
@@ -381,40 +386,90 @@ export default function ReportDetailsPage() {
   const categoryMeta = useMemo(() => {
     const cat = report?.category || "MUGGING";
     switch (cat) {
+      case "SNATCHING":
       case "MUGGING":
         return {
           icon: Siren,
-          labelEn: "Mugging & Assault",
-          labelBn: "ছিনতাই / সশস্ত্র হামলা",
-          colorClass: "text-red-700 bg-red-50 border-red-200",
+          labelEn: "Snatching / Mugging",
+          labelBn: "ছিনতাই",
+          colorClass: "text-orange-700 bg-orange-50 border-orange-200",
+        };
+      case "ARMED_ASSAULT":
+        return {
+          icon: Swords,
+          labelEn: "Armed Assault",
+          labelBn: "অস্ত্রসহ হামলা",
+          colorClass: "text-rose-700 bg-rose-50 border-rose-200",
+        };
+      case "SNATCHING_ARMED_ASSAULT":
+        return {
+          icon: ShieldAlert,
+          labelEn: "Armed Snatching & Assault",
+          labelBn: "ছিনতাই ও অস্ত্রসহ হামলা",
+          colorClass: "text-red-800 bg-red-50 border-red-300 font-bold",
         };
       case "THEFT":
         return {
-          icon: AlertTriangle,
-          labelEn: "Theft & Pickpocketing",
-          labelBn: "চুরি / পকেটমার",
+          icon: Lock,
+          labelEn: "Theft / Burglary",
+          labelBn: "চুরি",
           colorClass: "text-amber-700 bg-amber-50 border-amber-200",
         };
-      case "UNLIT_ROAD":
+      case "DACOITY":
         return {
-          icon: LightbulbOff,
-          labelEn: "Unlit / Broken Road",
-          labelBn: "অন্ধকার বা বিপজ্জনক রাস্তা",
-          colorClass: "text-slate-700 bg-slate-100 border-slate-200",
+          icon: ShieldAlert,
+          labelEn: "Dacoity / Armed Robbery",
+          labelBn: "ডাকাতি",
+          colorClass: "text-red-700 bg-red-50 border-red-200",
+        };
+      case "THEFT_DACOITY":
+        return {
+          icon: ShieldAlert,
+          labelEn: "Theft & Dacoity (Combined)",
+          labelBn: "চুরি ডাকাতি",
+          colorClass: "text-red-800 bg-red-50 border-red-300 font-bold",
+        };
+      case "TEEN_GANG":
+        return {
+          icon: Users,
+          labelEn: "Teen Gang Activity",
+          labelBn: "কিশোর গ্যাং",
+          colorClass: "text-violet-700 bg-violet-50 border-violet-200",
+        };
+      case "TEEN_GANG_ARMED_ASSAULT":
+        return {
+          icon: Swords,
+          labelEn: "Teen Gang Armed Clash",
+          labelBn: "কিশোর গ্যাং ও অস্ত্রসহ হামলা",
+          colorClass: "text-purple-800 bg-purple-50 border-purple-300 font-bold",
         };
       case "EXTORTION":
         return {
           icon: AlertOctagon,
-          labelEn: "Extortion & Gang Toll",
-          labelBn: "চাঁদাবাজি / সন্ত্রাসী কর্মকাণ্ড",
-          colorClass: "text-orange-700 bg-orange-50 border-orange-200",
+          labelEn: "Extortion / Chanda",
+          labelBn: "চাঁদাবাজি",
+          colorClass: "text-purple-700 bg-purple-50 border-purple-200",
         };
       case "DRUG_ACTIVITY":
         return {
           icon: Pill,
-          labelEn: "Narcotics & Open Dealing",
-          labelBn: "মাদক সংশ্লিষ্ট অপরাধ",
-          colorClass: "text-rose-700 bg-rose-50 border-rose-200",
+          labelEn: "Narcotics / Drug Crime",
+          labelBn: "মাদক সংক্রান্ত অপরাধ",
+          colorClass: "text-blue-700 bg-blue-50 border-blue-200",
+        };
+      case "ROAD_ACCIDENT":
+        return {
+          icon: Car,
+          labelEn: "Road / Traffic Accident",
+          labelBn: "সড়ক দুর্ঘটনা / এক্সিডেন্ট",
+          colorClass: "text-emerald-700 bg-emerald-50 border-emerald-200",
+        };
+      case "UNLIT_ROAD":
+        return {
+          icon: LightbulbOff,
+          labelEn: "Unlit or Broken Road Hazard",
+          labelBn: "অন্ধকার রাস্তা",
+          colorClass: "text-slate-700 bg-slate-100 border-slate-300",
         };
       default:
         return {

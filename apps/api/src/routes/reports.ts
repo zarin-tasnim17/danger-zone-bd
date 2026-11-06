@@ -5,6 +5,7 @@ import { addUpdateHandler, getUpdatesHandler } from '../controllers/reportUpdate
 import { requireAuth } from '../middleware/requireAuth';
 import { validateRequest } from '../middleware/validateRequest';
 import { z } from 'zod';
+import { REPORT_CATEGORIES } from '@repo/shared';
 
 import { reportCreationRateLimiter } from '../middleware/rateLimiter';
 
@@ -12,7 +13,7 @@ const router = Router();
 
 const reportSchema = z.object({
   body: z.object({
-    category: z.enum(['MUGGING', 'THEFT', 'UNLIT_ROAD', 'EXTORTION', 'DRUG_ACTIVITY']),
+    category: z.enum(REPORT_CATEGORIES),
     severity: z.enum(['LOW', 'MEDIUM', 'HIGH']),
     latitude: z.number().min(-90).max(90),
     longitude: z.number().min(-180).max(180),
@@ -30,7 +31,7 @@ const boundsSchema = z.object({
     minLat: z.string().refine(val => !isNaN(parseFloat(val)), "Must be a number string"),
     maxLng: z.string().refine(val => !isNaN(parseFloat(val)), "Must be a number string"),
     maxLat: z.string().refine(val => !isNaN(parseFloat(val)), "Must be a number string"),
-    category: z.enum(['MUGGING', 'THEFT', 'UNLIT_ROAD', 'EXTORTION', 'DRUG_ACTIVITY']).optional(),
+    category: z.enum(REPORT_CATEGORIES).optional(),
     severity: z.enum(['LOW', 'MEDIUM', 'HIGH']).optional(),
     isNightReport: z.enum(['true', 'false']).optional(),
   }).passthrough()

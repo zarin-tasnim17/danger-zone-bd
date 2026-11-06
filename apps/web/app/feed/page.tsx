@@ -31,6 +31,10 @@ import {
   AlertOctagon,
   Pill,
   Layers,
+  Lock,
+  Swords,
+  Users,
+  Car,
   ShieldAlert,
   Radio,
   SlidersHorizontal,
@@ -369,11 +373,18 @@ export default function FeedPage() {
     icon: React.ComponentType<{ className?: string }>;
   }[] = [
     { id: "ALL", labelEn: "All Reports", labelBn: "সকল বিপদ", icon: Layers },
-    { id: "MUGGING", labelEn: "Mugging", labelBn: "ছিনতাই", icon: Siren },
-    { id: "THEFT", labelEn: "Theft", labelBn: "চুরি", icon: AlertTriangle },
-    { id: "UNLIT_ROAD", labelEn: "Unlit Road", labelBn: "অন্ধকার সড়ক", icon: LightbulbOff },
+    { id: "SNATCHING", labelEn: "Snatching", labelBn: "ছিনতাই", icon: Siren },
+    { id: "ARMED_ASSAULT", labelEn: "Armed Assault", labelBn: "অস্ত্রসহ হামলা", icon: Swords },
+    { id: "SNATCHING_ARMED_ASSAULT", labelEn: "Snatching & Assault", labelBn: "ছিনতাই ও অস্ত্রসহ হামলা", icon: ShieldAlert },
+    { id: "THEFT", labelEn: "Theft", labelBn: "চুরি", icon: Lock },
+    { id: "DACOITY", labelEn: "Dacoity", labelBn: "ডাকাতি", icon: ShieldAlert },
+    { id: "THEFT_DACOITY", labelEn: "Theft & Dacoity", labelBn: "চুরি ডাকাতি", icon: ShieldAlert },
+    { id: "TEEN_GANG", labelEn: "Teen Gang", labelBn: "কিশোর গ্যাং", icon: Users },
+    { id: "TEEN_GANG_ARMED_ASSAULT", labelEn: "Teen Gang Clash", labelBn: "কিশোর গ্যাং ও অস্ত্রসহ হামলা", icon: Swords },
     { id: "EXTORTION", labelEn: "Extortion", labelBn: "চাঁদাবাজি", icon: AlertOctagon },
-    { id: "DRUG_ACTIVITY", labelEn: "Narcotics", labelBn: "মাদক", icon: Pill },
+    { id: "DRUG_ACTIVITY", labelEn: "Narcotics", labelBn: "মাদক অপরাধ", icon: Pill },
+    { id: "ROAD_ACCIDENT", labelEn: "Road Accident", labelBn: "সড়ক দুর্ঘটনা", icon: Car },
+    { id: "UNLIT_ROAD", labelEn: "Unlit Road", labelBn: "অন্ধকার রাস্তা", icon: LightbulbOff },
   ];
 
   return (

@@ -13,9 +13,19 @@ import { enqueueReportNotification } from '../jobs';
 export const calculateReportExpiry = (category: ReportCategory, now: Date = new Date()): Date => {
   switch (category) {
     case 'MUGGING':
+    case 'SNATCHING':
     case 'THEFT':
     case 'EXTORTION':
       return new Date(now.getTime() + 3 * 60 * 60 * 1000); // 3 hours
+    case 'DACOITY':
+    case 'THEFT_DACOITY':
+    case 'ARMED_ASSAULT':
+    case 'SNATCHING_ARMED_ASSAULT':
+      return new Date(now.getTime() + 4 * 60 * 60 * 1000); // 4 hours
+    case 'TEEN_GANG_ARMED_ASSAULT':
+    case 'ROAD_ACCIDENT':
+      return new Date(now.getTime() + 6 * 60 * 60 * 1000); // 6 hours
+    case 'TEEN_GANG':
     case 'DRUG_ACTIVITY':
       return new Date(now.getTime() + 24 * 60 * 60 * 1000); // 24 hours
     case 'UNLIT_ROAD':
