@@ -1,19 +1,24 @@
 export type MapMode = "basic" | "heatmap" | "labeled";
 
 export const REPORT_CATEGORIES = [
-  "MUGGING",
-  "SNATCHING",
   "THEFT",
-  "DACOITY",
-  "THEFT_DACOITY",
+  "ROBBERY",
+  "THEFT_ROBBERY",
+  "SNATCHING",
   "ARMED_ASSAULT",
   "SNATCHING_ARMED_ASSAULT",
-  "TEEN_GANG",
-  "TEEN_GANG_ARMED_ASSAULT",
   "EXTORTION",
-  "DRUG_ACTIVITY",
+  "YOUTH_GANG_ACTIVITY",
+  "DRUG_RELATED_CRIME",
   "UNLIT_ROAD",
   "ROAD_ACCIDENT",
+  // Backward compatibility aliases
+  "MUGGING",
+  "DACOITY",
+  "THEFT_DACOITY",
+  "TEEN_GANG",
+  "TEEN_GANG_ARMED_ASSAULT",
+  "DRUG_ACTIVITY",
 ] as const;
 export type ReportCategory = (typeof REPORT_CATEGORIES)[number];
 

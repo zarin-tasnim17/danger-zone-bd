@@ -8,7 +8,7 @@ import { useAuthStore } from "@/store/useAuthStore";
 import { useLanguageStore } from "@/store/useLanguageStore";
 import { useStatsStore } from "@/store/useStatsStore";
 import { getSocket } from "@/lib/socket";
-import { SOCKET_EVENTS } from "@repo/shared";
+import { SOCKET_EVENTS, ReportCategory } from "@repo/shared";
 import {
   Search,
   ThumbsUp,
@@ -53,7 +53,7 @@ interface ReportMedia {
 
 interface Incident {
   id: string;
-  category: "MUGGING" | "THEFT" | "UNLIT_ROAD" | "EXTORTION" | "DRUG_ACTIVITY";
+  category: ReportCategory;
   severity: "LOW" | "MEDIUM" | "HIGH";
   isNightReport?: boolean;
   latitude: number;
@@ -375,15 +375,14 @@ export default function FeedPage() {
     { id: "ALL", labelEn: "All Reports", labelBn: "সকল বিপদ", icon: Layers },
     { id: "SNATCHING", labelEn: "Snatching", labelBn: "ছিনতাই", icon: Siren },
     { id: "ARMED_ASSAULT", labelEn: "Armed Assault", labelBn: "অস্ত্রসহ হামলা", icon: Swords },
-    { id: "SNATCHING_ARMED_ASSAULT", labelEn: "Snatching & Assault", labelBn: "ছিনতাই ও অস্ত্রসহ হামলা", icon: ShieldAlert },
+    { id: "SNATCHING_ARMED_ASSAULT", labelEn: "Snatching & Armed Assault", labelBn: "ছিনতাই ও অস্ত্রসহ হামলা", icon: ShieldAlert },
     { id: "THEFT", labelEn: "Theft", labelBn: "চুরি", icon: Lock },
-    { id: "DACOITY", labelEn: "Dacoity", labelBn: "ডাকাতি", icon: ShieldAlert },
-    { id: "THEFT_DACOITY", labelEn: "Theft & Dacoity", labelBn: "চুরি ডাকাতি", icon: ShieldAlert },
-    { id: "TEEN_GANG", labelEn: "Teen Gang", labelBn: "কিশোর গ্যাং", icon: Users },
-    { id: "TEEN_GANG_ARMED_ASSAULT", labelEn: "Teen Gang Clash", labelBn: "কিশোর গ্যাং ও অস্ত্রসহ হামলা", icon: Swords },
+    { id: "ROBBERY", labelEn: "Robbery", labelBn: "ডাকাতি", icon: ShieldAlert },
+    { id: "THEFT_ROBBERY", labelEn: "Theft & Robbery", labelBn: "চুরি ডাকাতি", icon: ShieldAlert },
     { id: "EXTORTION", labelEn: "Extortion", labelBn: "চাঁদাবাজি", icon: AlertOctagon },
-    { id: "DRUG_ACTIVITY", labelEn: "Narcotics", labelBn: "মাদক অপরাধ", icon: Pill },
-    { id: "ROAD_ACCIDENT", labelEn: "Road Accident", labelBn: "সড়ক দুর্ঘটনা", icon: Car },
+    { id: "YOUTH_GANG_ACTIVITY", labelEn: "Youth Gang Activity", labelBn: "কিশোর গ্যাং", icon: Users },
+    { id: "DRUG_RELATED_CRIME", labelEn: "Drug-Related Crime", labelBn: "মাদক সংক্রান্ত অপরাধ", icon: Pill },
+    { id: "ROAD_ACCIDENT", labelEn: "Road Accident", labelBn: "সড়ক দুর্ঘটনা / এক্সিডেন্ট", icon: Car },
     { id: "UNLIT_ROAD", labelEn: "Unlit Road", labelBn: "অন্ধকার রাস্তা", icon: LightbulbOff },
   ];
 

@@ -390,7 +390,7 @@ export default function ReportDetailsPage() {
       case "MUGGING":
         return {
           icon: Siren,
-          labelEn: "Snatching / Mugging",
+          labelEn: "Snatching",
           labelBn: "ছিনতাই",
           colorClass: "text-orange-700 bg-orange-50 border-orange-200",
         };
@@ -404,70 +404,74 @@ export default function ReportDetailsPage() {
       case "SNATCHING_ARMED_ASSAULT":
         return {
           icon: ShieldAlert,
-          labelEn: "Armed Snatching & Assault",
+          labelEn: "Snatching & Armed Assault",
           labelBn: "ছিনতাই ও অস্ত্রসহ হামলা",
           colorClass: "text-red-800 bg-red-50 border-red-300 font-bold",
         };
       case "THEFT":
         return {
           icon: Lock,
-          labelEn: "Theft / Burglary",
+          labelEn: "Theft",
           labelBn: "চুরি",
           colorClass: "text-amber-700 bg-amber-50 border-amber-200",
         };
+      case "ROBBERY":
       case "DACOITY":
         return {
           icon: ShieldAlert,
-          labelEn: "Dacoity / Armed Robbery",
+          labelEn: "Robbery",
           labelBn: "ডাকাতি",
           colorClass: "text-red-700 bg-red-50 border-red-200",
         };
+      case "THEFT_ROBBERY":
       case "THEFT_DACOITY":
         return {
           icon: ShieldAlert,
-          labelEn: "Theft & Dacoity (Combined)",
+          labelEn: "Theft & Robbery",
           labelBn: "চুরি ডাকাতি",
           colorClass: "text-red-800 bg-red-50 border-red-300 font-bold",
         };
+      case "EXTORTION":
+        return {
+          icon: AlertOctagon,
+          labelEn: "Extortion",
+          labelBn: "চাঁদাবাজি",
+          colorClass: "text-purple-700 bg-purple-50 border-purple-200",
+        };
+      case "YOUTH_GANG_ACTIVITY":
       case "TEEN_GANG":
         return {
           icon: Users,
-          labelEn: "Teen Gang Activity",
+          labelEn: "Youth Gang Activity",
           labelBn: "কিশোর গ্যাং",
           colorClass: "text-violet-700 bg-violet-50 border-violet-200",
         };
       case "TEEN_GANG_ARMED_ASSAULT":
         return {
           icon: Swords,
-          labelEn: "Teen Gang Armed Clash",
+          labelEn: "Youth Gang Armed Clash",
           labelBn: "কিশোর গ্যাং ও অস্ত্রসহ হামলা",
           colorClass: "text-purple-800 bg-purple-50 border-purple-300 font-bold",
         };
-      case "EXTORTION":
-        return {
-          icon: AlertOctagon,
-          labelEn: "Extortion / Chanda",
-          labelBn: "চাঁদাবাজি",
-          colorClass: "text-purple-700 bg-purple-50 border-purple-200",
-        };
+      case "DRUG_RELATED_CRIME":
       case "DRUG_ACTIVITY":
         return {
           icon: Pill,
-          labelEn: "Narcotics / Drug Crime",
+          labelEn: "Drug-Related Crime",
           labelBn: "মাদক সংক্রান্ত অপরাধ",
           colorClass: "text-blue-700 bg-blue-50 border-blue-200",
         };
       case "ROAD_ACCIDENT":
         return {
           icon: Car,
-          labelEn: "Road / Traffic Accident",
+          labelEn: "Road Accident",
           labelBn: "সড়ক দুর্ঘটনা / এক্সিডেন্ট",
           colorClass: "text-emerald-700 bg-emerald-50 border-emerald-200",
         };
       case "UNLIT_ROAD":
         return {
           icon: LightbulbOff,
-          labelEn: "Unlit or Broken Road Hazard",
+          labelEn: "Unlit Road",
           labelBn: "অন্ধকার রাস্তা",
           colorClass: "text-slate-700 bg-slate-100 border-slate-300",
         };

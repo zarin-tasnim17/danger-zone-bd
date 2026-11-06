@@ -149,8 +149,8 @@ const CATEGORIES: CategoryDefinition[] = [
     expiryHintBn: "৩ ঘণ্টা সক্রিয় থাকবে",
   },
   {
-    id: "DACOITY",
-    labelEn: "Dacoity / Armed Robbery",
+    id: "ROBBERY",
+    labelEn: "Robbery",
     labelBn: "ডাকাতি",
     descEn: "Group armed robbery, home invasion, looting",
     descBn: "দলবদ্ধ সশস্ত্র ডাকাতি, মালামাল লুণ্ঠন",
@@ -162,8 +162,8 @@ const CATEGORIES: CategoryDefinition[] = [
     expiryHintBn: "৪ ঘণ্টা সক্রিয় থাকবে",
   },
   {
-    id: "THEFT_DACOITY",
-    labelEn: "Theft & Dacoity (Combined)",
+    id: "THEFT_ROBBERY",
+    labelEn: "Theft & Robbery (Combined)",
     labelBn: "চুরি ডাকাতি",
     descEn: "Covert break-in escalating to armed gang robbery",
     descBn: "চুরির উদ্দেশ্যে প্রবেশ করে সশস্ত্র ডাকাতিতে রূপ নেওয়া",
@@ -175,34 +175,8 @@ const CATEGORIES: CategoryDefinition[] = [
     expiryHintBn: "৪ ঘণ্টা সক্রিয় থাকবে",
   },
   {
-    id: "TEEN_GANG",
-    labelEn: "Teen Gang Activity",
-    labelBn: "কিশোর গ্যাং",
-    descEn: "Juvenile gang intimidation, turf clash, neighborhood menace",
-    descBn: "কিশোর গ্যাংয়ের মহড়া, হুমকি, আধিপত্য বিস্তার",
-    icon: Users,
-    color: "text-violet-700",
-    bgColor: "bg-violet-50",
-    borderColor: "border-violet-200",
-    expiryHintEn: "Active for 24 hours",
-    expiryHintBn: "২৪ ঘণ্টা সক্রিয় থাকবে",
-  },
-  {
-    id: "TEEN_GANG_ARMED_ASSAULT",
-    labelEn: "Teen Gang Armed Clash",
-    labelBn: "কিশোর গ্যাং ও অস্ত্রসহ হামলা",
-    descEn: "Juvenile gangs attacking with sharp weapons and machetes",
-    descBn: "কিশোর গ্যাং কর্তৃক ধারালো অস্ত্র নিয়ে রক্তক্ষয়ী হামলা",
-    icon: ShieldAlert,
-    color: "text-purple-800",
-    bgColor: "bg-purple-50",
-    borderColor: "border-purple-300",
-    expiryHintEn: "Active for 6 hours",
-    expiryHintBn: "৬ ঘণ্টা সক্রিয় থাকবে",
-  },
-  {
     id: "EXTORTION",
-    labelEn: "Extortion & Gang Toll",
+    labelEn: "Extortion",
     labelBn: "চাঁদাবাজি",
     descEn: "Illegal toll collection, blackmail, commercial harassment",
     descBn: "অবৈধ চাঁদা দাবি, হুমকি, দোকানে চাঁদা তোলা",
@@ -214,10 +188,23 @@ const CATEGORIES: CategoryDefinition[] = [
     expiryHintBn: "৩ ঘণ্টা সক্রিয় থাকবে",
   },
   {
-    id: "DRUG_ACTIVITY",
-    labelEn: "Narcotics & Open Dealing",
+    id: "YOUTH_GANG_ACTIVITY",
+    labelEn: "Youth Gang Activity",
+    labelBn: "কিশোর গ্যাং",
+    descEn: "Juvenile gang intimidation, turf clash, neighborhood menace",
+    descBn: "কিশোর গ্যাংয়ের মহড়া, হুমকি, আধিপত্য বিস্তার",
+    icon: Users,
+    color: "text-violet-700",
+    bgColor: "bg-violet-50",
+    borderColor: "border-violet-200",
+    expiryHintEn: "Active for 24 hours",
+    expiryHintBn: "২৪ ঘণ্টা সক্রিয় থাকবে",
+  },
+  {
+    id: "DRUG_RELATED_CRIME",
+    labelEn: "Drug-Related Crime",
     labelBn: "মাদক সংক্রান্ত অপরাধ",
-    descEn: "Drug peddling, open narcotics dealing, addict gatherings",
+    descEn: "Drug peddling, open narcotics dealing, illicit distribution",
     descBn: "প্রকাশ্যে মাদক কেনাবেচা, অপরাধীদের জমায়েত",
     icon: Pill,
     color: "text-blue-700",
@@ -293,14 +280,12 @@ export default function ReportPage() {
   const [selectedTags, setSelectedTags] = useState<string[]>(["SNATCHING"]);
   const resolvedCategory = useMemo<ReportCategory>(() => {
     const hasTheft = selectedTags.includes("THEFT");
-    const hasDacoity = selectedTags.includes("DACOITY");
+    const hasRobbery = selectedTags.includes("ROBBERY") || selectedTags.includes("DACOITY");
     const hasSnatching = selectedTags.includes("SNATCHING");
     const hasArmedAssault = selectedTags.includes("ARMED_ASSAULT");
-    const hasTeenGang = selectedTags.includes("TEEN_GANG");
 
-    if (hasTheft && hasDacoity) return "THEFT_DACOITY";
+    if (hasTheft && hasRobbery) return "THEFT_ROBBERY";
     if (hasSnatching && hasArmedAssault) return "SNATCHING_ARMED_ASSAULT";
-    if (hasTeenGang && hasArmedAssault) return "TEEN_GANG_ARMED_ASSAULT";
 
     const lastTag = selectedTags[selectedTags.length - 1];
     if (lastTag) return lastTag as ReportCategory;
@@ -315,13 +300,13 @@ export default function ReportPage() {
       return;
     }
     if (tagId === "THEFT") {
-      if (selectedTags.includes("DACOITY")) setSelectedTags(["DACOITY", "THEFT"]);
+      if (selectedTags.includes("ROBBERY")) setSelectedTags(["ROBBERY", "THEFT"]);
       else setSelectedTags(["THEFT"]);
       return;
     }
-    if (tagId === "DACOITY") {
-      if (selectedTags.includes("THEFT")) setSelectedTags(["THEFT", "DACOITY"]);
-      else setSelectedTags(["DACOITY"]);
+    if (tagId === "ROBBERY") {
+      if (selectedTags.includes("THEFT")) setSelectedTags(["THEFT", "ROBBERY"]);
+      else setSelectedTags(["ROBBERY"]);
       return;
     }
     if (tagId === "SNATCHING") {
@@ -329,14 +314,8 @@ export default function ReportPage() {
       else setSelectedTags(["SNATCHING"]);
       return;
     }
-    if (tagId === "TEEN_GANG") {
-      if (selectedTags.includes("ARMED_ASSAULT")) setSelectedTags(["ARMED_ASSAULT", "TEEN_GANG"]);
-      else setSelectedTags(["TEEN_GANG"]);
-      return;
-    }
     if (tagId === "ARMED_ASSAULT") {
       if (selectedTags.includes("SNATCHING")) setSelectedTags(["SNATCHING", "ARMED_ASSAULT"]);
-      else if (selectedTags.includes("TEEN_GANG")) setSelectedTags(["TEEN_GANG", "ARMED_ASSAULT"]);
       else setSelectedTags(["ARMED_ASSAULT"]);
       return;
     }

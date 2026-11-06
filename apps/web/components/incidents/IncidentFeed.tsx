@@ -354,7 +354,7 @@ export default function IncidentFeed({ onIncidentSelect }: { onIncidentSelect?: 
                     )}
 
                     <span className="text-[10px] font-medium text-slate-500 font-mono">
-                      {(t.categories as any)[item.category.toLowerCase()] || item.category}
+                      {(t.categories as any)[item.category] || (t.categories as any)[item.category.toLowerCase()] || item.category}
                     </span>
                   </div>
 

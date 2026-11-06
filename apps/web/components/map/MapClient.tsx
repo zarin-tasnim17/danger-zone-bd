@@ -273,25 +273,35 @@ export default function MapClient() {
     });
   }, [incidents, selectedSeverity, selectedCategory, searchQuery]);
 
-  // Deduplicate coincident danger perimeter circles to avoid dense multi-ring red blobs
+  // Deduplicate and cluster coincident danger perimeter circles to avoid dense multi-ring red blobs
   const dangerPerimeterCircles = useMemo(() => {
     if (!showDangerCircles) return [];
-    const seen = new Set<string>();
     const circles: { id: string; center: [number, number]; radius: number }[] = [];
+
+    const getDistM = (lat1: number, lng1: number, lat2: number, lng2: number) => {
+      const dLat = (lat2 - lat1) * 111320;
+      const dLng = (lng2 - lng1) * 111320 * Math.cos((lat1 * Math.PI) / 180);
+      return Math.sqrt(dLat * dLat + dLng * dLng);
+    };
 
     for (const inc of filteredIncidents) {
       const isHigh =
         inc.severity.toUpperCase() === 'HIGH' || inc.severity.toLowerCase() === 'critical';
       if (!isHigh) continue;
 
-      // Group nearby/identical coordinates (~15m cluster grid)
-      const key = `${inc.coordinates.lat.toFixed(4)},${inc.coordinates.lng.toFixed(4)}`;
-      if (!seen.has(key)) {
-        seen.add(key);
+      const incRadius = inc.fuzzedRadiusMeters || 150;
+      // Merge circles within 250m into a single clean hotspot perimeter
+      const existing = circles.find(
+        (c) => getDistM(c.center[0], c.center[1], inc.coordinates.lat, inc.coordinates.lng) < 250
+      );
+
+      if (existing) {
+        existing.radius = Math.max(existing.radius, incRadius);
+      } else {
         circles.push({
           id: `circle-${inc.id}`,
           center: [inc.coordinates.lat, inc.coordinates.lng],
-          radius: inc.fuzzedRadiusMeters || 150,
+          radius: incRadius,
         });
       }
     }
@@ -837,7 +847,7 @@ export default function MapClient() {
                       }`}
                     />
                     <span className="font-bold">
-                      {(t.categories as any)[incident.category.toLowerCase()] || incident.category}
+                      {(t.categories as any)[incident.category] || (t.categories as any)[incident.category.toLowerCase()] || incident.category}
                     </span>
                     <span className="text-slate-400 font-normal">|</span>
                     <span className="text-slate-200 truncate max-w-[200px]">
@@ -864,7 +874,7 @@ export default function MapClient() {
                       </span>
 
                       <span className="text-[10px] text-slate-500 font-mono">
-                        {(t.categories as any)[incident.category.toLowerCase()] || incident.category}
+                        {(t.categories as any)[incident.category] || (t.categories as any)[incident.category.toLowerCase()] || incident.category}
                       </span>
                     </div>
 

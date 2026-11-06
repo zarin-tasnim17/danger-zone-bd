@@ -81,8 +81,8 @@ const PRIMARY_TAGS: IncidentTagDef[] = [
     borderColor: "border-amber-200",
   },
   {
-    id: "DACOITY",
-    labelEn: "Dacoity",
+    id: "ROBBERY",
+    labelEn: "Robbery",
     labelBn: "ডাকাতি",
     icon: ShieldAlert,
     color: "text-red-700",
@@ -90,8 +90,8 @@ const PRIMARY_TAGS: IncidentTagDef[] = [
     borderColor: "border-red-200",
   },
   {
-    id: "TEEN_GANG",
-    labelEn: "Teen Gang",
+    id: "YOUTH_GANG_ACTIVITY",
+    labelEn: "Youth Gang Activity",
     labelBn: "কিশোর গ্যাং",
     icon: Users,
     color: "text-violet-700",
@@ -108,9 +108,9 @@ const PRIMARY_TAGS: IncidentTagDef[] = [
     borderColor: "border-purple-200",
   },
   {
-    id: "DRUG_ACTIVITY",
-    labelEn: "Narcotics",
-    labelBn: "মাদক অপরাধ",
+    id: "DRUG_RELATED_CRIME",
+    labelEn: "Drug-Related Crime",
+    labelBn: "মাদক সংক্রান্ত অপরাধ",
     icon: Pill,
     color: "text-blue-700",
     bgColor: "bg-blue-50",
@@ -198,14 +198,12 @@ export default function ReportIncidentModal({ isOpen, onClose }: ReportModalProp
   // Option A: Smart Category Resolution
   const resolvedCategory = useMemo<ReportCategory>(() => {
     const hasTheft = selectedTags.includes("THEFT");
-    const hasDacoity = selectedTags.includes("DACOITY");
+    const hasRobbery = selectedTags.includes("ROBBERY") || selectedTags.includes("DACOITY");
     const hasSnatching = selectedTags.includes("SNATCHING");
     const hasArmedAssault = selectedTags.includes("ARMED_ASSAULT");
-    const hasTeenGang = selectedTags.includes("TEEN_GANG");
 
-    if (hasTheft && hasDacoity) return "THEFT_DACOITY";
+    if (hasTheft && hasRobbery) return "THEFT_ROBBERY";
     if (hasSnatching && hasArmedAssault) return "SNATCHING_ARMED_ASSAULT";
-    if (hasTeenGang && hasArmedAssault) return "TEEN_GANG_ARMED_ASSAULT";
 
     const lastTag = selectedTags[selectedTags.length - 1];
     if (lastTag) return lastTag as ReportCategory;
@@ -223,21 +221,21 @@ export default function ReportIncidentModal({ isOpen, onClose }: ReportModalProp
     }
 
     // Pair Combinations:
-    // 1. THEFT + DACOITY
+    // 1. THEFT + ROBBERY
     if (tagId === "THEFT") {
-      if (selectedTags.includes("DACOITY")) {
-        setSelectedTags(["DACOITY", "THEFT"]);
+      if (selectedTags.includes("ROBBERY")) {
+        setSelectedTags(["ROBBERY", "THEFT"]);
       } else {
         setSelectedTags(["THEFT"]);
       }
       return;
     }
 
-    if (tagId === "DACOITY") {
+    if (tagId === "ROBBERY") {
       if (selectedTags.includes("THEFT")) {
-        setSelectedTags(["THEFT", "DACOITY"]);
+        setSelectedTags(["THEFT", "ROBBERY"]);
       } else {
-        setSelectedTags(["DACOITY"]);
+        setSelectedTags(["ROBBERY"]);
       }
       return;
     }
@@ -252,28 +250,16 @@ export default function ReportIncidentModal({ isOpen, onClose }: ReportModalProp
       return;
     }
 
-    // 3. TEEN_GANG + ARMED_ASSAULT
-    if (tagId === "TEEN_GANG") {
-      if (selectedTags.includes("ARMED_ASSAULT")) {
-        setSelectedTags(["ARMED_ASSAULT", "TEEN_GANG"]);
-      } else {
-        setSelectedTags(["TEEN_GANG"]);
-      }
-      return;
-    }
-
     if (tagId === "ARMED_ASSAULT") {
       if (selectedTags.includes("SNATCHING")) {
         setSelectedTags(["SNATCHING", "ARMED_ASSAULT"]);
-      } else if (selectedTags.includes("TEEN_GANG")) {
-        setSelectedTags(["TEEN_GANG", "ARMED_ASSAULT"]);
       } else {
         setSelectedTags(["ARMED_ASSAULT"]);
       }
       return;
     }
 
-    // Independent tags: EXTORTION, DRUG_ACTIVITY, ROAD_ACCIDENT, UNLIT_ROAD
+    // Independent tags: EXTORTION, YOUTH_GANG_ACTIVITY, DRUG_RELATED_CRIME, ROAD_ACCIDENT, UNLIT_ROAD
     setSelectedTags([tagId]);
   };
 
