@@ -42,29 +42,20 @@ import {
   MapPin,
 } from "lucide-react";
 
-// Map events handler to trigger viewport incident loading and sync viewport quietly
+// Map events handler: fetches viewport incidents on pan/zoom without triggering reactive setState feedback loops
 function MapEventsHandler() {
   const fetchIncidentsInBounds = useIncidentStore((state) => state.fetchIncidentsInBounds);
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
 
   const map = useMapEvents({
     zoomend: () => {
-      const currentZoom = map.getZoom();
+      const currentZoom = Math.round(map.getZoom());
       const storeZoom = useMapStore.getState().zoom;
-      if (Math.abs(currentZoom - storeZoom) >= 0.5) {
+      if (Math.abs(currentZoom - storeZoom) >= 1) {
         useMapStore.setState({ zoom: currentZoom });
       }
     },
     moveend: () => {
-      const currentCenter = map.getCenter();
-      const currentZoom = map.getZoom();
-
-      // Quietly sync current viewport into store so other components know where the user is
-      useMapStore.setState({
-        center: { lat: currentCenter.lat, lng: currentCenter.lng },
-        zoom: currentZoom,
-      });
-
       // Debounce viewport bounds query to prevent re-fetching on continuous zoom or pan
       if (debounceRef.current) {
         clearTimeout(debounceRef.current);
@@ -106,43 +97,32 @@ function MapEventsHandler() {
   return null;
 }
 
-// Map center updater: ONLY fires flyTo when target center or zoom is EXPLICITLY changed by an action
-function MapViewUpdater({
-  center,
-  zoom,
-}: {
-  center: { lat: number; lng: number };
-  zoom: number;
-}) {
+// Map center updater: listens strictly to discrete programmatic target commands
+function MapViewUpdater() {
   const map = useMap();
-  const prevCenterRef = useRef(center);
-  const prevZoomRef = useRef(zoom);
+  const targetCommand = useMapStore((state) => state.targetCommand);
+  const lastExecutedId = useRef<number>(0);
 
   useEffect(() => {
-    const centerChanged =
-      Math.abs(prevCenterRef.current.lat - center.lat) > 0.0001 ||
-      Math.abs(prevCenterRef.current.lng - center.lng) > 0.0001;
-    const zoomChanged = Math.abs(prevZoomRef.current - zoom) > 0.1;
+    if (!targetCommand || targetCommand.id === lastExecutedId.current) return;
+    lastExecutedId.current = targetCommand.id;
 
-    // Update refs to track current target props
-    prevCenterRef.current = center;
-    prevZoomRef.current = zoom;
+    const currentCenter = map.getCenter();
+    const currentZoom = map.getZoom();
+    const targetZoom = targetCommand.zoom ?? currentZoom;
 
-    // Only initiate programmatic flyTo if the store target was explicitly changed by an action
-    if (centerChanged || zoomChanged) {
-      const currentCenter = map.getCenter();
-      const currentZoom = map.getZoom();
+    const distLat = Math.abs(currentCenter.lat - targetCommand.lat);
+    const distLng = Math.abs(currentCenter.lng - targetCommand.lng);
+    const distZoom = Math.abs(currentZoom - targetZoom);
 
-      const distLat = Math.abs(currentCenter.lat - center.lat);
-      const distLng = Math.abs(currentCenter.lng - center.lng);
-      const distZoom = Math.abs(currentZoom - zoom);
-
-      // Prevent redundant flying if map is already at the target
-      if (distLat > 0.0001 || distLng > 0.0001 || distZoom > 0.1) {
-        map.flyTo([center.lat, center.lng], zoom, { duration: 1.0 });
-      }
+    // Only initiate flight if programmatic target actually differs from current camera
+    if (distLat > 0.0001 || distLng > 0.0001 || distZoom > 0.1) {
+      map.flyTo([targetCommand.lat, targetCommand.lng], targetZoom, {
+        animate: true,
+        duration: 1.0,
+      });
     }
-  }, [center, zoom, map]);
+  }, [targetCommand, map]);
 
   return null;
 }
@@ -158,7 +138,7 @@ function MapInstanceRegistrar({ onMapReady }: { onMapReady: (map: L.Map) => void
   return null;
 }
 
-// Automatically invalidates Leaflet map size when the viewport or parent container (sidebar collapse/expand) changes
+// Automatically invalidates Leaflet map size safely without pan/moveend feedback recursion
 function MapResizeHandler() {
   const map = useMap();
   const fetchIncidentsInBounds = useIncidentStore((state) => state.fetchIncidentsInBounds);
@@ -168,25 +148,37 @@ function MapResizeHandler() {
     if (!container) return;
 
     let resizeTimer: NodeJS.Timeout | null = null;
-    const observer = new ResizeObserver(() => {
-      map.invalidateSize();
-      if (resizeTimer) clearTimeout(resizeTimer);
-      resizeTimer = setTimeout(() => {
-        map.invalidateSize();
-        const b = map.getBounds();
-        fetchIncidentsInBounds({
-          minLat: b.getSouth(),
-          maxLat: b.getNorth(),
-          minLng: b.getWest(),
-          maxLng: b.getEast(),
-        });
-      }, 350);
+    let prevWidth = container.clientWidth;
+    let prevHeight = container.clientHeight;
+
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const { width, height } = entry.contentRect;
+        // Only invalidate if width or height actually changed by at least 2px
+        if (Math.abs(width - prevWidth) >= 2 || Math.abs(height - prevHeight) >= 2) {
+          prevWidth = width;
+          prevHeight = height;
+
+          if (resizeTimer) clearTimeout(resizeTimer);
+          resizeTimer = setTimeout(() => {
+            // pan: false ensures map.invalidateSize does NOT fire moveend/pan event loops
+            map.invalidateSize({ pan: false });
+            const b = map.getBounds();
+            fetchIncidentsInBounds({
+              minLat: b.getSouth(),
+              maxLat: b.getNorth(),
+              minLng: b.getWest(),
+              maxLng: b.getEast(),
+            });
+          }, 200);
+        }
+      }
     });
 
     observer.observe(container);
 
     const handleWindowResize = () => {
-      map.invalidateSize();
+      map.invalidateSize({ pan: false });
     };
     window.addEventListener("resize", handleWindowResize);
 
@@ -618,7 +610,7 @@ export default function MapClient() {
         style={{ height: "100%", width: "100%" }}
       >
         <MapInstanceRegistrar onMapReady={onMapReady} />
-        <MapViewUpdater center={center} zoom={zoom} />
+        <MapViewUpdater />
         <MapEventsHandler />
         <MapResizeHandler />
 

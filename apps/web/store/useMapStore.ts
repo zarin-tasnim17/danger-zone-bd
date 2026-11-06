@@ -1,3 +1,10 @@
+export interface TargetCommand {
+  lat: number;
+  lng: number;
+  zoom?: number;
+  id: number;
+}
+
 import { create } from 'zustand';
 import { MapMode, Coordinates } from '@repo/shared';
 
@@ -72,10 +79,12 @@ interface MapState {
   isLowAccuracy: boolean;
   dismissedCalibrationBanner: boolean;
   isSosModalOpen: boolean;
+  targetCommand: TargetCommand | null;
 
   setMode: (mode: MapMode) => void;
   setCenter: (center: Coordinates) => void;
   setZoom: (zoom: number) => void;
+  flyTo: (coords: Coordinates, zoom?: number) => void;
   setActiveTileLayer: (layer: MapTileLayer) => void;
   setUserLocation: (
     coords: { lat: number; lng: number } | null,
@@ -107,10 +116,40 @@ export const useMapStore = create<MapState>((set) => ({
   isLowAccuracy: false,
   dismissedCalibrationBanner: false,
   isSosModalOpen: false,
+  targetCommand: null,
 
   setMode: (mode) => set({ mode }),
-  setCenter: (center) => set({ center }),
-  setZoom: (zoom) => set({ zoom }),
+  setCenter: (center) =>
+    set((state) => ({
+      center,
+      targetCommand: {
+        lat: center.lat,
+        lng: center.lng,
+        zoom: state.zoom,
+        id: Date.now() + Math.random(),
+      },
+    })),
+  setZoom: (zoom) =>
+    set((state) => ({
+      zoom,
+      targetCommand: {
+        lat: state.center.lat,
+        lng: state.center.lng,
+        zoom,
+        id: Date.now() + Math.random(),
+      },
+    })),
+  flyTo: (coords, zoom) =>
+    set((state) => ({
+      center: coords,
+      zoom: zoom ?? state.zoom,
+      targetCommand: {
+        lat: coords.lat,
+        lng: coords.lng,
+        zoom: zoom ?? state.zoom,
+        id: Date.now() + Math.random(),
+      },
+    })),
   setActiveTileLayer: (activeTileLayer) => set({ activeTileLayer }),
   openCalibrationModal: () => set({ isCalibrationModalOpen: true }),
   closeCalibrationModal: () => set({ isCalibrationModalOpen: false }),
