@@ -42,18 +42,29 @@ import {
   MapPin,
 } from "lucide-react";
 
-// Map events handler to trigger viewport incident loading and sync zoom to map store
+// Map events handler to trigger viewport incident loading and sync viewport quietly
 function MapEventsHandler() {
   const fetchIncidentsInBounds = useIncidentStore((state) => state.fetchIncidentsInBounds);
-  const setZoom = useMapStore((state) => state.setZoom);
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
 
   const map = useMapEvents({
     zoomend: () => {
-      setZoom(map.getZoom());
+      const currentZoom = map.getZoom();
+      const storeZoom = useMapStore.getState().zoom;
+      if (Math.abs(currentZoom - storeZoom) >= 0.5) {
+        useMapStore.setState({ zoom: currentZoom });
+      }
     },
     moveend: () => {
-      setZoom(map.getZoom());
+      const currentCenter = map.getCenter();
+      const currentZoom = map.getZoom();
+
+      // Quietly sync current viewport into store so other components know where the user is
+      useMapStore.setState({
+        center: { lat: currentCenter.lat, lng: currentCenter.lng },
+        zoom: currentZoom,
+      });
+
       // Debounce viewport bounds query to prevent re-fetching on continuous zoom or pan
       if (debounceRef.current) {
         clearTimeout(debounceRef.current);
@@ -95,7 +106,7 @@ function MapEventsHandler() {
   return null;
 }
 
-// Map center updater when store center updates externally (e.g. clicking incident card or locator)
+// Map center updater: ONLY fires flyTo when target center or zoom is EXPLICITLY changed by an action
 function MapViewUpdater({
   center,
   zoom,
@@ -104,22 +115,34 @@ function MapViewUpdater({
   zoom: number;
 }) {
   const map = useMap();
+  const prevCenterRef = useRef(center);
+  const prevZoomRef = useRef(zoom);
 
   useEffect(() => {
-    const currentCenter = map.getCenter();
-    const currentZoom = map.getZoom();
+    const centerChanged =
+      Math.abs(prevCenterRef.current.lat - center.lat) > 0.0001 ||
+      Math.abs(prevCenterRef.current.lng - center.lng) > 0.0001;
+    const zoomChanged = Math.abs(prevZoomRef.current - zoom) > 0.1;
 
-    const latDiff = Math.abs(currentCenter.lat - center.lat);
-    const lngDiff = Math.abs(currentCenter.lng - center.lng);
-    const zoomDiff = Math.abs(currentZoom - zoom);
+    // Update refs to track current target props
+    prevCenterRef.current = center;
+    prevZoomRef.current = zoom;
 
-    // If map is already at this position within micro-threshold, prevent infinite animation loop
-    if (latDiff < 0.0001 && lngDiff < 0.0001 && zoomDiff === 0) {
-      return;
+    // Only initiate programmatic flyTo if the store target was explicitly changed by an action
+    if (centerChanged || zoomChanged) {
+      const currentCenter = map.getCenter();
+      const currentZoom = map.getZoom();
+
+      const distLat = Math.abs(currentCenter.lat - center.lat);
+      const distLng = Math.abs(currentCenter.lng - center.lng);
+      const distZoom = Math.abs(currentZoom - zoom);
+
+      // Prevent redundant flying if map is already at the target
+      if (distLat > 0.0001 || distLng > 0.0001 || distZoom > 0.1) {
+        map.flyTo([center.lat, center.lng], zoom, { duration: 1.0 });
+      }
     }
-
-    map.flyTo([center.lat, center.lng], zoom, { duration: 1.0 });
-  }, [center.lat, center.lng, zoom, map]);
+  }, [center, zoom, map]);
 
   return null;
 }
@@ -612,7 +635,7 @@ export default function MapClient() {
                 },
               }}
             >
-              <Popup>
+              <Popup autoPanPadding={[24, 24]}>
                 <div className="p-3 min-w-[240px] max-w-[280px] text-slate-800 text-xs space-y-2 font-sans">
                   {/* Status Header */}
                   <div className="flex items-center justify-between gap-1">
@@ -710,7 +733,7 @@ export default function MapClient() {
               position={[zone.latitude, zone.longitude]}
               icon={createSafeZoneIcon(zone.type)}
             >
-              <Popup>
+              <Popup autoPanPadding={[24, 24]}>
                 <div className="p-3 max-w-[260px] text-slate-900">
                   <div className="flex items-center gap-1.5 mb-1">
                     <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">
@@ -766,9 +789,6 @@ export default function MapClient() {
                 icon={icon}
                 zIndexOffset={isHigh ? 500 : isMed ? 200 : 50}
                 eventHandlers={{
-                  click: () => {
-                    setCenter(incident.coordinates);
-                  },
                   mouseover: (e) => {
                     e.target.setZIndexOffset(10000);
                   },
@@ -800,7 +820,7 @@ export default function MapClient() {
                   </div>
                 </Tooltip>
 
-                <Popup>
+                <Popup autoPanPadding={[24, 24]}>
                   <div className="p-3.5 min-w-[280px] sm:min-w-[300px] max-w-[320px] text-slate-900 space-y-2">
                     {/* Header */}
                     <div className="flex items-center justify-between gap-2 pr-6">
