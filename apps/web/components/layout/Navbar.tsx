@@ -268,7 +268,7 @@ export default function Navbar({
 
       {/* Filter Ribbon & Fast Keyword Search (Streamlined Command Strip) */}
       {showFilters && (
-        <div className="border-t border-slate-200/90 bg-slate-50/80 backdrop-blur-md px-3 sm:px-4 lg:px-6 py-2 overflow-hidden">
+        <div className="border-t border-slate-200/90 bg-slate-50/95 px-3 sm:px-4 lg:px-6 py-2 relative z-20">
           <div className="max-w-[1536px] mx-auto flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 min-w-0">
             {/* Quick Filter Chips */}
             <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 scrollbar-none min-w-0 flex-1">

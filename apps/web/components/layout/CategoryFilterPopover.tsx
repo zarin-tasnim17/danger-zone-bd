@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState, useRef, useEffect, useMemo } from "react";
+import React, { useState, useRef, useEffect, useMemo, useCallback } from "react";
+import { createPortal } from "react-dom";
 import {
   Filter,
   ChevronDown,
@@ -161,12 +162,59 @@ export default function CategoryFilterPopover({
   isBn,
 }: CategoryFilterPopoverProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const containerRef = useRef<HTMLDivElement>(null);
+  const [mounted, setMounted] = useState(false);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
+  const [coords, setCoords] = useState<{ top: number; left: number; width: number } | null>(null);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Compute trigger button viewport bounding rect
+  const updateCoords = useCallback(() => {
+    if (!buttonRef.current) return;
+    const rect = buttonRef.current.getBoundingClientRect();
+    const isMobile = window.innerWidth < 640;
+    const popoverWidth = isMobile ? window.innerWidth - 24 : 480;
+
+    let left = rect.left;
+    if (left + popoverWidth > window.innerWidth - 16) {
+      left = window.innerWidth - popoverWidth - 16;
+    }
+    if (left < 12) left = 12;
+
+    setCoords({
+      top: rect.bottom + 8,
+      left,
+      width: popoverWidth,
+    });
+  }, []);
+
+  // Re-calculate coordinates on open, window resize, or scroll
+  useEffect(() => {
+    if (isOpen) {
+      updateCoords();
+      const handleReposition = () => updateCoords();
+      window.addEventListener("resize", handleReposition);
+      window.addEventListener("scroll", handleReposition, true);
+      return () => {
+        window.removeEventListener("resize", handleReposition);
+        window.removeEventListener("scroll", handleReposition, true);
+      };
+    }
+  }, [isOpen, updateCoords]);
 
   // Close on Escape or click outside
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+      const target = e.target as Node;
+      if (
+        popoverRef.current &&
+        !popoverRef.current.contains(target) &&
+        buttonRef.current &&
+        !buttonRef.current.contains(target)
+      ) {
         setIsOpen(false);
       }
     };
@@ -185,26 +233,20 @@ export default function CategoryFilterPopover({
     };
   }, [isOpen]);
 
-  // Find currently active option definition if any
-  const activeOption = useMemo(() => {
-    if (selectedCategory === "all") return null;
-    for (const group of FILTER_GROUPS) {
-      const match = group.options.find((opt) => opt.id === selectedCategory);
-      if (match) return match;
-    }
-    return null;
-  }, [selectedCategory]);
-
   const totalCategoriesCount = useMemo(() => {
     return FILTER_GROUPS.reduce((acc, g) => acc + g.options.length, 0);
   }, []);
 
   return (
-    <div ref={containerRef} className="relative inline-block text-left shrink-0">
+    <div className="relative inline-block text-left shrink-0">
       {/* Trigger Button */}
       <button
+        ref={buttonRef}
         type="button"
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={() => {
+          updateCoords();
+          setIsOpen(!isOpen);
+        }}
         className={`text-xs px-3 py-1.5 rounded-xl font-bold border flex items-center gap-2 transition-all cursor-pointer shadow-2xs select-none ${
           selectedCategory !== "all"
             ? "bg-blue-600 text-white border-blue-600 shadow-sm shadow-blue-600/20"
@@ -235,32 +277,44 @@ export default function CategoryFilterPopover({
         />
       </button>
 
-      {/* Floating Popover Menu */}
-      {isOpen && (
+      {/* Floating Popover Menu via React Portal: Escapes ANY parent overflow clipping */}
+      {isOpen && mounted && createPortal(
         <>
-          {/* Mobile Backdrop for small screens */}
+          {/* Backdrop for click dismissal */}
           <div
-            className="md:hidden fixed inset-0 z-[1200] bg-black/40 backdrop-blur-xs"
+            className="fixed inset-0 z-[9998] bg-black/30 sm:bg-black/10 backdrop-blur-xs"
             onClick={() => setIsOpen(false)}
           />
 
+          {/* Floating Dropdown / Mobile Sheet */}
           <div
-            className={`z-[1300] bg-white/95 backdrop-blur-xl border border-slate-200/90 rounded-2xl shadow-2xl p-3 animate-in fade-in zoom-in-95 duration-150 ${
-              // Mobile: centered bottom sheet or fixed drawer; Desktop: absolute dropdown
-              "fixed inset-x-3 bottom-4 md:absolute md:inset-auto md:left-0 md:top-full md:mt-2 md:w-[480px] max-h-[82vh] overflow-y-auto"
+            ref={popoverRef}
+            style={
+              coords && typeof window !== "undefined" && window.innerWidth >= 640
+                ? {
+                    position: "fixed",
+                    top: `${coords.top}px`,
+                    left: `${coords.left}px`,
+                    width: `${coords.width}px`,
+                  }
+                : undefined
+            }
+            className={`z-[9999] bg-white border border-slate-200/90 rounded-2xl shadow-2xl p-3.5 animate-in fade-in zoom-in-95 duration-150 overflow-hidden flex flex-col ${
+              // Mobile: centered bottom sheet; Desktop: fixed dropdown below button
+              "fixed inset-x-3 bottom-4 sm:bottom-auto sm:inset-x-auto max-h-[84vh] sm:max-h-[78vh]"
             }`}
           >
             {/* Header */}
-            <div className="flex items-center justify-between pb-2.5 mb-2.5 border-b border-slate-100 px-1">
+            <div className="flex items-center justify-between pb-2.5 mb-2.5 border-b border-slate-100 px-1 shrink-0">
               <div className="flex items-center gap-2">
-                <span className="p-1 rounded-lg bg-blue-50 text-blue-600 border border-blue-200">
+                <span className="p-1.5 rounded-xl bg-blue-50 text-blue-600 border border-blue-200 shadow-2xs">
                   <Sparkles className="w-3.5 h-3.5" />
                 </span>
                 <div>
-                  <h4 className="text-xs font-bold text-slate-900">
+                  <h4 className="text-xs font-bold text-slate-900 leading-tight">
                     {isBn ? "ঘটনার বিভাগ অনুযায়ী ফিল্টার" : "Filter Map by Incident Category"}
                   </h4>
-                  <p className="text-[10px] text-slate-500">
+                  <p className="text-[10px] text-slate-500 leading-tight mt-0.5">
                     {isBn
                       ? "একটি ক্যাটাগরি বেছে নিয়ে ম্যাপে শুধুমাত্র সেই ঘটনাগুলো দেখুন"
                       : "Choose a category to isolate matching live alerts on the map"}
@@ -282,8 +336,8 @@ export default function CategoryFilterPopover({
               )}
             </div>
 
-            {/* Semantic Groups */}
-            <div className="space-y-3.5">
+            {/* Scrollable Semantic Groups */}
+            <div className="space-y-3.5 overflow-y-auto pr-1 flex-1">
               {FILTER_GROUPS.map((group, groupIdx) => (
                 <div key={groupIdx} className="space-y-1.5">
                   <div className="flex items-center gap-1.5 px-1 text-[11px] font-bold uppercase tracking-wider text-slate-500">
@@ -344,9 +398,7 @@ export default function CategoryFilterPopover({
                               >
                                 {count}
                               </span>
-                            ) : (
-                              <span className="text-[10px] font-mono text-slate-300">0</span>
-                            )}
+                            ) : null}
 
                             {isSelected && (
                               <Check className="w-3.5 h-3.5 text-blue-600 shrink-0" />
@@ -361,17 +413,18 @@ export default function CategoryFilterPopover({
             </div>
 
             {/* Mobile Close Button */}
-            <div className="md:hidden pt-3 mt-3 border-t border-slate-100">
+            <div className="sm:hidden pt-3 mt-3 border-t border-slate-100 shrink-0">
               <button
                 type="button"
                 onClick={() => setIsOpen(false)}
-                className="w-full py-2 bg-slate-100 text-slate-800 font-bold text-xs rounded-xl"
+                className="w-full py-2 bg-slate-100 text-slate-800 font-bold text-xs rounded-xl hover:bg-slate-200 transition"
               >
                 {isBn ? "বন্ধ করুন" : "Close"}
               </button>
             </div>
           </div>
-        </>
+        </>,
+        document.body
       )}
     </div>
   );
