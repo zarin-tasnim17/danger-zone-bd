@@ -31,7 +31,7 @@ export const triggerNewsCrawler = async () => {
 
 /**
  * Initializes the automated news crawler cron job.
- * Default schedule: Every 2 hours (0 *\/2 * * *).
+ * Default schedule: Every 2 hours ('0 *\/2 * * *').
  */
 export const initNewsCrawlerCron = (scheduleExpression: string = '0 */2 * * *') => {
   const task = cron.schedule(scheduleExpression, async () => {
@@ -43,5 +43,11 @@ export const initNewsCrawlerCron = (scheduleExpression: string = '0 */2 * * *') 
   });
 
   console.log(`[News Crawler Cron] Scheduled automatically with expression: "${scheduleExpression}"`);
-  return task;
+  return {
+    task,
+    stop: () => {
+      console.log('[News Crawler Cron] Stopping cron task...');
+      task.stop();
+    },
+  };
 };

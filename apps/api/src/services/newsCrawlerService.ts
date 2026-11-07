@@ -1,5 +1,6 @@
 import Parser from 'rss-parser';
 import { prisma } from '../db/prisma';
+import { ReportCategory } from '@prisma/client';
 import { resolveLocationFromText } from './geocodingService';
 import { classifyNewsText } from './newsClassifierService';
 import { crossVerifyCitizenReports } from './newsVerificationService';
@@ -68,6 +69,64 @@ export interface RawNewsItem {
 }
 
 /**
+ * Returns the active map lifespan (in hours) based on incident category.
+ * - Acute traffic incidents: 48 hours
+ * - Acute violent / property crimes: 72 hours (3 days)
+ * - Recurring social / syndicate hazards: 7 days (168 hours)
+ * - Infrastructure hazards: 14 days (336 hours)
+ */
+export const getNewsCategoryLifespanHours = (category: ReportCategory): number => {
+  switch (category) {
+    case 'ROAD_ACCIDENT':
+      return 48; // 48 hours (2 days)
+    case 'SNATCHING':
+    case 'ROBBERY':
+    case 'THEFT_ROBBERY':
+    case 'ARMED_ASSAULT':
+    case 'SNATCHING_ARMED_ASSAULT':
+    case 'THEFT':
+    case 'EXTORTION':
+    case 'MUGGING':
+    case 'DACOITY':
+    case 'THEFT_DACOITY':
+      return 72; // 72 hours (3 days)
+    case 'YOUTH_GANG_ACTIVITY':
+    case 'DRUG_RELATED_CRIME':
+    case 'TEEN_GANG':
+    case 'TEEN_GANG_ARMED_ASSAULT':
+    case 'DRUG_ACTIVITY':
+      return 168; // 7 days (168 hours)
+    case 'UNLIT_ROAD':
+      return 336; // 14 days (336 hours)
+    default:
+      return 72;
+  }
+};
+
+/**
+ * Computes the expiration date for a news-originated incident report.
+ * Guarantees at least 24 hours of visibility from time of ingestion even if
+ * the article publication date was several days in the past.
+ */
+export const calculateNewsReportExpiry = (
+  category: ReportCategory,
+  publishedAt: Date = new Date(),
+  now: Date = new Date()
+): Date => {
+  const lifespanHours = getNewsCategoryLifespanHours(category);
+  const lifespanMs = lifespanHours * 60 * 60 * 1000;
+  const candidateExpiry = new Date(publishedAt.getTime() + lifespanMs);
+
+  // Grant at least 24 hours of live map presence from current ingestion time
+  const minFutureExpiry = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+  if (candidateExpiry.getTime() < minFutureExpiry.getTime()) {
+    return minFutureExpiry;
+  }
+
+  return candidateExpiry;
+};
+
+/**
  * Ingests and processes an array of news items:
  * 1. Batch deduplicates against NewsArticle.guid to eliminate DB round-trip overhead.
  * 2. Filters out articles older than 7 days.
@@ -130,8 +189,8 @@ export const processAndIngestNewsItems = async (
       continue;
     }
 
-    // 5. Expiration: 7 days rolling lifecycle
-    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    // 5. Expiration: Category-specific active lifecycle
+    const expiresAt = calculateNewsReportExpiry(classification.category, publishedAt);
 
     // 6. Insert Report and NewsArticle in database
     const report = await prisma.report.create({
