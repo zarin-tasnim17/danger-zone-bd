@@ -5,6 +5,7 @@ import { resolveLocationFromText } from './geocodingService';
 import { classifyNewsText } from './newsClassifierService';
 import { isForeignIncident } from './internationalIncidentFilter';
 import { crossVerifyCitizenReports } from './newsVerificationService';
+import { findDuplicateActiveReport } from './incidentDeduplicationService';
 import { emitNewReport } from '../sockets';
 
 const parser = new Parser({
@@ -204,9 +205,78 @@ export const processAndIngestNewsItems = async (
     // 5. Expiration: Category-specific active lifecycle
     const expiresAt = calculateNewsReportExpiry(classification.category, publishedAt);
 
-    // 6. Clean headline and insert Report and NewsArticle in database
+    // 6. Clean headline and content
     const cleanTitle = item.title.replace(/^\[(?:Google News[^\]]*|The Daily Star[^\]]*)\]\s*/i, '').trim();
     const cleanDesc = (item.contentSnippet || item.title).replace(/^\[(?:Google News[^\]]*|The Daily Star[^\]]*)\]\s*/i, '').trim();
+
+    // 7. Cross-Outlet Semantic Deduplication:
+    // If another news agency already reported on this exact same accident/crime in this area,
+    // consolidate under the existing report instead of scattering duplicate pins across the map.
+    const duplicateMatch = await findDuplicateActiveReport({
+      title: cleanTitle,
+      category: classification.category,
+      latitude: geocode.latitude,
+      longitude: geocode.longitude,
+    });
+
+    if (duplicateMatch) {
+      const { existingReport, sharedTokens } = duplicateMatch;
+      console.log(
+        `[News Crawler] 🔄 Consolidated duplicate story from "${item.sourceName}": "${cleanTitle.substring(0, 60)}..." -> Merged with Report ${existingReport.id} (Shared: ${sharedTokens.join(', ')})`
+      );
+
+      // Create NewsArticle record (unlinked via null reportId to prevent unique constraint conflict)
+      await prisma.newsArticle.create({
+        data: {
+          guid,
+          title: item.title,
+          sourceUrl: item.link,
+          sourceName: item.sourceName,
+          publishedAt,
+          category: classification.category,
+          severity: classification.severity,
+          latitude: geocode.latitude,
+          longitude: geocode.longitude,
+          reportId: null,
+        },
+      });
+
+      // Format source names to credit multiple outlets
+      const currentSources = existingReport.sourceName || '';
+      const cleanOutlet = item.sourceName.replace(/^Google News BD[^:]*:\s*/i, '').trim();
+      let updatedSources = currentSources;
+      if (cleanOutlet && !currentSources.includes(cleanOutlet)) {
+        updatedSources = `${currentSources}, ${cleanOutlet}`.replace(/^,\s*/, '');
+      }
+
+      // If existing report was previously misclassified (e.g. ARMED_ASSAULT instead of ROAD_ACCIDENT), fix it:
+      const updatedCategory =
+        existingReport.category === 'ARMED_ASSAULT' && classification.category === 'ROAD_ACCIDENT'
+          ? 'ROAD_ACCIDENT'
+          : existingReport.category;
+
+      await prisma.report.update({
+        where: { id: existingReport.id },
+        data: {
+          category: updatedCategory,
+          sourceName: updatedSources,
+          upvotes: { increment: 2 }, // Multi-press verification confidence boost
+        },
+      });
+
+      // Add a context update linking the confirming news outlet
+      await prisma.reportUpdate.create({
+        data: {
+          reportId: existingReport.id,
+          userId: botUserId,
+          content: `অতিরিক্ত প্রেস নিশ্চিতকরণ (${cleanOutlet || item.sourceName}): "${cleanTitle}"`,
+        },
+      });
+
+      existingGuidSet.add(guid);
+      skipped++;
+      continue;
+    }
 
     const report = await prisma.report.create({
       data: {
