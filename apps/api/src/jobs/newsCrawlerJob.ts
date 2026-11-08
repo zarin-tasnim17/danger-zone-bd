@@ -30,10 +30,26 @@ export const triggerNewsCrawler = async () => {
 };
 
 /**
- * Initializes the automated news crawler cron job.
- * Default schedule: Every 2 hours ('0 *\/2 * * *').
+ * Executes a cold-start background crawl 10 seconds after server boot.
+ * This recovers immediately from Render container sleep / spin-downs so
+ * incoming traffic always sees fresh news without waiting for the next cron tick.
  */
-export const initNewsCrawlerCron = (scheduleExpression: string = '0 */2 * * *') => {
+export const scheduleStartupCrawl = () => {
+  setTimeout(async () => {
+    try {
+      console.log('[News Crawler] 🚀 Executing initial startup news crawl check...');
+      await triggerNewsCrawler();
+    } catch (err: any) {
+      console.warn('[News Crawler] Startup crawl warning:', err.message);
+    }
+  }, 10000);
+};
+
+/**
+ * Initializes the automated news crawler cron job.
+ * Default schedule: Every 1 hour ('0 * * * *').
+ */
+export const initNewsCrawlerCron = (scheduleExpression: string = '0 * * * *') => {
   const task = cron.schedule(scheduleExpression, async () => {
     try {
       await triggerNewsCrawler();
@@ -43,6 +59,10 @@ export const initNewsCrawlerCron = (scheduleExpression: string = '0 */2 * * *') 
   });
 
   console.log(`[News Crawler Cron] Scheduled automatically with expression: "${scheduleExpression}"`);
+
+  // Run initial crawl on server boot/wake
+  scheduleStartupCrawl();
+
   return {
     task,
     stop: () => {

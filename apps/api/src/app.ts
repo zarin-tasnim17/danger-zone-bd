@@ -31,6 +31,7 @@ import adminRouter from './routes/admin';
 import safeZonesRouter from './routes/safeZones';
 import routingRouter from './routes/routing';
 import statsRouter from './routes/stats';
+import cronRouter from './routes/cron';
 
 app.use('/api/v1/auth', authRouter);
 app.use('/api/v1/users', userRouter);
@@ -41,6 +42,7 @@ app.use('/api/v1/admin', adminRouter);
 app.use('/api/v1/safe-zones', safeZonesRouter);
 app.use('/api/v1/routes', routingRouter);
 app.use('/api/v1/stats', statsRouter);
+app.use('/api/v1/cron', cronRouter);
 
 app.get('/', (req, res) => {
   res.json({
@@ -57,7 +59,8 @@ app.get('/', (req, res) => {
       auth: '/api/v1/auth',
       media: '/api/v1/media',
       alerts: '/api/v1/alerts',
-      admin: '/api/v1/admin'
+      admin: '/api/v1/admin',
+      cron: '/api/v1/cron/news-crawl'
     }
   });
 });

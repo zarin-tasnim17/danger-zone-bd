@@ -103,7 +103,7 @@ export default function IncidentFeed({ onIncidentSelect }: { onIncidentSelect?: 
         if (!matchesTitle && !matchesLoc) return false;
       }
       return true;
-    });
+    }).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
   }, [incidents, feedTab, selectedSeverity, selectedCategory, searchQuery]);
 
   const hasActiveFilters =

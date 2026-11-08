@@ -16,11 +16,11 @@ const parser = new Parser({
 export const PUBLIC_NEWS_FEEDS = [
   {
     name: 'Google News BD Crime',
-    url: 'https://news.google.com/rss/search?q=crime+OR+mugging+OR+robbery+bangladesh&hl=en-BD&gl=BD&ceid=BD:en',
+    url: 'https://news.google.com/rss/search?q=crime+OR+mugging+OR+robbery+bangladesh+when:2d&hl=en-BD&gl=BD&ceid=BD:en',
   },
   {
     name: 'Google News BD Safety (Bangla)',
-    url: 'https://news.google.com/rss/search?q=%E0%A6%9B%E0%A6%BF%E0%A6%A8%E0%A6%A4%E0%A6%BE%E0%A6%87+OR+%E0%A6%A1%E0%A6%BE%E0%A6%95%E0%A6%BE%E0%A6%A4%E0%A6%BF+OR+%E0%A6%B8%E0%A6%82%E0%A6%98%E0%A6%B0%E0%A7%8D%E0%A6%B7+OR+%E0%A6%A6%E0%A7%81%E0%A6%B0%E0%A7%8D%E0%A6%98%E0%A6%9F%E0%A6%A8%E0%A6%BE&hl=bn&gl=BD&ceid=BD:bn',
+    url: 'https://news.google.com/rss/search?q=%E0%A6%9B%E0%A6%BF%E0%A6%A8%E0%A6%A4%E0%A6%BE%E0%A6%87+OR+%E0%A6%A1%E0%A6%BE%E0%A6%95%E0%A6%BE%E0%A6%A4%E0%A6%BF+OR+%E0%A6%B8%E0%A6%82%E0%A6%98%E0%A6%B0%E0%A7%8D%E0%A6%B7+OR+%E0%A6%B8%E0%A7%9C%E0%A6%95+%E0%A6%A6%E0%A7%81%E0%A6%B0%E0%A7%8D%E0%A6%98%E0%A6%9F%E0%A6%A8%E0%A6%BE+when:2d&hl=bn&gl=BD&ceid=BD:bn',
   },
   {
     name: 'The Daily Star Law & Crime',
