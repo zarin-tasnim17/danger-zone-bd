@@ -392,7 +392,7 @@ export default function ReportPage() {
             setDeviceGps(null);
           }
         },
-        { enableHighAccuracy: true, timeout: 8000 }
+        { enableHighAccuracy: true, timeout: 6000, maximumAge: 30000 }
       );
     }
   }, [isBn]);

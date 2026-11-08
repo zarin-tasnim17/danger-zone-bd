@@ -169,7 +169,7 @@ export default function ReportIncidentModal({ isOpen, onClose }: ReportModalProp
         (err) => {
           console.warn("[GPS Proximity Radar] Geolocation unavailable:", err.message);
         },
-        { enableHighAccuracy: true, timeout: 5000 }
+        { enableHighAccuracy: true, timeout: 6000, maximumAge: 30000 }
       );
     }
   }, [isOpen, setMapCenter]);

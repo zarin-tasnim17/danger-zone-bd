@@ -317,7 +317,7 @@ export default function MapClient() {
       return;
     }
 
-    // 2. Otherwise request browser geolocation
+    // 2. Otherwise request browser geolocation (allow cached fix up to 60s for instant load)
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (pos) => {
@@ -338,12 +338,12 @@ export default function MapClient() {
         (err) => {
           console.info("[Geo] Auto-location skipped:", err.message);
         },
-        { enableHighAccuracy: true, timeout: 6000, maximumAge: 0 }
+        { enableHighAccuracy: true, timeout: 6000, maximumAge: 60000 }
       );
     }
   }, [setCenter, setZoom, loadSavedLocation, setUserLocation, setIsLowAccuracy]);
 
-  // Request browser geolocation (manual button click): Always prioritizes live hardware GPS
+  // Request browser geolocation (manual button click): Progressive fast fix + live satellite refinement
   const handleLocateMe = () => {
     // Check for Secure Context on mobile (iOS/Android block geolocation on insecure HTTP)
     if (
@@ -380,49 +380,77 @@ export default function MapClient() {
     }
 
     setIsLocating(true);
+    let hasAppliedFastFix = false;
+
+    const applyGpsCoordinates = (pos: GeolocationPosition, isRefined: boolean = false) => {
+      const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+      const acc = pos.coords.accuracy || null;
+      setUserLocation(coords, acc, 'gps');
+
+      if (isWithinBangladesh(coords.lat, coords.lng)) {
+        setCenter(coords);
+        if (!isRefined) {
+          setZoom(17);
+          mapRef.current?.flyTo([coords.lat, coords.lng], 17, { animate: true, duration: 1.0 });
+        }
+        if (!acc || acc > 150) {
+          setIsLowAccuracy(true);
+        } else {
+          setIsLowAccuracy(false);
+        }
+      } else {
+        openCalibrationModal();
+      }
+    };
+
+    // Stage 1: Ultra-fast immediate fix using recent mobile A-GPS / Wi-Fi cache (returns in <250ms)
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-        const acc = pos.coords.accuracy || null;
-        setUserLocation(coords, acc, 'gps');
+        hasAppliedFastFix = true;
+        applyGpsCoordinates(pos, false);
+        setIsLocating(false);
+      },
+      () => {
+        // Fast fix unavailable or empty cache; will resolve in Stage 2
+      },
+      { enableHighAccuracy: false, timeout: 2500, maximumAge: 60000 }
+    );
 
-        if (isWithinBangladesh(coords.lat, coords.lng)) {
-          setCenter(coords);
-          setZoom(17);
-          if (!acc || acc > 150) {
-            setIsLowAccuracy(true);
-          }
-        } else {
-          openCalibrationModal();
-        }
+    // Stage 2: High-accuracy live satellite refinement (sharpens location in background)
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        applyGpsCoordinates(pos, hasAppliedFastFix);
         setIsLocating(false);
       },
       (err) => {
-        console.warn("[MapClient] Could not access live GPS:", err.message);
-        setIsLocating(false);
-        if (err.code === 1) {
-          alert(
-            isBn
-              ? "অনুগ্রহ করে আপনার ব্রাউজারের সেটিংসে লোকেশন পারমিশন চালু করুন।"
-              : "Please enable Location permission in your mobile browser settings to locate your device."
-          );
-        }
-        // Fallback to saved location if live GPS denied/unavailable
-        const saved = loadSavedLocation();
-        if (saved && isWithinBangladesh(saved.lat, saved.lng)) {
-          setUserLocation(
-            { lat: saved.lat, lng: saved.lng },
-            saved.accuracy || 25,
-            'calibrated',
-            saved.label
-          );
-          setCenter({ lat: saved.lat, lng: saved.lng });
-          setZoom(17);
-        } else {
-          openCalibrationModal();
+        if (!hasAppliedFastFix) {
+          console.warn("[MapClient] Could not access live GPS:", err.message);
+          setIsLocating(false);
+          if (err.code === 1) {
+            alert(
+              isBn
+                ? "অনুগ্রহ করে আপনার ব্রাউজারের সেটিংসে লোকেশন পারমিশন চালু করুন।"
+                : "Please enable Location permission in your mobile browser settings to locate your device."
+            );
+          }
+          // Fallback to saved location if live GPS denied/unavailable
+          const saved = loadSavedLocation();
+          if (saved && isWithinBangladesh(saved.lat, saved.lng)) {
+            setUserLocation(
+              { lat: saved.lat, lng: saved.lng },
+              saved.accuracy || 25,
+              'calibrated',
+              saved.label
+            );
+            setCenter({ lat: saved.lat, lng: saved.lng });
+            setZoom(17);
+            mapRef.current?.flyTo([saved.lat, saved.lng], 17, { animate: true, duration: 1.2 });
+          } else {
+            openCalibrationModal();
+          }
         }
       },
-      { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 15000 }
     );
   };
 
@@ -451,7 +479,7 @@ export default function MapClient() {
         setIsLocating(false);
         openCalibrationModal();
       },
-      { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 10000 }
     );
   };
 
