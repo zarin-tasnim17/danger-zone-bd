@@ -7,13 +7,8 @@ import {
   MapPin,
   Search,
   Crosshair,
-  Compass,
-  Check,
   X,
   Loader2,
-  Sparkles,
-  Building2,
-  Navigation2,
 } from "lucide-react";
 
 interface GeocodedResult {
@@ -27,98 +22,20 @@ interface GeocodedResult {
 
 // Popular verified landmarks for fast 1-click calibration in Bangladesh
 const PRESET_LANDMARKS = [
-  // Khulna City Division
-  {
-    city: "Khulna",
-    nameEn: "Jatishongho Shishu Park",
-    nameBn: "জাতিসংঘ শিশু পার্ক",
-    subEn: "Shantidham More, Khulna",
-    subBn: "শান্তিধাম মোড়, খুলনা",
-    lat: 22.8185,
-    lng: 89.5539,
-  },
-  {
-    city: "Khulna",
-    nameEn: "Shantidham More",
-    nameBn: "শান্তিধাম মোড়",
-    subEn: "Khan Jahan Ali Rd, Khulna",
-    subBn: "খান জাহান আলী রোড, খুলনা",
-    lat: 22.8207,
-    lng: 89.5542,
-  },
-  {
-    city: "Khulna",
-    nameEn: "Hotel Royal International More",
-    nameBn: "হোটেল রয়্যাল মোড়",
-    subEn: "KDA Avenue, Khulna",
-    subBn: "কেডিএ এভিনিউ, খুলনা",
-    lat: 22.8146,
-    lng: 89.5583,
-  },
-  {
-    city: "Khulna",
-    nameEn: "Khulna New Market",
-    nameBn: "খুলনা নিউ মার্কেট",
-    subEn: "KDA Avenue, Khulna",
-    subBn: "কেডিএ এভিনিউ, খুলনা",
-    lat: 22.8258,
-    lng: 89.5512,
-  },
-  {
-    city: "Khulna",
-    nameEn: "Sonadanga Bus Terminal",
-    nameBn: "সোনাডাঙ্গা বাস টার্মিনাল",
-    subEn: "Sonadanga, Khulna",
-    subBn: "সোনাডাঙ্গা, খুলনা",
-    lat: 22.8214,
-    lng: 89.5398,
-  },
-  {
-    city: "Khulna",
-    nameEn: "Khulna University (KU)",
-    nameBn: "খুলনা বিশ্ববিদ্যালয় (কু)",
-    subEn: "Gollamari, Khulna",
-    subBn: "গল্লামারী, খুলনা",
-    lat: 22.8021,
-    lng: 89.5332,
-  },
-  // Dhaka Division
-  {
-    city: "Dhaka",
-    nameEn: "Dhanmondi 32",
-    nameBn: "ধানমন্ডি ৩২",
-    subEn: "Mirpur Road, Dhaka",
-    subBn: "মিরপুর রোড, ঢাকা",
-    lat: 23.7516,
-    lng: 90.3776,
-  },
-  {
-    city: "Dhaka",
-    nameEn: "Mirpur 10 Circle",
-    nameBn: "মিরপুর ১০ গোলচত্বর",
-    subEn: "Mirpur, Dhaka",
-    subBn: "মিরপুর, ঢাকা",
-    lat: 23.8069,
-    lng: 90.3687,
-  },
-  {
-    city: "Dhaka",
-    nameEn: "Banani 11",
-    nameBn: "বনানী ১১",
-    subEn: "Banani, Dhaka",
-    subBn: "বনানী, ঢাকা",
-    lat: 23.7937,
-    lng: 90.4049,
-  },
-  {
-    city: "Dhaka",
-    nameEn: "Shahbagh / DU",
-    nameBn: "শাহবাগ / ঢাবি",
-    subEn: "Dhaka University Area",
-    subBn: "ঢাকা বিশ্ববিদ্যালয় এলাকা",
-    lat: 23.7380,
-    lng: 90.3956,
-  },
+  // Khulna
+  { city: "Khulna", nameEn: "Shishu Park", nameBn: "শিশু পার্ক", lat: 22.8185, lng: 89.5539 },
+  { city: "Khulna", nameEn: "Shantidham", nameBn: "শান্তিধাম মোড়", lat: 22.8207, lng: 89.5542 },
+  { city: "Khulna", nameEn: "Royal More", nameBn: "রয়্যাল মোড়", lat: 22.8146, lng: 89.5583 },
+  { city: "Khulna", nameEn: "New Market", nameBn: "নিউ মার্কেট", lat: 22.8258, lng: 89.5512 },
+  { city: "Khulna", nameEn: "Sonadanga", nameBn: "সোনাডাঙ্গা", lat: 22.8214, lng: 89.5398 },
+  { city: "Khulna", nameEn: "Khulna University", nameBn: "খুলনা বিশ্ববিদ্যালয়", lat: 22.8021, lng: 89.5332 },
+  // Dhaka
+  { city: "Dhaka", nameEn: "Dhanmondi 32", nameBn: "ধানমন্ডি ৩২", lat: 23.7516, lng: 90.3776 },
+  { city: "Dhaka", nameEn: "Mirpur 10", nameBn: "মিরপুর ১০", lat: 23.8069, lng: 90.3687 },
+  { city: "Dhaka", nameEn: "Banani 11", nameBn: "বনানী ১১", lat: 23.7937, lng: 90.4049 },
+  { city: "Dhaka", nameEn: "Shahbagh / DU", nameBn: "শাহবাগ / ঢাবি", lat: 23.738, lng: 90.3956 },
+  { city: "Dhaka", nameEn: "Gulshan 1", nameBn: "গুলশান ১", lat: 23.7788, lng: 90.4172 },
+  { city: "Dhaka", nameEn: "Uttara Sector 3", nameBn: "উত্তরা ৩", lat: 23.8683, lng: 90.3967 },
 ];
 
 export default function LocationCalibrationModal() {
@@ -129,7 +46,6 @@ export default function LocationCalibrationModal() {
     center,
     setCenter,
     setZoom,
-    userLocation,
     locationSource,
   } = useMapStore();
   const { language } = useLanguageStore();
@@ -230,63 +146,44 @@ export default function LocationCalibrationModal() {
       role="dialog"
       aria-modal="true"
       aria-labelledby="calibration-title"
-      className="fixed inset-0 z-[1000] flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200"
+      className="fixed inset-0 z-[1000] flex items-center justify-center p-3 sm:p-4 bg-slate-900/50 backdrop-blur-xs animate-in fade-in duration-150"
       onClick={closeCalibrationModal}
     >
       <div
-        className="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[92vh] animate-in zoom-in-95 duration-200"
+        className="relative w-full max-w-md bg-white rounded-2xl shadow-xl border border-slate-200/90 overflow-hidden flex flex-col animate-in zoom-in-95 duration-150"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header Strip */}
-        <div className="relative px-5 pt-5 pb-4 border-b border-slate-100 bg-gradient-to-b from-slate-50/90 to-white">
+        {/* Header */}
+        <div className="relative px-5 pt-5 pb-3 border-b border-slate-100">
           <button
             onClick={closeCalibrationModal}
-            className="absolute top-4 right-4 p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+            className="absolute top-4 right-4 p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
             aria-label="Close"
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4" />
           </button>
 
           <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-emerald-500 to-teal-400 text-white flex items-center justify-center shadow-md shadow-emerald-500/25">
-              <Crosshair className="w-6 h-6 animate-pulse" />
+            <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-100 shrink-0">
+              <Crosshair className="w-5 h-5" />
             </div>
             <div>
-              <h2 id="calibration-title" className="text-lg font-bold text-slate-900">
-                {isBn ? "সঠিক অবস্থান নির্ধারণ করুন" : "Set Your Exact Location"}
+              <h2 id="calibration-title" className="text-base font-bold text-slate-900 tracking-tight">
+                {isBn ? "অবস্থান নির্ধারণ করুন" : "Set Your Location"}
               </h2>
-              <p className="text-xs text-slate-500 font-medium">
+              <p className="text-xs text-slate-500 font-normal mt-0.5">
                 {isBn
-                  ? "ডেস্কটপ ও ল্যাপটপে স্যাটেলাইট জিপিএস না থাকায় সঠিক অবস্থান একবার সংরক্ষণ করুন"
-                  : "Desktop browsers lack satellite GPS. Pinpoint your real spot once below."}
+                  ? "ডেস্কটপে সঠিক সতর্কবার্তা পেতে আপনার এলাকা একবার সংরক্ষণ করুন।"
+                  : "Pinpoint your area once for accurate desktop safety alerts."}
               </p>
             </div>
           </div>
         </div>
 
-        {/* Scrollable Body */}
-        <div className="p-5 overflow-y-auto space-y-4 text-slate-800">
-          {/* Why This Happens Alert Card */}
-          <div className="p-3.5 bg-blue-50/70 border border-blue-200/80 rounded-2xl text-xs text-blue-900 flex items-start gap-2.5">
-            <Sparkles className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
-            <div className="space-y-1">
-              <p className="font-semibold text-blue-950">
-                {isBn ? "ইন্টারনেট প্রোভাইডারের ভুল অবস্থান প্রতিরোধ" : "Preventing ISP Gateway Mismatches"}
-              </p>
-              <p className="text-blue-800 leading-relaxed text-[11px]">
-                {isBn
-                  ? "ডেস্কটপ ব্রাউজার ওয়াইফাই/আইএসপি টাওয়ার (যেমন বাঘাল বা ক্যাসেল সালাম) সনাক্ত করে। নিচের যে কোনো অপশন ব্যবহার করে আপনার বাড়ি বা অফিসের সঠিক স্থান নির্ধারণ করলে 'My Location' বোতাম সবসময় সেখানেই যাবে।"
-                  : "Computers use your internet tower (often 10–30 km away in Badhal or Castle Salam). Setting your verified spot below ensures 'My Location' always snaps straight to your real building."}
-              </p>
-            </div>
-          </div>
-
-          {/* Quick Search Input */}
+        {/* Content Body */}
+        <div className="p-5 space-y-4">
+          {/* Search Input */}
           <div className="space-y-1.5">
-            <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-              <Search className="w-3.5 h-3.5 text-slate-500" />
-              <span>{isBn ? "এলাকা বা ল্যান্ডমার্ক অনুসন্ধান" : "Search Area or Landmark"}</span>
-            </label>
             <div className="relative">
               <input
                 ref={inputRef}
@@ -295,10 +192,10 @@ export default function LocationCalibrationModal() {
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder={
                   isBn
-                    ? "যেমন: জাতিসংঘ শিশু পার্ক, শান্তিধাম, খুলনা..."
-                    : "e.g., Jatishongho Shishu Park, Shantidham, Khulna..."
+                    ? "এলাকা বা ল্যান্ডমার্ক খুঁজুন (উদা: শান্তিধাম, ধানমন্ডি)..."
+                    : "Search area, road, or landmark..."
                 }
-                className="w-full pl-9 pr-9 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-hidden focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition shadow-2xs font-medium"
+                className="w-full pl-9 pr-9 py-2.5 bg-slate-50/80 hover:bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-hidden focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/15 transition shadow-2xs font-medium"
               />
               <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
               {isSearching ? (
@@ -307,31 +204,30 @@ export default function LocationCalibrationModal() {
                 <button
                   type="button"
                   onClick={() => setQuery("")}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 cursor-pointer"
                 >
                   <X className="w-3.5 h-3.5" />
                 </button>
               ) : null}
             </div>
 
-            {/* Search Suggestions Dropdown */}
+            {/* Autocomplete Suggestions */}
             {results.length > 0 && (
-              <div className="mt-1.5 border border-slate-200 rounded-2xl bg-white shadow-lg overflow-hidden divide-y divide-slate-100 max-h-48 overflow-y-auto">
+              <div className="mt-1 border border-slate-200 rounded-xl bg-white shadow-lg overflow-hidden divide-y divide-slate-100 max-h-48 overflow-y-auto">
                 {results.map((item, idx) => (
                   <button
                     key={`${item.lat}-${item.lng}-${idx}`}
                     onClick={() => handleSelectLocation(item.lat, item.lng, item.name)}
-                    className="w-full text-left px-3.5 py-2.5 hover:bg-emerald-50 flex items-center justify-between gap-2 transition-colors cursor-pointer group"
+                    className="w-full text-left px-3 py-2 hover:bg-emerald-50/80 flex items-center justify-between gap-2 transition-colors cursor-pointer group"
                   >
                     <div className="min-w-0">
-                      <div className="text-xs font-bold text-slate-900 group-hover:text-emerald-700 truncate">
+                      <div className="text-xs font-semibold text-slate-900 group-hover:text-emerald-800 truncate">
                         {item.name}
                       </div>
-                      <div className="text-[11px] text-slate-500 truncate">{item.formatted}</div>
+                      <div className="text-[10px] text-slate-400 truncate">{item.formatted}</div>
                     </div>
-                    <span className="shrink-0 text-[10px] font-bold px-2 py-1 rounded-lg bg-emerald-600 text-white flex items-center gap-1 shadow-2xs group-hover:scale-105 transition-all">
-                      <Check className="w-3 h-3" />
-                      <span>{isBn ? "সেট করুন" : "Set"}</span>
+                    <span className="shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 group-hover:bg-emerald-600 group-hover:text-white transition">
+                      {isBn ? "বাছাই" : "Select"}
                     </span>
                   </button>
                 ))}
@@ -339,23 +235,38 @@ export default function LocationCalibrationModal() {
             )}
           </div>
 
-          {/* 1-Click Popular Landmarks */}
-          <div className="space-y-2 pt-1">
-            <div className="flex items-center justify-between">
-              <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-                <Building2 className="w-3.5 h-3.5 text-slate-500" />
-                <span>{isBn ? "১-ক্লিক জনপ্রিয় ল্যান্ডমার্ক" : "1-Click Popular Landmarks"}</span>
-              </label>
+          {/* Action: Use Current Map Center */}
+          <div>
+            <button
+              type="button"
+              onClick={handleUseCurrentCenter}
+              className="w-full py-2.5 px-3 rounded-xl bg-emerald-50/70 hover:bg-emerald-100/70 border border-emerald-200/80 text-emerald-900 text-xs font-semibold flex items-center justify-center gap-2 transition-colors cursor-pointer active:scale-99"
+            >
+              <Crosshair className="w-4 h-4 text-emerald-700 shrink-0" />
+              <span>
+                {isBn
+                  ? "ম্যাপের কেন্দ্রবিন্দু ব্যবহার করুন"
+                  : "Use Current Map Center"}
+              </span>
+            </button>
+          </div>
 
-              {/* City Switcher Pill */}
-              <div className="flex items-center p-0.5 bg-slate-100 rounded-lg border border-slate-200 text-[10px] font-semibold">
+          {/* Quick Select Preset Landmarks */}
+          <div className="space-y-2 pt-1 border-t border-slate-100">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
+                {isBn ? "জনপ্রিয় এলাকা" : "Quick Select"}
+              </span>
+
+              {/* City Switcher */}
+              <div className="flex items-center gap-1 text-[11px]">
                 <button
                   type="button"
                   onClick={() => setSelectedCity("Khulna")}
-                  className={`px-2 py-0.5 rounded-md transition-all cursor-pointer ${
+                  className={`px-2 py-0.5 rounded-md font-semibold transition cursor-pointer ${
                     selectedCity === "Khulna"
-                      ? "bg-white text-slate-900 font-bold shadow-2xs"
-                      : "text-slate-500 hover:text-slate-800"
+                      ? "bg-slate-200/90 text-slate-900"
+                      : "text-slate-400 hover:text-slate-600"
                   }`}
                 >
                   {isBn ? "খুলনা" : "Khulna"}
@@ -363,10 +274,10 @@ export default function LocationCalibrationModal() {
                 <button
                   type="button"
                   onClick={() => setSelectedCity("Dhaka")}
-                  className={`px-2 py-0.5 rounded-md transition-all cursor-pointer ${
+                  className={`px-2 py-0.5 rounded-md font-semibold transition cursor-pointer ${
                     selectedCity === "Dhaka"
-                      ? "bg-white text-slate-900 font-bold shadow-2xs"
-                      : "text-slate-500 hover:text-slate-800"
+                      ? "bg-slate-200/90 text-slate-900"
+                      : "text-slate-400 hover:text-slate-600"
                   }`}
                 >
                   {isBn ? "ঢাকা" : "Dhaka"}
@@ -374,8 +285,8 @@ export default function LocationCalibrationModal() {
               </div>
             </div>
 
-            {/* Landmarks Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {/* Compact Chips */}
+            <div className="flex flex-wrap gap-1.5">
               {filteredPresets.map((preset) => (
                 <button
                   key={preset.nameEn}
@@ -387,64 +298,40 @@ export default function LocationCalibrationModal() {
                       isBn ? preset.nameBn : preset.nameEn
                     )
                   }
-                  className="p-2.5 rounded-xl border border-slate-200 bg-slate-50/70 hover:bg-emerald-50 hover:border-emerald-300 text-left transition-all group flex items-start gap-2 cursor-pointer shadow-2xs hover:shadow-xs"
+                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-medium bg-slate-100/80 hover:bg-emerald-50 text-slate-700 hover:text-emerald-800 border border-slate-200/60 hover:border-emerald-300 transition-colors cursor-pointer"
                 >
-                  <MapPin className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5 group-hover:scale-110 transition-transform" />
-                  <div className="min-w-0">
-                    <p className="text-xs font-bold text-slate-900 group-hover:text-emerald-800 truncate">
-                      {isBn ? preset.nameBn : preset.nameEn}
-                    </p>
-                    <p className="text-[10px] text-slate-500 truncate">
-                      {isBn ? preset.subBn : preset.subEn}
-                    </p>
-                  </div>
+                  <MapPin className="w-3 h-3 text-emerald-600 shrink-0" />
+                  <span>{isBn ? preset.nameBn : preset.nameEn}</span>
                 </button>
               ))}
             </div>
           </div>
-
-          {/* Action: Use Current Map Center */}
-          <div className="pt-2 border-t border-slate-100">
-            <button
-              type="button"
-              onClick={handleUseCurrentCenter}
-              className="w-full py-2.5 px-4 rounded-xl border-2 border-dashed border-emerald-300 bg-emerald-50/50 hover:bg-emerald-50 text-emerald-800 font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer active:scale-98 shadow-2xs"
-            >
-              <Compass className="w-4 h-4 text-emerald-600" />
-              <span>
-                {isBn
-                  ? `ম্যাপের বর্তমান কেন্দ্রবিন্দু (${center.lat.toFixed(4)}, ${center.lng.toFixed(4)}) অবস্থান হিসেবে সংরক্ষণ করুন`
-                  : `Save Current Map Center (${center.lat.toFixed(4)}, ${center.lng.toFixed(4)}) as My Location`}
-              </span>
-            </button>
-            <p className="text-[10px] text-slate-400 text-center mt-1.5">
-              {isBn
-                ? "💡 ম্যাপটি টেনে আপনার ভবনের ওপর আনুন, তারপর ওপরের বোতামটিতে ক্লিক করুন।"
-                : "💡 Pan the map over your building, then click the button above to lock it."}
-            </p>
-          </div>
         </div>
 
-        {/* Footer */}
-        <div className="px-5 py-3 bg-slate-50 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+        {/* Minimal Footer */}
+        <div className="px-5 py-2.5 bg-slate-50/80 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
           <div className="flex items-center gap-1.5">
-            <Navigation2 className="w-3.5 h-3.5 text-slate-400" />
-            <span>
+            <span
+              className={`w-2 h-2 rounded-full ${
+                locationSource === "calibrated" ? "bg-emerald-500" : "bg-slate-300"
+              }`}
+            />
+            <span className="text-[11px]">
               {locationSource === "calibrated"
                 ? isBn
-                  ? "✓ অবস্থান পূর্বে সংরক্ষিত হয়েছে"
-                  : "✓ Previously calibrated"
+                  ? "অবস্থান সংরক্ষিত আছে"
+                  : "Calibrated"
                 : isBn
-                  ? "অপ্রমাণিত জিপিএস সক্রিয়"
-                  : "Raw network GPS active"}
+                  ? "ডিফল্ট ব্রাউজার জিপিএস"
+                  : "Default browser GPS"}
             </span>
           </div>
           <button
             type="button"
             onClick={closeCalibrationModal}
-            className="px-3 py-1.5 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-200 transition font-semibold cursor-pointer"
+            className="text-xs text-slate-500 hover:text-slate-900 font-medium px-2.5 py-1 rounded-md hover:bg-slate-200/50 transition cursor-pointer"
           >
-            {isBn ? "পরে করুন" : "Dismiss"}
+            {isBn ? "বন্ধ করুন" : "Close"}
           </button>
         </div>
       </div>
