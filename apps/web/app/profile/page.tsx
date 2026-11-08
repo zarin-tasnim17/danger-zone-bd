@@ -35,6 +35,8 @@ import {
   Info,
   Clock,
   BadgeCheck,
+  FileText,
+  Scale,
 } from "lucide-react";
 
 export default function ProfilePage() {
@@ -380,6 +382,50 @@ export default function ProfilePage() {
                   <span>{isBn ? "নতুন বেনামী পরিচয় তৈরি করুন" : "Reset to New Anonymous ID"}</span>
                 </button>
               </div>
+            </div>
+
+            {/* Terms of Service & Safety Consents Card */}
+            <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-xs space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 bg-emerald-50 text-emerald-600 rounded-xl border border-emerald-100">
+                    <Scale className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-xs font-bold text-slate-900 leading-tight">
+                      {isBn ? "ব্যবহারের শর্তাবলী ও নিরাপত্তা সম্মতি" : "Terms & Safety Consents"}
+                    </h3>
+                    <p className="text-[10px] text-slate-500 leading-tight mt-0.5">
+                      {isBn ? "ডিভাইসে নির্ধারিত আইনি ও সুরক্ষা নীতি" : "Device-bound legal and public safety policies"}
+                    </p>
+                  </div>
+                </div>
+
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1">
+                  <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                  <span>{isBn ? "সক্রিয়" : "Active"}</span>
+                </span>
+              </div>
+
+              <p className="text-[11px] text-slate-600 leading-relaxed">
+                {isBn
+                  ? "জরুরি সেবা (৯৯৯) সতর্কতা, সাইবার নিরাপত্তা আইন, ফাজিং ও কমিউনিটি ট্রাস্ট নীতিসমূহ এই ডিভাইসে নির্ধারিত রয়েছে।"
+                  : "Emergency 999 disclaimer, Cyber Security Act compliance, fuzzing, and community trust policies are configured."}
+              </p>
+
+              <button
+                type="button"
+                onClick={() => {
+                  if (typeof window !== "undefined") {
+                    window.dispatchEvent(new CustomEvent("open-safety-terms-modal"));
+                  }
+                }}
+                className="w-full py-2 px-3 text-xs font-bold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 border border-blue-200/80 rounded-xl flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+              >
+                <FileText className="w-3.5 h-3.5" />
+                <span>{isBn ? "শর্তাবলী দেখুন বা পরিবর্তন করুন" : "Review or Change Selected Terms"}</span>
+                <ArrowRight className="w-3 h-3" />
+              </button>
             </div>
           </div>
 
