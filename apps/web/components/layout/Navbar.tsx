@@ -21,15 +21,8 @@ import {
   UserCheck,
   FlaskConical,
   Lock,
-  Siren,
-  AlertTriangle,
-  LightbulbOff,
-  AlertOctagon,
-  Pill,
-  PhoneCall,
   RotateCcw,
 } from "lucide-react";
-import { IncidentCategory } from "@repo/shared";
 import CategoryFilterPopover from "./CategoryFilterPopover";
 
 interface NavbarProps {
@@ -37,19 +30,6 @@ interface NavbarProps {
   onOpenReportModal?: () => void;
   showFilters?: boolean;
 }
-
-const CATEGORY_CHIPS: {
-  id: IncidentCategory;
-  labelEn: string;
-  labelBn: string;
-  icon: React.ComponentType<{ className?: string }>;
-}[] = [
-  { id: "MUGGING", labelEn: "Mugging", labelBn: "ছিনতাই", icon: Siren },
-  { id: "THEFT", labelEn: "Theft", labelBn: "চুরি", icon: AlertTriangle },
-  { id: "UNLIT_ROAD", labelEn: "Unlit Road", labelBn: "অন্ধকার সড়ক", icon: LightbulbOff },
-  { id: "EXTORTION", labelEn: "Extortion", labelBn: "চাঁদাবাজি", icon: AlertOctagon },
-  { id: "DRUG_ACTIVITY", labelEn: "Narcotics", labelBn: "মাদক", icon: Pill },
-];
 
 export default function Navbar({
   totalIncidents = 0,
@@ -140,8 +120,6 @@ export default function Navbar({
 
         {/* Right Controls: Hotline, Language Switcher, Citizen Badge & Primary CTA */}
         <div className="flex items-center gap-1 sm:gap-1.5 xl:gap-2 shrink-0">
-
-
           {/* Integrated Language Switcher (EN | বাংলা) */}
           <div className="flex items-center p-0.5 bg-slate-100 border border-slate-200/90 rounded-xl text-xs font-semibold shadow-2xs shrink-0">
             <button
@@ -260,44 +238,44 @@ export default function Navbar({
                 <span className="font-mono text-slate-900 font-bold">{user?.trustScore ?? 0}</span>
               </span>
             </Link>
-
-
           </div>
         </div>
       )}
 
       {/* Filter Ribbon & Fast Keyword Search (Streamlined Command Strip) */}
       {showFilters && (
-        <div className="border-t border-slate-200/90 bg-slate-50/95 px-3 sm:px-4 lg:px-6 py-2 relative z-20">
-          <div className="max-w-[1536px] mx-auto flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 min-w-0">
-            {/* Quick Filter Chips */}
-            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 scrollbar-none min-w-0 flex-1">
+        <div className="border-t border-slate-200/90 bg-slate-50/95 px-2.5 sm:px-4 lg:px-6 py-1.5 sm:py-2 relative z-20">
+          <div className="max-w-[1536px] mx-auto flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 sm:gap-2.5 min-w-0">
+            {/* Quick Filter Chips: Fully fitted on 375px mobile without clipping */}
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 sm:pb-0 scrollbar-none min-w-0 flex-1">
               {/* All Incidents */}
               <button
                 onClick={() => {
                   setSeverity("all");
                   setCategory("all");
                 }}
-                className={`text-xs px-3 py-1.5 rounded-xl font-bold border transition-all shrink-0 cursor-pointer ${
+                className={`text-xs px-2.5 sm:px-3 py-1.5 rounded-xl font-bold border transition-all shrink-0 cursor-pointer ${
                   selectedSeverity === "all" && selectedCategory === "all"
                     ? "bg-slate-900 text-white border-slate-900 shadow-2xs"
                     : "bg-white text-slate-600 border-slate-200 hover:text-slate-900 hover:bg-slate-100"
                 }`}
               >
-                {t.allIncidents}
+                <span className="hidden sm:inline">{t.allIncidents}</span>
+                <span className="sm:hidden">{isBn ? "সব ঘটনা" : "All"}</span>
               </button>
 
               {/* Critical / High Alert Filter */}
               <button
                 onClick={() => setSeverity(selectedSeverity === "HIGH" ? "all" : "HIGH")}
-                className={`text-xs px-3 py-1.5 rounded-xl font-bold border flex items-center gap-1.5 transition-all shrink-0 cursor-pointer ${
+                className={`text-xs px-2.5 sm:px-3 py-1.5 rounded-xl font-bold border flex items-center gap-1.5 transition-all shrink-0 cursor-pointer ${
                   selectedSeverity === "HIGH" || selectedSeverity === "critical"
                     ? "bg-red-600 text-white border-red-600 shadow-sm shadow-red-600/20"
                     : "bg-white text-red-700 border-red-200 hover:bg-red-50"
                 }`}
               >
-                <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-                <span>{isBn ? "উচ্চ বিপদ" : "High Risk"}</span>
+                <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse shrink-0" />
+                <span className="hidden sm:inline">{isBn ? "উচ্চ বিপদ" : "High Risk"}</span>
+                <span className="sm:hidden">{isBn ? "উচ্চ ঝুঁকি" : "High Risk"}</span>
               </button>
 
               {/* Modern Grouped Category Filter Popover */}

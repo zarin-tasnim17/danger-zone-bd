@@ -239,7 +239,7 @@ export default function CategoryFilterPopover({
 
   return (
     <div className="relative inline-block text-left shrink-0">
-      {/* Trigger Button */}
+      {/* Trigger Button: Responsive compact sizing for mobile screens (e.g. 375px iPhone) */}
       <button
         ref={buttonRef}
         type="button"
@@ -247,7 +247,7 @@ export default function CategoryFilterPopover({
           updateCoords();
           setIsOpen(!isOpen);
         }}
-        className={`text-xs px-3 py-1.5 rounded-xl font-bold border flex items-center gap-2 transition-all cursor-pointer shadow-2xs select-none ${
+        className={`text-xs px-2 sm:px-3 py-1.5 rounded-xl font-bold border flex items-center gap-1.5 sm:gap-2 transition-all cursor-pointer shadow-2xs select-none shrink-0 ${
           selectedCategory !== "all"
             ? "bg-blue-600 text-white border-blue-600 shadow-sm shadow-blue-600/20"
             : isOpen
@@ -257,12 +257,17 @@ export default function CategoryFilterPopover({
         aria-expanded={isOpen}
         aria-haspopup="true"
       >
-        <Filter className={`w-3.5 h-3.5 ${selectedCategory !== "all" ? "text-white" : "text-slate-500"}`} />
-        <span>
-          {isBn ? "ক্যাটাগরি ফিল্টার" : "Category Filter"}
+        <Filter className={`w-3.5 h-3.5 shrink-0 ${selectedCategory !== "all" ? "text-white" : "text-slate-500"}`} />
+        <span className="whitespace-nowrap">
+          <span className="hidden sm:inline">
+            {isBn ? "ক্যাটাগরি ফিল্টার" : "Category Filter"}
+          </span>
+          <span className="sm:hidden">
+            {isBn ? "ক্যাটাগরি" : "Category"}
+          </span>
         </span>
         <span
-          className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full ${
+          className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full shrink-0 ${
             selectedCategory !== "all"
               ? "bg-white/20 text-white"
               : "bg-slate-100 text-slate-600 border border-slate-200"
@@ -271,7 +276,7 @@ export default function CategoryFilterPopover({
           {totalCategoriesCount}
         </span>
         <ChevronDown
-          className={`w-3.5 h-3.5 transition-transform duration-200 ${
+          className={`w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0 transition-transform duration-200 ${
             isOpen ? "rotate-180" : ""
           } ${selectedCategory !== "all" ? "text-white" : "text-slate-400"}`}
         />
