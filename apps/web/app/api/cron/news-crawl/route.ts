@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 export async function GET(request: Request) {
   try {
@@ -20,16 +21,24 @@ export async function GET(request: Request) {
         'Content-Type': 'application/json',
         ...(process.env.CRON_SECRET ? { 'x-cron-secret': process.env.CRON_SECRET } : {}),
       },
+      cache: 'no-store',
     });
 
     const data = await res.json().catch(() => null);
 
-    return NextResponse.json({
-      success: true,
-      triggeredAt: new Date().toISOString(),
-      backendStatus: res.status,
-      result: data,
-    });
+    return NextResponse.json(
+      {
+        success: true,
+        triggeredAt: new Date().toISOString(),
+        backendStatus: res.status,
+        result: data,
+      },
+      {
+        headers: {
+          'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+        },
+      }
+    );
   } catch (error: any) {
     console.error('[Vercel Cron] News crawl trigger error:', error);
     return NextResponse.json(
@@ -41,3 +50,5 @@ export async function GET(request: Request) {
     );
   }
 }
+
+export const POST = GET;
