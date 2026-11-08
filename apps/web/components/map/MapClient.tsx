@@ -140,10 +140,9 @@ function MapInstanceRegistrar({ onMapReady }: { onMapReady: (map: L.Map) => void
   return null;
 }
 
-// Automatically invalidates Leaflet map size safely without pan/moveend feedback recursion
+// Automatically invalidates Leaflet map size safely when structural containers change (e.g. sidebar toggle)
 function MapResizeHandler() {
   const map = useMap();
-  const fetchIncidentsInBounds = useIncidentStore((state) => state.fetchIncidentsInBounds);
 
   useEffect(() => {
     const container = map.getContainer();
@@ -156,23 +155,15 @@ function MapResizeHandler() {
     const observer = new ResizeObserver((entries) => {
       for (const entry of entries) {
         const { width, height } = entry.contentRect;
-        // Only invalidate if width or height actually changed by at least 2px
-        if (Math.abs(width - prevWidth) >= 2 || Math.abs(height - prevHeight) >= 2) {
+        // Require meaningful resize (>= 15px) to prevent micro subpixel fluctuations from triggering invalidateSize loops
+        if (Math.abs(width - prevWidth) >= 15 || Math.abs(height - prevHeight) >= 15) {
           prevWidth = width;
           prevHeight = height;
 
           if (resizeTimer) clearTimeout(resizeTimer);
           resizeTimer = setTimeout(() => {
-            // pan: false ensures map.invalidateSize does NOT fire moveend/pan event loops
             map.invalidateSize({ pan: false });
-            const b = map.getBounds();
-            fetchIncidentsInBounds({
-              minLat: b.getSouth(),
-              maxLat: b.getNorth(),
-              minLng: b.getWest(),
-              maxLng: b.getEast(),
-            });
-          }, 200);
+          }, 150);
         }
       }
     });
@@ -189,7 +180,7 @@ function MapResizeHandler() {
       if (resizeTimer) clearTimeout(resizeTimer);
       window.removeEventListener("resize", handleWindowResize);
     };
-  }, [map, fetchIncidentsInBounds]);
+  }, [map]);
 
   return null;
 }
@@ -323,9 +314,6 @@ export default function MapClient() {
       );
       setCenter({ lat: saved.lat, lng: saved.lng });
       setZoom(16);
-      setTimeout(() => {
-        mapRef.current?.flyTo([saved.lat, saved.lng], 16, { animate: true, duration: 1.2 });
-      }, 100);
       return;
     }
 
@@ -340,9 +328,6 @@ export default function MapClient() {
           if (isWithinBangladesh(coords.lat, coords.lng)) {
             setCenter(coords);
             setZoom(16);
-            setTimeout(() => {
-              mapRef.current?.flyTo([coords.lat, coords.lng], 16, { animate: true, duration: 1.2 });
-            }, 100);
             if (!acc || acc > 75) {
               setIsLowAccuracy(true);
             }
@@ -404,7 +389,6 @@ export default function MapClient() {
         if (isWithinBangladesh(coords.lat, coords.lng)) {
           setCenter(coords);
           setZoom(17);
-          mapRef.current?.flyTo([coords.lat, coords.lng], 17, { animate: true, duration: 1.2 });
           if (!acc || acc > 150) {
             setIsLowAccuracy(true);
           }
@@ -434,7 +418,6 @@ export default function MapClient() {
           );
           setCenter({ lat: saved.lat, lng: saved.lng });
           setZoom(17);
-          mapRef.current?.flyTo([saved.lat, saved.lng], 17, { animate: true, duration: 1.2 });
         } else {
           openCalibrationModal();
         }
@@ -458,7 +441,6 @@ export default function MapClient() {
         setUserLocation(coords, acc, 'gps');
         setCenter(coords);
         setZoom(16);
-        mapRef.current?.flyTo([coords.lat, coords.lng], 16, { animate: true, duration: 1.2 });
         if (!acc || acc > 75) {
           setIsLowAccuracy(true);
           openCalibrationModal();
@@ -483,7 +465,7 @@ export default function MapClient() {
       className: "user-gps-pulse",
       html: `
         <div style="position: relative; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;">
-          <span class="animate-ping" style="
+          <span class="user-gps-sonar" style="
             position: absolute;
             width: 100%;
             height: 100%;

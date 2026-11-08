@@ -27,13 +27,28 @@
   }
 }
 
-/* Light Map Styling Overrides */
+/* Light Map Styling Overrides with GPU Subpixel Stabilization */
 .leaflet-container {
   font-family: inherit;
   z-index: 0;
   width: 100%;
   height: 100%;
   background-color: #f1f5f9 !important;
+  transform: translate3d(0, 0, 0);
+  -webkit-transform: translate3d(0, 0, 0);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+.leaflet-tile-container {
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+.leaflet-marker-icon,
+.leaflet-marker-shadow {
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
 }
 
 /* Clean White Zoom Controls */
@@ -70,9 +85,9 @@
   border: none !important;
 }
 
-/* Tactical Danger Pin Smooth Transitions & Interactive Lift */
+/* Tactical Danger Pin: DO NOT apply CSS transition on root marker transform (prevents subpixel jitter) */
 .custom-danger-pin {
-  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), z-index 0.15s ease;
+  will-change: z-index;
 }
 
 .custom-danger-pin:hover {
@@ -80,31 +95,62 @@
 }
 
 .custom-danger-pin .danger-pin-badge {
-  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s ease;
+  transition: transform 0.18s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.18s ease;
+  will-change: transform;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
 }
 
 .custom-danger-pin:hover .danger-pin-badge {
-  transform: scale(1.16) translateY(-2px);
+  transform: scale(1.15) translateY(-2px);
 }
 
-/* Subtle Tactical Sonar Pulse Ring (Replaces the hyperactive full-screen animate-ping) */
+/* Subtle Tactical Sonar Pulse Ring (Hardware-accelerated, prevents subpixel shaking) */
 @keyframes tactical-danger-halo {
   0% {
     transform: scale(1);
-    opacity: 0.65;
+    opacity: 0.6;
   }
   50% {
-    transform: scale(1.26);
-    opacity: 0.12;
+    transform: scale(1.22);
+    opacity: 0.08;
   }
   100% {
     transform: scale(1);
-    opacity: 0.65;
+    opacity: 0.6;
   }
 }
 
 .tactical-halo-pulse {
-  animation: tactical-danger-halo 2.2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  animation: tactical-danger-halo 2.6s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  will-change: transform, opacity;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  pointer-events: none;
+}
+
+/* Calm, jitter-free user GPS radar pulse */
+@keyframes user-gps-radar {
+  0% {
+    transform: scale(0.95);
+    opacity: 0.7;
+  }
+  70% {
+    transform: scale(1.6);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1.6);
+    opacity: 0;
+  }
+}
+
+.user-gps-sonar {
+  animation: user-gps-radar 2.8s cubic-bezier(0.2, 0, 0.3, 1) infinite;
+  will-change: transform, opacity;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  pointer-events: none;
 }
 
 /* Tactical Quick-Glance Leaflet Tooltip */
