@@ -1,5 +1,19 @@
+import { isForeignIncident } from './internationalIncidentFilter';
+
 // Bangladesh Geocoding & Landmark Engine
 // Bounding box for Bangladesh: Latitude: 20.5 to 26.7, Longitude: 88.0 to 92.7
+
+/**
+ * Normalizes Bengali text to eliminate decomposed nukta mismatches (e.g. য+় vs য়, ড+় vs ড়)
+ */
+export function normalizeBengali(text: string): string {
+  if (!text) return '';
+  return text
+    .normalize('NFC')
+    .replace(/\u09af\u09bc/g, '\u09df') // য + ় -> য়
+    .replace(/\u09a1\u09bc/g, '\u09dc') // ড + ় -> ড়
+    .replace(/\u09a2\u09bc/g, '\u09dd'); // ঢ + ় -> ঢ়
+}
 
 export const BD_BOUNDS = {
   MIN_LAT: 20.5,
@@ -148,13 +162,14 @@ const throttleNominatim = async () => {
  * Searches the input text for any known Bangladesh landmark or thana name.
  */
 export const findLandmarkInText = (text: string): GeocodeResult | null => {
-  const lowerText = text.toLowerCase();
+  const cleanInput = normalizeBengali(text).toLowerCase();
 
   // Sort keys descending by length so longer names like 'Mirpur 10' match before 'Mirpur'
   const keys = Object.keys(LOCAL_LANDMARK_MAP).sort((a, b) => b.length - a.length);
 
   for (const key of keys) {
-    if (lowerText.includes(key.toLowerCase())) {
+    const cleanKey = normalizeBengali(key).toLowerCase();
+    if (cleanInput.includes(cleanKey)) {
       const match = LOCAL_LANDMARK_MAP[key];
       return {
         locationName: match.standardName,
@@ -167,7 +182,8 @@ export const findLandmarkInText = (text: string): GeocodeResult | null => {
 
   // Check dynamic memory cache
   for (const [key, match] of dynamicCache.entries()) {
-    if (lowerText.includes(key.toLowerCase())) {
+    const cleanKey = normalizeBengali(key).toLowerCase();
+    if (cleanInput.includes(cleanKey)) {
       return {
         locationName: match.standardName,
         latitude: match.lat,
@@ -247,15 +263,87 @@ export const geocodeWithNominatim = async (query: string): Promise<GeocodeResult
 };
 
 /**
- * High-level geocode resolver:
- * 1. Checks fast local dictionary (English & Bangla).
- * 2. If not found, attempts OpenStreetMap Nominatim.
+ * Determines if a matched location in the text refers merely to a casualty's origin/residence
+ * (e.g. "নিহতদের বাড়ি কক্সবাজারে", "গ্রামের বাড়ি চকরিয়ায়") rather than the actual incident scene.
  */
-export const resolveLocationFromText = async (text: string): Promise<GeocodeResult | null> => {
-  // Step 1: Fast Dictionary
-  const dictResult = findLandmarkInText(text);
-  if (dictResult) {
-    return dictResult;
+export function isVictimOriginContext(text: string, locationName: string): boolean {
+  if (!text) return false;
+  const normText = text.normalize('NFC').toLowerCase();
+  const lowerLoc = locationName.toLowerCase();
+
+  const originTerms = [
+    'বাড়ি',
+    'বাড়ি',
+    'গ্রামের বাড়ি',
+    'গ্রামের বাড়ি',
+    'বাসিন্দা',
+    'নিবাসী',
+    'পৈতৃক',
+    'স্বজন',
+    'পরিবার',
+    'লাশ',
+    'মরদেহ',
+    'দাফন',
+  ];
+
+  for (const term of originTerms) {
+    const patternBefore = new RegExp(`(?:${term})[\\s\\S]{0,35}?(?:${lowerLoc})`, 'i');
+    const patternAfter = new RegExp(`(?:${lowerLoc})[\\s\\S]{0,35}?(?:${term})`, 'i');
+    if (patternBefore.test(normText) || patternAfter.test(normText)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+/**
+ * High-level domestic geocode resolver:
+ * 1. Rejects international/foreign events (USA, Saudi, UK, Canada, India, etc.) -> returns null (pins nothing).
+ * 2. Matches the headline first (highest confidence incident location).
+ * 3. If checking snippet, ensures the location is an actual crash/crime scene and NOT a victim origin address.
+ */
+export const resolveLocationFromText = async (
+  titleOrCombined: string,
+  snippet?: string
+): Promise<GeocodeResult | null> => {
+  const title = titleOrCombined || '';
+  const body = snippet || '';
+
+  // 1. Universal Global Foreign Incident Filter:
+  // If an incident happened in USA, Saudi Arabia, UK, Canada, India, etc., pin NOTHING in Bangladesh!
+  const foreignCheck = isForeignIncident(title, body);
+  if (foreignCheck.isForeign) {
+    return null;
+  }
+
+  // 2. Headline Priority Match:
+  // In professional journalism, the incident location is almost always in the headline
+  const headlineMatch = findLandmarkInText(title);
+  if (headlineMatch) {
+    return headlineMatch;
+  }
+
+  // 3. Snippet inspection:
+  // If body snippet is provided, ensure matched location is NOT merely the victim's hometown
+  if (body) {
+    const snippetMatch = findLandmarkInText(body);
+    if (snippetMatch) {
+      if (isVictimOriginContext(body, snippetMatch.locationName)) {
+        // Matched location is victim's residence, NOT the accident location. Pin nothing!
+        return null;
+      }
+      return snippetMatch;
+    }
+  } else if (!snippet) {
+    // Single combined string fallback
+    const combinedMatch = findLandmarkInText(titleOrCombined);
+    if (combinedMatch) {
+      if (isVictimOriginContext(titleOrCombined, combinedMatch.locationName)) {
+        return null;
+      }
+      return combinedMatch;
+    }
   }
 
   return null;

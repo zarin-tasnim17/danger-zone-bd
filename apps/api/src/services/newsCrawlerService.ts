@@ -193,8 +193,8 @@ export const processAndIngestNewsItems = async (
       continue;
     }
 
-    // 5. Geocoding resolution
-    const geocode = await resolveLocationFromText(`${item.title} ${item.contentSnippet || ''}`);
+    // 5. Domestic Geocoding resolution (Headline priority + victim residence exclusion)
+    const geocode = await resolveLocationFromText(item.title, item.contentSnippet || '');
     if (!geocode) {
       // Cannot plot on map without verified Bangladesh coordinates
       skipped++;
