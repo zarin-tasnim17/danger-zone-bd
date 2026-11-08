@@ -1,6 +1,6 @@
 import { prisma } from '../db/prisma';
 import { Report, ReportCategory } from '@prisma/client';
-import { LOCAL_LANDMARK_MAP } from './geocodingService';
+import { LOCAL_LANDMARK_MAP, findLandmarkInText } from './geocodingService';
 
 const BENGALI_STOPWORDS = new Set([
   'ও',
@@ -23,8 +23,6 @@ const BENGALI_STOPWORDS = new Set([
   'সাথে',
   'জন',
   'হওয়ায়',
-  'নিহত',
-  'আহত',
   'নিহতদের',
   'নিহতরা',
   'আহতরা',
@@ -47,16 +45,17 @@ const BENGALI_STOPWORDS = new Set([
   'with',
   'from',
   'near',
-  'killed',
-  'injured',
-  'dead',
-  'dies',
-  'death',
   'hospital',
   'police',
   'case',
   'tv',
   'com',
+  'in',
+  'at',
+  'on',
+  'of',
+  'to',
+  'for',
 ]);
 
 const OUTLET_NAMES = [
@@ -103,6 +102,152 @@ const OUTLET_NAMES = [
   'google news',
 ];
 
+const BENGALI_DIGITS: Record<string, string> = {
+  '০': '0',
+  '১': '1',
+  '২': '2',
+  '৩': '3',
+  '৪': '4',
+  '৫': '5',
+  '৬': '6',
+  '৭': '7',
+  '৮': '8',
+  '৯': '9',
+};
+
+function normalizeDigits(text: string): string {
+  return text.replace(/[০-৯]/g, (d) => BENGALI_DIGITS[d] || d);
+}
+
+/**
+ * Cross-lingual Concept Dictionary:
+ * Bridges English and Bangla news headlines so identical incidents reported across
+ * different languages (e.g. The Daily Star in English vs Jagonews24 in Bangla)
+ * resolve to the exact same canonical tokens.
+ */
+const BILINGUAL_CONCEPT_MAP: Record<string, string> = {
+  // Vehicles
+  'ট্রাক': 'truck',
+  'ট্রাকের': 'truck',
+  'truck': 'truck',
+  'trucks': 'truck',
+  'লরি': 'truck',
+  'লরির': 'truck',
+  'lorry': 'truck',
+  'ডাম্প': 'truck',
+  'dump': 'truck',
+  'পিকআপ': 'pickup',
+  'পিকআপের': 'pickup',
+  'পিকআপভ্যান': 'pickup',
+  'pickup': 'pickup',
+  'pickups': 'pickup',
+  'বাস': 'bus',
+  'বাসের': 'bus',
+  'bus': 'bus',
+  'buses': 'bus',
+  'সিএনজি': 'cng',
+  'সিএনজির': 'cng',
+  'cng': 'cng',
+  'অটোরিকশা': 'cng',
+  'autorickshaw': 'cng',
+  'মাইক্রোবাস': 'microbus',
+  'microbus': 'microbus',
+  'মোটরসাইকেল': 'motorcycle',
+  'মোটরসাইকেলের': 'motorcycle',
+  'motorcycle': 'motorcycle',
+  'বাইক': 'motorcycle',
+  'bike': 'motorcycle',
+  'ভ্যান': 'van',
+  'van': 'van',
+  'গাড়ি': 'car',
+  'গাড়ির': 'car',
+  'গাড়ী': 'car',
+  'car': 'car',
+  'cars': 'car',
+  'প্রাইভেটকার': 'car',
+  'ট্রেন': 'train',
+  'ট্রেনের': 'train',
+  'train': 'train',
+
+  // Collision & Crash
+  'সংঘর্ষ': 'collision',
+  'সংঘর্ষে': 'collision',
+  'মুখোমুখি': 'collision',
+  'collision': 'collision',
+  'crash': 'collision',
+  'crashes': 'collision',
+  'ধাক্কা': 'collision',
+  'ধাক্কায়': 'collision',
+  'hit': 'collision',
+  'দুর্ঘটনা': 'accident',
+  'accident': 'accident',
+
+  // Casualty & Harm
+  'নিহত': 'killed',
+  'প্রাণহানি': 'killed',
+  'killed': 'killed',
+  'kill': 'killed',
+  'dead': 'killed',
+  'dies': 'killed',
+  'death': 'killed',
+  'deaths': 'killed',
+  'fatal': 'killed',
+  'fatality': 'killed',
+  'লাশ': 'killed',
+  'মরদেহ': 'killed',
+  'আহত': 'injured',
+  'injured': 'injured',
+  'injuries': 'injured',
+  'hurt': 'injured',
+
+  // Crimes & Violence
+  'ডাকাতি': 'robbery',
+  'ডাকাতির': 'robbery',
+  'robbery': 'robbery',
+  'dacoity': 'robbery',
+  'লুণ্ঠন': 'robbery',
+  'লুণ্ঠিত': 'robbery',
+  'looted': 'robbery',
+  'চুরি': 'theft',
+  'theft': 'theft',
+  'burglary': 'theft',
+  'stolen': 'theft',
+  'ছিনতাই': 'snatching',
+  'ছিনতাইয়ের': 'snatching',
+  'ছিনতাইকারী': 'snatching',
+  'snatching': 'snatching',
+  'mugging': 'snatching',
+  'গ্রেপ্তার': 'arrest',
+  'গ্রেফতার': 'arrest',
+  'আটক': 'arrest',
+  'arrest': 'arrest',
+  'arrested': 'arrest',
+  'held': 'arrest',
+  'detained': 'arrest',
+  'খুন': 'murder',
+  'হত্যা': 'murder',
+  'murder': 'murder',
+  'কোপানো': 'stabbing',
+  'কুপিয়ে': 'stabbing',
+  'ছুরিকাঘাত': 'stabbing',
+  'stabbed': 'stabbing',
+  'stabbing': 'stabbing',
+  'গুলি': 'gunfire',
+  'গুলিবিদ্ধ': 'gunfire',
+  'shot': 'gunfire',
+  'gunfire': 'gunfire',
+  'shooting': 'gunfire',
+  'আগুন': 'arson',
+  'অগ্নিসংযোগ': 'arson',
+  'fire': 'arson',
+  'arson': 'arson',
+  'কিশোর': 'teengang',
+  'গ্যাং': 'teengang',
+  'gang': 'teengang',
+  'চাঁদাবাজি': 'extortion',
+  'extortion': 'extortion',
+};
+
 /**
  * Normalizes root words / synonyms in Bengali
  */
@@ -133,10 +278,11 @@ function stemBengaliToken(token: string): string {
 }
 
 /**
- * Extracts normalized, stemmed significant entity/event tokens from a news title
+ * Extracts normalized, stemmed, cross-lingual significant entity/event tokens from a news title
  */
 export function extractSignificantTokens(rawTitle: string): Set<string> {
-  let text = rawTitle.normalize('NFC').toLowerCase();
+  const normDigits = normalizeDigits(rawTitle);
+  let text = normDigits.normalize('NFC').toLowerCase();
 
   // Strip [Google News ...] prefixes
   text = text.replace(/^\[(?:google news[^\]]*|the daily star[^\]]*)\]\s*/i, '');
@@ -146,20 +292,40 @@ export function extractSignificantTokens(rawTitle: string): Set<string> {
     text = text.split(outlet).join(' ');
   }
 
+  // Extract canonical landmark if present (bridges English "Mymensingh" with Bangla "ময়মনসিংহ")
+  const landmark = findLandmarkInText(rawTitle);
+  const significant = new Set<string>();
+  if (landmark) {
+    significant.add(landmark.locationName.toLowerCase());
+  }
+
+  // Extract standalone digits (e.g. casualty counts: '2', '3', '8')
+  const digitMatches = normDigits.match(/\b\d+\b/g);
+  if (digitMatches) {
+    digitMatches.forEach((d) => significant.add(d));
+  }
+
   // Strip punctuation and special characters
   text = text.replace(/[!"#$%&'()*+,\-./:;<=>?@[\\\]^_`{|}~‘’“”।|—]/g, ' ');
 
   const rawWords = text.split(/\s+/).map((w) => w.trim()).filter(Boolean);
-  const significant = new Set<string>();
 
   for (const w of rawWords) {
-    // Allow single digits (e.g. '২', '৮') as incident casualty counts
-    if (w.length === 1 && !/^[০-৯0-9]$/.test(w)) continue;
     if (BENGALI_STOPWORDS.has(w)) continue;
+
+    // Check cross-lingual concept dictionary
+    const canonicalConcept = BILINGUAL_CONCEPT_MAP[w];
+    if (canonicalConcept) {
+      significant.add(canonicalConcept);
+    }
 
     const stemmed = stemBengaliToken(w);
     if (stemmed.length >= 1 && !BENGALI_STOPWORDS.has(stemmed)) {
       significant.add(stemmed);
+      const conceptFromStemmed = BILINGUAL_CONCEPT_MAP[stemmed];
+      if (conceptFromStemmed) {
+        significant.add(conceptFromStemmed);
+      }
     }
   }
 
@@ -172,7 +338,12 @@ export function extractSignificantTokens(rawTitle: string): Set<string> {
 function extractLocations(tokens: Set<string>): string[] {
   const locs: string[] = [];
   for (const t of tokens) {
-    if (LOCAL_LANDMARK_MAP[t] || LOCAL_LANDMARK_MAP[t + 'ে'] || LOCAL_LANDMARK_MAP[t + 'ের']) {
+    if (
+      LOCAL_LANDMARK_MAP[t] ||
+      LOCAL_LANDMARK_MAP[t + 'ে'] ||
+      LOCAL_LANDMARK_MAP[t + 'ের'] ||
+      Object.values(LOCAL_LANDMARK_MAP).some((m) => m.standardName.toLowerCase() === t)
+    ) {
       locs.push(t);
     }
   }
@@ -180,7 +351,8 @@ function extractLocations(tokens: Set<string>): string[] {
 }
 
 /**
- * Calculates token overlap similarity between two titles
+ * Calculates token overlap similarity between two titles.
+ * Fully supports bilingual matching (English <-> Bangla).
  */
 export function calculateStorySimilarity(
   title1: string,
@@ -197,7 +369,14 @@ export function calculateStorySimilarity(
   const locs1 = extractLocations(set1);
   const locs2 = extractLocations(set2);
   if (locs1.length > 0 && locs2.length > 0) {
-    const hasSharedLoc = locs1.some((l) => locs2.includes(l));
+    const hasSharedLoc = locs1.some((l1) =>
+      locs2.some((l2) => {
+        if (l1 === l2) return true;
+        const s1 = LOCAL_LANDMARK_MAP[l1]?.standardName || l1;
+        const s2 = LOCAL_LANDMARK_MAP[l2]?.standardName || l2;
+        return s1.toLowerCase() === s2.toLowerCase();
+      })
+    );
     if (!hasSharedLoc) {
       return { isDuplicate: false, score: 0, sharedTokens: [] };
     }
@@ -216,34 +395,46 @@ export function calculateStorySimilarity(
 
   // Core anchor entities that strongly indicate identical incidents
   const highValueEntities = [
+    'truck',
+    'pickup',
+    'bus',
+    'microbus',
+    'cng',
+    'motorcycle',
+    'collision',
+    'accident',
+    'killed',
+    'injured',
+    'robbery',
+    'theft',
+    'snatching',
+    'arrest',
+    'murder',
+    'stabbing',
+    'gunfire',
+    'arson',
+    'teengang',
+    'extortion',
     'ট্রাক',
     'পিকআপ',
     'বাস',
-    'মাইক্রোবাস',
-    'সিএনজি',
-    'অটোরিকশা',
-    'লরি',
     'সংঘর্ষ',
-    'মুখোমুখি',
     'ডাকাতি',
     'ছিনতাই',
     'গ্রেপ্তার',
-    'লুণ্ঠন',
-    'কিশোর গ্যাং',
     'খুন',
-    'হত্যা',
   ];
 
   const sharedHighValue = sharedTokens.filter((st) => highValueEntities.includes(st));
 
   // Incident Duplicate Criteria:
   // 1. 3 or more shared tokens and Jaccard >= 0.25
-  // 2. OR 2 or more shared high-value entities (e.g. [ট্রাক, পিকআপ] or [ডাকাতি, গ্রেপ্তার]) and overlapRatio >= 0.35
-  // 3. OR high overall overlap (>= 0.55)
+  // 2. OR 2 or more shared high-value entities (e.g. [truck, pickup] or [robbery, arrest]) and overlapRatio >= 0.35
+  // 3. OR high overall overlap (>= 0.50)
   const isDuplicate =
     (sharedTokens.length >= 3 && jaccard >= 0.25) ||
     (sharedHighValue.length >= 2 && overlapRatio >= 0.35) ||
-    overlapRatio >= 0.55;
+    overlapRatio >= 0.5;
 
   return {
     isDuplicate,
@@ -271,7 +462,7 @@ export async function findDuplicateActiveReport(params: {
 
   // Categories that can be considered compatible when matching duplicate press coverage
   const compatibleCategories: Record<string, ReportCategory[]> = {
-    ROAD_ACCIDENT: ['ROAD_ACCIDENT', 'ARMED_ASSAULT'], // Handle previously misclassified reports
+    ROAD_ACCIDENT: ['ROAD_ACCIDENT', 'ARMED_ASSAULT'],
     ROBBERY: ['ROBBERY', 'DACOITY', 'THEFT_ROBBERY'],
     THEFT_ROBBERY: ['THEFT_ROBBERY', 'ROBBERY', 'THEFT'],
     SNATCHING: ['SNATCHING', 'MUGGING', 'SNATCHING_ARMED_ASSAULT'],
