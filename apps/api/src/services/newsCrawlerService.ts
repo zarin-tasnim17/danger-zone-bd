@@ -3,6 +3,7 @@ import { prisma } from '../db/prisma';
 import { ReportCategory } from '@prisma/client';
 import { resolveLocationFromText } from './geocodingService';
 import { classifyNewsText } from './newsClassifierService';
+import { isForeignIncident } from './internationalIncidentFilter';
 import { crossVerifyCitizenReports } from './newsVerificationService';
 import { emitNewReport } from '../sockets';
 
@@ -16,11 +17,12 @@ const parser = new Parser({
 export const PUBLIC_NEWS_FEEDS = [
   {
     name: 'Google News BD Crime',
-    url: 'https://news.google.com/rss/search?q=crime+OR+mugging+OR+robbery+bangladesh+when:2d&hl=en-BD&gl=BD&ceid=BD:en',
+    url: 'https://news.google.com/rss/search?q=(crime+OR+mugging+OR+robbery+OR+%22road+accident%22)+bangladesh+-saudi+-india+-overseas+when:1d&hl=en-BD&gl=BD&ceid=BD:en',
   },
   {
     name: 'Google News BD Safety (Bangla)',
-    url: 'https://news.google.com/rss/search?q=%E0%A6%9B%E0%A6%BF%E0%A6%A8%E0%A6%A4%E0%A6%BE%E0%A6%87+OR+%E0%A6%A1%E0%A6%BE%E0%A6%95%E0%A6%BE%E0%A6%A4%E0%A6%BF+OR+%E0%A6%B8%E0%A6%82%E0%A6%98%E0%A6%B0%E0%A7%8D%E0%A6%B7+OR+%E0%A6%B8%E0%A7%9C%E0%A6%95+%E0%A6%A6%E0%A7%81%E0%A6%B0%E0%A7%8D%E0%A6%98%E0%A6%9F%E0%A6%A8%E0%A6%BE+when:2d&hl=bn&gl=BD&ceid=BD:bn',
+    // Explicitly scope to Bangladesh and exclude expatriate/overseas indicators
+    url: 'https://news.google.com/rss/search?q=(%E0%A6%9B%E0%A6%BF%E0%A6%A8%E0%A6%A4%E0%A6%BE%E0%A6%87+OR+%E0%A6%A1%E0%A6%BE%E0%A6%95%E0%A6%BE%E0%A6%A4%E0%A6%BF+OR+%E0%A6%B8%E0%A6%82%E0%A6%98%E0%A6%B0%E0%A7%8D%E0%A6%B7+OR+%22%E0%A6%B8%E0%A7%9C%E0%A6%95+%E0%A6%A6%E0%A7%81%E0%A6%B0%E0%A7%8D%E0%A6%98%E0%A6%9F%E0%A6%A8%E0%A6%BE%22)+%E0%A6%AC%E0%A6%BE%E0%A6%82%E0%A6%B2%E0%A6%BE%E0%A6%A6%E0%A7%87%E0%A6%B6+-%E0%A6%B8%E0%A7%8C%E0%A6%A6%E0%A6%BF+-%E0%A6%AD%E0%A6%BE%E0%A6%B0%E0%A6%A4+-%E0%A6%AA%E0%A7%8D%E0%A6%B0%E0%A6%AC%E0%A6%BE%E0%A6%B8%E0%A7%80+when:1d&hl=bn&gl=BD&ceid=BD:bn',
   },
   {
     name: 'The Daily Star Law & Crime',
@@ -174,14 +176,24 @@ export const processAndIngestNewsItems = async (
       continue;
     }
 
-    // 3. Bilingual classification
+    // 3. Domestic Incident Boundary Check (Strictly exclude overseas/expatriate news)
+    const foreignCheck = isForeignIncident(item.title, item.contentSnippet || '');
+    if (foreignCheck.isForeign) {
+      console.log(
+        `[News Crawler] 🌍 Skipping overseas incident: "${item.title.substring(0, 65)}..." (Matched: ${foreignCheck.matchedTerm})`
+      );
+      skipped++;
+      continue;
+    }
+
+    // 4. Bilingual classification
     const classification = classifyNewsText(item.title, item.contentSnippet || '');
     if (!classification.isSafetyRelated) {
       skipped++;
       continue;
     }
 
-    // 4. Geocoding resolution
+    // 5. Geocoding resolution
     const geocode = await resolveLocationFromText(`${item.title} ${item.contentSnippet || ''}`);
     if (!geocode) {
       // Cannot plot on map without verified Bangladesh coordinates

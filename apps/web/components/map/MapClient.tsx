@@ -359,6 +359,22 @@ export default function MapClient() {
 
   // Request browser geolocation (manual button click): Always prioritizes live hardware GPS
   const handleLocateMe = () => {
+    // Check for Secure Context on mobile (iOS/Android block geolocation on insecure HTTP)
+    if (
+      typeof window !== "undefined" &&
+      !window.isSecureContext &&
+      window.location.hostname !== "localhost" &&
+      window.location.hostname !== "127.0.0.1"
+    ) {
+      alert(
+        isBn
+          ? "মোবাইলে সরাসরি জিপিএস ব্যবহারের জন্য ব্রাউজারে সুরক্ষিত (HTTPS) সংযোগ প্রয়োজন।"
+          : "Mobile GPS hardware requires a Secure Context (HTTPS or localhost)."
+      );
+      openCalibrationModal();
+      return;
+    }
+
     if (!navigator.geolocation) {
       const saved = loadSavedLocation();
       if (saved && isWithinBangladesh(saved.lat, saved.lng)) {
@@ -399,6 +415,13 @@ export default function MapClient() {
       (err) => {
         console.warn("[MapClient] Could not access live GPS:", err.message);
         setIsLocating(false);
+        if (err.code === 1) {
+          alert(
+            isBn
+              ? "অনুগ্রহ করে আপনার ব্রাউজারের সেটিংসে লোকেশন পারমিশন চালু করুন।"
+              : "Please enable Location permission in your mobile browser settings to locate your device."
+          );
+        }
         // Fallback to saved location if live GPS denied/unavailable
         const saved = loadSavedLocation();
         if (saved && isWithinBangladesh(saved.lat, saved.lng)) {
@@ -415,7 +438,7 @@ export default function MapClient() {
           openCalibrationModal();
         }
       },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+      { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }
     );
   };
 

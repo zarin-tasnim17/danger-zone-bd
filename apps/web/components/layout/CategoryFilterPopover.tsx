@@ -167,10 +167,6 @@ export default function CategoryFilterPopover({
   const popoverRef = useRef<HTMLDivElement>(null);
   const [coords, setCoords] = useState<{ top: number; left: number; width: number } | null>(null);
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
   // Compute trigger button viewport bounding rect
   const updateCoords = useCallback(() => {
     if (!buttonRef.current) return;
@@ -191,6 +187,11 @@ export default function CategoryFilterPopover({
     });
   }, []);
 
+  useEffect(() => {
+    setMounted(true);
+    updateCoords();
+  }, [updateCoords]);
+
   // Re-calculate coordinates on open, window resize, or scroll
   useEffect(() => {
     if (isOpen) {
@@ -207,7 +208,7 @@ export default function CategoryFilterPopover({
 
   // Close on Escape or click outside
   useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
+    const handleClickOutside = (e: MouseEvent | TouchEvent) => {
       const target = e.target as Node;
       if (
         popoverRef.current &&
@@ -225,10 +226,12 @@ export default function CategoryFilterPopover({
 
     if (isOpen) {
       document.addEventListener("mousedown", handleClickOutside);
+      document.addEventListener("touchstart", handleClickOutside, { passive: true });
       document.addEventListener("keydown", handleKeyDown);
     }
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("touchstart", handleClickOutside);
       document.removeEventListener("keydown", handleKeyDown);
     };
   }, [isOpen]);
