@@ -237,6 +237,15 @@ export default function CategoryFilterPopover({
     return FILTER_GROUPS.reduce((acc, g) => acc + g.options.length, 0);
   }, []);
 
+  const selectedOption = useMemo(() => {
+    if (selectedCategory === "all") return null;
+    for (const group of FILTER_GROUPS) {
+      const found = group.options.find((opt) => opt.id === selectedCategory);
+      if (found) return found;
+    }
+    return null;
+  }, [selectedCategory]);
+
   return (
     <div className="relative inline-block text-left shrink-0">
       {/* Trigger Button: Responsive compact sizing for mobile screens (e.g. 375px iPhone) */}
@@ -247,7 +256,7 @@ export default function CategoryFilterPopover({
           updateCoords();
           setIsOpen(!isOpen);
         }}
-        className={`text-xs px-2 sm:px-3 py-1.5 rounded-xl font-bold border flex items-center gap-1.5 sm:gap-2 transition-all cursor-pointer shadow-2xs select-none shrink-0 ${
+        className={`text-xs px-2 sm:px-2.5 py-1.5 rounded-xl font-bold border flex items-center gap-1 sm:gap-1.5 transition-all cursor-pointer shadow-2xs select-none shrink-0 ${
           selectedCategory !== "all"
             ? "bg-blue-600 text-white border-blue-600 shadow-sm shadow-blue-600/20"
             : isOpen
@@ -258,23 +267,49 @@ export default function CategoryFilterPopover({
         aria-haspopup="true"
       >
         <Filter className={`w-3.5 h-3.5 shrink-0 ${selectedCategory !== "all" ? "text-white" : "text-slate-500"}`} />
-        <span className="whitespace-nowrap">
-          <span className="hidden sm:inline">
-            {isBn ? "ক্যাটাগরি ফিল্টার" : "Category Filter"}
-          </span>
-          <span className="sm:hidden">
-            {isBn ? "ক্যাটাগরি" : "Category"}
-          </span>
-        </span>
-        <span
-          className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full shrink-0 ${
-            selectedCategory !== "all"
-              ? "bg-white/20 text-white"
-              : "bg-slate-100 text-slate-600 border border-slate-200"
-          }`}
-        >
-          {totalCategoriesCount}
-        </span>
+        
+        {selectedOption ? (
+          <div className="flex items-center gap-1 min-w-0">
+            <span className="truncate max-w-[90px] sm:max-w-none text-xs">
+              {isBn ? selectedOption.labelBn : selectedOption.labelEn}
+            </span>
+            <span
+              role="button"
+              tabIndex={0}
+              onClick={(e) => {
+                e.stopPropagation();
+                onSelectCategory("all");
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.stopPropagation();
+                  onSelectCategory("all");
+                }
+              }}
+              className="p-0.5 rounded-full hover:bg-white/20 active:bg-white/30 text-white transition-colors cursor-pointer shrink-0 ml-0.5"
+              title={isBn ? "ফিল্টার মুছুন" : "Clear filter"}
+            >
+              <X className="w-3 h-3" />
+            </span>
+          </div>
+        ) : (
+          <>
+            <span className="whitespace-nowrap">
+              <span className="hidden sm:inline">
+                {isBn ? "ক্যাটাগরি ফিল্টার" : "Category Filter"}
+              </span>
+              <span className="sm:hidden">
+                {isBn ? "ক্যাটাগরি" : "Category"}
+              </span>
+            </span>
+            <span
+              className="text-[10px] font-mono px-1.5 py-0.2 rounded-full shrink-0 bg-slate-100 text-slate-600 border border-slate-200"
+            >
+              {totalCategoriesCount}
+            </span>
+          </>
+        )}
+
         <ChevronDown
           className={`w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0 transition-transform duration-200 ${
             isOpen ? "rotate-180" : ""

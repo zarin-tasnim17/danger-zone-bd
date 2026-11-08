@@ -247,7 +247,7 @@ export default function Navbar({
         <div className="border-t border-slate-200/90 bg-slate-50/95 px-2.5 sm:px-4 lg:px-6 py-1.5 sm:py-2 relative z-20">
           <div className="max-w-[1536px] mx-auto flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 sm:gap-2.5 min-w-0">
             {/* Quick Filter Chips: Fully fitted on 375px mobile without clipping */}
-            <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 sm:pb-0 scrollbar-none min-w-0 flex-1">
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 sm:pb-0 scrollbar-none min-w-0 flex-1 pr-4 sm:pr-0">
               {/* All Incidents */}
               <button
                 onClick={() => {
@@ -278,35 +278,18 @@ export default function Navbar({
                 <span className="sm:hidden">{isBn ? "উচ্চ ঝুঁকি" : "High Risk"}</span>
               </button>
 
-              {/* Modern Grouped Category Filter Popover */}
+              {/* Modern Grouped Category Filter Popover with inline active category label and ✕ clear */}
               <CategoryFilterPopover
                 selectedCategory={selectedCategory}
                 onSelectCategory={setCategory}
                 isBn={isBn}
               />
 
-              {/* Active Filter Clear Tag */}
-              {selectedCategory !== "all" && (
-                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-blue-50 text-blue-800 border border-blue-200 text-xs font-bold animate-in fade-in shrink-0">
-                  <span>
-                    {t.categories[selectedCategory] || selectedCategory}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setCategory("all")}
-                    className="p-0.5 hover:bg-blue-200/60 rounded-full transition-colors text-blue-600 hover:text-blue-900 cursor-pointer"
-                    title="Clear filter"
-                  >
-                    <X className="w-3 h-3" />
-                  </button>
-                </div>
-              )}
-
               {/* Reset filter pill */}
               {hasActiveFilters && (
                 <button
                   onClick={resetFilters}
-                  className="text-xs px-2.5 py-1 text-slate-500 hover:text-slate-900 inline-flex items-center gap-1 hover:bg-slate-200/60 rounded-lg transition shrink-0 ml-1 font-semibold cursor-pointer"
+                  className="text-xs px-2 sm:px-2.5 py-1 text-slate-500 hover:text-slate-900 inline-flex items-center gap-1 hover:bg-slate-200/60 rounded-xl transition shrink-0 ml-0.5 font-semibold cursor-pointer border border-transparent hover:border-slate-200"
                   title="Reset all filters"
                 >
                   <RotateCcw className="w-3 h-3" />
