@@ -285,6 +285,15 @@ export default function DevTestPage() {
         )
       );
 
+      // Clean up test report immediately so it never pollutes the live map or citizen feed
+      if (target.id === "reports-create" && res?.id) {
+        try {
+          await apiFetch(`/reports/${res.id}/resolve`, { method: "PATCH" });
+        } catch {
+          // Non-blocking cleanup
+        }
+      }
+
       // Auto-expand response for this test
       setExpandedResponses((prev) => ({ ...prev, [testId]: true }));
     } catch (err: any) {

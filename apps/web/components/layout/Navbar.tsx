@@ -64,7 +64,9 @@ export default function Navbar({
     { name: isBn ? "নিরাপদ পথ" : "Safe Routes", href: "/routes", icon: Navigation },
     { name: isBn ? "সতর্কতা" : "Alerts", href: "/alerts", icon: Bell },
     { name: isBn ? "প্রোফাইল" : "Profile", href: "/profile", icon: UserCheck },
-    { name: "Dev Test", href: "/dev-test", icon: FlaskConical },
+    ...(process.env.NODE_ENV !== "production"
+      ? [{ name: "Dev Test", href: "/dev-test", icon: FlaskConical }]
+      : []),
   ];
 
   return (
