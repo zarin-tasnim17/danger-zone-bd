@@ -9,6 +9,7 @@ import { useFilterStore } from "@/store/useFilterStore";
 import { getTranslation } from "@/lib/translations";
 import { DangerIncident } from "@repo/shared";
 import { cleanIncidentTitle, getCategoryIcon, getCategoryBadgeClass } from "@/lib/incidentUtils";
+import { isIncidentCategoryMatch } from "@/lib/filterUtils";
 import {
   AlertCircle,
   MapPin,
@@ -64,7 +65,7 @@ export default function IncidentFeed({ onIncidentSelect }: { onIncidentSelect?: 
   const fetchIncidentsInBounds = useIncidentStore((state) => state.fetchIncidentsInBounds);
   const voteIncident = useIncidentStore((state) => state.voteIncident);
   const addContextUpdate = useIncidentStore((state) => state.addContextUpdate);
-  const { selectedSeverity, setSeverity, selectedCategory, searchQuery, resetFilters } = useFilterStore();
+  const { selectedSeverity, setSeverity, selectedCategories, searchQuery, resetFilters } = useFilterStore();
   const setCenter = useMapStore((state) => state.setCenter);
   const setZoom = useMapStore((state) => state.setZoom);
   const t = getTranslation(language);
@@ -90,7 +91,7 @@ export default function IncidentFeed({ onIncidentSelect }: { onIncidentSelect?: 
       if (selectedSeverity !== "all" && item.severity.toUpperCase() !== selectedSeverity.toUpperCase()) {
         return false;
       }
-      if (selectedCategory !== "all" && item.category !== selectedCategory) {
+      if (!isIncidentCategoryMatch(item.category, selectedCategories)) {
         return false;
       }
       if (searchQuery.trim() !== "") {
@@ -105,10 +106,10 @@ export default function IncidentFeed({ onIncidentSelect }: { onIncidentSelect?: 
       }
       return true;
     }).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-  }, [incidents, feedTab, selectedSeverity, selectedCategory, searchQuery]);
+  }, [incidents, feedTab, selectedSeverity, selectedCategories, searchQuery]);
 
   const hasActiveFilters =
-    selectedSeverity !== "all" || selectedCategory !== "all" || searchQuery.trim() !== "" || feedTab !== "all";
+    selectedSeverity !== "all" || selectedCategories.length > 0 || searchQuery.trim() !== "" || feedTab !== "all";
 
   const handleFocusIncident = (incident: DangerIncident) => {
     setSelectedIncidentId(incident.id);

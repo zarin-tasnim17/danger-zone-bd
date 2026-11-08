@@ -24,6 +24,7 @@ import { useIncidentStore } from "@/store/useIncidentStore";
 import { DangerIncident, IncidentSeverity } from "@repo/shared";
 import { getTranslation } from "@/lib/translations";
 import { cleanIncidentTitle } from "@/lib/incidentUtils";
+import { isIncidentCategoryMatch } from "@/lib/filterUtils";
 import L from "leaflet";
 import {
   Crosshair,
@@ -222,7 +223,7 @@ export default function MapClient() {
   const fetchSafeZones = useIncidentStore((state) => state.fetchSafeZones);
   const initSocketListeners = useIncidentStore((state) => state.initSocketListeners);
   const voteIncident = useIncidentStore((state) => state.voteIncident);
-  const { selectedSeverity, selectedCategory, searchQuery } = useFilterStore();
+  const { selectedSeverity, selectedCategories, searchQuery } = useFilterStore();
   const { language } = useLanguageStore();
   const t = getTranslation(language);
   const isBn = language === "bn";
@@ -249,7 +250,7 @@ export default function MapClient() {
       ) {
         return false;
       }
-      if (selectedCategory !== "all" && incident.category !== selectedCategory) {
+      if (!isIncidentCategoryMatch(incident.category, selectedCategories)) {
         return false;
       }
       if (searchQuery.trim() !== "") {
@@ -264,7 +265,7 @@ export default function MapClient() {
       }
       return true;
     });
-  }, [incidents, selectedSeverity, selectedCategory, searchQuery]);
+  }, [incidents, selectedSeverity, selectedCategories, searchQuery]);
 
   // Deduplicate and cluster coincident danger perimeter circles to avoid dense multi-ring red blobs
   const dangerPerimeterCircles = useMemo(() => {

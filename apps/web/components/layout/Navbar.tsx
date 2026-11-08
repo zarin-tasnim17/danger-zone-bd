@@ -41,8 +41,9 @@ export default function Navbar({
   const {
     selectedSeverity,
     setSeverity,
-    selectedCategory,
-    setCategory,
+    selectedCategories,
+    toggleCategory,
+    clearCategories,
     searchQuery,
     setSearchQuery,
     resetFilters,
@@ -51,6 +52,9 @@ export default function Navbar({
   const t = getTranslation(language);
   const isBn = language === "bn";
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  const hasActiveFilters =
+    selectedSeverity !== "all" || selectedCategories.length > 0 || searchQuery.trim() !== "";
 
   // All primary navigation links for the desktop and mobile header
   const navLinks = [
@@ -62,9 +66,6 @@ export default function Navbar({
     { name: isBn ? "প্রোফাইল" : "Profile", href: "/profile", icon: UserCheck },
     { name: "Dev Test", href: "/dev-test", icon: FlaskConical },
   ];
-
-  const hasActiveFilters =
-    selectedSeverity !== "all" || selectedCategory !== "all" || searchQuery.trim() !== "";
 
   return (
     <header className="w-full bg-white/95 backdrop-blur-xl border-b border-slate-200 text-slate-800 sticky top-0 z-30 shadow-xs transition-all select-none">
@@ -247,15 +248,15 @@ export default function Navbar({
         <div className="border-t border-slate-200/90 bg-slate-50/95 px-2.5 sm:px-4 lg:px-6 py-1.5 sm:py-2 relative z-20">
           <div className="max-w-[1536px] mx-auto flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 sm:gap-2.5 min-w-0">
             {/* Quick Filter Chips: Fully fitted on 375px mobile without clipping */}
-            <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 sm:pb-0 scrollbar-none min-w-0 flex-1 pr-4 sm:pr-0">
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 sm:pb-0 scrollbar-none min-w-0 flex-1 pr-1 sm:pr-0">
               {/* All Incidents */}
               <button
                 onClick={() => {
                   setSeverity("all");
-                  setCategory("all");
+                  clearCategories();
                 }}
                 className={`text-xs px-2.5 sm:px-3 py-1.5 rounded-xl font-bold border transition-all shrink-0 cursor-pointer ${
-                  selectedSeverity === "all" && selectedCategory === "all"
+                  selectedSeverity === "all" && selectedCategories.length === 0
                     ? "bg-slate-900 text-white border-slate-900 shadow-2xs"
                     : "bg-white text-slate-600 border-slate-200 hover:text-slate-900 hover:bg-slate-100"
                 }`}
@@ -278,22 +279,24 @@ export default function Navbar({
                 <span className="sm:hidden">{isBn ? "উচ্চ ঝুঁকি" : "High Risk"}</span>
               </button>
 
-              {/* Modern Grouped Category Filter Popover with inline active category label and ✕ clear */}
+              {/* Modern Multi-Select Category Filter Popover with inline count and ✕ clear */}
               <CategoryFilterPopover
-                selectedCategory={selectedCategory}
-                onSelectCategory={setCategory}
+                selectedCategories={selectedCategories}
+                onToggleCategory={toggleCategory}
+                onClearCategories={clearCategories}
                 isBn={isBn}
               />
 
-              {/* Reset filter pill */}
+              {/* Reset filter pill: Responsive compact layout ensuring zero clipping on mobile */}
               {hasActiveFilters && (
                 <button
                   onClick={resetFilters}
-                  className="text-xs px-2 sm:px-2.5 py-1 text-slate-500 hover:text-slate-900 inline-flex items-center gap-1 hover:bg-slate-200/60 rounded-xl transition shrink-0 ml-0.5 font-semibold cursor-pointer border border-transparent hover:border-slate-200"
-                  title="Reset all filters"
+                  className="text-xs p-1.5 sm:px-2.5 sm:py-1 text-slate-600 hover:text-slate-900 inline-flex items-center gap-1 bg-white hover:bg-slate-100 rounded-xl transition shrink-0 font-semibold cursor-pointer border border-slate-200 shadow-2xs"
+                  title={isBn ? "সব ফিল্টার মুছুন" : "Reset all filters"}
+                  aria-label="Reset all filters"
                 >
-                  <RotateCcw className="w-3 h-3" />
-                  <span>{isBn ? "রিসেট" : "Reset"}</span>
+                  <RotateCcw className="w-3.5 h-3.5 text-slate-600 shrink-0" />
+                  <span className="hidden sm:inline">{isBn ? "রিসেট" : "Reset"}</span>
                 </button>
               )}
             </div>
