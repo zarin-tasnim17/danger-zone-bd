@@ -6,7 +6,7 @@
   "crons": [
     {
       "path": "/api/cron/news-crawl",
-      "schedule": "0 * * * *"
+      "schedule": "0 0 * * *"
     }
   ]
 }
