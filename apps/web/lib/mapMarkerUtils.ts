@@ -46,16 +46,16 @@ export function getCategorySvg(category: string, size: number = 14): string {
 
     case "THEFT_ROBBERY":
     case "THEFT_DACOITY":
-      // Combined Dual Robbery Hazard Shield
-      return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"/><circle cx="12" cy="11" r="3"/><path d="M12 14v3"/></svg>`;
+      // Combined Dual Robbery Hazard Shield with Lock
+      return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"/><rect width="8" height="5" x="8" y="12" rx="1"/><path d="M9.5 12V10a2.5 2.5 0 0 1 5 0v2"/></svg>`;
 
     case "ARMED_ASSAULT":
       // Crossed Weapons / Sharp Blade Attack
       return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="m14.5 17.5 5 5"/><path d="m9.5 6.5-5-5"/><path d="m4.5 17.5 15-15"/><path d="m19.5 17.5-15-15"/><path d="m9.5 17.5-5 5"/><path d="m14.5 6.5 5-5"/></svg>`;
 
     case "SNATCHING_ARMED_ASSAULT":
-      // High-Danger Tactical Assault Snatch Alert
-      return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`;
+      // High-Danger Tactical Assault Snatch Alert (Siren with Dual Spark Flares)
+      return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M7 12a5 5 0 0 1 10 0v4H7v-4Z"/><path d="M5 20h14"/><path d="M12 2v3"/><path d="m18 5 3 3"/><path d="m21 5-3 3"/><path d="m3 5 3 3"/><path d="m6 5-3 3"/></svg>`;
 
     case "YOUTH_GANG_ACTIVITY":
     case "TEEN_GANG":
@@ -82,8 +82,8 @@ export function getCategorySvg(category: string, size: number = 14): string {
     case "ROAD_ACCIDENT":
     case "ACCIDENT":
     case "ROADBLOCK":
-      // Vehicle Collision / Road Obstacle Alert
-      return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>`;
+      // Dedicated Vehicle Crash / Road Accident Symbol (Car with collision impact)
+      return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.5 2.8C1.4 11.2 1 12 1 13v3c0 .6.4 1 1 1h2"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/><path d="m9 9 3 3m0-3-3 3"/></svg>`;
 
     case "FIRE":
       return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg>`;

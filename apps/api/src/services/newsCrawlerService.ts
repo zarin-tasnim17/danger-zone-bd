@@ -192,7 +192,10 @@ export const processAndIngestNewsItems = async (
     // 5. Expiration: Category-specific active lifecycle
     const expiresAt = calculateNewsReportExpiry(classification.category, publishedAt);
 
-    // 6. Insert Report and NewsArticle in database
+    // 6. Clean headline and insert Report and NewsArticle in database
+    const cleanTitle = item.title.replace(/^\[(?:Google News[^\]]*|The Daily Star[^\]]*)\]\s*/i, '').trim();
+    const cleanDesc = (item.contentSnippet || item.title).replace(/^\[(?:Google News[^\]]*|The Daily Star[^\]]*)\]\s*/i, '').trim();
+
     const report = await prisma.report.create({
       data: {
         userId: botUserId,
@@ -200,7 +203,7 @@ export const processAndIngestNewsItems = async (
         severity: classification.severity,
         latitude: geocode.latitude,
         longitude: geocode.longitude,
-        description: `[${item.sourceName}] ${item.title}`,
+        description: cleanDesc,
         sourceUrl: item.link,
         sourceName: item.sourceName,
         expiresAt,

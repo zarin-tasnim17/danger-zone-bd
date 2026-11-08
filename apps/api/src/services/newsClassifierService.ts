@@ -72,6 +72,23 @@ const CATEGORY_KEYWORDS: Record<ReportCategory, string[]> = {
     'আগ্নেয়াস্ত্র',
     'বন্দুকধারী',
     'বোমা হামলা',
+    'সংঘর্ষ',
+    'দুই পক্ষের সংঘর্ষ',
+    'দুপক্ষের সংঘর্ষ',
+    'পক্ষের সংঘর্ষ',
+    'মারামারি',
+    'মারধর',
+    'হামলা',
+    'হামলা ও সংঘর্ষ',
+    'হামলা-ভাঙচুর',
+    'ধাওয়া-পাল্টাধাওয়া',
+    'ধাওয়া পাল্টা ধাওয়া',
+    'টিয়ারশেল',
+    'ককটেল বিস্ফোরণ',
+    'ককটেল',
+    'গাড়িতে আগুন',
+    'ভাঙচুর',
+    'আক্রমণ',
     'knife attack',
     'stabbed',
     'stabbing',
@@ -80,6 +97,13 @@ const CATEGORY_KEYWORDS: Record<ReportCategory, string[]> = {
     'armed attack',
     'shot and injured',
     'bomb attack',
+    'clash',
+    'clashes',
+    'violent clash',
+    'factional clash',
+    'mob clash',
+    'riot',
+    'assault',
   ],
   SNATCHING_ARMED_ASSAULT: [
     'ছিনতাই ও হামলা',
@@ -163,26 +187,27 @@ const CATEGORY_KEYWORDS: Record<ReportCategory, string[]> = {
   ROAD_ACCIDENT: [
     'সড়ক দুর্ঘটনা',
     'সড়ক দুর্ঘটনায়',
-    'দুর্ঘটনা',
+    'গাড়ি দুর্ঘটনা',
     'বাস উল্টে',
     'ট্রাক ধাক্কা',
-    'সংঘর্ষ',
-    'মুখোমুখি সংঘর্ষ',
+    'বাস-ট্রাক সংঘর্ষ',
+    'যানবাহন সংঘর্ষ',
     'মোটরসাইকেল দুর্ঘটনা',
-    'ট্রেন দুর্ঘটনা',
-    'ট্রেন ও সড়ক দুর্ঘটনা',
     'অটোরিকশা দুর্ঘটনা',
+    'ট্রেন দুর্ঘটনা',
     'চাপা পড়ে নিহত',
+    'চাপা দিয়ে নিহত',
     'চাপা দিয়েছে',
     'road accident',
     'traffic accident',
     'deadly crash',
-    'collision',
-    'overturned',
-    'hit and run',
     'car crash',
     'bus crash',
+    'truck crash',
     'train crash',
+    'vehicle collision',
+    'hit and run',
+    'overturned bus',
   ],
   // Legacy aliases
   MUGGING: [
@@ -269,7 +294,8 @@ const MEDIUM_SEVERITY_KEYWORDS = [
  * Supports both Bangla and English news content with smart combination resolution.
  */
 export const classifyNewsText = (title: string, summary: string = ''): ClassifiedNews => {
-  const combinedText = `${title} ${summary}`.toLowerCase();
+  // Normalize Unicode (NFC) to handle decomposed nuktas (e.g. ড+় vs ড়) across different Bengali news sources
+  const combinedText = `${title} ${summary}`.normalize('NFC').toLowerCase();
   const matchedKeywords: string[] = [];
 
   const categoryScores: Partial<Record<ReportCategory, number>> = {};
@@ -277,7 +303,8 @@ export const classifyNewsText = (title: string, summary: string = ''): Classifie
   for (const [category, keywords] of Object.entries(CATEGORY_KEYWORDS) as [ReportCategory, string[]][]) {
     let count = 0;
     for (const kw of keywords) {
-      if (combinedText.includes(kw.toLowerCase())) {
+      const normalizedKw = kw.normalize('NFC').toLowerCase();
+      if (combinedText.includes(normalizedKw)) {
         count++;
         matchedKeywords.push(kw);
       }
@@ -299,6 +326,9 @@ export const classifyNewsText = (title: string, summary: string = ''): Classifie
     resolvedCategory = 'THEFT_ROBBERY';
   } else if (hasSnatching && hasArmedAssault) {
     resolvedCategory = 'SNATCHING_ARMED_ASSAULT';
+  } else if (hasArmedAssault && (categoryScores['ROAD_ACCIDENT'] || 0) > 0) {
+    // Violent clash / assault / armed attack ALWAYS overrides peripheral road keywords
+    resolvedCategory = 'ARMED_ASSAULT';
   } else {
     // Pick category with highest score (prefer primary forms over legacy aliases)
     let maxScore = 0;
@@ -329,7 +359,7 @@ export const classifyNewsText = (title: string, summary: string = ''): Classifie
   // Determine Severity
   let severity: ReportSeverity = 'LOW';
   for (const kw of HIGH_SEVERITY_KEYWORDS) {
-    if (combinedText.includes(kw.toLowerCase())) {
+    if (combinedText.includes(kw.normalize('NFC').toLowerCase())) {
       severity = 'HIGH';
       break;
     }
@@ -337,7 +367,7 @@ export const classifyNewsText = (title: string, summary: string = ''): Classifie
 
   if (severity !== 'HIGH') {
     for (const kw of MEDIUM_SEVERITY_KEYWORDS) {
-      if (combinedText.includes(kw.toLowerCase())) {
+      if (combinedText.includes(kw.normalize('NFC').toLowerCase())) {
         severity = 'MEDIUM';
         break;
       }

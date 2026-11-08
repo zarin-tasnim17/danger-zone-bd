@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { DangerIncident, SOCKET_EVENTS } from "@repo/shared";
 import { apiFetch } from "@/lib/api";
 import { getSocket, joinMapBounds } from "@/lib/socket";
+import { cleanIncidentTitle } from "@/lib/incidentUtils";
 
 export interface SafeZoneItem {
   id: string;
@@ -29,10 +30,12 @@ interface IncidentState {
 }
 
 const mapBackendToFrontendIncident = (r: any): DangerIncident => {
+  const cleanTitle = cleanIncidentTitle(r.description ? r.description.split("\n")[0] : `${r.category} Incident`);
+  const cleanDesc = r.description ? cleanIncidentTitle(r.description) : "No description provided.";
   return {
     id: r.id,
-    title: r.description ? r.description.split("\n")[0].substring(0, 70) : `${r.category} Incident`,
-    description: r.description || "No description provided.",
+    title: cleanTitle,
+    description: cleanDesc,
     category: r.category,
     severity: r.severity,
     coordinates: {

@@ -24,10 +24,10 @@ export const translations = {
     categories: {
       THEFT: 'Theft',
       ROBBERY: 'Robbery',
-      THEFT_ROBBERY: 'Theft & Robbery (Combined)',
+      THEFT_ROBBERY: 'Theft & Robbery',
       SNATCHING: 'Snatching',
       ARMED_ASSAULT: 'Armed Assault',
-      SNATCHING_ARMED_ASSAULT: 'Armed Snatching & Assault (Combined)',
+      SNATCHING_ARMED_ASSAULT: 'Snatching & Armed Assault',
       EXTORTION: 'Extortion',
       YOUTH_GANG_ACTIVITY: 'Youth Gang Activity',
       DRUG_RELATED_CRIME: 'Drug-Related Crime',

@@ -23,6 +23,7 @@ import { useLanguageStore } from "@/store/useLanguageStore";
 import { useIncidentStore } from "@/store/useIncidentStore";
 import { DangerIncident, IncidentSeverity } from "@repo/shared";
 import { getTranslation } from "@/lib/translations";
+import { cleanIncidentTitle } from "@/lib/incidentUtils";
 import L from "leaflet";
 import {
   Crosshair,
@@ -356,34 +357,26 @@ export default function MapClient() {
     }
   }, [setCenter, setZoom, loadSavedLocation, setUserLocation, setIsLowAccuracy]);
 
-  // Request browser geolocation (manual button click)
+  // Request browser geolocation (manual button click): Always prioritizes live hardware GPS
   const handleLocateMe = () => {
-    // 1. If a saved calibrated location exists, fly straight to it!
-    const saved = loadSavedLocation();
-    if (saved && isWithinBangladesh(saved.lat, saved.lng)) {
-      setUserLocation(
-        { lat: saved.lat, lng: saved.lng },
-        saved.accuracy || 25,
-        'calibrated',
-        saved.label
-      );
-      setCenter({ lat: saved.lat, lng: saved.lng });
-      setZoom(17);
-      mapRef.current?.flyTo([saved.lat, saved.lng], 17, { animate: true, duration: 1.2 });
-      return;
-    }
-
-    // 2. If user already has an active location pin, fly directly to it immediately
-    if (userLocation && isWithinBangladesh(userLocation.lat, userLocation.lng)) {
-      setCenter(userLocation);
-      setZoom(17);
-      mapRef.current?.flyTo([userLocation.lat, userLocation.lng], 17, { animate: true, duration: 1.2 });
-    }
-
     if (!navigator.geolocation) {
+      const saved = loadSavedLocation();
+      if (saved && isWithinBangladesh(saved.lat, saved.lng)) {
+        setUserLocation(
+          { lat: saved.lat, lng: saved.lng },
+          saved.accuracy || 25,
+          'calibrated',
+          saved.label
+        );
+        setCenter({ lat: saved.lat, lng: saved.lng });
+        setZoom(17);
+        mapRef.current?.flyTo([saved.lat, saved.lng], 17, { animate: true, duration: 1.2 });
+        return;
+      }
       openCalibrationModal();
       return;
     }
+
     setIsLocating(true);
     navigator.geolocation.getCurrentPosition(
       (pos) => {
@@ -393,12 +386,10 @@ export default function MapClient() {
 
         if (isWithinBangladesh(coords.lat, coords.lng)) {
           setCenter(coords);
-          setZoom(16);
-          mapRef.current?.flyTo([coords.lat, coords.lng], 16, { animate: true, duration: 1.2 });
-          // If accuracy is poor (typical of ISP triangulation > 75m), open the calibration assistant!
-          if (!acc || acc > 75) {
+          setZoom(17);
+          mapRef.current?.flyTo([coords.lat, coords.lng], 17, { animate: true, duration: 1.2 });
+          if (!acc || acc > 150) {
             setIsLowAccuracy(true);
-            openCalibrationModal();
           }
         } else {
           openCalibrationModal();
@@ -406,11 +397,25 @@ export default function MapClient() {
         setIsLocating(false);
       },
       (err) => {
-        console.warn("[MapClient] Could not access location:", err.message);
+        console.warn("[MapClient] Could not access live GPS:", err.message);
         setIsLocating(false);
-        openCalibrationModal();
+        // Fallback to saved location if live GPS denied/unavailable
+        const saved = loadSavedLocation();
+        if (saved && isWithinBangladesh(saved.lat, saved.lng)) {
+          setUserLocation(
+            { lat: saved.lat, lng: saved.lng },
+            saved.accuracy || 25,
+            'calibrated',
+            saved.label
+          );
+          setCenter({ lat: saved.lat, lng: saved.lng });
+          setZoom(17);
+          mapRef.current?.flyTo([saved.lat, saved.lng], 17, { animate: true, duration: 1.2 });
+        } else {
+          openCalibrationModal();
+        }
       },
-      { enableHighAccuracy: true, timeout: 8000 }
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
     );
   };
 
@@ -649,18 +654,7 @@ export default function MapClient() {
             <Marker
               position={[userLocation.lat, userLocation.lng]}
               icon={userGpsIcon}
-              draggable={true}
-              eventHandlers={{
-                dragend: (e) => {
-                  const marker = e.target;
-                  const newPos = marker.getLatLng();
-                  // Automatically calibrate and save to localStorage!
-                  calibrateUserLocation(
-                    { lat: newPos.lat, lng: newPos.lng },
-                    isBn ? "ক্যালিব্রেটেড অবস্থান" : "Calibrated Pin Location"
-                  );
-                },
-              }}
+              draggable={false}
             >
               <Popup autoPanPadding={[24, 24]}>
                 <div className="p-3 min-w-[240px] max-w-[280px] text-slate-800 text-xs space-y-2 font-sans">
@@ -842,8 +836,8 @@ export default function MapClient() {
                       {(t.categories as any)[incident.category] || (t.categories as any)[incident.category.toLowerCase()] || incident.category}
                     </span>
                     <span className="text-slate-400 font-normal">|</span>
-                    <span className="text-slate-200 truncate max-w-[200px]">
-                      {isBn && incident.titleBn ? incident.titleBn : incident.title}
+                    <span className="text-slate-200 truncate max-w-[240px]">
+                      {cleanIncidentTitle(isBn && incident.titleBn ? incident.titleBn : incident.title)}
                     </span>
                   </div>
                 </Tooltip>
@@ -865,21 +859,21 @@ export default function MapClient() {
                         {(t.severity as any)[incident.severity.toLowerCase()] || incident.severity}
                       </span>
 
-                      <span className="text-[10px] text-slate-500 font-mono">
+                      <span className="text-[10px] text-slate-500 font-mono font-bold">
                         {(t.categories as any)[incident.category] || (t.categories as any)[incident.category.toLowerCase()] || incident.category}
                       </span>
                     </div>
 
                     {/* Title */}
                     <h4 className="font-bold text-sm leading-snug text-slate-900">
-                      {isBn && incident.titleBn ? incident.titleBn : incident.title}
+                      {cleanIncidentTitle(isBn && incident.titleBn ? incident.titleBn : incident.title)}
                     </h4>
 
                     {/* Description */}
                     <p className="text-xs text-slate-600 line-clamp-2 leading-relaxed">
-                      {isBn && incident.descriptionBn
+                      {cleanIncidentTitle(isBn && incident.descriptionBn
                         ? incident.descriptionBn
-                        : incident.description}
+                        : incident.description)}
                     </p>
 
                     {/* Landmark / Source */}

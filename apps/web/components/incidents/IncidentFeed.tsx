@@ -8,6 +8,7 @@ import { useLanguageStore } from "@/store/useLanguageStore";
 import { useFilterStore } from "@/store/useFilterStore";
 import { getTranslation } from "@/lib/translations";
 import { DangerIncident } from "@repo/shared";
+import { cleanIncidentTitle, getCategoryIcon, getCategoryBadgeClass } from "@/lib/incidentUtils";
 import {
   AlertCircle,
   MapPin,
@@ -353,9 +354,18 @@ export default function IncidentFeed({ onIncidentSelect }: { onIncidentSelect?: 
                       </span>
                     )}
 
-                    <span className="text-[10px] font-medium text-slate-500 font-mono">
-                      {(t.categories as any)[item.category] || (t.categories as any)[item.category.toLowerCase()] || item.category}
-                    </span>
+                    {(() => {
+                      const CatIcon = getCategoryIcon(item.category);
+                      const badgeClass = getCategoryBadgeClass(item.category);
+                      return (
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border flex items-center gap-1 shrink-0 ${badgeClass}`}>
+                          <CatIcon className="w-3 h-3 shrink-0" />
+                          <span>
+                            {(t.categories as any)[item.category] || (t.categories as any)[item.category.toLowerCase()] || item.category}
+                          </span>
+                        </span>
+                      );
+                    })()}
                   </div>
 
                   <span className="text-[10px] text-slate-400 font-mono flex items-center gap-1 shrink-0">
@@ -366,12 +376,12 @@ export default function IncidentFeed({ onIncidentSelect }: { onIncidentSelect?: 
 
                 {/* Title */}
                 <h3 className="text-xs sm:text-sm font-bold text-slate-900 group-hover:text-blue-600 leading-snug mb-1 transition-colors">
-                  {isBn && item.titleBn ? item.titleBn : item.title}
+                  {cleanIncidentTitle(isBn && item.titleBn ? item.titleBn : item.title)}
                 </h3>
 
                 {/* Description */}
                 <p className="text-xs text-slate-600 line-clamp-2 mb-2 leading-relaxed">
-                  {isBn && item.descriptionBn ? item.descriptionBn : item.description}
+                  {cleanIncidentTitle(isBn && item.descriptionBn ? item.descriptionBn : item.description)}
                 </p>
 
                 {/* Location and Category */}
