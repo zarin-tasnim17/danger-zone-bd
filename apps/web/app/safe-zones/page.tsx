@@ -108,22 +108,28 @@ export default function SafeZonesPage() {
     initAuth();
   }, [initAuth]);
 
-  // Request user GPS on mount for automatic distance calculation
+  // Request user GPS on mount silently ONLY if permission is already granted (prevents Android 12+ prompt blocks)
   useEffect(() => {
-    if (typeof window !== "undefined" && "geolocation" in navigator) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          setUserLocation({
-            lat: pos.coords.latitude,
-            lng: pos.coords.longitude,
-          });
-        },
-        () => {
-          // Fallback to Dhaka center if user denies GPS permission
-          console.log("[SafeZones] Geolocation permission not granted; using national view");
-        },
-        { enableHighAccuracy: true, timeout: 8000 }
-      );
+    if (typeof window !== "undefined" && "geolocation" in navigator && navigator.permissions?.query) {
+      navigator.permissions
+        .query({ name: "geolocation" })
+        .then((status) => {
+          if (status.state === "granted") {
+            navigator.geolocation.getCurrentPosition(
+              (pos) => {
+                setUserLocation({
+                  lat: pos.coords.latitude,
+                  lng: pos.coords.longitude,
+                });
+              },
+              () => {
+                console.log("[SafeZones] Geolocation auto-check skipped");
+              },
+              { enableHighAccuracy: false, timeout: 6000, maximumAge: 60000 }
+            );
+          }
+        })
+        .catch(() => {});
     }
   }, []);
 
@@ -183,10 +189,33 @@ export default function SafeZonesPage() {
         setIsLocatingUser(false);
       },
       (err) => {
+        if (err.code === 2 || err.code === 3) {
+          navigator.geolocation.getCurrentPosition(
+            (coarsePos) => {
+              setUserLocation({
+                lat: coarsePos.coords.latitude,
+                lng: coarsePos.coords.longitude,
+              });
+              setProximityMode(true);
+              setActiveCityPreset("Nearest to GPS");
+              setIsLocatingUser(false);
+            },
+            () => {
+              setIsLocatingUser(false);
+              setGpsError(
+                "Unable to access GPS location. Please allow Location access and close any floating screen overlays."
+              );
+            },
+            { enableHighAccuracy: false, timeout: 8000, maximumAge: 60000 }
+          );
+          return;
+        }
         setIsLocatingUser(false);
-        setGpsError("Unable to access GPS location. Please allow browser location access.");
+        setGpsError(
+          "Unable to access GPS location. If Android says 'Try again', close any floating bubbles/overlays and enable Location in browser permissions."
+        );
       },
-      { enableHighAccuracy: true, timeout: 10000 }
+      { enableHighAccuracy: true, timeout: 20000, maximumAge: 30000 }
     );
   };
 

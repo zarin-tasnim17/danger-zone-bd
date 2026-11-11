@@ -224,6 +224,7 @@ export default function MapClient() {
   const [showDangerCircles, setShowDangerCircles] = useState(true);
   const [isLocating, setIsLocating] = useState(false);
   const hasAutoLocatedRef = useRef(false);
+  const geoPermissionStateRef = useRef<PermissionState | null>(null);
 
   // Mount: fetch nationwide incidents across Bangladesh, verified safe zones, and start socket listeners
   useEffect(() => {
@@ -298,14 +299,15 @@ export default function MapClient() {
     return lat >= 20.3 && lat <= 26.8 && lng >= 87.8 && lng <= 92.9;
   };
 
-  // Smart Location Initialization: Prioritize saved calibrated location, otherwise query browser geolocation
+  // Smart Location Initialization: Prioritize saved calibrated location; auto-locate silently ONLY if permission is already granted
   useEffect(() => {
     if (typeof window === "undefined" || hasAutoLocatedRef.current) return;
     hasAutoLocatedRef.current = true;
 
     // 1. Check if user previously calibrated their location in localStorage
     const saved = loadSavedLocation();
-    if (saved && isWithinBangladesh(saved.lat, saved.lng)) {
+    const hasCalibrated = !!(saved && isWithinBangladesh(saved.lat, saved.lng));
+    if (hasCalibrated && saved) {
       setUserLocation(
         { lat: saved.lat, lng: saved.lng },
         saved.accuracy || 25,
@@ -314,36 +316,62 @@ export default function MapClient() {
       );
       setCenter({ lat: saved.lat, lng: saved.lng });
       setZoom(16);
-      return;
     }
 
-    // 2. Otherwise request browser geolocation (allow cached fix up to 60s for instant load)
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-          const acc = pos.coords.accuracy || null;
-          setUserLocation(coords, acc, 'gps');
+    // 2. Track live browser geolocation permission state without popping an unprompted dialog
+    // over TermsConsentModal (which causes modern Android 12-16 Chrome to suppress/block prompts)
+    let permStatus: PermissionStatus | null = null;
+    const handlePermChange = () => {
+      if (permStatus) {
+        geoPermissionStateRef.current = permStatus.state;
+      }
+    };
 
-          if (isWithinBangladesh(coords.lat, coords.lng)) {
-            setCenter(coords);
-            setZoom(16);
-            if (!acc || acc > 75) {
-              setIsLowAccuracy(true);
-            }
-          } else {
-            console.info("[Geo] Device is outside Bangladesh boundaries. Displaying national view.");
+    if (navigator.permissions?.query) {
+      navigator.permissions
+        .query({ name: 'geolocation' })
+        .then((status) => {
+          permStatus = status;
+          geoPermissionStateRef.current = status.state;
+          status.addEventListener('change', handlePermChange);
+
+          if (!hasCalibrated && status.state === 'granted' && navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(
+              (pos) => {
+                const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+                const acc = pos.coords.accuracy || null;
+                setUserLocation(coords, acc, 'gps');
+
+                if (isWithinBangladesh(coords.lat, coords.lng)) {
+                  setCenter(coords);
+                  setZoom(16);
+                  if (!acc || acc > 75) {
+                    setIsLowAccuracy(true);
+                  }
+                } else {
+                  console.info("[Geo] Device is outside Bangladesh boundaries. Displaying national view.");
+                }
+              },
+              (err) => {
+                console.info("[Geo] Auto-location skipped:", err.message);
+              },
+              { enableHighAccuracy: false, timeout: 6000, maximumAge: 60000 }
+            );
           }
-        },
-        (err) => {
-          console.info("[Geo] Auto-location skipped:", err.message);
-        },
-        { enableHighAccuracy: true, timeout: 6000, maximumAge: 60000 }
-      );
+        })
+        .catch(() => {
+          // Permissions API unsupported
+        });
     }
+
+    return () => {
+      if (permStatus) {
+        permStatus.removeEventListener('change', handlePermChange);
+      }
+    };
   }, [setCenter, setZoom, loadSavedLocation, setUserLocation, setIsLowAccuracy]);
 
-  // Request browser geolocation (manual button click): Progressive fast fix + live satellite refinement
+  // Request browser geolocation (manual button click): Modern Android 12-16+ safe permission + progressive GPS
   const handleLocateMe = () => {
     // Check for Secure Context on mobile (iOS/Android block geolocation on insecure HTTP)
     if (
@@ -361,7 +389,7 @@ export default function MapClient() {
       return;
     }
 
-    if (!navigator.geolocation) {
+    const fallbackToSavedOrModal = () => {
       const saved = loadSavedLocation();
       if (saved && isWithinBangladesh(saved.lat, saved.lng)) {
         setUserLocation(
@@ -373,9 +401,13 @@ export default function MapClient() {
         setCenter({ lat: saved.lat, lng: saved.lng });
         setZoom(17);
         mapRef.current?.flyTo([saved.lat, saved.lng], 17, { animate: true, duration: 1.2 });
-        return;
+      } else {
+        openCalibrationModal();
       }
-      openCalibrationModal();
+    };
+
+    if (!navigator.geolocation) {
+      fallbackToSavedOrModal();
       return;
     }
 
@@ -383,6 +415,7 @@ export default function MapClient() {
     let hasAppliedFastFix = false;
 
     const applyGpsCoordinates = (pos: GeolocationPosition, isRefined: boolean = false) => {
+      geoPermissionStateRef.current = 'granted';
       const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
       const acc = pos.coords.accuracy || null;
       setUserLocation(coords, acc, 'gps');
@@ -393,64 +426,82 @@ export default function MapClient() {
           setZoom(17);
           mapRef.current?.flyTo([coords.lat, coords.lng], 17, { animate: true, duration: 1.0 });
         }
-        if (!acc || acc > 150) {
-          setIsLowAccuracy(true);
-        } else {
-          setIsLowAccuracy(false);
-        }
+        setIsLowAccuracy(!acc || acc > 150);
       } else {
         openCalibrationModal();
       }
     };
 
-    // Stage 1: Ultra-fast immediate fix using recent mobile A-GPS / Wi-Fi cache (returns in <250ms)
+    const handleLocationFailure = (err: GeolocationPositionError) => {
+      console.warn("[MapClient] Could not access live GPS:", err.message);
+      setIsLocating(false);
+      if (err.code === 1) {
+        geoPermissionStateRef.current = 'denied';
+        alert(
+          isBn
+            ? "লোকেশন পারমিশন পাওয়া যায়নি। আধুনিক অ্যান্ড্রয়েডে: (১) স্ক্রিনে কোনো ভাসমান বাবল/চ্যাট হেড বা স্ক্রিন ওভারলে চালু থাকলে বন্ধ করুন (এটি 'Try again' ত্রুটি দেয়), (২) অ্যাড্রেস বারের বাম দিকের আইকন থেকে Location Allow করুন এবং Chrome সেটিংসে 'Precise location' চালু রাখুন।"
+            : "Location permission was blocked or could not be confirmed.\n\nOn Android 12+, if tapping Allow says 'Try again':\n1. Close any floating bubbles/overlays (Messenger chat heads, Edge panel, blue-light filters, screen recorders) — Android blocks permission taps if overlays are active.\n2. Tap the Sliders/Lock icon next to the URL bar → Permissions → Location → Allow.\n3. Ensure 'Use precise location' is ON in Android App Settings for Chrome."
+        );
+      }
+      fallbackToSavedOrModal();
+    };
+
+    // CASE A: Permission is ALREADY granted -> safe to run fast 2-stage resolution
+    if (geoPermissionStateRef.current === 'granted') {
+      // Stage 1: Instant cached/A-GPS fix (<250ms)
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          hasAppliedFastFix = true;
+          applyGpsCoordinates(pos, false);
+          setIsLocating(false);
+        },
+        () => {
+          // Resolved by Stage 2
+        },
+        { enableHighAccuracy: false, timeout: 3000, maximumAge: 60000 }
+      );
+
+      // Stage 2: High-accuracy live satellite refinement
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          applyGpsCoordinates(pos, hasAppliedFastFix);
+          setIsLocating(false);
+        },
+        (err) => {
+          if (!hasAppliedFastFix) {
+            handleLocationFailure(err);
+          }
+        },
+        { enableHighAccuracy: true, timeout: 12000, maximumAge: 15000 }
+      );
+      return;
+    }
+
+    // CASE B: Permission is 'prompt', 'denied', or unknown -> issue ONE clean synchronous request
+    // directly inside the click event so Android 12+ Precise/Approximate dialog doesn't collide.
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        hasAppliedFastFix = true;
         applyGpsCoordinates(pos, false);
         setIsLocating(false);
       },
-      () => {
-        // Fast fix unavailable or empty cache; will resolve in Stage 2
-      },
-      { enableHighAccuracy: false, timeout: 2500, maximumAge: 60000 }
-    );
-
-    // Stage 2: High-accuracy live satellite refinement (sharpens location in background)
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        applyGpsCoordinates(pos, hasAppliedFastFix);
-        setIsLocating(false);
-      },
       (err) => {
-        if (!hasAppliedFastFix) {
-          console.warn("[MapClient] Could not access live GPS:", err.message);
-          setIsLocating(false);
-          if (err.code === 1) {
-            alert(
-              isBn
-                ? "অনুগ্রহ করে আপনার ব্রাউজারের সেটিংসে লোকেশন পারমিশন চালু করুন।"
-                : "Please enable Location permission in your mobile browser settings to locate your device."
-            );
-          }
-          // Fallback to saved location if live GPS denied/unavailable
-          const saved = loadSavedLocation();
-          if (saved && isWithinBangladesh(saved.lat, saved.lng)) {
-            setUserLocation(
-              { lat: saved.lat, lng: saved.lng },
-              saved.accuracy || 25,
-              'calibrated',
-              saved.label
-            );
-            setCenter({ lat: saved.lat, lng: saved.lng });
-            setZoom(17);
-            mapRef.current?.flyTo([saved.lat, saved.lng], 17, { animate: true, duration: 1.2 });
-          } else {
-            openCalibrationModal();
-          }
+        // Fallback once to coarse/network fix if user granted "Approximate" instead of "Precise"
+        if (err.code === 2 || err.code === 3) {
+          navigator.geolocation.getCurrentPosition(
+            (coarsePos) => {
+              applyGpsCoordinates(coarsePos, false);
+              setIsLocating(false);
+            },
+            (coarseErr) => {
+              handleLocationFailure(coarseErr);
+            },
+            { enableHighAccuracy: false, timeout: 8000, maximumAge: 60000 }
+          );
+          return;
         }
+        handleLocationFailure(err);
       },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 15000 }
+      { enableHighAccuracy: true, timeout: 20000, maximumAge: 30000 }
     );
   };
 
@@ -464,6 +515,7 @@ export default function MapClient() {
     setIsLocating(true);
     navigator.geolocation.getCurrentPosition(
       (pos) => {
+        geoPermissionStateRef.current = 'granted';
         const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
         const acc = pos.coords.accuracy || null;
         setUserLocation(coords, acc, 'gps');
@@ -476,10 +528,28 @@ export default function MapClient() {
         setIsLocating(false);
       },
       (err) => {
+        if (err.code === 2 || err.code === 3) {
+          navigator.geolocation.getCurrentPosition(
+            (coarsePos) => {
+              const coords = { lat: coarsePos.coords.latitude, lng: coarsePos.coords.longitude };
+              setUserLocation(coords, coarsePos.coords.accuracy || null, 'gps');
+              setCenter(coords);
+              setZoom(16);
+              setIsLowAccuracy(true);
+              setIsLocating(false);
+            },
+            () => {
+              setIsLocating(false);
+              openCalibrationModal();
+            },
+            { enableHighAccuracy: false, timeout: 8000, maximumAge: 60000 }
+          );
+          return;
+        }
         setIsLocating(false);
         openCalibrationModal();
       },
-      { enableHighAccuracy: true, timeout: 8000, maximumAge: 10000 }
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 }
     );
   };
 
