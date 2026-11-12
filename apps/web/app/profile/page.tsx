@@ -97,13 +97,13 @@ export default function ProfilePage() {
     }
   };
 
-  const handleSwitchIdentity = async (anonId: string, email?: string) => {
+  const handleSwitchIdentity = async (anonId: string) => {
     setIsSwitching(true);
     try {
       localStorage.setItem("bd_safety_device_id", anonId);
       await apiFetch("/auth/device", {
         method: "POST",
-        body: JSON.stringify({ anonymousId: anonId, email }),
+        body: JSON.stringify({ anonymousId: anonId }),
       });
       await initAuth();
       alert(
@@ -655,7 +655,8 @@ export default function ProfilePage() {
               )}
             </div>
 
-            {/* Developer & QA Persona Switcher Tray (Collapsible) */}
+            {/* Developer & QA Persona Switcher Tray (Collapsible, dev-only) */}
+            {process.env.NODE_ENV === "development" && (
             <div className="bg-slate-100/80 border border-slate-200 rounded-2xl overflow-hidden shadow-2xs">
               <button
                 type="button"
@@ -685,19 +686,7 @@ export default function ProfilePage() {
                       : "Switch between different authenticated citizen personas to verify role guards (requireAuth, requireRole):"}
                   </p>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
-                    <button
-                      type="button"
-                      onClick={() => handleSwitchIdentity("admin-device-master-uuid", "admin@safetymap.bd")}
-                      disabled={isSwitching}
-                      className="p-3 text-xs font-bold rounded-xl bg-purple-700 hover:bg-purple-800 text-white transition-all text-left flex items-center justify-between shadow-xs active:scale-98 cursor-pointer"
-                    >
-                      <div>
-                        <div className="font-extrabold">{isBn ? "অ্যাডমিন অ্যাকাউন্ট" : "Switch to Admin"}</div>
-                        <div className="text-[10px] text-purple-200 font-normal">admin@safetymap.bd</div>
-                      </div>
-                      <Shield className="w-4 h-4 shrink-0 text-purple-200" />
-                    </button>
+                  <div className="grid grid-cols-1 gap-2.5 pt-1">
 
                     <button
                       type="button"
@@ -715,6 +704,7 @@ export default function ProfilePage() {
                 </div>
               )}
             </div>
+            )}
           </div>
         </div>
       </main>
