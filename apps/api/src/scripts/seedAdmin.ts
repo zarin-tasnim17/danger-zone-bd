@@ -5,13 +5,33 @@ import bcrypt from 'bcrypt';
 import { prisma } from '../db/prisma';
 
 async function seedAdmin() {
-  const adminEmail = (process.env.ADMIN_EMAIL || 'admin@safetymap.bd').trim().toLowerCase();
-  const adminPassword = process.env.ADMIN_PASSWORD || 'AdminSafety@2026';
+  const adminEmail = process.env.ADMIN_EMAIL?.trim().toLowerCase();
+  const envPasswordHash = process.env.ADMIN_PASSWORD_HASH?.trim();
+  const envPassword = process.env.ADMIN_PASSWORD;
+
+  if (!adminEmail) {
+    throw new Error('[Seed Admin] ADMIN_EMAIL environment variable is required.');
+  }
+
+  let passwordHash: string;
+  if (envPasswordHash) {
+    if (!envPasswordHash.startsWith('$2')) {
+      throw new Error('[Seed Admin] ADMIN_PASSWORD_HASH must be a valid bcrypt hash.');
+    }
+    passwordHash = envPasswordHash;
+  } else {
+    if (!envPassword || envPassword.length < 12) {
+      throw new Error(
+        '[Seed Admin] Provide ADMIN_PASSWORD_HASH or an explicit ADMIN_PASSWORD of at least 12 characters.'
+      );
+    }
+    if (envPassword === 'AdminSafety@2026') {
+      throw new Error('[Seed Admin] Refusing to seed the insecure legacy default password.');
+    }
+    passwordHash = await bcrypt.hash(envPassword, 12);
+  }
 
   console.log(`[Seed Admin] Starting administrator account setup for: ${adminEmail}`);
-
-  const saltRounds = 10;
-  const passwordHash = await bcrypt.hash(adminPassword, saltRounds);
 
   const existingByEmail = await prisma.user.findFirst({
     where: {
@@ -63,9 +83,15 @@ async function seedAdmin() {
     throw new Error('Failed to verify seeded administrator in database.');
   }
 
-  const isValid = await bcrypt.compare(adminPassword, verifiedUser.passwordHash);
-  if (!isValid) {
-    throw new Error('Password hash verification failed!');
+  if (envPasswordHash) {
+    if (verifiedUser.passwordHash !== passwordHash || verifiedUser.role !== 'ADMIN') {
+      throw new Error('Seeded password hash verification failed!');
+    }
+  } else if (envPassword) {
+    const isValid = await bcrypt.compare(envPassword, verifiedUser.passwordHash);
+    if (!isValid) {
+      throw new Error('Password hash verification failed!');
+    }
   }
 
   console.log(`[Seed Admin] Verification complete: Role=${verifiedUser.role}, Email=${verifiedUser.email}, isVerified=${verifiedUser.isVerified}`);

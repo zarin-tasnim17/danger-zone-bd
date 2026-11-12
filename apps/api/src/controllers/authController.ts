@@ -15,7 +15,7 @@ export const loginDevice = async (req: Request, res: Response) => {
 
     return successResponse(res, { user: { id: user.id, role: user.role } }, 201);
   } catch (error: any) {
-    return errorResponse(res, error.message, 400);
+    return errorResponse(res, error.message, error.statusCode || 400);
   }
 };
 

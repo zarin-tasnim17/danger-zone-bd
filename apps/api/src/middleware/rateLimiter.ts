@@ -25,8 +25,9 @@ export const createRateLimiter = (options: {
   windowMs: number;
   maxRequests: number;
   message?: string;
+  keyPrefix?: string;
 }) => {
-  const { windowMs, maxRequests, message } = options;
+  const { windowMs, maxRequests, message, keyPrefix } = options;
 
   return (req: Request, res: Response, next: NextFunction) => {
     // Determine client IP
@@ -34,9 +35,10 @@ export const createRateLimiter = (options: {
       (req.headers['x-forwarded-for'] as string)?.split(',')[0].trim() ||
       req.socket.remoteAddress ||
       'unknown';
+    const key = keyPrefix ? `${keyPrefix}:${clientIp}` : clientIp;
 
     const now = Date.now();
-    const record = ipRequestMap.get(clientIp) || { timestamps: [] };
+    const record = ipRequestMap.get(key) || { timestamps: [] };
 
     // Discard timestamps outside window
     record.timestamps = record.timestamps.filter((t) => now - t < windowMs);
@@ -58,7 +60,7 @@ export const createRateLimiter = (options: {
     }
 
     record.timestamps.push(now);
-    ipRequestMap.set(clientIp, record);
+    ipRequestMap.set(key, record);
     next();
   };
 };
@@ -70,4 +72,15 @@ export const reportCreationRateLimiter = createRateLimiter({
   windowMs: 60 * 60 * 1000, // 1 hour
   maxRequests: 5,
   message: 'Anti-Abuse Protection: Maximum 5 incident reports per hour per device/IP address.',
+  keyPrefix: 'report-creation',
+});
+
+/**
+ * Authentication brute-force protection for password login (Max 10 attempts per 15 minutes per IP)
+ */
+export const authLoginRateLimiter = createRateLimiter({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  maxRequests: 10,
+  message: 'Too many login attempts. Please try again in 15 minutes.',
+  keyPrefix: 'auth-login',
 });

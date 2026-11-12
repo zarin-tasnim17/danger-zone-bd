@@ -2,16 +2,45 @@ import bcrypt from 'bcrypt';
 import { prisma } from '../db/prisma';
 import { generateAccessToken, generateRefreshToken } from '../utils/jwt';
 
+const assertDeviceAuthAllowed = (account: { role: string; passwordHash: string | null }) => {
+  // Prevent device-based session issuance for privileged or password-protected accounts
+  if (account.role !== 'USER' || Boolean(account.passwordHash)) {
+    const error = new Error(
+      'Privileged or password-protected accounts must authenticate with email and password via /auth/login.'
+    ) as Error & { statusCode?: number };
+    error.statusCode = 403;
+    throw error;
+  }
+};
+
 export const loginOrRegisterDevice = async (anonymousId: string, email?: string) => {
+  const normalizedEmail = email?.trim().toLowerCase();
+
   let user = await prisma.user.findUnique({
     where: { anonymousId }
   });
 
-  if (!user) {
+  if (user) {
+    assertDeviceAuthAllowed(user);
+  } else {
+    if (normalizedEmail) {
+      const existingByEmail = await prisma.user.findFirst({
+        where: {
+          email: {
+            equals: normalizedEmail,
+            mode: 'insensitive',
+          },
+        },
+      });
+      if (existingByEmail) {
+        assertDeviceAuthAllowed(existingByEmail);
+      }
+    }
+
     user = await prisma.user.create({
       data: {
         anonymousId,
-        email: email || `${anonymousId}@anonymous.local`,
+        email: normalizedEmail || `${anonymousId}@anonymous.local`,
       }
     });
   }
