@@ -1,7 +1,10 @@
+import assert from 'assert';
 import http from 'http';
 import crypto from 'crypto';
 import path from 'path';
 import { createRequire } from 'module';
+import { SAFE_ZONE_TYPES } from '@repo/shared';
+import { getSafeZonePresentation, normalizeSafeZoneType } from './lib/safeZoneMeta';
 import { app } from '../api/src/app';
 import { initSocketServer } from '../api/src/sockets';
 import { prisma } from '../api/src/db/prisma';
@@ -95,7 +98,19 @@ async function runFrontendIntegrationSuite() {
     });
 
     if (safeZonesRes.status === 200 && Array.isArray(safeZonesRes.data?.data)) {
-      console.log(`  ✅ Retrieved ${safeZonesRes.data.data.length} verified safe zone locations`);
+      const zones = safeZonesRes.data.data as Array<{ type?: string }>;
+      for (const zone of zones) {
+        assert(
+          zone.type && (SAFE_ZONE_TYPES as readonly string[]).includes(zone.type),
+          `Unexpected safe zone type from API: ${zone.type}`
+        );
+      }
+      const labelsEn = SAFE_ZONE_TYPES.map((t) => getSafeZonePresentation(t, 'en').label);
+      const labelsBn = SAFE_ZONE_TYPES.map((t) => getSafeZonePresentation(t, 'bn').label);
+      assert.strictEqual(new Set(labelsEn).size, SAFE_ZONE_TYPES.length, 'SafeZoneType EN labels must be distinct');
+      assert.strictEqual(new Set(labelsBn).size, SAFE_ZONE_TYPES.length, 'SafeZoneType BN labels must be distinct');
+      assert.strictEqual(normalizeSafeZoneType('POLICE_STATION'), 'POLICE_BOX');
+      console.log(`  ✅ Retrieved ${zones.length} verified safe zone locations & verified SafeZoneType presentation contract`);
     } else {
       throw new Error(`Safe zones fetch failed: ${JSON.stringify(safeZonesRes)}`);
     }
