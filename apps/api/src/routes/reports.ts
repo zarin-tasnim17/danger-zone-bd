@@ -31,7 +31,12 @@ const reportSchema = z.object({
     severity: z.enum(['LOW', 'MEDIUM', 'HIGH']),
     latitude: z.number().min(-90).max(90),
     longitude: z.number().min(-180).max(180),
-    description: z.string().optional(),
+    description: z
+      .string()
+      .trim()
+      .min(1, 'Description cannot be empty if provided')
+      .max(1000, 'Description cannot exceed 1000 characters')
+      .optional(),
   }).strict(),
   headers: z.object({
     'x-device-lat': optionalCoordHeader(-90, 90, 'x-device-lat'),
