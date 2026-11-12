@@ -7,6 +7,9 @@ export const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as c
 export type AllowedMimeType = (typeof ALLOWED_MIME_TYPES)[number];
 export const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024; // 5MB
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const SAFE_MEDIA_FILENAME_REGEX = /^[a-zA-Z0-9._-]+\.(jpg|jpeg|png|webp)$/i;
+
 export interface PresignedUploadResult {
   uploadUrl: string;
   fileKey: string;
@@ -14,10 +17,45 @@ export interface PresignedUploadResult {
   expiresInSeconds: number;
 }
 
+export interface ResolveConfirmedMediaInput {
+  reportId: string;
+  originalUrl?: string;
+  fileKey?: string;
+}
+
 const MIME_EXTENSION_MAP: Record<AllowedMimeType, string> = {
   'image/jpeg': 'jpg',
   'image/png': 'png',
   'image/webp': 'webp',
+};
+
+const readRuntimeSetting = (key: keyof typeof env): string | undefined => {
+  const raw = key in process.env ? process.env[key] : (env[key] as string | undefined);
+  const trimmed = raw?.trim();
+  return trimmed ? trimmed : undefined;
+};
+
+const getStorageConfig = () => ({
+  bucket: readRuntimeSetting('S3_BUCKET') || env.S3_BUCKET,
+  region: readRuntimeSetting('S3_REGION') || env.S3_REGION,
+  s3PublicDomain: readRuntimeSetting('S3_PUBLIC_DOMAIN'),
+  storageCdnUrl: readRuntimeSetting('STORAGE_CDN_URL'),
+  s3Endpoint: readRuntimeSetting('S3_ENDPOINT'),
+});
+
+const parseHttpUrl = (rawUrl: string): URL | null => {
+  try {
+    const parsed = new URL(rawUrl.trim());
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      return null;
+    }
+    if (parsed.username || parsed.password || parsed.search || parsed.hash) {
+      return null;
+    }
+    return parsed;
+  } catch {
+    return null;
+  }
 };
 
 // Initialize S3 client if credentials exist
@@ -35,16 +73,192 @@ if (env.AWS_ACCESS_KEY_ID && env.AWS_SECRET_ACCESS_KEY) {
 }
 
 /**
+ * Safely URL-decodes a storage object key.
+ */
+export const decodeStorageKey = (rawKey: string): string | null => {
+  try {
+    return decodeURIComponent(rawKey.replace(/\+/g, ' '));
+  } catch {
+    return null;
+  }
+};
+
+/**
+ * Validates and parses a report media key matching `reports/{reportId}/{filename}`.
+ */
+export const parseReportMediaKey = (
+  rawKey: string,
+  expectedReportId?: string
+): { reportId: string; fileKey: string } | null => {
+  const decoded = decodeStorageKey(rawKey.trim());
+  if (!decoded || decoded.startsWith('/') || decoded.includes('\\') || decoded.includes('..')) {
+    return null;
+  }
+
+  const parts = decoded.split('/');
+  if (parts.length !== 3 || parts[0] !== 'reports') {
+    return null;
+  }
+
+  const [, reportId, filename] = parts;
+  if (!UUID_REGEX.test(reportId)) {
+    return null;
+  }
+
+  if (expectedReportId && reportId.toLowerCase() !== expectedReportId.toLowerCase()) {
+    return null;
+  }
+
+  // Skip derivative blurred assets and enforce safe image extensions
+  if (filename.startsWith('blurred-') || !SAFE_MEDIA_FILENAME_REGEX.test(filename)) {
+    return null;
+  }
+
+  return { reportId, fileKey: decoded };
+};
+
+/**
+ * Resolves the trusted storage base URLs configured for this deployment.
+ */
+export const getTrustedStorageBaseUrls = (): URL[] => {
+  const { bucket, region, s3PublicDomain, storageCdnUrl, s3Endpoint } = getStorageConfig();
+  const hasExplicitOverride = Boolean(s3PublicDomain || storageCdnUrl || s3Endpoint);
+  const explicitBases: URL[] = [];
+
+  for (const candidate of [
+    s3PublicDomain,
+    storageCdnUrl,
+    s3Endpoint ? `${s3Endpoint.replace(/\/+$/, '')}/${bucket}` : undefined,
+  ]) {
+    if (!candidate) continue;
+    const parsed = parseHttpUrl(candidate);
+    if (parsed) {
+      explicitBases.push(parsed);
+    }
+  }
+
+  if (hasExplicitOverride) {
+    return explicitBases;
+  }
+
+  return [new URL(`https://${bucket}.s3.${region}.amazonaws.com`)];
+};
+
+/**
  * Returns public CDN or bucket URL for a given file key
  */
 export const getPublicUrl = (fileKey: string): string => {
-  if (env.STORAGE_CDN_URL) {
-    return `${env.STORAGE_CDN_URL.replace(/\/$/, '')}/${fileKey}`;
+  const { bucket, region, s3PublicDomain, storageCdnUrl, s3Endpoint } = getStorageConfig();
+  const publicBase = s3PublicDomain || storageCdnUrl;
+  if (publicBase) {
+    return `${publicBase.replace(/\/+$/, '')}/${fileKey}`;
   }
-  if (env.S3_ENDPOINT) {
-    return `${env.S3_ENDPOINT.replace(/\/$/, '')}/${env.S3_BUCKET}/${fileKey}`;
+  if (s3Endpoint) {
+    return `${s3Endpoint.replace(/\/+$/, '')}/${bucket}/${fileKey}`;
   }
-  return `https://${env.S3_BUCKET}.s3.${env.S3_REGION}.amazonaws.com/${fileKey}`;
+  return `https://${bucket}.s3.${region}.amazonaws.com/${fileKey}`;
+};
+
+/**
+ * Validates `fileKey` and/or `originalUrl` for `/media/confirm`, ensuring trusted origin and report ownership path.
+ */
+export const resolveTrustedReportMedia = (
+  input: ResolveConfirmedMediaInput
+): { fileKey: string; originalUrl: string } => {
+  const { reportId, originalUrl, fileKey } = input;
+  if (!UUID_REGEX.test(reportId)) {
+    throw Object.assign(new Error('reportId must be a valid UUID'), { statusCode: 400 });
+  }
+
+  if (!originalUrl && !fileKey) {
+    throw Object.assign(new Error('Either originalUrl or fileKey must be provided'), { statusCode: 400 });
+  }
+
+  let parsedFromKey: { reportId: string; fileKey: string } | null = null;
+  if (fileKey) {
+    parsedFromKey = parseReportMediaKey(fileKey, reportId);
+    if (!parsedFromKey) {
+      throw Object.assign(
+        new Error(`fileKey must match reports/${reportId}/<valid-image-filename>`),
+        { statusCode: 400 }
+      );
+    }
+  }
+
+  let parsedFromUrl: { fileKey: string; normalizedUrl: string; isEndpointOnly: boolean } | null = null;
+  if (originalUrl) {
+    if (originalUrl.includes('\\')) {
+      throw Object.assign(new Error('originalUrl contains invalid path characters'), { statusCode: 400 });
+    }
+
+    const candidateUrl = parseHttpUrl(originalUrl);
+    if (!candidateUrl) {
+      throw Object.assign(
+        new Error('originalUrl must be an http/https URL without credentials, query parameters, or fragments'),
+        { statusCode: 400 }
+      );
+    }
+
+    const { bucket, s3PublicDomain, storageCdnUrl, s3Endpoint } = getStorageConfig();
+    const endpointBase = s3Endpoint
+      ? parseHttpUrl(`${s3Endpoint.replace(/\/+$/, '')}/${bucket}`)
+      : null;
+    const endpointNormalizedBase = endpointBase
+      ? `${endpointBase.origin}${endpointBase.pathname.replace(/\/+$/, '')}`
+      : undefined;
+    const publicOverrideConfigured = Boolean(s3PublicDomain || storageCdnUrl);
+
+    for (const base of getTrustedStorageBaseUrls()) {
+      if (candidateUrl.origin !== base.origin) {
+        continue;
+      }
+
+      const basePath = base.pathname.replace(/\/+$/, '');
+      const expectedPrefix = `${basePath}/`;
+      if (!candidateUrl.pathname.startsWith(expectedPrefix)) {
+        continue;
+      }
+
+      const relativePath = candidateUrl.pathname.slice(expectedPrefix.length);
+      const parsedKey = parseReportMediaKey(relativePath, reportId);
+      if (parsedKey) {
+        const matchedBase = `${base.origin}${basePath}`;
+        parsedFromUrl = {
+          fileKey: parsedKey.fileKey,
+          normalizedUrl: `${matchedBase}/${parsedKey.fileKey}`,
+          isEndpointOnly: Boolean(
+            endpointNormalizedBase && matchedBase === endpointNormalizedBase && publicOverrideConfigured
+          ),
+        };
+        break;
+      }
+    }
+
+    if (!parsedFromUrl) {
+      throw Object.assign(
+        new Error(`originalUrl must start with a trusted storage prefix under reports/${reportId}/`),
+        { statusCode: 400 }
+      );
+    }
+  }
+
+  if (parsedFromKey && parsedFromUrl && parsedFromKey.fileKey !== parsedFromUrl.fileKey) {
+    throw Object.assign(
+      new Error('fileKey and originalUrl refer to different storage objects'),
+      { statusCode: 400 }
+    );
+  }
+
+  const resolvedFileKey = parsedFromUrl?.fileKey || parsedFromKey!.fileKey;
+  const resolvedUrl =
+    parsedFromUrl && !parsedFromUrl.isEndpointOnly
+      ? parsedFromUrl.normalizedUrl
+      : getPublicUrl(resolvedFileKey);
+
+  return {
+    fileKey: resolvedFileKey,
+    originalUrl: resolvedUrl,
+  };
 };
 
 /**
