@@ -62,7 +62,11 @@ jobs:
           DIRECT_URL: postgresql://postgres:postgres_ci_password@127.0.0.1:5432/dangerzonebd_test
         run: |
           pnpm exec prisma generate
-          pnpm exec prisma db push --skip-generate --accept-data-loss
+          pnpm exec prisma migrate diff --from-empty --to-schema-datamodel prisma/schema.prisma --script \
+            | sed 's/CREATE EXTENSION IF NOT EXISTS "postgis".*;/CREATE EXTENSION IF NOT EXISTS "postgis";/' \
+            > /tmp/ci_schema.sql
+          pnpm exec prisma db execute --file /tmp/ci_schema.sql --schema prisma/schema.prisma
+          pnpm exec prisma db execute --file prisma/setup-postgis.sql --schema prisma/schema.prisma
 
       - name: Typecheck API & Test Suite
         working-directory: apps/api
