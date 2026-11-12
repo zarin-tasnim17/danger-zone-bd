@@ -33,7 +33,6 @@ import {
   KeyRound,
   X,
   Check,
-  Zap,
   Eye,
   EyeOff,
   Mail,
@@ -45,8 +44,8 @@ export default function AdminPage() {
   const isBn = language === "bn";
 
   // Login Gate State
-  const [adminEmail, setAdminEmail] = useState("admin@safetymap.bd");
-  const [adminPassword, setAdminPassword] = useState("AdminSafety@2026");
+  const [adminEmail, setAdminEmail] = useState("");
+  const [adminPassword, setAdminPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
 
   const [authError, setAuthError] = useState<string | null>(null);
@@ -375,7 +374,7 @@ export default function AdminPage() {
                     required
                     value={adminEmail}
                     onChange={(e) => setAdminEmail(e.target.value)}
-                    placeholder="admin@safetymap.bd"
+                    placeholder="admin@example.com"
                     className="w-full pl-9 pr-3.5 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-900 focus:bg-white focus:ring-1 focus:ring-purple-500 focus:outline-none transition-colors"
                   />
                   <Mail className="w-4 h-4 text-slate-400 absolute left-3 top-3 pointer-events-none" />
@@ -426,19 +425,7 @@ export default function AdminPage() {
               </button>
             </form>
 
-            <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
-              <button
-                type="button"
-                onClick={() => {
-                  setAdminEmail("admin@safetymap.bd");
-                  setAdminPassword("AdminSafety@2026");
-                }}
-                className="text-purple-700 hover:text-purple-800 font-bold flex items-center gap-1 cursor-pointer"
-              >
-                <Zap className="w-3.5 h-3.5" />
-                <span>{isBn ? "অ্যাডমিন তথ্য পূরণ" : "Fill Admin Credentials"}</span>
-              </button>
-
+            <div className="pt-2 border-t border-slate-100 flex items-center justify-end text-xs">
               <Link
                 href="/"
                 className="text-slate-500 hover:text-slate-900 font-semibold flex items-center gap-1 transition-colors"
@@ -483,8 +470,12 @@ export default function AdminPage() {
               <p className="text-xs text-slate-500 font-medium mt-0.5">
                 {isBn ? "অ্যাডমিন আইডি: " : "Admin ID: "}
                 <span className="font-mono text-purple-700 font-bold">{user.id.slice(0, 8)}...</span>
-                <span className="mx-2 text-slate-300">•</span>
-                <span className="text-slate-600">{user.email || "admin@safetymap.bd"}</span>
+                {user.email && (
+                  <>
+                    <span className="mx-2 text-slate-300">•</span>
+                    <span className="text-slate-600">{user.email}</span>
+                  </>
+                )}
               </p>
             </div>
           </div>
