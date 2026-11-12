@@ -317,7 +317,16 @@ export default function ReportPage() {
   const [severity, setSeverity] = useState<IncidentSeverity>("HIGH");
   const [latitude, setLatitude] = useState<number>(23.7925);
   const [longitude, setLongitude] = useState<number>(90.4078);
+  const [latInput, setLatInput] = useState<string>("23.7925");
+  const [lngInput, setLngInput] = useState<string>("90.4078");
   const [description, setDescription] = useState<string>("");
+
+  const syncCoordinates = useCallback((lat: number, lng: number) => {
+    setLatitude(lat);
+    setLongitude(lng);
+    setLatInput(String(lat));
+    setLngInput(String(lng));
+  }, []);
 
   // Unmodified live hardware GPS (never populated from calibrated store or manual pin actions)
   const [hardwareGps, setHardwareGps] = useState<HardwareGpsFix | null>(null);
@@ -347,8 +356,7 @@ export default function ReportPage() {
       const saved = useMapStore.getState().loadSavedLocation();
       if (saved) {
         hasSavedPin = true;
-        setLatitude(saved.lat);
-        setLongitude(saved.lng);
+        syncCoordinates(saved.lat, saved.lng);
       }
     }
 
@@ -361,8 +369,7 @@ export default function ReportPage() {
           setHardwareGps({ lat, lng, accuracy });
 
           if (!hasSavedPin) {
-            setLatitude(lat);
-            setLongitude(lng);
+            syncCoordinates(lat, lng);
           }
         },
         (err) => {
@@ -372,7 +379,7 @@ export default function ReportPage() {
         { enableHighAccuracy: true, timeout: 6000, maximumAge: 30000 }
       );
     }
-  }, []);
+  }, [syncCoordinates]);
 
   // Evaluate whether unmodified hardware GPS verifies the current pin within 200m & <=250m accuracy
   const gpsEvaluation = useMemo(
@@ -382,22 +389,22 @@ export default function ReportPage() {
   const isNightDetected = isCurrentNightBangladesh();
 
   // Location handlers
-  const handleMapLocationChange = useCallback((lat: number, lng: number) => {
-    setLatitude(lat);
-    setLongitude(lng);
-  }, []);
+  const handleMapLocationChange = useCallback(
+    (lat: number, lng: number) => {
+      syncCoordinates(lat, lng);
+    },
+    [syncCoordinates]
+  );
 
   const handleSnapToDeviceGps = () => {
     if (hardwareGps && gpsEvaluation.isEligibleHardwareGps) {
-      setLatitude(hardwareGps.lat);
-      setLongitude(hardwareGps.lng);
+      syncCoordinates(hardwareGps.lat, hardwareGps.lng);
     }
   };
 
   const handleApplyPreset = (lat: number, lng: number) => {
     // Only move the incident pin; never fabricate hardwareGps for preset cities
-    setLatitude(lat);
-    setLongitude(lng);
+    syncCoordinates(lat, lng);
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -443,8 +450,27 @@ export default function ReportPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsSubmitting(true);
     setErrorMessage(null);
+
+    const parsedLat = parseFloat(latInput);
+    const parsedLng = parseFloat(lngInput);
+    if (
+      !Number.isFinite(parsedLat) ||
+      !Number.isFinite(parsedLng) ||
+      parsedLat < 20.0 ||
+      parsedLat > 27.5 ||
+      parsedLng < 88.0 ||
+      parsedLng > 93.5
+    ) {
+      setErrorMessage(
+        isBn
+          ? "অনুগ্রহ করে বাংলাদেশের সীমার মধ্যে সঠিক অক্ষাংশ (20.0–27.5) ও দ্রাঘিমাংশ (88.0–93.5) দিন।"
+          : "Please enter valid Bangladesh coordinates (Lat 20.0–27.5, Lng 88.0–93.5)."
+      );
+      return;
+    }
+
+    setIsSubmitting(true);
     setMediaUploadError(null);
     setMediaUploadStatus(file ? "uploading" : "none");
 
@@ -457,8 +483,8 @@ export default function ReportPage() {
       const reportPayload = {
         category: resolvedCategory,
         severity,
-        latitude,
-        longitude,
+        latitude: parsedLat,
+        longitude: parsedLng,
         description: description.trim() || undefined,
       };
 
@@ -949,9 +975,11 @@ export default function ReportPage() {
                           key={idx}
                           type="button"
                           onClick={() =>
-                            setDescription((prev) =>
-                              prev ? `${prev}. ${isBn ? prompt.bn : prompt.en}` : (isBn ? prompt.bn : prompt.en)
-                            )
+                            setDescription((prev) => {
+                              const snippet = isBn ? prompt.bn : prompt.en;
+                              const next = prev ? `${prev}. ${snippet}` : snippet;
+                              return next.slice(0, 500);
+                            })
                           }
                           className="text-[11px] px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-blue-50 hover:text-blue-700 text-slate-700 border border-slate-200/80 transition-colors cursor-pointer text-left"
                         >
@@ -1060,8 +1088,7 @@ export default function ReportPage() {
                   {/* Fast Geocoding Location Search */}
                   <LocationSearchBar
                     onSelectLocation={(loc: GeocodedLocation) => {
-                      setLatitude(loc.lat);
-                      setLongitude(loc.lng);
+                      syncCoordinates(loc.lat, loc.lng);
                     }}
                   />
 
@@ -1145,8 +1172,15 @@ export default function ReportPage() {
                       <input
                         type="number"
                         step="any"
-                        value={latitude}
-                        onChange={(e) => setLatitude(parseFloat(e.target.value) || 23.7925)}
+                        value={latInput}
+                        onChange={(e) => {
+                          const raw = e.target.value;
+                          setLatInput(raw);
+                          const parsed = parseFloat(raw);
+                          if (Number.isFinite(parsed)) {
+                            setLatitude(parsed);
+                          }
+                        }}
                         className="w-full bg-transparent font-mono font-bold text-slate-900 text-xs focus:outline-none"
                       />
                     </div>
@@ -1157,8 +1191,15 @@ export default function ReportPage() {
                       <input
                         type="number"
                         step="any"
-                        value={longitude}
-                        onChange={(e) => setLongitude(parseFloat(e.target.value) || 90.4078)}
+                        value={lngInput}
+                        onChange={(e) => {
+                          const raw = e.target.value;
+                          setLngInput(raw);
+                          const parsed = parseFloat(raw);
+                          if (Number.isFinite(parsed)) {
+                            setLongitude(parsed);
+                          }
+                        }}
                         className="w-full bg-transparent font-mono font-bold text-slate-900 text-xs focus:outline-none"
                       />
                     </div>

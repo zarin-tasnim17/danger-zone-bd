@@ -2,6 +2,7 @@ import { setSocketAuthToken } from './socket';
 
 export interface ApiFetchOptions extends RequestInit {
   skipAuthRefresh?: boolean;
+  timeoutMs?: number;
 }
 
 export class ApiError extends Error {
@@ -58,6 +59,52 @@ const AUTH_NO_REFRESH_PATHS = [
 
 let refreshPromise: Promise<boolean> | null = null;
 
+const DEFAULT_API_TIMEOUT_MS = 25000;
+const UUID_CLEANUP_TIMEOUT_MS = 15000;
+
+function createRequestSignal(
+  timeoutMs: number,
+  callerSignal?: AbortSignal | null
+): {
+  signal: AbortSignal;
+  didTimeout: () => boolean;
+  cleanup: () => void;
+} {
+  const controller = new AbortController();
+  let timedOut = false;
+
+  const onCallerAbort = () => {
+    controller.abort(callerSignal?.reason);
+  };
+
+  if (callerSignal) {
+    if (callerSignal.aborted) {
+      controller.abort(callerSignal.reason);
+    } else {
+      callerSignal.addEventListener('abort', onCallerAbort, { once: true });
+    }
+  }
+
+  const timerId =
+    timeoutMs > 0
+      ? setTimeout(() => {
+          timedOut = true;
+          controller.abort(new DOMException('Request timed out', 'AbortError'));
+        }, timeoutMs)
+      : null;
+
+  return {
+    signal: controller.signal,
+    didTimeout: () => timedOut,
+    cleanup: () => {
+      if (timerId !== null) clearTimeout(timerId);
+      if (callerSignal) {
+        callerSignal.removeEventListener('abort', onCallerAbort);
+      }
+    },
+  };
+}
+
 /**
  * Coalesces concurrent 401 refresh attempts behind a single in-flight promise so
  * single-use rotated refresh tokens are never consumed twice simultaneously.
@@ -65,11 +112,13 @@ let refreshPromise: Promise<boolean> | null = null;
 async function refreshSessionSingleFlight(): Promise<boolean> {
   if (!refreshPromise) {
     refreshPromise = (async () => {
+      const timeoutGuard = createRequestSignal(UUID_CLEANUP_TIMEOUT_MS);
       try {
         const refreshUrl = resolveApiUrl('/auth/refresh');
         const refreshRes = await fetch(refreshUrl, {
           method: 'POST',
           credentials: 'include',
+          signal: timeoutGuard.signal,
         });
 
         if (!refreshRes.ok) {
@@ -84,6 +133,7 @@ async function refreshSessionSingleFlight(): Promise<boolean> {
       } catch {
         return false;
       } finally {
+        timeoutGuard.cleanup();
         refreshPromise = null;
       }
     })();
@@ -100,6 +150,7 @@ function shouldAttemptSilentRefresh(endpoint: string, skipAuthRefresh?: boolean)
 /**
  * Universal typed API fetcher:
  * - Automatically handles credentials: 'include' (HttpOnly cookie propagation)
+ * - Enforces default AbortController timeout (25000ms) linked with optional caller signal
  * - Intercepts 401 responses and triggers silent session refresh before retrying
  */
 export async function apiFetch<T = any>(
@@ -107,33 +158,46 @@ export async function apiFetch<T = any>(
   options: ApiFetchOptions = {}
 ): Promise<T> {
   const url = resolveApiUrl(endpoint);
+  const {
+    skipAuthRefresh,
+    timeoutMs = DEFAULT_API_TIMEOUT_MS,
+    signal: callerSignal,
+    ...fetchOptions
+  } = options;
 
   const headers: Record<string, string> = {
-    ...(options.body && !(options.body instanceof FormData)
+    ...(fetchOptions.body && !(fetchOptions.body instanceof FormData)
       ? { 'Content-Type': 'application/json' }
       : {}),
-    ...((options.headers as Record<string, string>) || {}),
+    ...((fetchOptions.headers as Record<string, string>) || {}),
   };
 
+  const requestGuard = createRequestSignal(timeoutMs, callerSignal);
   let response: Response;
   try {
     response = await fetch(url, {
-      ...options,
+      ...fetchOptions,
+      signal: requestGuard.signal,
       headers,
       credentials: 'include',
     });
   } catch (networkErr: any) {
+    const timedOut = requestGuard.didTimeout();
     throw new ApiError(
-      networkErr?.message || 'Network connection failed. API is unreachable.',
+      timedOut
+        ? 'Request timed out. Please try again.'
+        : networkErr?.message || 'Network connection failed. API is unreachable.',
       0,
-      { isNetworkError: true }
+      { isNetworkError: true, ...(timedOut ? { isTimeout: true } : {}) }
     );
+  } finally {
+    requestGuard.cleanup();
   }
 
   // Handle 401 Unauthorized with single-flight silent token refresh
   if (
     response.status === 401 &&
-    shouldAttemptSilentRefresh(endpoint, options.skipAuthRefresh)
+    shouldAttemptSilentRefresh(endpoint, skipAuthRefresh)
   ) {
     const refreshed = await refreshSessionSingleFlight();
     if (refreshed) {
