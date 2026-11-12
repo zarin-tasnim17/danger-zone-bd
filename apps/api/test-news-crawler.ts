@@ -233,12 +233,81 @@ async function runNewsCrawlerVerificationSuite() {
       throw new Error(`User trustScore not incremented correctly: expected 15, got ${updatedUser?.trustScore}`);
     }
 
-    // Ensure news report created also tracked in cleanup
+    // Ensure news report created also tracked in cleanup & verify DB-001 PostGIS location + atomic rollback
     const pressArticle = await prisma.newsArticle.findUnique({
       where: { guid: pressGuid },
     });
     if (pressArticle?.reportId) {
       testReportIds.push(pressArticle.reportId);
+      const newsLocRows = await prisma.$queryRaw<Array<{ has_location: boolean }>>`
+        SELECT (location IS NOT NULL) AS has_location
+        FROM "Report"
+        WHERE id = ${pressArticle.reportId}
+      `;
+      if (!newsLocRows[0]?.has_location) {
+        throw new Error(`Expected PostGIS location on ingested news report ${pressArticle.reportId}`);
+      }
+    }
+
+    const rollbackNewsGuid = `db001-news-rollback-${Date.now()}`;
+    const rollbackNewsUrl = `https://test-news.bd/articles/${rollbackNewsGuid}`;
+    const origNewsTx = prisma.$transaction.bind(prisma);
+    (prisma as any).$transaction = async (fnOrOps: any, options?: any) => {
+      if (typeof fnOrOps === 'function') {
+        return origNewsTx(async (tx: any) => {
+          const txProxy = new Proxy(tx, {
+            get(target, prop, receiver) {
+              if (prop === '$executeRaw') {
+                return async () => {
+                  throw new Error('SIMULATED_NEWS_POSTGIS_FAILURE');
+                };
+              }
+              return Reflect.get(target, prop, receiver);
+            },
+          });
+          return fnOrOps(txProxy);
+        }, options);
+      }
+      return origNewsTx(fnOrOps, options);
+    };
+
+    try {
+      let newsThrew = false;
+      try {
+        await processAndIngestNewsItems([
+          {
+            guid: rollbackNewsGuid,
+            title: 'Uttara highway road accident blocks traffic lane during evening commute',
+            link: rollbackNewsUrl,
+            pubDate: new Date(),
+            contentSnippet: 'Uttara Dhaka road accident',
+            sourceName: 'Test Press',
+          },
+        ]);
+      } catch (err: any) {
+        if (err?.message === 'SIMULATED_NEWS_POSTGIS_FAILURE') {
+          newsThrew = true;
+        } else {
+          throw err;
+        }
+      }
+
+      if (!newsThrew) {
+        throw new Error('Expected processAndIngestNewsItems to throw on simulated PostGIS failure');
+      }
+
+      const [orphanReport, orphanArticle] = await Promise.all([
+        prisma.report.findFirst({ where: { sourceUrl: rollbackNewsUrl } }),
+        prisma.newsArticle.findUnique({ where: { guid: rollbackNewsGuid } }),
+      ]);
+      if (orphanReport || orphanArticle) {
+        throw new Error(
+          `DB-001 news crawler regression: orphanReport=${orphanReport?.id}, orphanArticle=${orphanArticle?.id}`
+        );
+      }
+      console.log('  ✅ News crawler PostGIS failure rolled back Report and NewsArticle atomically');
+    } finally {
+      (prisma as any).$transaction = origNewsTx;
     }
 
     // -------------------------------------------------------------

@@ -4,7 +4,7 @@ import bcrypt from 'bcrypt';
 import { app } from './src/app';
 import { initSocketServer } from './src/sockets';
 import { prisma } from './src/db/prisma';
-import { calculateReportExpiry, isNightTimeInBangladesh } from './src/services/reportService';
+import { calculateReportExpiry, createReport, isNightTimeInBangladesh } from './src/services/reportService';
 
 const TEST_PORT = 5110;
 const SERVER_URL = `http://localhost:${TEST_PORT}`;
@@ -472,7 +472,86 @@ async function runVerification() {
     }
     console.log('  ✅ All refresh tokens for banned user revoked successfully');
 
-    console.log('\n🎉 ALL 11 VERIFICATION TESTS PASSED SUCCESSFULLY!');
+    // 12. DB-001: Atomic Report + User lastReportAt + PostGIS Location Rollback Verification
+    console.log('\n🧪 [Test 12] Verifying DB-001 atomic PostGIS location update & rollback...');
+    const locRows = await prisma.$queryRaw<Array<{ has_location: boolean }>>`
+      SELECT (location IS NOT NULL) AS has_location
+      FROM "Report"
+      WHERE id = ${manualReportId}
+    `;
+    if (!locRows[0]?.has_location) {
+      throw new Error(`Expected PostGIS location to be populated on report ${manualReportId}`);
+    }
+
+    const rollbackUser = await prisma.user.create({
+      data: {
+        anonymousId: `db001-rollback-${Date.now()}`,
+        email: `db001-rollback-${Date.now()}@test.safety`
+      }
+    });
+
+    const origTransaction = prisma.$transaction.bind(prisma);
+    (prisma as any).$transaction = async (fnOrOps: any, options?: any) => {
+      if (typeof fnOrOps === 'function') {
+        return origTransaction(async (tx: any) => {
+          const txProxy = new Proxy(tx, {
+            get(target, prop, receiver) {
+              if (prop === '$executeRaw') {
+                return async () => {
+                  throw new Error('SIMULATED_POSTGIS_FAILURE');
+                };
+              }
+              return Reflect.get(target, prop, receiver);
+            }
+          });
+          return fnOrOps(txProxy);
+        }, options);
+      }
+      return origTransaction(fnOrOps, options);
+    };
+
+    try {
+      let threw = false;
+      try {
+        await createReport(rollbackUser.id, {
+          category: 'THEFT',
+          severity: 'MEDIUM',
+          latitude: 23.8103,
+          longitude: 90.4125,
+          description: 'DB-001 simulated PostGIS rollback check'
+        });
+      } catch (err: any) {
+        if (err?.message === 'SIMULATED_POSTGIS_FAILURE') {
+          threw = true;
+        } else {
+          throw err;
+        }
+      }
+
+      if (!threw) {
+        throw new Error('Expected createReport to throw on simulated PostGIS failure');
+      }
+
+      const persistedReports = await prisma.report.findMany({
+        where: { userId: rollbackUser.id }
+      });
+      if (persistedReports.length > 0) {
+        throw new Error(`DB-001 regression: found ${persistedReports.length} report(s) persisted without PostGIS location!`);
+      }
+
+      const refreshedUser = await prisma.user.findUnique({
+        where: { id: rollbackUser.id }
+      });
+      if (refreshedUser?.lastReportAt !== null) {
+        throw new Error(`DB-001 regression: lastReportAt was mutated despite PostGIS rollback!`);
+      }
+      console.log('  ✅ PostGIS failure rolled back Report creation and User.lastReportAt atomically');
+    } finally {
+      (prisma as any).$transaction = origTransaction;
+      await prisma.user.delete({ where: { id: rollbackUser.id } }).catch(() => {});
+    }
+
+    console.log('\n🎉 ALL 12 VERIFICATION TESTS PASSED SUCCESSFULLY!');
   } finally {
     server.close();
   }
