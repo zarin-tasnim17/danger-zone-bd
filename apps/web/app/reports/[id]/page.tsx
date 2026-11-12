@@ -9,7 +9,17 @@ import { useAuthStore } from "@/store/useAuthStore";
 import { useIncidentStore } from "@/store/useIncidentStore";
 import { useLanguageStore } from "@/store/useLanguageStore";
 import { getSocket } from "@/lib/socket";
-import { ReportCategory } from "@repo/shared";
+import {
+  SOCKET_EVENTS,
+  getSocketReportId,
+  ReportCategory,
+  type NewReportUpdatePayload,
+  type ReportVotedPayload,
+  type ReportPurgedPayload,
+  type ReportResolvedPayload,
+  type ReportExpiredPayload,
+  type ReportVerifiedPayload,
+} from "@repo/shared";
 import DynamicIncidentMiniMap from "@/components/map/DynamicIncidentMiniMap";
 import {
   ArrowLeft,
@@ -169,11 +179,11 @@ export default function ReportDetailsPage() {
   useEffect(() => {
     loadData();
 
-    // Socket.IO real-time listener for context updates and votes
+    // Socket.IO real-time listeners for context updates, votes, and lifecycle transitions
     const socket = getSocket();
     if (socket) {
-      const handleNewUpdate = (payload: { reportId: string; update: ReportUpdate }) => {
-        if (payload.reportId === reportId) {
+      const handleNewUpdate = (payload: NewReportUpdatePayload<ReportUpdate>) => {
+        if (getSocketReportId(payload) === reportId) {
           setUpdates((prev) => {
             if (prev.some((u) => u.id === payload.update.id)) return prev;
             return [payload.update, ...prev];
@@ -185,15 +195,26 @@ export default function ReportDetailsPage() {
         }
       };
 
-      const handleVote = (payload: { reportId: string; upvotes: number; downvotes: number }) => {
-        if (payload.reportId === reportId) {
-          setReport((prev) => (prev ? { ...prev, upvotes: payload.upvotes, downvotes: payload.downvotes } : null));
+      const handleVote = (payload: ReportVotedPayload) => {
+        if (getSocketReportId(payload) === reportId) {
+          setReport((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  upvotes: payload.upvotes,
+                  downvotes: payload.downvotes,
+                  status: (payload.status as ReportDetails["status"]) || prev.status,
+                }
+              : null
+          );
         }
       };
 
-      const handlePurged = (payload: { reportId: string }) => {
-        if (payload.reportId === reportId) {
+      const handlePurged = (payload: ReportPurgedPayload) => {
+        if (getSocketReportId(payload) === reportId) {
           setReport((prev) => (prev ? { ...prev, status: "PURGED" } : null));
+          setIsResolveModalOpen(false);
+          setIsPurgeModalOpen(false);
           showToast(
             language === "en"
               ? "This report has been purged by administrators."
@@ -203,14 +224,81 @@ export default function ReportDetailsPage() {
         }
       };
 
-      socket.on("NEW_REPORT_UPDATE", handleNewUpdate);
-      socket.on("REPORT_VOTED", handleVote);
-      socket.on("REPORT_PURGED", handlePurged);
+      const handleResolved = (payload: ReportResolvedPayload) => {
+        if (getSocketReportId(payload) === reportId) {
+          setReport((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  status: (payload.status as ReportDetails["status"]) || "RESOLVED",
+                }
+              : null
+          );
+          setIsResolveModalOpen(false);
+          showToast(
+            language === "en"
+              ? "Incident has been marked as RESOLVED."
+              : "ঘটনাটি সমাধানকৃত হিসেবে চিহ্নিত হয়েছে।",
+            "success"
+          );
+        }
+      };
+
+      const handleExpired = (payload: ReportExpiredPayload) => {
+        if (payload.reportIds?.includes(reportId)) {
+          setReport((prev) => (prev ? { ...prev, status: "EXPIRED" } : null));
+          setIsResolveModalOpen(false);
+          setIsPurgeModalOpen(false);
+          showToast(
+            language === "en"
+              ? "This incident alert has expired."
+              : "এই সতর্কতাটির সময়সীমা শেষ হয়েছে।",
+            "info"
+          );
+        }
+      };
+
+      const handleVerified = (payload: ReportVerifiedPayload) => {
+        if (getSocketReportId(payload) === reportId) {
+          const pressTag = `[Verified by Press: ${payload.verifiedBy}]`;
+          setReport((prev) => {
+            if (!prev) return null;
+            const currentDesc = prev.description || "";
+            const nextDesc = currentDesc.includes(pressTag)
+              ? currentDesc
+              : currentDesc
+                ? `${currentDesc}\n\n${pressTag}`
+                : pressTag;
+            return {
+              ...prev,
+              sourceName: payload.verifiedBy,
+              sourceUrl: payload.sourceUrl ?? prev.sourceUrl,
+              description: nextDesc,
+            };
+          });
+          showToast(
+            language === "en"
+              ? `Cross-verified by press: ${payload.verifiedBy}`
+              : `সংবাদমাধ্যম দ্বারা যাচাইকৃত: ${payload.verifiedBy}`,
+            "success"
+          );
+        }
+      };
+
+      socket.on(SOCKET_EVENTS.NEW_REPORT_UPDATE, handleNewUpdate);
+      socket.on(SOCKET_EVENTS.REPORT_VOTED, handleVote);
+      socket.on(SOCKET_EVENTS.REPORT_PURGED, handlePurged);
+      socket.on(SOCKET_EVENTS.REPORT_RESOLVED, handleResolved);
+      socket.on(SOCKET_EVENTS.REPORT_EXPIRED, handleExpired);
+      socket.on(SOCKET_EVENTS.REPORT_VERIFIED, handleVerified);
 
       return () => {
-        socket.off("NEW_REPORT_UPDATE", handleNewUpdate);
-        socket.off("REPORT_VOTED", handleVote);
-        socket.off("REPORT_PURGED", handlePurged);
+        socket.off(SOCKET_EVENTS.NEW_REPORT_UPDATE, handleNewUpdate);
+        socket.off(SOCKET_EVENTS.REPORT_VOTED, handleVote);
+        socket.off(SOCKET_EVENTS.REPORT_PURGED, handlePurged);
+        socket.off(SOCKET_EVENTS.REPORT_RESOLVED, handleResolved);
+        socket.off(SOCKET_EVENTS.REPORT_EXPIRED, handleExpired);
+        socket.off(SOCKET_EVENTS.REPORT_VERIFIED, handleVerified);
       };
     }
   }, [reportId, loadData, language, showToast]);
@@ -305,7 +393,7 @@ export default function ReportDetailsPage() {
         method: "POST",
         body: JSON.stringify({ content }),
       });
-      setUpdates((prev) => [created, ...prev]);
+      setUpdates((prev) => (prev.some((u) => u.id === created.id) ? prev : [created, ...prev]));
       setNewUpdateContent("");
       showToast(
         language === "en" ? "Live context update broadcasted successfully!" : "নতুন আপডেট সফলভাবে সম্প্রচারিত হয়েছে!",
