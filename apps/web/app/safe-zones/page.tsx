@@ -7,7 +7,8 @@ import Navbar from "@/components/layout/Navbar";
 import { apiFetch } from "@/lib/api";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useLanguageStore } from "@/store/useLanguageStore";
-import { SafeZoneItem } from "@/components/safe-zones/SafeZonesMap";
+import type { SafeZoneItem, SafeZoneType } from "@repo/shared";
+import { getSafeZonePresentation, normalizeSafeZoneType } from "@/lib/safeZoneMeta";
 import {
   Shield,
   Hospital,
@@ -80,7 +81,7 @@ export default function SafeZonesPage() {
   const [gpsError, setGpsError] = useState<string | null>(null);
 
   // Filters & Search
-  const [typeFilter, setTypeFilter] = useState<"ALL" | "HOSPITAL" | "POLICE_BOX" | "PHARMACY">("ALL");
+  const [typeFilter, setTypeFilter] = useState<"ALL" | SafeZoneType>("ALL");
   const [searchQuery, setSearchQuery] = useState("");
   const [activeCityPreset, setActiveCityPreset] = useState("All Bangladesh");
 
@@ -94,7 +95,7 @@ export default function SafeZonesPage() {
   // Admin Drawer State
   const [showAdminDrawer, setShowAdminDrawer] = useState(false);
   const [newName, setNewName] = useState("");
-  const [newType, setNewType] = useState<"HOSPITAL" | "POLICE_BOX" | "PHARMACY">("HOSPITAL");
+  const [newType, setNewType] = useState<SafeZoneType>("HOSPITAL");
   const [newLat, setNewLat] = useState("");
   const [newLng, setNewLng] = useState("");
   const [isCreating, setIsCreating] = useState(false);
@@ -313,40 +314,25 @@ export default function SafeZonesPage() {
   const counts = useMemo(() => {
     return {
       all: safeZones.length,
-      hospital: safeZones.filter((z) => z.type === "HOSPITAL").length,
-      police: safeZones.filter((z) => z.type === "POLICE_BOX").length,
-      pharmacy: safeZones.filter((z) => z.type === "PHARMACY").length,
+      hospital: safeZones.filter((z) => normalizeSafeZoneType(z.type) === "HOSPITAL").length,
+      police: safeZones.filter((z) => normalizeSafeZoneType(z.type) === "POLICE_BOX").length,
+      pharmacy: safeZones.filter((z) => normalizeSafeZoneType(z.type) === "PHARMACY").length,
     };
   }, [safeZones]);
 
   // Helper styles by Safe Zone Type
-  const getTypeBadge = (type: "HOSPITAL" | "POLICE_BOX" | "PHARMACY") => {
-    switch (type) {
-      case "HOSPITAL":
-        return {
-          label: isBn ? "জরুরি হাসপাতাল" : "Emergency Hospital",
-          icon: Hospital,
-          badgeClass: "bg-blue-50 text-blue-700 border-blue-200",
-          iconColor: "text-blue-600",
-          accentColor: "border-blue-500",
-        };
-      case "POLICE_BOX":
-        return {
-          label: isBn ? "পুলিশ বক্স / ফাঁড়ি" : "Police Outpost / Box",
-          icon: Building2,
-          badgeClass: "bg-indigo-50 text-indigo-700 border-indigo-200",
-          iconColor: "text-indigo-600",
-          accentColor: "border-indigo-500",
-        };
-      case "PHARMACY":
-        return {
-          label: isBn ? "২৪/৭ ফার্মেসি" : "24/7 Pharmacy",
-          icon: Pill,
-          badgeClass: "bg-emerald-50 text-emerald-700 border-emerald-200",
-          iconColor: "text-emerald-600",
-          accentColor: "border-emerald-500",
-        };
-    }
+  const iconMap = {
+    hospital: Hospital,
+    police: Building2,
+    pharmacy: Pill,
+  } as const;
+
+  const getTypeBadge = (type: SafeZoneItem["type"]) => {
+    const meta = getSafeZonePresentation(type, language);
+    return {
+      ...meta,
+      icon: iconMap[meta.iconKey],
+    };
   };
 
   return (

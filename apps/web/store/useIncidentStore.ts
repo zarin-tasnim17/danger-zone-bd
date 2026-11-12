@@ -3,6 +3,7 @@ import {
   DangerIncident,
   SOCKET_EVENTS,
   getSocketReportId,
+  type SafeZoneItem,
   type ReportVotedPayload,
   type ReportPurgedPayload,
   type ReportResolvedPayload,
@@ -13,13 +14,7 @@ import { apiFetch } from "@/lib/api";
 import { getSocket, joinMapBounds } from "@/lib/socket";
 import { cleanIncidentTitle } from "@/lib/incidentUtils";
 
-export interface SafeZoneItem {
-  id: string;
-  name: string;
-  type: "POLICE_STATION" | "HOSPITAL" | "FIRE_STATION" | "COMMUNITY_SHELTER";
-  latitude: number;
-  longitude: number;
-}
+export type { SafeZoneItem };
 
 interface IncidentState {
   incidents: DangerIncident[];

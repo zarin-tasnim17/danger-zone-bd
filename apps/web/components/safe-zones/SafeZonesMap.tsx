@@ -11,6 +11,8 @@ import {
 } from "react-leaflet";
 import { useMapStore, MAP_LAYERS } from "@/store/useMapStore";
 import MapLayerSwitcher from "@/components/map/MapLayerSwitcher";
+import type { SafeZoneItem } from "@repo/shared";
+import { getSafeZonePresentation } from "@/lib/safeZoneMeta";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 import {
@@ -24,15 +26,7 @@ import {
   PhoneCall,
 } from "lucide-react";
 
-export interface SafeZoneItem {
-  id: string;
-  name: string;
-  type: "HOSPITAL" | "POLICE_BOX" | "PHARMACY";
-  latitude: number;
-  longitude: number;
-  createdAt?: string;
-  distanceMeters?: number | string;
-}
+export type { SafeZoneItem };
 
 interface SafeZonesMapProps {
   safeZones: SafeZoneItem[];
@@ -68,15 +62,14 @@ function MapController({
 }
 
 // Create custom pin icons for each safe haven type
-function createSafeHavenIcon(type: "HOSPITAL" | "POLICE_BOX" | "PHARMACY", isSelected: boolean) {
-  let bgColor = "#2563EB"; // Blue for hospital
+function createSafeHavenIcon(type: SafeZoneItem["type"], isSelected: boolean) {
+  const presentation = getSafeZonePresentation(type);
+  const bgColor = presentation.markerBgColor;
   let iconSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 6v12"/><path d="M6 12h12"/></svg>`;
 
-  if (type === "POLICE_BOX") {
-    bgColor = "#4F46E5"; // Indigo for police
+  if (presentation.iconKey === "police") {
     iconSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>`;
-  } else if (type === "PHARMACY") {
-    bgColor = "#059669"; // Emerald for pharmacy
+  } else if (presentation.iconKey === "pharmacy") {
     iconSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m10.5 20.5 10-10a4.95 4.95 0 1 0-7-7l-10 10a4.95 4.95 0 1 0 7 7Z"/><path d="m8.5 8.5 7 7"/></svg>`;
   }
 
@@ -110,7 +103,7 @@ function createSafeHavenIcon(type: "HOSPITAL" | "POLICE_BOX" | "PHARMACY", isSel
           border: 2.5px solid #FFFFFF;
           width: ${size}px;
           height: ${size}px;
-          border-radius: ${type === "POLICE_BOX" ? "12px" : "10px"};
+          border-radius: ${presentation.markerRadius};
           display: flex;
           align-items: center;
           justify-content: center;
@@ -248,13 +241,7 @@ export default function SafeZonesMap({
         {safeZones.map((zone) => {
           const isSelected = selectedZone?.id === zone.id;
           const icon = createSafeHavenIcon(zone.type, isSelected);
-
-          const typeLabel =
-            zone.type === "HOSPITAL"
-              ? isBn ? "জরুরি হাসপাতাল" : "Emergency Hospital"
-              : zone.type === "POLICE_BOX"
-              ? isBn ? "পুলিশ বক্স / ফাঁড়ি" : "Police Outpost / Box"
-              : isBn ? "২৪/৭ ফার্মেসি" : "24/7 Pharmacy";
+          const meta = getSafeZonePresentation(zone.type, language);
 
           return (
             <Marker
@@ -270,15 +257,9 @@ export default function SafeZonesMap({
                   {/* Type badge */}
                   <div className="flex items-center justify-between mb-1.5">
                     <span
-                      className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
-                        zone.type === "HOSPITAL"
-                          ? "bg-blue-50 text-blue-700 border-blue-200"
-                          : zone.type === "POLICE_BOX"
-                          ? "bg-indigo-50 text-indigo-700 border-indigo-200"
-                          : "bg-emerald-50 text-emerald-700 border-emerald-200"
-                      }`}
+                      className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${meta.badgeClass}`}
                     >
-                      {typeLabel}
+                      {meta.label}
                     </span>
 
                     {zone.distanceMeters && (
