@@ -83,6 +83,7 @@ export interface DangerIncident {
   sourceUrl?: string | null;
   sourceName?: string | null;
   fuzzedRadiusMeters?: number;
+  isGpsVerified?: boolean;
 }
 
 export interface ApiResponse<T = any> {

@@ -121,6 +121,7 @@ export interface SanitizedReportEvent {
   createdAt: Date;
   sourceUrl?: string | null;
   sourceName?: string | null;
+  isGpsVerified?: boolean;
 }
 
 /**

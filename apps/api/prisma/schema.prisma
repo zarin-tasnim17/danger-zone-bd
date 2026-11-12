@@ -140,6 +140,7 @@ model Report {
   category        ReportCategory
   severity        ReportSeverity
   isNightReport   Boolean  @default(false)
+  isGpsVerified   Boolean  @default(false)
   latitude        Float
   longitude       Float
   location        Unsupported("geography(Point, 4326)")?
