@@ -156,6 +156,7 @@ export default function FeedPage() {
 
   const stats = useStatsStore((state) => state.stats);
   const fetchStats = useStatsStore((state) => state.fetchStats);
+  const initStatsListener = useStatsStore((state) => state.initStatsListener);
 
   const [incidents, setIncidents] = useState<Incident[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -200,8 +201,9 @@ export default function FeedPage() {
   useEffect(() => {
     initAuth();
     fetchStats();
+    initStatsListener();
     fetchIncidents();
-  }, [initAuth, fetchStats, fetchIncidents]);
+  }, [initAuth, fetchStats, initStatsListener, fetchIncidents]);
 
   // Real-time WebSocket subscriptions
   useEffect(() => {

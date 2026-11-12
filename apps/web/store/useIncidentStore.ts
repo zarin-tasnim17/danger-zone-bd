@@ -1,5 +1,14 @@
 import { create } from "zustand";
-import { DangerIncident, SOCKET_EVENTS } from "@repo/shared";
+import {
+  DangerIncident,
+  SOCKET_EVENTS,
+  getSocketReportId,
+  type ReportVotedPayload,
+  type ReportPurgedPayload,
+  type ReportResolvedPayload,
+  type ReportExpiredPayload,
+  type ReportVerifiedPayload,
+} from "@repo/shared";
 import { apiFetch } from "@/lib/api";
 import { getSocket, joinMapBounds } from "@/lib/socket";
 import { cleanIncidentTitle } from "@/lib/incidentUtils";
@@ -221,10 +230,12 @@ export const useIncidentStore = create<IncidentState>((set, get) => ({
 
     // Listen for real-time vote updates
     socket.off(SOCKET_EVENTS.REPORT_VOTED);
-    socket.on(SOCKET_EVENTS.REPORT_VOTED, (data: { reportId: string; upvotes: number; downvotes: number; status: string }) => {
+    socket.on(SOCKET_EVENTS.REPORT_VOTED, (data: ReportVotedPayload) => {
+      const targetId = getSocketReportId(data);
+      if (!targetId) return;
       set((state) => ({
         incidents: state.incidents.map((inc) =>
-          inc.id === data.reportId
+          inc.id === targetId
             ? { ...inc, upvotes: data.upvotes, downvotes: data.downvotes }
             : inc
         ),
@@ -233,16 +244,29 @@ export const useIncidentStore = create<IncidentState>((set, get) => ({
 
     // Listen for purged reports (trust engine 5-downvote or admin purge)
     socket.off(SOCKET_EVENTS.REPORT_PURGED);
-    socket.on(SOCKET_EVENTS.REPORT_PURGED, (data: { reportId: string }) => {
-      console.log("[Socket.IO] Real-time REPORT_PURGED received:", data.reportId);
+    socket.on(SOCKET_EVENTS.REPORT_PURGED, (data: ReportPurgedPayload) => {
+      const targetId = getSocketReportId(data);
+      if (!targetId) return;
+      console.log("[Socket.IO] Real-time REPORT_PURGED received:", targetId);
       set((state) => ({
-        incidents: state.incidents.filter((inc) => inc.id !== data.reportId),
+        incidents: state.incidents.filter((inc) => inc.id !== targetId),
+      }));
+    });
+
+    // Listen for resolved reports (author / responder / admin clearance)
+    socket.off(SOCKET_EVENTS.REPORT_RESOLVED);
+    socket.on(SOCKET_EVENTS.REPORT_RESOLVED, (data: ReportResolvedPayload) => {
+      const resolvedId = getSocketReportId(data);
+      if (!resolvedId) return;
+      console.log("[Socket.IO] Real-time REPORT_RESOLVED received:", resolvedId);
+      set((state) => ({
+        incidents: state.incidents.filter((inc) => inc.id !== resolvedId),
       }));
     });
 
     // Listen for expired reports (time-decay worker)
     socket.off(SOCKET_EVENTS.REPORT_EXPIRED);
-    socket.on(SOCKET_EVENTS.REPORT_EXPIRED, (data: { reportIds: string[] }) => {
+    socket.on(SOCKET_EVENTS.REPORT_EXPIRED, (data: ReportExpiredPayload) => {
       const expiredSet = new Set(data.reportIds || []);
       set((state) => ({
         incidents: state.incidents.filter((inc) => !expiredSet.has(inc.id)),
@@ -251,11 +275,13 @@ export const useIncidentStore = create<IncidentState>((set, get) => ({
 
     // Listen for press cross-verification updates
     socket.off(SOCKET_EVENTS.REPORT_VERIFIED);
-    socket.on(SOCKET_EVENTS.REPORT_VERIFIED, (data: { reportId: string; verifiedBy: string; sourceUrl?: string; articleTitle?: string }) => {
-      console.log("[Socket.IO] Real-time REPORT_VERIFIED received:", data.reportId);
+    socket.on(SOCKET_EVENTS.REPORT_VERIFIED, (data: ReportVerifiedPayload) => {
+      const targetId = getSocketReportId(data);
+      if (!targetId) return;
+      console.log("[Socket.IO] Real-time REPORT_VERIFIED received:", targetId);
       set((state) => ({
         incidents: state.incidents.map((inc) => {
-          if (inc.id === data.reportId) {
+          if (inc.id === targetId) {
             const pressTag = `[Verified by Press: ${data.verifiedBy}]`;
             const updatedDesc = inc.description.includes(pressTag)
               ? inc.description
