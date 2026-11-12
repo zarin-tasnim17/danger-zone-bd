@@ -1,7 +1,7 @@
 import { prisma } from '../db/prisma';
 import { ReportCategory, ReportSeverity } from '@prisma/client';
 import { MAX_GPS_PROXIMITY_METERS, MAX_HARDWARE_GPS_ACCURACY_METERS } from '@repo/shared';
-import { isWithinDistance, getReportsInBounds, BoundingBox, ReportFilterOptions, getFuzzedCoordinates } from '../db/spatialUtils';
+import { isWithinDistance, getReportsInBounds, BoundingBox, ReportFilterOptions, getFuzzedCoordinates, setReportLocation } from '../db/spatialUtils';
 import { emitNewReport, emitReportResolved } from '../sockets';
 import { broadcastPlatformStats } from './statsService';
 import { enqueueReportNotification } from '../jobs';
@@ -128,9 +128,9 @@ export const createReport = async (
   const expiresAt = calculateReportExpiry(payload.category, now);
   const isNightReport = isNightTimeInBangladesh(now);
 
-  // Insert report and atomically update lastReportAt timestamp
-  const [report] = await prisma.$transaction([
-    prisma.report.create({
+  // Atomically create report, update lastReportAt, and populate PostGIS location
+  const report = await prisma.$transaction(async (tx) => {
+    const createdReport = await tx.report.create({
       data: {
         userId,
         category: payload.category,
@@ -142,19 +142,17 @@ export const createReport = async (
         description: payload.description,
         expiresAt
       }
-    }),
-    prisma.user.update({
+    });
+
+    await tx.user.update({
       where: { id: userId },
       data: { lastReportAt: now }
-    })
-  ]);
+    });
 
-  // Populate PostGIS geography point for spatial GIST indexing
-  await prisma.$executeRaw`
-    UPDATE "Report"
-    SET location = ST_SetSRID(ST_MakePoint(${payload.longitude}, ${payload.latitude}), 4326)::geography
-    WHERE id = ${report.id}
-  `;
+    await setReportLocation(tx, createdReport.id, payload.latitude, payload.longitude);
+
+    return createdReport;
+  });
 
   // Phase 8: Broadcast newly created pin in real time with location fuzzing applied
   const fuzzed = getFuzzedCoordinates(report.id, report.latitude, report.longitude);
