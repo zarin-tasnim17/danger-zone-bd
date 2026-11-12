@@ -8,7 +8,7 @@ let io: SocketIOServer | null = null;
 // Extend Socket data typing
 declare module 'socket.io' {
   interface SocketData {
-    user: JwtPayload;
+    user?: JwtPayload;
     bounds?: {
       minLng: number;
       minLat: number;
@@ -32,22 +32,37 @@ const parseCookies = (cookieHeader?: string): Record<string, string> => {
 
 /**
  * Socket.IO handshake authentication middleware
- * Checks HttpOnly cookie `accessToken` or handshake auth payload `token`
+ * Checks HttpOnly cookie `accessToken` or handshake auth payload `token`.
+ * Allows unauthenticated connections for read-only `live_reports` broadcasts,
+ * while strictly validating provided credentials (including scoped `socketToken`s).
  */
 export const socketAuthMiddleware = async (socket: Socket, next: (err?: Error) => void) => {
   try {
     const cookies = parseCookies(socket.handshake.headers.cookie);
-    const token = cookies.accessToken || socket.handshake.auth?.token;
+    const cookieToken = cookies.accessToken;
+    const rawAuthToken = socket.handshake.auth?.token;
 
-    if (!token) {
-      return next(new Error('Authentication error: Missing access token'));
+    if (!cookieToken && (rawAuthToken === undefined || rawAuthToken === null || rawAuthToken === '')) {
+      socket.data.user = undefined;
+      return next();
     }
 
-    socket.data.user = await verifyActiveAccessToken(token);
+    if (!cookieToken && typeof rawAuthToken !== 'string') {
+      return next(new Error('Authentication error: Invalid token format'));
+    }
+
+    const token = cookieToken || (rawAuthToken as string);
+    socket.data.user = await verifyActiveAccessToken(token, { allowSocketToken: true });
 
     return next();
   } catch (error) {
-    return next(new Error(error instanceof Error && error.message ? error.message : 'Authentication error: Invalid or expired token'));
+    return next(
+      new Error(
+        error instanceof Error && error.message
+          ? error.message
+          : 'Authentication error: Invalid or expired token'
+      )
+    );
   }
 };
 
@@ -72,13 +87,19 @@ export const initSocketServer = (httpServer: HttpServer): SocketIOServer => {
 
   io.on('connection', (socket: Socket) => {
     const user = socket.data.user;
-    console.log(`[Socket.IO] Authenticated client connected: ${socket.id} (User: ${user.id}, Role: ${user.role})`);
+    if (user) {
+      console.log(`[Socket.IO] Authenticated client connected: ${socket.id} (User: ${user.id}, Role: ${user.role})`);
+    } else {
+      console.log(`[Socket.IO] Guest read-only client connected: ${socket.id}`);
+    }
 
     // Automatically join the live map feed room
     socket.join('live_reports');
 
-    // Automatically join user-specific notification room
-    socket.join(`user:${user.id}`);
+    // Automatically join user-specific notification room only when authenticated
+    if (user) {
+      socket.join(`user:${user.id}`);
+    }
 
     // Room subscription based on map bounds
     socket.on('joinMapBounds', (bounds: { minLng: number; minLat: number; maxLng: number; maxLat: number }) => {
