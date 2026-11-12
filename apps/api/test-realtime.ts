@@ -1,7 +1,8 @@
 import http from 'http';
 import { io as ioClient, Socket as ClientSocket } from 'socket.io-client';
+import { SOCKET_EVENTS, getSocketReportId } from '@repo/shared';
 import { app } from './src/app';
-import { initSocketServer, emitUserAlert } from './src/sockets';
+import { initSocketServer, emitUserAlert, emitReportVerified } from './src/sockets';
 import { prisma } from './src/db/prisma';
 import { generateSocketToken } from './src/utils/jwt';
 
@@ -277,15 +278,15 @@ async function runTests() {
 
     // Listener for votes
     let latestVoteTally: any = null;
-    authSocket.on('REPORT_VOTED', (data) => {
-      if (data.reportId === createdReportId) {
+    authSocket.on(SOCKET_EVENTS.REPORT_VOTED, (data) => {
+      if (getSocketReportId(data) === createdReportId) {
         latestVoteTally = data;
       }
     });
 
     const purgePromise = new Promise<any>((resolve) => {
-      authSocket.on('REPORT_PURGED', (data) => {
-        if (data.reportId === createdReportId) {
+      authSocket!.on(SOCKET_EVENTS.REPORT_PURGED, (data) => {
+        if (getSocketReportId(data) === createdReportId) {
           resolve(data);
         }
       });
@@ -331,10 +332,107 @@ async function runTests() {
     ]) as any;
 
     console.log('Received REPORT_PURGED payload:', purgedEvent);
-    if (purgedEvent.reportId !== createdReportId) {
+    if (getSocketReportId(purgedEvent) !== createdReportId) {
       throw new Error(`Purge reportId mismatch: expected ${createdReportId}, got ${purgedEvent.reportId}`);
     }
     console.log('✅ Passed: REPORT_PURGED received with reason "TRUST_ENGINE_DOWNVOTE_THRESHOLD"');
+
+    // -------------------------------------------------------------
+    // Test Case 5: Event Contract & Payload Keys (NEW_REPORT_UPDATE, REPORT_RESOLVED, REPORT_VERIFIED)
+    // -------------------------------------------------------------
+    console.log('\n🧪 [Test 5] Testing Event Contracts (NEW_REPORT_UPDATE, REPORT_RESOLVED, REPORT_VERIFIED)...');
+
+    if (getSocketReportId({ reportId: 'r-1' }) !== 'r-1' || getSocketReportId({ id: 'r-2' }) !== 'r-2') {
+      throw new Error('getSocketReportId helper failed contract assertion');
+    }
+
+    const activeReportRes = await request('/api/v1/reports', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Cookie': `accessToken=${accessToken}`,
+        'x-device-lat': targetLat.toString(),
+        'x-device-lng': targetLng.toString()
+      },
+      body: JSON.stringify({
+        category: 'THEFT',
+        severity: 'MEDIUM',
+        latitude: targetLat,
+        longitude: targetLng,
+        description: 'Contract verification incident'
+      })
+    });
+    if (activeReportRes.status !== 201) {
+      throw new Error(`Second test report creation failed: ${JSON.stringify(activeReportRes.data)}`);
+    }
+    const secondReportId = activeReportRes.data.data.id;
+
+    const updateEventPromise = new Promise<any>((resolve) => {
+      authSocket!.on(SOCKET_EVENTS.NEW_REPORT_UPDATE, (payload) => {
+        if (getSocketReportId(payload) === secondReportId) resolve(payload);
+      });
+    });
+
+    const postUpdateRes = await request(`/api/v1/reports/${secondReportId}/updates`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Cookie': `accessToken=${accessToken}`
+      },
+      body: JSON.stringify({ content: 'Area secured by traffic police.' })
+    });
+    if (postUpdateRes.status !== 201) {
+      throw new Error(`Posting report update failed: ${JSON.stringify(postUpdateRes.data)}`);
+    }
+
+    const updatePayload = await Promise.race([
+      updateEventPromise,
+      new Promise((_, reject) => setTimeout(() => reject(new Error('Timed out waiting for NEW_REPORT_UPDATE!')), 3000))
+    ]) as any;
+    if (updatePayload.reportId !== secondReportId || !updatePayload.update?.id) {
+      throw new Error(`Unexpected NEW_REPORT_UPDATE payload: ${JSON.stringify(updatePayload)}`);
+    }
+
+    const resolvedEventPromise = new Promise<any>((resolve) => {
+      authSocket!.on(SOCKET_EVENTS.REPORT_RESOLVED, (payload) => {
+        if (getSocketReportId(payload) === secondReportId) resolve(payload);
+      });
+    });
+
+    const resolveRes = await request(`/api/v1/reports/${secondReportId}/resolve`, {
+      method: 'PATCH',
+      headers: { 'Cookie': `accessToken=${accessToken}` }
+    });
+    if (resolveRes.status !== 200) {
+      throw new Error(`Resolving report failed: ${JSON.stringify(resolveRes.data)}`);
+    }
+
+    const resolvedPayload = await Promise.race([
+      resolvedEventPromise,
+      new Promise((_, reject) => setTimeout(() => reject(new Error('Timed out waiting for REPORT_RESOLVED!')), 3000))
+    ]) as any;
+    if (resolvedPayload.reportId !== secondReportId || resolvedPayload.status !== 'RESOLVED') {
+      throw new Error(`Unexpected REPORT_RESOLVED payload: ${JSON.stringify(resolvedPayload)}`);
+    }
+
+    const verifiedEventPromise = new Promise<any>((resolve) => {
+      authSocket!.on(SOCKET_EVENTS.REPORT_VERIFIED, (payload) => {
+        if (getSocketReportId(payload) === secondReportId) resolve(payload);
+      });
+    });
+    emitReportVerified({
+      reportId: secondReportId,
+      verifiedBy: 'The Daily Star',
+      sourceUrl: 'https://www.thedailystar.net/news'
+    });
+    const verifiedPayload = await Promise.race([
+      verifiedEventPromise,
+      new Promise((_, reject) => setTimeout(() => reject(new Error('Timed out waiting for REPORT_VERIFIED!')), 3000))
+    ]) as any;
+    if (verifiedPayload.reportId !== secondReportId || verifiedPayload.verifiedBy !== 'The Daily Star') {
+      throw new Error(`Unexpected REPORT_VERIFIED payload: ${JSON.stringify(verifiedPayload)}`);
+    }
+    console.log('✅ Passed: NEW_REPORT_UPDATE, REPORT_RESOLVED & REPORT_VERIFIED emit canonical { reportId } contracts');
 
     // -------------------------------------------------------------
     // Cleanup
