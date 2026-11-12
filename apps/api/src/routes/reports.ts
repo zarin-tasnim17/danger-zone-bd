@@ -59,16 +59,26 @@ const reportSchema = z.object({
   )
 });
 
+const coordQueryParam = (min: number, max: number, label: string) =>
+  z.string().trim().refine((val) => {
+    if (!/^-?\d+(?:\.\d+)?$/.test(val)) return false;
+    const num = Number(val);
+    return Number.isFinite(num) && num >= min && num <= max;
+  }, `${label} must be a valid number between ${min} and ${max}`);
+
 const boundsSchema = z.object({
   query: z.object({
-    minLng: z.string().refine(val => !isNaN(parseFloat(val)), "Must be a number string"),
-    minLat: z.string().refine(val => !isNaN(parseFloat(val)), "Must be a number string"),
-    maxLng: z.string().refine(val => !isNaN(parseFloat(val)), "Must be a number string"),
-    maxLat: z.string().refine(val => !isNaN(parseFloat(val)), "Must be a number string"),
+    minLng: coordQueryParam(-180, 180, 'minLng'),
+    minLat: coordQueryParam(-90, 90, 'minLat'),
+    maxLng: coordQueryParam(-180, 180, 'maxLng'),
+    maxLat: coordQueryParam(-90, 90, 'maxLat'),
     category: z.enum(REPORT_CATEGORIES).optional(),
     severity: z.enum(['LOW', 'MEDIUM', 'HIGH']).optional(),
     isNightReport: z.enum(['true', 'false']).optional(),
-  }).passthrough()
+  }).passthrough().refine(
+    (q) => Number(q.minLng) < Number(q.maxLng) && Number(q.minLat) < Number(q.maxLat),
+    { message: 'Inverted bounding box: minLng must be less than maxLng and minLat must be less than maxLat' }
+  )
 });
 
 const reportIdSchema = z.object({
