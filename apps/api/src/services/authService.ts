@@ -31,6 +31,7 @@ const assertDeviceAuthAllowed = (account: {
 
 export const loginOrRegisterDevice = async (anonymousId: string, email?: string) => {
   const normalizedEmail = email?.trim().toLowerCase();
+  let isNewUser = false;
 
   let user = await prisma.user.findUnique({
     where: { anonymousId }
@@ -59,6 +60,7 @@ export const loginOrRegisterDevice = async (anonymousId: string, email?: string)
         email: normalizedEmail || `${anonymousId}@anonymous.local`,
       }
     });
+    isNewUser = true;
   }
 
   if (user.isBanned) {
@@ -77,7 +79,7 @@ export const loginOrRegisterDevice = async (anonymousId: string, email?: string)
     }
   });
 
-  return { user, accessToken, refreshToken, socketToken };
+  return { user, accessToken, refreshToken, socketToken, isNewUser };
 };
 
 export const refreshSession = async (token: string, userId: string) => {

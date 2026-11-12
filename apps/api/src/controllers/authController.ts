@@ -29,11 +29,16 @@ const clearAuthCookies = (res: Response) => {
 export const loginDevice = async (req: Request, res: Response) => {
   try {
     const { anonymousId, email } = req.body;
-    const { user, accessToken, refreshToken, socketToken } = await authService.loginOrRegisterDevice(anonymousId, email);
+    const { user, accessToken, refreshToken, socketToken, isNewUser } =
+      await authService.loginOrRegisterDevice(anonymousId, email);
 
     setAuthCookies(res, accessToken, refreshToken);
 
-    return successResponse(res, { user: { id: user.id, role: user.role }, socketToken }, 201);
+    return successResponse(
+      res,
+      { user: { id: user.id, role: user.role }, socketToken },
+      isNewUser ? 201 : 200
+    );
   } catch (error: any) {
     if (error?.statusCode === 403 && error?.message === 'Account is suspended') {
       clearAuthCookies(res);
