@@ -39,7 +39,30 @@ export const getUserProfile = async (userId: string) => {
   return user;
 };
 
+/**
+ * Defense-in-depth account suspension check for service-layer entry points.
+ */
+export const assertUserNotSuspended = async (userId: string, actionMessage: string): Promise<void> => {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { isBanned: true },
+  });
+
+  if (!user) {
+    throw Object.assign(new Error('User not found'), { statusCode: 404 });
+  }
+
+  if (user.isBanned) {
+    throw Object.assign(new Error(actionMessage), { statusCode: 403 });
+  }
+};
+
 export const submitVerification = async (userId: string, type: VerificationType, documentUrl?: string) => {
+  await assertUserNotSuspended(
+    userId,
+    'Your account has been suspended. You cannot submit verification requests.'
+  );
+
   // Check if there's already a pending verification
   const existing = await prisma.userVerification.findFirst({
     where: { userId, status: 'PENDING' }

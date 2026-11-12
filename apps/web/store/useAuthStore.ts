@@ -75,7 +75,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       return profile;
     } catch (err: any) {
       console.warn("[Auth] Silent device authentication fallback notice:", err.message);
-      set({ isLoading: false, error: err.message });
+      set({ user: null, isLoading: false, error: err.message });
       return null;
     }
   },

@@ -1,4 +1,5 @@
 import { prisma } from '../db/prisma';
+import { assertUserNotSuspended } from './userService';
 
 export const MAX_ZONE_AREA_SQ_METERS = 25_000_000; // 25 square kilometers
 export const MAX_ZONES_PER_USER = 5;
@@ -50,6 +51,7 @@ export const createAlertZone = async (
   name: string,
   coordinates: [number, number][]
 ): Promise<AlertZoneOutput> => {
+  await assertUserNotSuspended(userId, 'Your account has been suspended. You cannot manage alert zones.');
   validatePolygonCoordinates(coordinates);
 
   // 1. Quota Check: Max active zones per user
@@ -108,6 +110,7 @@ export const createAlertZone = async (
  * Fetches all active alert zones for a user with parsed GeoJSON boundaries
  */
 export const getUserAlertZones = async (userId: string): Promise<AlertZoneOutput[]> => {
+  await assertUserNotSuspended(userId, 'Your account has been suspended. You cannot manage alert zones.');
   const zones: any[] = await prisma.$queryRaw`
     SELECT 
       id, "userId", name, "isActive", "createdAt", "updatedAt",
@@ -127,6 +130,7 @@ export const getUserAlertZones = async (userId: string): Promise<AlertZoneOutput
  * Deletes an alert zone verifying ownership
  */
 export const deleteAlertZone = async (userId: string, zoneId: string): Promise<boolean> => {
+  await assertUserNotSuspended(userId, 'Your account has been suspended. You cannot manage alert zones.');
   // Check if zone exists first
   const existing: any[] = await prisma.$queryRaw`
     SELECT id, "userId" FROM "UserAlertZone" WHERE id = ${zoneId}

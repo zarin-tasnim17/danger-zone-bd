@@ -21,7 +21,7 @@ export const submitVerify = async (req: Request, res: Response) => {
     
     return successResponse(res, verification, 201);
   } catch (error: any) {
-    return errorResponse(res, error.message, 400);
+    return errorResponse(res, error.message, error.statusCode || 400);
   }
 };
 
