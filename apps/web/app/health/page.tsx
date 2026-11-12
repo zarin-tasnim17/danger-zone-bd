@@ -81,8 +81,10 @@ export default function HealthPage() {
   const runDiagnostics = useCallback(async () => {
     setLoading(true);
     setWakeUpTime(null);
-    const targetUrl = process.env.NEXT_PUBLIC_API_URL || "https://danger-zone-bd.onrender.com";
-    setBackendUrl(targetUrl);
+    const rawTarget = process.env.NEXT_PUBLIC_API_URL || "https://danger-zone-bd.onrender.com";
+    const normalizedTarget = rawTarget.replace(/\/+$/, "").replace(/\/api\/v1$/, "");
+    const targetUrl = rawTarget.startsWith("/") ? "" : normalizedTarget;
+    setBackendUrl(normalizedTarget || "Same-origin /api/v1 proxy");
 
     let backendSuccess = false;
     let dbSuccess = false;
