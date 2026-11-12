@@ -3,6 +3,16 @@ export type MapMode = "basic" | "heatmap" | "labeled";
 export const MAX_GPS_PROXIMITY_METERS = 200;
 export const MAX_HARDWARE_GPS_ACCURACY_METERS = 250;
 
+export const BD_MOBILE_REGEX = /^(?:\+?880|0)1[3-9]\d{8}$/;
+
+export function normalizeBangladeshPhone(phone: string): string {
+  const trimmed = phone.trim();
+  if (trimmed.startsWith("+880")) return trimmed;
+  if (trimmed.startsWith("880")) return `+${trimmed}`;
+  if (trimmed.startsWith("01")) return `+880${trimmed.slice(1)}`;
+  return trimmed;
+}
+
 export const REPORT_CATEGORIES = [
   "THEFT",
   "ROBBERY",

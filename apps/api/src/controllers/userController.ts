@@ -15,9 +15,9 @@ export const getMe = async (req: Request, res: Response) => {
 export const submitVerify = async (req: Request, res: Response) => {
   try {
     const userId = req.user!.id;
-    const { type, documentUrl } = req.body;
+    const { type, documentUrl, phoneNumber } = req.body;
     
-    const verification = await userService.submitVerification(userId, type as any, documentUrl);
+    const verification = await userService.submitVerification(userId, type as any, documentUrl, phoneNumber);
     
     return successResponse(res, verification, 201);
   } catch (error: any) {

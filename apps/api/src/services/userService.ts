@@ -1,5 +1,6 @@
 import { prisma } from '../db/prisma';
 import { Role, VerificationType } from '@prisma/client';
+import { normalizeBangladeshPhone } from '@repo/shared';
 
 export const getUserProfile = async (userId: string) => {
   const user = await prisma.user.findUnique({
@@ -26,6 +27,7 @@ export const getUserProfile = async (userId: string) => {
           id: true,
           type: true,
           status: true,
+          phoneNumber: true,
           createdAt: true,
         },
       },
@@ -57,7 +59,12 @@ export const assertUserNotSuspended = async (userId: string, actionMessage: stri
   }
 };
 
-export const submitVerification = async (userId: string, type: VerificationType, documentUrl?: string) => {
+export const submitVerification = async (
+  userId: string,
+  type: VerificationType,
+  documentUrl?: string,
+  phoneNumber?: string
+) => {
   await assertUserNotSuspended(
     userId,
     'Your account has been suspended. You cannot submit verification requests.'
@@ -72,11 +79,17 @@ export const submitVerification = async (userId: string, type: VerificationType,
     throw new Error('You already have a pending verification request');
   }
 
+  const normalizedPhone =
+    type === 'PHONE_OTP' && phoneNumber
+      ? normalizeBangladeshPhone(phoneNumber)
+      : undefined;
+
   const verification = await prisma.userVerification.create({
     data: {
       userId,
       type,
-      documentUrl,
+      documentUrl: type === 'NID_DOCUMENT' ? documentUrl?.trim() : undefined,
+      phoneNumber: normalizedPhone,
       status: 'PENDING'
     }
   });
@@ -92,6 +105,7 @@ export const getPendingVerifications = async () => {
         select: {
           id: true,
           email: true,
+          phoneNumber: true,
           role: true,
           trustScore: true,
           createdAt: true
