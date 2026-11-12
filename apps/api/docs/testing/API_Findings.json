@@ -1,0 +1,684 @@
+{
+  "schemaVersion": "1.0.0",
+  "auditMetadata": {
+    "project": "DangerZoneBD (apps/api + apps/web/app/api proxies)",
+    "auditDate": "2026-11-12",
+    "masterSpecification": "dontADDgit/api_test_backend.md",
+    "contractBaseline": "apps/api/docs/endpoints.md",
+    "inventoryDocument": "apps/api/docs/testing/API_Endpoint_Inventory.md",
+    "reportDocument": "apps/api/docs/testing/API_Test_Report.md",
+    "executionCommand": "npm --prefix apps/api run test:api:report",
+    "executionWindowUtc": {
+      "start": "2026-11-12T14:02:36.647Z",
+      "end": "2026-11-12T14:06:53.354Z",
+      "totalDurationMs": 256703.86
+    },
+    "discoveredInterfaces": {
+      "expressHttpRoutes": 43,
+      "nextjsApiProxyRoutes": 3,
+      "socketIoGateways": 1,
+      "total": 47,
+      "executed": 47,
+      "undocumented": 0,
+      "missing": 0,
+      "dead": 0
+    },
+    "suiteCounts": {
+      "totalFiles": 15,
+      "totalCases": 62,
+      "passed": 62,
+      "failed": 0,
+      "skipped": 0,
+      "verificationSuitesPassed": 48,
+      "verificationSuitesTotal": 48,
+      "defectRegressionPassed": 14,
+      "defectRegressionTotal": 14
+    },
+    "databaseIsolationCheck": {
+      "ORPHAN_USERS": 0,
+      "ORPHAN_REPORTS": 0,
+      "ORPHAN_SAFE_ZONES": 0
+    },
+    "productionReadinessVerdict": "GO (All 14 audit findings BACKEND-001..BACKEND-014 resolved and verified; 62/62 tests passing, 0 failed, 0 skipped)",
+    "severityBreakdown": {
+      "Critical": 0,
+      "High": 6,
+      "Medium": 5,
+      "Low": 3,
+      "Total": 14
+    }
+  },
+  "findings": [
+    {
+      "id": "BACKEND-001",
+      "title": "Spoofable IP rate limiting, pre-auth cron DoS ordering, unref-less interval leak, and missing route rate limiters",
+      "severity": "High",
+      "priority": "P1",
+      "category": "Security / Rate Limiting & Availability",
+      "module": "Rate Limiter Middleware & Route Guards",
+      "status": "RESOLVED",
+      "endpointIds": ["EP-006", "EP-007", "EP-011", "EP-017", "EP-018", "EP-023", "EP-042", "EP-043"],
+      "affectedRoutes": [
+        "GET /api/v1/cron/news-crawl",
+        "POST /api/v1/cron/news-crawl",
+        "POST /api/v1/auth/login",
+        "POST /api/v1/auth/device",
+        "POST /api/v1/reports/:id/vote",
+        "POST /api/v1/reports/:id/updates",
+        "POST /api/v1/users/verify",
+        "POST /api/v1/routes/safe-path"
+      ],
+      "files": [
+        {
+          "path": "apps/api/src/middleware/rateLimiter.ts",
+          "symbol": "clientIp / setInterval cleanup timer",
+          "lines": "10-18, 34-37"
+        },
+        {
+          "path": "apps/api/src/routes/cron.ts",
+          "symbol": "cronNewsCrawlRateLimiter before verifyCronSecret",
+          "lines": "35-37"
+        },
+        {
+          "path": "apps/api/src/routes/auth.ts",
+          "symbol": "router.post('/device'), router.post('/refresh')",
+          "lines": "24, 26"
+        },
+        {
+          "path": "apps/api/src/routes/reports.ts",
+          "symbol": "vote & updates routes",
+          "lines": "89-99"
+        }
+      ],
+      "reproRequest": {
+        "method": "GET",
+        "path": "/api/v1/cron/news-crawl",
+        "headers": {
+          "x-forwarded-for": "198.51.100.201",
+          "x-cron-secret": "<VALID_CRON_SECRET_ON_4TH_CALL>"
+        },
+        "steps": [
+          "Send 3 unauthenticated GET /api/v1/cron/news-crawl requests sharing x-forwarded-for: 198.51.100.201 (no x-cron-secret).",
+          "Send a 4th GET /api/v1/cron/news-crawl from the same IP WITH valid x-cron-secret."
+        ]
+      },
+      "expectedBehavior": "cronNewsCrawlRateLimiter must only count/run after verifyCronSecret succeeds so unauthenticated traffic cannot lock out the real cron scheduler, clientIp must not trust raw spoofable X-Forwarded-For without Express trust proxy validation, cleanup interval must call .unref(), and mutating routes (/auth/device, /auth/refresh, /reports/:id/vote, /reports/:id/updates, /users/verify, /routes/safe-path) must enforce bounded rate limits.",
+      "actualBehavior": "On the 4th (authenticated) call in regression testing, the endpoint returned HTTP 429 RATE_LIMIT_EXCEEDED instead of 200 (429 !== 200). clientIp reads req.headers['x-forwarded-for'] directly, allowing trivial IP spoofing to bypass authLoginRateLimiter, while setInterval lacks .unref().",
+      "rootCause": "Middleware chain in apps/api/src/routes/cron.ts:36-37 registers cronNewsCrawlRateLimiter before verifyCronSecret, and rateLimiter.ts:34-37 splits req.headers['x-forwarded-for'] regardless of proxy trust.",
+      "recommendedFix": "1) Reorder cron.ts middleware so verifyCronSecret runs before cronNewsCrawlRateLimiter. 2) Use req.ip with explicit Express trust proxy configuration instead of trusting raw X-Forwarded-For strings. 3) Call .unref() on cleanup interval timers in rateLimiter.ts:10-18. 4) Add calibrated rate limiters to /auth/device, /auth/refresh, /reports/:id/vote, /reports/:id/updates, /users/verify, and /routes/safe-path.",
+      "regressionTestFile": "apps/api/tests/regression/01-confirmed-defects-regression.test.ts",
+      "regressionTestName": "[BACKEND-001] Unauthenticated calls to /api/v1/cron/news-crawl must NOT exhaust authenticated cron rate-limit quota on same IP",
+      "acceptanceCriteria": [
+        "3+ unauthenticated requests to /api/v1/cron/news-crawl return 401 and never consume legitimate cron quota for that IP.",
+        "Subsequent authenticated request with valid secret returns 200.",
+        "Spoofed X-Forwarded-For headers do not reset per-client login quota when direct socket connection originates from the same peer."
+      ]
+    },
+    {
+      "id": "BACKEND-002",
+      "title": "Token exposure in /auth/login JSON, lack of refreshToken rotation, and broken expired-access /auth/logout",
+      "severity": "High",
+      "priority": "P1",
+      "category": "Authentication / Session Lifecycle",
+      "module": "Auth Controller, Service & Routes",
+      "status": "RESOLVED",
+      "endpointIds": ["EP-007", "EP-008", "EP-009"],
+      "affectedRoutes": [
+        "POST /api/v1/auth/login",
+        "POST /api/v1/auth/refresh",
+        "POST /api/v1/auth/logout"
+      ],
+      "files": [
+        {
+          "path": "apps/api/src/controllers/authController.ts",
+          "symbol": "loginHandler",
+          "lines": "45-60"
+        },
+        {
+          "path": "apps/api/src/services/authService.ts",
+          "symbol": "refreshSession / logoutSession",
+          "lines": "83-98"
+        },
+        {
+          "path": "apps/api/src/routes/auth.ts",
+          "symbol": "router.post('/logout', requireAuth, ...)",
+          "lines": "27"
+        }
+      ],
+      "reproRequest": {
+        "method": "POST",
+        "path": "/api/v1/auth/refresh",
+        "headers": {
+          "Cookie": "refreshToken=<OLD_REFRESH_TOKEN>"
+        },
+        "steps": [
+          "Authenticate and capture refreshToken.",
+          "Call POST /api/v1/auth/refresh once.",
+          "Replay the exact same old refreshToken on a second POST /api/v1/auth/refresh."
+        ]
+      },
+      "expectedBehavior": "/auth/login should rely strictly on HttpOnly cookies (omitting raw refreshToken from JSON body), /auth/refresh must rotate and revoke the prior refreshToken on each use (returning 401 on replay), and /auth/logout must clear cookies and revoke any presented refreshToken cookie even if the short-lived accessToken has already expired.",
+      "actualBehavior": "POST /api/v1/auth/login includes accessToken and refreshToken in JSON data; replaying an already-used refreshToken on POST /api/v1/auth/refresh returned HTTP 200 instead of 401 (200 !== 401); POST /api/v1/auth/logout rejects callers with an expired accessToken via requireAuth (401) before revoking RefreshToken.",
+      "rootCause": "authController.ts serializes token strings into JSON data; authService.ts:83-98 validates RefreshToken without revoking/re-issuing a new token row; routes/auth.ts:27 gates /logout behind requireAuth.",
+      "recommendedFix": "1) Stop returning refreshToken (and accessToken where HttpOnly cookies suffice) in login JSON body unless required by an explicit non-cookie client contract. 2) Implement single-use refresh token rotation in authService: revoke old RefreshToken row inside a transaction, issue a new refreshToken + cookie, and revoke user family tokens if replay is detected. 3) Remove strict requireAuth gate on /auth/logout or decode/validate the refreshToken cookie directly so expired access tokens still allow clean server-side revocation and cookie clearing.",
+      "regressionTestFile": "apps/api/tests/regression/01-confirmed-defects-regression.test.ts",
+      "regressionTestName": "[BACKEND-002] /auth/login should not leak refreshToken in JSON, /auth/refresh must rotate refreshToken, and /auth/logout must work with expired accessToken",
+      "acceptanceCriteria": [
+        "POST /api/v1/auth/login response JSON omits refreshToken.",
+        "Replaying a previously consumed refreshToken returns 401.",
+        "POST /api/v1/auth/logout with an expired accessToken and valid refreshToken returns 200, revokes DB RefreshToken, and clears auth cookies."
+      ]
+    },
+    {
+      "id": "BACKEND-003",
+      "title": "Hardcoded fallback JWT secrets in env.ts and short (<32-char) JWT secrets in runtime .env",
+      "severity": "High",
+      "priority": "P1",
+      "category": "Configuration & Cryptographic Security",
+      "module": "Environment Configuration",
+      "status": "RESOLVED",
+      "endpointIds": ["EP-006", "EP-007", "EP-008", "EP-047"],
+      "affectedRoutes": [
+        "POST /api/v1/auth/login",
+        "POST /api/v1/auth/device",
+        "POST /api/v1/auth/refresh",
+        "WS /socket.io"
+      ],
+      "files": [
+        {
+          "path": "apps/api/src/config/env.ts",
+          "symbol": "env.JWT_SECRET / env.JWT_REFRESH_SECRET",
+          "lines": "12-13"
+        },
+        {
+          "path": "apps/api/.env",
+          "symbol": "JWT_SECRET (20 chars) / JWT_REFRESH_SECRET (24 chars)",
+          "lines": "N/A (secret values redacted)"
+        }
+      ],
+      "reproRequest": {
+        "method": "CONFIG_CHECK",
+        "path": "apps/api/src/config/env.ts & apps/api/.env",
+        "body": "Inspect configured secret lengths (values redacted)"
+      },
+      "expectedBehavior": "Startup configuration must fail closed when JWT_SECRET or JWT_REFRESH_SECRET are absent or below 32 characters (256-bit HS256 minimum entropy), with zero hardcoded default fallback strings.",
+      "actualBehavior": "env.ts:12-13 defines hardcoded fallbacks ('super-secret-access-key-replace-in-prod' and 'super-secret-refresh-key-replace-in-prod'), and current apps/api/.env configures JWT_SECRET length 20 (<32) and JWT_REFRESH_SECRET length 24 (<32).",
+      "rootCause": "Permissive string fallbacks in env.ts:12-13 instead of startup Zod schema validation enforcing non-empty >=32-character secrets.",
+      "recommendedFix": "Remove hardcoded JWT secret fallbacks from env.ts:12-13, validate JWT_SECRET and JWT_REFRESH_SECRET at boot with z.string().min(32), and rotate .env secrets to >=32 random characters.",
+      "regressionTestFile": "apps/api/tests/regression/01-confirmed-defects-regression.test.ts",
+      "regressionTestName": "[BACKEND-003] JWT_SECRET and JWT_REFRESH_SECRET in .env must be >= 32 characters without hardcoded fallbacks",
+      "acceptanceCriteria": [
+        "JWT_SECRET and JWT_REFRESH_SECRET in .env are >= 32 characters.",
+        "Boot fails cleanly if either secret is missing or under 32 characters, with no default strings in env.ts."
+      ]
+    },
+    {
+      "id": "BACKEND-004",
+      "title": "POST /api/v1/reports accepts empty \"\" and unbounded description strings",
+      "severity": "High",
+      "priority": "P1",
+      "category": "Input Validation & Resource Exhaustion",
+      "module": "Reports Validation Schema",
+      "status": "RESOLVED",
+      "endpointIds": ["EP-013"],
+      "affectedRoutes": ["POST /api/v1/reports"],
+      "files": [
+        {
+          "path": "apps/api/src/routes/reports.ts",
+          "symbol": "reportSchema.body.description",
+          "lines": "34"
+        },
+        {
+          "path": "apps/api/src/services/reportService.ts",
+          "symbol": "createReport",
+          "lines": "142"
+        }
+      ],
+      "reproRequest": {
+        "method": "POST",
+        "path": "/api/v1/reports",
+        "headers": { "Authorization": "Bearer <REDACTED>" },
+        "body": {
+          "category": "THEFT",
+          "severity": "LOW",
+          "latitude": 23.75,
+          "longitude": 90.38,
+          "description": ""
+        }
+      },
+      "expectedBehavior": "Optional description must be trimmed and bounded (e.g., 1..1000 chars when provided) so empty/whitespace strings and oversized payloads fail with 400 Bad Request.",
+      "actualBehavior": "POST /api/v1/reports returned 201 Created for description: \"\" (assertion 201 !== 400) and accepts arbitrarily long strings (>1500 chars).",
+      "rootCause": "reportSchema defines description: z.string().optional() without .trim(), .min(1), or .max(1000).",
+      "recommendedFix": "Update apps/api/src/routes/reports.ts:34 to validate description: z.string().trim().min(1).max(1000).optional() (or explicit null/undefined handling when omitted).",
+      "regressionTestFile": "apps/api/tests/regression/01-confirmed-defects-regression.test.ts",
+      "regressionTestName": "[BACKEND-004] POST /api/v1/reports must reject empty string \"\" and >1000-char description with 400",
+      "acceptanceCriteria": [
+        "POST /api/v1/reports with description: \"\" or whitespace returns 400.",
+        "POST /api/v1/reports with description > 1000 characters returns 400.",
+        "Omitted description (undefined) still succeeds with 201."
+      ]
+    },
+    {
+      "id": "BACKEND-005",
+      "title": "POST /api/v1/reports/:id/updates persists whitespace-only update strings as empty content",
+      "severity": "Medium",
+      "priority": "P2",
+      "category": "Input Validation",
+      "module": "Report Updates Schema & Service",
+      "status": "RESOLVED",
+      "endpointIds": ["EP-018"],
+      "affectedRoutes": ["POST /api/v1/reports/:id/updates"],
+      "files": [
+        {
+          "path": "apps/api/src/routes/reports.ts",
+          "symbol": "addUpdateSchema.body.content",
+          "lines": "82"
+        },
+        {
+          "path": "apps/api/src/services/reportUpdateService.ts",
+          "symbol": "addReportUpdate",
+          "lines": "37"
+        }
+      ],
+      "reproRequest": {
+        "method": "POST",
+        "path": "/api/v1/reports/<REPORT_UUID>/updates",
+        "headers": { "Authorization": "Bearer <REDACTED>" },
+        "body": { "content": "   " }
+      },
+      "expectedBehavior": "Whitespace-only content (\"   \") must fail Zod validation with 400 Bad Request because trimmed length is 0 (< min 2).",
+      "actualBehavior": "Schema check runs before trimming, passes 3 spaces (>= min 2), and service trims to \"\" — returning HTTP 201 Created instead of 400 (201 !== 400).",
+      "rootCause": "addUpdateSchema at reports.ts:82 uses z.string().min(2).max(500) without .trim().",
+      "recommendedFix": "Change apps/api/src/routes/reports.ts:82 to z.string().trim().min(2).max(500).",
+      "regressionTestFile": "apps/api/tests/regression/01-confirmed-defects-regression.test.ts",
+      "regressionTestName": "[BACKEND-005] POST /api/v1/reports/:id/updates must reject whitespace-only content with 400",
+      "acceptanceCriteria": [
+        "POST /api/v1/reports/:id/updates with content: \"   \" returns 400 Bad Request and inserts no row."
+      ]
+    },
+    {
+      "id": "BACKEND-006",
+      "title": "GET /api/v1/safe-zones accepts non-numeric spatial query params (?lat=abc&lng=def) and returns 200 []",
+      "severity": "Medium",
+      "priority": "P2",
+      "category": "Input Validation",
+      "module": "Safe Zones Query Validation",
+      "status": "RESOLVED",
+      "endpointIds": ["EP-020"],
+      "affectedRoutes": ["GET /api/v1/safe-zones"],
+      "files": [
+        {
+          "path": "apps/api/src/routes/safeZones.ts",
+          "symbol": "safeZoneQuerySchema",
+          "lines": "17-23"
+        },
+        {
+          "path": "apps/api/src/controllers/safeZoneController.ts",
+          "symbol": "getSafeZonesHandler",
+          "lines": "8-48"
+        }
+      ],
+      "reproRequest": {
+        "method": "GET",
+        "path": "/api/v1/safe-zones?lat=abc&lng=def"
+      },
+      "expectedBehavior": "Non-numeric spatial query coordinates must be rejected with 400 Bad Request.",
+      "actualBehavior": "Endpoint returned HTTP 200 OK with empty array [] instead of 400 (200 !== 400).",
+      "rootCause": "safeZoneQuerySchema accepts optional strings without numeric/finite-number refinement, causing parseFloat(\"abc\") -> NaN downstream.",
+      "recommendedFix": "Validate numeric format and geographic range (-90..90 lat, -180..180 lng, positive radius) in safeZoneQuerySchema.",
+      "regressionTestFile": "apps/api/tests/regression/01-confirmed-defects-regression.test.ts",
+      "regressionTestName": "[BACKEND-006] GET /api/v1/safe-zones must return 400 for non-numeric spatial parameters (?lat=abc&lng=def)",
+      "acceptanceCriteria": [
+        "GET /api/v1/safe-zones?lat=abc&lng=def returns 400 Bad Request.",
+        "Out-of-range lat/lng values or non-numeric radius/bounds return 400."
+      ]
+    },
+    {
+      "id": "BACKEND-007",
+      "title": "Missing resource UUIDs return 400 Bad Request instead of 404 Not Found across three endpoints",
+      "severity": "Medium",
+      "priority": "P2",
+      "category": "HTTP & REST Error Semantics",
+      "module": "Votes, Alert Zones & User Verification Controllers",
+      "status": "RESOLVED",
+      "endpointIds": ["EP-012", "EP-017", "EP-026"],
+      "affectedRoutes": [
+        "POST /api/v1/reports/:id/vote",
+        "DELETE /api/v1/alerts/zones/:id",
+        "POST /api/v1/users/verify/:id/approve"
+      ],
+      "files": [
+        {
+          "path": "apps/api/src/services/voteService.ts",
+          "symbol": "castVote (Report not found without statusCode=404)",
+          "lines": "18-26"
+        },
+        {
+          "path": "apps/api/src/controllers/voteController.ts",
+          "symbol": "voteOnReport",
+          "lines": "15"
+        },
+        {
+          "path": "apps/api/src/services/alertZoneService.ts",
+          "symbol": "deleteAlertZone",
+          "lines": "139-141"
+        },
+        {
+          "path": "apps/api/src/controllers/userController.ts",
+          "symbol": "approveVerificationHandler (hardcodes 400)",
+          "lines": "36-38"
+        }
+      ],
+      "reproRequest": {
+        "method": "POST",
+        "path": "/api/v1/reports/00000000-0000-4000-8000-000000000000/vote",
+        "headers": { "Authorization": "Bearer <REDACTED>" },
+        "body": { "voteType": 1 }
+      },
+      "expectedBehavior": "Valid UUID referencing a non-existent Report, UserAlertZone, or UserVerification must return HTTP 404 Not Found.",
+      "actualBehavior": "POST /api/v1/reports/<missing-uuid>/vote returned 400 instead of 404 (400 !== 404); DELETE /api/v1/alerts/zones/<missing-uuid> and POST /api/v1/users/verify/<missing-uuid>/approve also return 400.",
+      "rootCause": "voteService.ts and alertZoneService.ts throw bare Error without .statusCode = 404, while userController.ts:36-38 ignores error.statusCode and passes hardcoded 400.",
+      "recommendedFix": "Attach statusCode = 404 on not-found errors in voteService.ts and alertZoneService.ts, and preserve error.statusCode || 400 in alertController.ts, voteController.ts, and userController.ts.",
+      "regressionTestFile": "apps/api/tests/regression/01-confirmed-defects-regression.test.ts",
+      "regressionTestName": "[BACKEND-007] Missing resource IDs on /reports/:id/vote, /alerts/zones/:id, and /users/verify/:id/approve must return 404 (not 400)",
+      "acceptanceCriteria": [
+        "All three endpoints return HTTP 404 Not Found when supplied a valid but non-existent UUID."
+      ]
+    },
+    {
+      "id": "BACKEND-008",
+      "title": "POST /api/v1/auth/device returns 201 Created unconditionally on existing device re-login",
+      "severity": "Low",
+      "priority": "P3",
+      "category": "HTTP & REST Semantics",
+      "module": "Auth Controller & Route",
+      "status": "RESOLVED",
+      "endpointIds": ["EP-006"],
+      "affectedRoutes": ["POST /api/v1/auth/device"],
+      "files": [
+        {
+          "path": "apps/api/src/controllers/authController.ts",
+          "symbol": "deviceLoginHandler",
+          "lines": "16"
+        },
+        {
+          "path": "apps/api/src/routes/auth.ts",
+          "symbol": "deviceLoginSchema (min 1 char anonymousId)",
+          "lines": "12"
+        }
+      ],
+      "reproRequest": {
+        "method": "POST",
+        "path": "/api/v1/auth/device",
+        "body": { "anonymousId": "regress-dev-<existing>" }
+      },
+      "expectedBehavior": "First device registration returns 201 Created; subsequent sign-ins for an already existing anonymousId return 200 OK.",
+      "actualBehavior": "Second sign-in for the same anonymousId returned 201 Created instead of 200 (201 !== 200).",
+      "rootCause": "authController.ts:16 hardcodes status 201 without distinguishing newly created users from existing logins returned by authService.",
+      "recommendedFix": "Have authService return { ..., isNewUser: boolean } so authController sends 201 only when created and 200 on repeat sign-in (and align minimum anonymousId length policy intentionally).",
+      "regressionTestFile": "apps/api/tests/regression/01-confirmed-defects-regression.test.ts",
+      "regressionTestName": "[BACKEND-008] Repeat sign-in on POST /api/v1/auth/device for existing anonymousId should return 200 OK instead of 201 Created",
+      "acceptanceCriteria": [
+        "First POST /api/v1/auth/device returns 201.",
+        "Second POST /api/v1/auth/device for the same anonymousId returns 200."
+      ]
+    },
+    {
+      "id": "BACKEND-009",
+      "title": "API contract & type inconsistencies (string distanceMeters, clamped /admin/logs, raw JSON / & /media/webhook)",
+      "severity": "Low",
+      "priority": "P3",
+      "category": "API Contract & Serialization Consistency",
+      "module": "Safe Zones, Admin, Media Webhook, Root & Health Routes",
+      "status": "RESOLVED",
+      "endpointIds": ["EP-001", "EP-002", "EP-003", "EP-004", "EP-005", "EP-020", "EP-031", "EP-038", "EP-039"],
+      "affectedRoutes": [
+        "GET /api/v1/safe-zones",
+        "GET /api/v1/admin/logs",
+        "GET /api/v1/admin/analytics/trends",
+        "POST /api/v1/media/webhook",
+        "GET /",
+        "GET /health",
+        "GET /health/db"
+      ],
+      "files": [
+        {
+          "path": "apps/api/src/services/safeZoneService.ts",
+          "symbol": "getSafeZones (ROUND(...::numeric, 1) as \"distanceMeters\")",
+          "lines": "207"
+        },
+        {
+          "path": "apps/api/src/services/adminService.ts",
+          "symbol": "getModerationLogs",
+          "lines": "178-179"
+        },
+        {
+          "path": "apps/api/src/controllers/mediaController.ts",
+          "symbol": "handleStorageWebhook",
+          "lines": "199"
+        },
+        {
+          "path": "apps/api/src/app.ts",
+          "symbol": "root route handler",
+          "lines": "48"
+        },
+        {
+          "path": "apps/api/src/routes/health.ts",
+          "symbol": "healthCheck / dbHealthCheck",
+          "lines": "8-22"
+        }
+      ],
+      "reproRequest": {
+        "method": "GET",
+        "path": "/api/v1/safe-zones?lat=23.75&lng=90.38&radius=5000"
+      },
+      "expectedBehavior": "Radial /safe-zones returns numeric distanceMeters ('number'), /admin/logs rejects invalid/out-of-range limit>100 with 400 instead of silent clamping, and JSON responses consistently use the { success, data } envelope.",
+      "actualBehavior": "Radial GET /api/v1/safe-zones returned typeof distanceMeters === 'string' ('string' !== 'number'); GET /api/v1/admin/logs?limit=101 silently clamps rather than returning 400; POST /api/v1/media/webhook returns { received: true } without { success, data }.",
+      "rootCause": "Postgres numeric type from ROUND(...::numeric, 1) serializes as string in Node/Prisma; adminService clamps limit silently; mediaController and health/root handlers emit ad-hoc JSON objects.",
+      "recommendedFix": "Cast distanceMeters to FLOAT/Number in safeZoneService.ts:207, validate /admin/logs page/limit bounds with Zod, and standardize success envelopes across endpoints (coordinating any breaking frontend/cron consumer updates).",
+      "regressionTestFile": "apps/api/tests/regression/01-confirmed-defects-regression.test.ts",
+      "regressionTestName": "[BACKEND-009] API contract consistency: /media/webhook uses {success,data}, /admin/logs rejects limit>100, and /safe-zones distanceMeters is a number",
+      "acceptanceCriteria": [
+        "typeof zone.distanceMeters === 'number'.",
+        "GET /api/v1/admin/logs?limit=101 returns 400.",
+        "POST /api/v1/media/webhook returns { success: true, data: ... }."
+      ]
+    },
+    {
+      "id": "BACKEND-010",
+      "title": "Admin KYC rejection writes identical ModerationLog.action ('VERIFY_USER') + duplicate /users/verify/:id/approve route",
+      "severity": "Low",
+      "priority": "P3",
+      "category": "Audit Integrity & Route Maintainability",
+      "module": "User Verification & Admin Routes",
+      "status": "RESOLVED",
+      "endpointIds": ["EP-012", "EP-034"],
+      "affectedRoutes": [
+        "POST /api/v1/admin/verifications/:id/reject",
+        "POST /api/v1/users/verify/:id/approve"
+      ],
+      "files": [
+        {
+          "path": "apps/api/src/services/userService.ts",
+          "symbol": "rejectVerification",
+          "lines": "207-214"
+        },
+        {
+          "path": "apps/api/src/routes/users.ts",
+          "symbol": "legacy approve route",
+          "lines": "43"
+        },
+        {
+          "path": "apps/api/src/routes/admin.ts",
+          "symbol": "canonical approve/reject routes",
+          "lines": "55-56"
+        }
+      ],
+      "reproRequest": {
+        "method": "POST",
+        "path": "/api/v1/admin/verifications/<VERIFICATION_UUID>/reject",
+        "headers": { "Authorization": "Bearer <ADMIN_REDACTED>" },
+        "body": { "reason": "Audit distinct ModerationLog action check" }
+      },
+      "expectedBehavior": "Rejecting KYC must record a distinct ModerationAction enum value (e.g., REJECT_VERIFICATION) rather than sharing VERIFY_USER with approvals, and verification approval should use one canonical validated route.",
+      "actualBehavior": "Rejected KYC inserts ModerationLog row with action === 'VERIFY_USER' identically to approvals, and both /users/verify/:id/approve and /admin/verifications/:id/approve coexist with mismatched shapes.",
+      "rootCause": "ModerationAction enum lacked a rejection variant when rejectVerification was added, reusing VERIFY_USER with a reason prefix; legacy /users/verify/:id/approve was left mounted.",
+      "recommendedFix": "Add REJECT_VERIFICATION (or distinct ModerationAction) via additive Prisma migration in rejectVerification, and deprecate/align /users/verify/:id/approve with UUID validation.",
+      "regressionTestFile": "apps/api/tests/regression/01-confirmed-defects-regression.test.ts",
+      "regressionTestName": "[BACKEND-010] Admin verification rejection must record a distinct rejection ModerationLog.action instead of VERIFY_USER",
+      "acceptanceCriteria": [
+        "ModerationLog created by rejectVerification uses a distinct rejection action rather than VERIFY_USER.",
+        "Approval endpoint behavior and UUID validation are consistent."
+      ]
+    },
+    {
+      "id": "BACKEND-011",
+      "title": "POST /api/v1/reports and POST /api/v1/reports/:id/vote expose reporter userId PII in JSON responses",
+      "severity": "High",
+      "priority": "P1",
+      "category": "Privacy & Excessive Data Exposure (OWASP API3)",
+      "module": "Reports & Votes Services",
+      "status": "RESOLVED",
+      "endpointIds": ["EP-013", "EP-017"],
+      "affectedRoutes": [
+        "POST /api/v1/reports",
+        "POST /api/v1/reports/:id/vote"
+      ],
+      "files": [
+        {
+          "path": "apps/api/src/services/reportService.ts",
+          "symbol": "createReport (returns { ...report, ... })",
+          "lines": "182-187"
+        },
+        {
+          "path": "apps/api/src/services/voteService.ts",
+          "symbol": "castVote (returns raw prisma.report.update result)",
+          "lines": "105"
+        },
+        {
+          "path": "apps/api/src/controllers/voteController.ts",
+          "symbol": "voteOnReport",
+          "lines": "13"
+        }
+      ],
+      "reproRequest": {
+        "method": "POST",
+        "path": "/api/v1/reports/<REPORT_UUID>/vote",
+        "headers": { "Authorization": "Bearer <ANY_VOTER_REDACTED>" },
+        "body": { "voteType": 1 }
+      },
+      "expectedBehavior": "Report creation and voting responses must strip userId (matching sanitizeReportOutput in GET /reports and GET /reports/:id) so anonymous reporters cannot be correlated by other authenticated users.",
+      "actualBehavior": "Both POST /api/v1/reports and POST /api/v1/reports/:id/vote return raw Prisma Report records containing userId ('userId' in response === true, breaking assertion true !== false). Any authenticated voter can harvest another reporter's account UUID.",
+      "rootCause": "reportService.ts:182-187 spreads the raw Prisma report record and voteService.ts:105 returns raw result from prisma.report.update without passing through PII sanitization.",
+      "recommendedFix": "Run return payloads of createReport and castVote through sanitizeReportOutput / explicit DTO projection omitting userId (attaching only isOwner/fuzzed coords where appropriate).",
+      "regressionTestFile": "apps/api/tests/regression/01-confirmed-defects-regression.test.ts",
+      "regressionTestName": "[BACKEND-011] POST /api/v1/reports and POST /api/v1/reports/:id/vote must NOT expose reporter userId PII in response JSON",
+      "acceptanceCriteria": [
+        "'userId' property is absent from POST /api/v1/reports response data.",
+        "'userId' property is absent from POST /api/v1/reports/:id/vote response data."
+      ]
+    },
+    {
+      "id": "BACKEND-012",
+      "title": "GET /api/v1/reports accepts inverted bounding boxes (minLng > maxLng / minLat > maxLat) with 200 OK",
+      "severity": "Medium",
+      "priority": "P2",
+      "category": "Input Validation / Spatial Query Contract",
+      "module": "Reports Query Validation",
+      "status": "RESOLVED",
+      "endpointIds": ["EP-014"],
+      "affectedRoutes": ["GET /api/v1/reports"],
+      "files": [
+        {
+          "path": "apps/api/src/routes/reports.ts",
+          "symbol": "boundsSchema",
+          "lines": "53-63"
+        }
+      ],
+      "reproRequest": {
+        "method": "GET",
+        "path": "/api/v1/reports?minLng=90.5&minLat=23.7&maxLng=90.3&maxLat=23.8"
+      },
+      "expectedBehavior": "Inverted or invalid viewport bounds (minLng >= maxLng or minLat >= maxLat) and malformed numeric prefixes like '90.3abc' must be rejected with 400 Bad Request.",
+      "actualBehavior": "GET /api/v1/reports with minLng=90.5 and maxLng=90.3 returned 200 OK instead of 400 (200 !== 400).",
+      "rootCause": "boundsSchema at reports.ts:53-63 only checks !isNaN(parseFloat(val)) per individual field with no numeric range check, regex strictness, or .refine(minLng < maxLng && minLat < maxLat).",
+      "recommendedFix": "Validate strict finite numbers in geographic range and enforce minLng < maxLng and minLat < maxLat via Zod .superRefine/.refine in boundsSchema.",
+      "regressionTestFile": "apps/api/tests/regression/01-confirmed-defects-regression.test.ts",
+      "regressionTestName": "[BACKEND-012] GET /api/v1/reports must reject inverted bounds (minLng >= maxLng or minLat >= maxLat) with 400",
+      "acceptanceCriteria": [
+        "GET /api/v1/reports with minLng >= maxLng or minLat >= maxLat returns 400 Bad Request."
+      ]
+    },
+    {
+      "id": "BACKEND-013",
+      "title": "POST /api/v1/admin/users/:id/ban allows banning peer ADMINs and self-banning",
+      "severity": "High",
+      "priority": "P1",
+      "category": "Broken Function Level Authorization & Availability",
+      "module": "Admin Moderation Service",
+      "status": "RESOLVED",
+      "endpointIds": ["EP-035"],
+      "affectedRoutes": ["POST /api/v1/admin/users/:id/ban"],
+      "files": [
+        {
+          "path": "apps/api/src/services/adminService.ts",
+          "symbol": "banUser",
+          "lines": "28-73"
+        }
+      ],
+      "reproRequest": {
+        "method": "POST",
+        "path": "/api/v1/admin/users/<PEER_ADMIN_UUID>/ban",
+        "headers": { "Authorization": "Bearer <ADMIN1_REDACTED>" },
+        "body": { "reason": "Regression check: peer admin ban safeguard" }
+      },
+      "expectedBehavior": "Banning another ADMIN account or the caller's own account must be rejected with 403 Forbidden to prevent privilege sabotage and accidental admin lockout.",
+      "actualBehavior": "Admin 1 successfully banned Admin 2 (HTTP 200 OK instead of 403, revoking Admin 2's refresh tokens) and can ban themselves (200 !== 403).",
+      "rootCause": "banUser in adminService.ts:28-73 only checks !targetUser (404) and targetUser.isBanned (400), lacking role === 'ADMIN' and targetUser.id === adminId guards.",
+      "recommendedFix": "In adminService.ts banUser, reject with statusCode = 403 when targetUser.id === adminId or targetUser.role === 'ADMIN'.",
+      "regressionTestFile": "apps/api/tests/regression/01-confirmed-defects-regression.test.ts",
+      "regressionTestName": "[BACKEND-013] POST /api/v1/admin/users/:id/ban must forbid self-banning and peer-ADMIN suspension (403)",
+      "acceptanceCriteria": [
+        "POST /api/v1/admin/users/:id/ban returns 403 when target is self or another ADMIN.",
+        "Non-admin USER/VERIFIED_RESPONDER targets remain bannable (200)."
+      ]
+    },
+    {
+      "id": "BACKEND-014",
+      "title": "POST /api/v1/alerts/zones persists topologically invalid self-intersecting bowtie polygons",
+      "severity": "Medium",
+      "priority": "P2",
+      "category": "Spatial Data Integrity (PostGIS)",
+      "module": "Alert Zone Service",
+      "status": "RESOLVED",
+      "endpointIds": ["EP-024"],
+      "affectedRoutes": ["POST /api/v1/alerts/zones"],
+      "files": [
+        {
+          "path": "apps/api/src/services/alertZoneService.ts",
+          "symbol": "createAlertZone",
+          "lines": "49-100"
+        }
+      ],
+      "reproRequest": {
+        "method": "POST",
+        "path": "/api/v1/alerts/zones",
+        "headers": { "Authorization": "Bearer <USER_REDACTED>" },
+        "body": {
+          "name": "Regression Bowtie Polygon",
+          "coordinates": "BOWTIE_SELF_INTERSECTING_POLYGON (figure-eight 5-vertex closed ring)"
+        }
+      },
+      "expectedBehavior": "Topologically invalid self-intersecting polygons must be rejected with 400 Bad Request via PostGIS ST_IsValid before insertion.",
+      "actualBehavior": "POST /api/v1/alerts/zones returned 201 Created and persisted the self-intersecting polygon into PostGIS (201 !== 400).",
+      "rootCause": "createAlertZone in alertZoneService.ts:49-100 verifies ring closure, zone count limit, and ST_Area <= 25 km², but omits ST_IsValid(ST_GeomFromText(..., 4326)).",
+      "recommendedFix": "Query ST_IsValid(ST_GeomFromText(wkt, 4326)) (and ST_IsSimple if needed) inside createAlertZone before inserting, throwing a 400 error if invalid.",
+      "regressionTestFile": "apps/api/tests/regression/01-confirmed-defects-regression.test.ts",
+      "regressionTestName": "[BACKEND-014] POST /api/v1/alerts/zones must reject topologically invalid self-intersecting polygons (ST_IsValid) with 400",
+      "acceptanceCriteria": [
+        "Self-intersecting bowtie polygons fail with 400 Bad Request and are not persisted in UserAlertZone.",
+        "Valid convex/concave non-self-intersecting closed polygons within 25 km² continue to succeed with 201."
+      ]
+    }
+  ]
+}

@@ -1,10 +1,33 @@
-# BD Safety Map — Backend API Documentation
+# DangerZoneBD Backend API & Socket.IO Reference
 
-Welcome to the official backend API documentation for **BD Safety Map** (`apps/api`). This document details all HTTP endpoints, query parameters, payload schemas, authentication guards, role-based access rules, and WebSocket real-time events.
+Complete reference for the DangerZoneBD Express REST API (`/api/v1`), Socket.IO real-time gateway, and automated background workers.
 
 ---
 
-## 1. Environment & Base URLs
+## Table of Contents
+
+1. [Overview, Envelopes & Global Middleware](#1-overview-envelopes--global-middleware)
+2. [Authentication, Security & Domain Rules](#2-authentication-security--domain-rules)
+3. [REST API Endpoints (43 Express + 3 Next.js Proxy Routes)](#3-rest-api-endpoints)
+   - [3.1 System & Health](#31-system--health)
+   - [3.2 Authentication (`/api/v1/auth`)](#32-authentication-apiv1auth)
+   - [3.3 Users & Verification (`/api/v1/users`)](#33-users--verification-apiv1users)
+   - [3.4 Crime & Hazard Reports (`/api/v1/reports`)](#34-crime--hazard-reports-apiv1reports)
+   - [3.5 Verified Safe Zones (`/api/v1/safe-zones`)](#35-verified-safe-zones-apiv1safe-zones)
+   - [3.6 Safe-Path Routing (`/api/v1/routes`)](#36-safe-path-routing-apiv1routes)
+   - [3.7 Geofenced Alerts (`/api/v1/alerts`)](#37-geofenced-alerts-apiv1alerts)
+   - [3.8 Media & Privacy Auto-Blurring (`/api/v1/media`)](#38-media--privacy-auto-blurring-apiv1media)
+   - [3.9 Admin Moderation & Analytics (`/api/v1/admin`)](#39-admin-moderation--analytics-apiv1admin)
+   - [3.10 Platform Statistics (`/api/v1/stats`)](#310-platform-statistics-apiv1stats)
+   - [3.11 Cron Triggers (`/api/v1/cron`)](#311-cron-triggers-apiv1cron)
+   - [3.12 Next.js App Router API Proxies (`apps/web/app/api`)](#312-nextjs-app-router-api-proxies-appswebappapi)
+4. [Real-Time WebSocket Gateway (Socket.IO)](#4-real-time-websocket-gateway-socketio)
+5. [Automated Background Workers & Cron Jobs](#5-automated-background-workers--cron-jobs)
+6. [Complete Endpoints Summary Table](#6-complete-endpoints-summary-table)
+
+---
+
+## 1. Overview, Envelopes & Global Middleware
 
 | Environment | Base URL | WebSocket URL |
 | :--- | :--- | :--- |
@@ -12,152 +35,16 @@ Welcome to the official backend API documentation for **BD Safety Map** (`apps/a
 | **Production (Render)** | `https://danger-zone-bd.onrender.com/api/v1` | `wss://danger-zone-bd.onrender.com` |
 | **Production Frontend (Vercel)** | `https://danger-zone-bd-snowy.vercel.app` | — |
 
-> **Note on Root Endpoints:**
-> - `GET /`: API welcome banner & directory.
-> - `GET /health` and `GET /api/v1/health`: API status ping.
-> - `GET /health/db` and `GET /api/v1/health/db`: Database connectivity verification.
+- **Base URL**: `/api/v1` (plus root metadata `GET /`, `/health`, and `/health/db`)
+- **Global Express Middleware** (`apps/api/src/app.ts`):
+  - `helmet()`
+  - `cors({ origin, credentials: true })` driven by `CORS_ORIGIN`
+  - `morgan('dev')`
+  - `express.json()` and `express.urlencoded({ extended: true })`
+  - `cookieParser()`
 
----
+### Standard Success Envelope
 
-## 2. Global Standards & Authentication Model
-
-### 2.1 Standard Response Envelope
-All API endpoints return JSON following the standard `ApiResponse<T>` contract:
-
-```typescript
-// Success Response
-{
-  "success": true,
-  "data": { ... },
-  "message": "Optional success message"
-}
-
-// Error Response
-{
-  "success": false,
-  "error": {
-    "code": "ERROR_CODE",
-    "message": "Human-readable explanation of error",
-    "details": [] // Optional field validation errors
-  }
-}
-```
-
-### 2.2 Authentication & Cookies
-Authentication uses short-lived JWT access tokens and persistent refresh tokens stored in secure, `HttpOnly` cookies:
-- `accessToken` (Expires: 15 minutes, `HttpOnly`, `SameSite=Strict`, `Secure` in production)
-- `refreshToken` (Expires: 7 days, `HttpOnly`, `SameSite=Strict`, `Secure` in production)
-
-### 2.3 Optional Hardware GPS Headers (`POST /api/v1/reports`)
-- **Incident Reporting (`POST /api/v1/reports`)**:
-  - `x-device-lat` *(optional, paired with `x-device-lng`)*: Latitude string of client device GPS (e.g. `"23.8103"`).
-  - `x-device-lng` *(optional, paired with `x-device-lat`)*: Longitude string of client device GPS (e.g. `"90.4125"`).
-  - `x-device-accuracy` *(optional)*: Browser `coords.accuracy` in meters (e.g. `"18"`).
-  - `x-gps-source` *(optional)*: `"hardware"` | `"manual"`.
-  - *Enforcement*: When device coordinates are supplied, the server enforces a PostGIS distance check (`<= 200 meters`). Reports are flagged `isGpsVerified: true` strictly when hardware GPS passes `<= 200m` proximity with `x-device-accuracy <= 250`; manual pin or coarse GPS submissions are stored with `isGpsVerified: false`.
-  - *Rate Limiting*: 1 incident report per 15 minutes per authenticated user.
-
-### 2.4 User Roles & Permissions
-- `CITIZEN`: Default anonymous device user. Can view reports, submit incidents within 200m, upvote/downvote (1 per report), and post context updates.
-- `VERIFIED_RESPONDER`: Verified via Phone OTP or NID document. High trust score (`80+`), verified badge on posts.
-- `ADMIN`: Full moderation privileges. Can purge reports, ban/unban users, approve/reject verifications, create safe zones, view audit logs, and trigger manual news crawlers.
-
----
-
-## 3. API Endpoints Catalog
-
-### 3.1 System & Health
-
-#### `GET /`
-- **Description**: API Welcome banner, status, and endpoint directory index.
-- **Auth**: Public
-- **Response `200 OK`**:
-```json
-{
-  "name": "BD Safety Map API",
-  "status": "online",
-  "version": "1.0.0",
-  "endpoints": { ... }
-}
-```
-
-#### `GET /health` & `GET /api/v1/health`
-- **Description**: Liveness health check for load balancers and orchestrators.
-- **Auth**: Public
-- **Response `200 OK`**:
-```json
-{
-  "success": true,
-  "message": "API is running"
-}
-```
-
-#### `GET /health/db` & `GET /api/v1/health/db`
-- **Description**: Readiness health check verifying PostgreSQL / PostGIS database connectivity via `SELECT 1`.
-- **Auth**: Public
-- **Response `200 OK`**:
-```json
-{
-  "success": true,
-  "message": "Database connection successful"
-}
-```
-- **Error `503 Service Unavailable`**:
-```json
-{
-  "success": false,
-  "error": {
-    "code": "DB_ERROR",
-    "message": "Database connection failed"
-  }
-}
-```
-
----
-
-### 3.2 Authentication (`/api/v1/auth`)
-
-#### `POST /api/v1/auth/device`
-- **Description**: Transparent anonymous device registration & login. Generates or fetches user by unique hardware/client UUID and sets `accessToken` & `refreshToken` cookies.
-- **Auth**: Public
-- **Request Body**:
-```json
-{
-  "anonymousId": "c8d4f45a-9f44-4f27-9c60-a29d5b7a1e09",
-  "email": "user@example.com" // Optional (required for admin login)
-}
-```
-- **Response `201 Created`**:
-```json
-{
-  "success": true,
-  "data": {
-    "user": {
-      "id": "b3e61c56-3472-4cfd-92a1-fa1e466c1b33",
-      "role": "CITIZEN" // or "ADMIN" / "VERIFIED_RESPONDER"
-    },
-    "socketToken": "<15m scoped Socket.IO JWT>"
-  }
-}
-```
-
-#### `POST /api/v1/auth/refresh`
-- **Description**: Refreshes expired `accessToken` using the valid `refreshToken` HttpOnly cookie and returns a fresh scoped `socketToken`.
-- **Auth**: Public (Requires `refreshToken` cookie)
-- **Response `200 OK`**:
-```json
-{
-  "success": true,
-  "data": {
-    "socketToken": "<15m scoped Socket.IO JWT>"
-  }
-}
-```
-
-#### `POST /api/v1/auth/logout`
-- **Description**: Revokes the active refresh token in the database and clears both `accessToken` and `refreshToken` cookies.
-- **Auth**: Protected (`requireAuth`)
-- **Response `200 OK`**:
 ```json
 {
   "success": true,
@@ -165,842 +52,1035 @@ Authentication uses short-lived JWT access tokens and persistent refresh tokens 
 }
 ```
 
+### Standard Error Envelope
+
+Standard Express handlers and Zod `validateRequest` return:
+
+```json
+{
+  "success": false,
+  "error": {
+    "message": "Human-readable error description"
+  }
+}
+```
+
+*(Specialized error responses also include an `error.code`: `429 RATE_LIMIT_EXCEEDED`, `415 UNSUPPORTED_MEDIA_TYPE` on `/api/v1/media`, and `503 DB_ERROR` on `/health/db`.)*
+
+### Rate Limit Error (`429 Too Many Requests`)
+
+```json
+{
+  "success": false,
+  "error": {
+    "code": "RATE_LIMIT_EXCEEDED",
+    "message": "Rate limit exceeded. Too many requests from this IP. Please try again in 420 seconds.",
+    "retryAfterSeconds": 420
+  }
+}
+```
+
 ---
 
-### 3.3 User Profile & Citizen Verification (`/api/v1/users`)
+## 2. Authentication, Security & Domain Rules
+
+### 2.1 Token Architecture
+
+- **`accessToken`** (`15m` expiry, `tokenUse: 'access'`): Issued in an `HttpOnly` cookie and accepted by REST middleware (`requireAuth`, `optionalAuth`) via either `req.cookies.accessToken` or the `Authorization: Bearer <token>` request header.
+- **`refreshToken`** (`7d` expiry): Issued in an `HttpOnly` cookie and stored in PostgreSQL (`RefreshToken`) so sessions can be revoked atomically (e.g., on logout or admin ban).
+- **`socketToken`** (`15m` expiry, `tokenUse: 'socket'`): Returned in the JSON response body of `POST /api/v1/auth/device`, `POST /api/v1/auth/login`, and `POST /api/v1/auth/refresh` for cross-origin Socket.IO handshakes (`auth: { token: socketToken }`). `socketToken` is accepted by Socket.IO (`allowSocketToken: true`) and rejected on REST API `requireAuth` routes (`tokenUse !== 'access'`).
+- **Live Account Validation**: `verifyActiveAccessToken` queries PostgreSQL on every protected request so suspended (`isBanned: true` -> `403`) or deleted (`401`) accounts are rejected immediately.
+
+### 2.2 Cookie Flags
+
+Both `accessToken` and `refreshToken` cookies are set with:
+
+- `httpOnly: true`
+- `secure: env.NODE_ENV === 'production'`
+- `sameSite: 'lax'`
+- `maxAge`: `900000` (15 minutes) for `accessToken`; `604800000` (7 days) for `refreshToken`
+
+### 2.3 Privacy-by-Design & Spatial / Media Handling
+
+- **Exact Coordinates with Privacy Ring Hint (`spatialUtils.getFuzzedCoordinates`)**: Reports preserve exact coordinates rounded to 6 decimal places (`0` positional offset) and return `fuzzedRadiusMeters: 150` as a visual uncertainty/privacy ring radius.
+- **PII Stripping**: Public report queries and Socket.IO broadcasts omit `userId`, IP addresses, and device fingerprints. `isOwner` is returned as a boolean only when `GET /api/v1/reports/:id` or `PATCH /api/v1/reports/:id/resolve` matches the authenticated viewer.
+- **Media Redaction (`ReportMedia`)**: Public responses from media confirmation, mock upload, and report detail endpoints strip `originalUrl` and expose only `blurredUrl`.
+
+### 2.4 Role-Based Access Control (`RBAC`)
+
+Prisma `Role` enum values enforced by `requireRole([...])`:
+
+| Role | Description |
+| :--- | :--- |
+| `USER` | Default role for anonymous/device accounts. Subject to the 15-minute cooldown between citizen report submissions. |
+| `VERIFIED_RESPONDER` | Citizens promoted after KYC approval (`PHONE_OTP` or `NID_DOCUMENT`). Can attach media and resolve reports; exempt from the 15-minute citizen report cooldown. |
+| `ADMIN` | Full moderation, safe-zone management, analytics, news crawler trigger, and verification approval/rejection privileges. KYC approval preserves `ADMIN` role if the account is already `ADMIN`. |
+
+### 2.5 Rate Limiting
+
+| Limiter | Applied To | Limit |
+| :--- | :--- | :--- |
+| `authLoginRateLimiter` | `POST /api/v1/auth/login` | Max **10** requests per **15 minutes** per IP |
+| `authDeviceRateLimiter` | `POST /api/v1/auth/device` | Max **20** requests per **15 minutes** per IP |
+| `authRefreshRateLimiter` | `POST /api/v1/auth/refresh` | Max **30** requests per **15 minutes** per IP |
+| `reportCreationRateLimiter` | `POST /api/v1/reports` | Max **5** requests per **1 hour** per IP (+ 15-minute DB cooldown for `USER` accounts) |
+| `reportVoteRateLimiter` | `POST /api/v1/reports/:id/vote` | Max **60** requests per **15 minutes** per IP |
+| `reportUpdateRateLimiter` | `POST /api/v1/reports/:id/updates` | Max **20** requests per **15 minutes** per IP |
+| `userVerifyRateLimiter` | `POST /api/v1/users/verify` | Max **10** requests per **15 minutes** per IP |
+| `safeRouteRateLimiter` | `POST /api/v1/routes/safe-path` | Max **120** requests per **1 minute** per IP |
+| `cronNewsCrawlRateLimiter` | `GET` & `POST /api/v1/cron/news-crawl` | Max **2** requests per **10 minutes** per IP (runs *after* `verifyCronSecret`) |
+
+### 2.6 Shared Domain Enums
+
+- **`ReportCategory`**: `THEFT`, `ROBBERY`, `THEFT_ROBBERY`, `SNATCHING`, `ARMED_ASSAULT`, `SNATCHING_ARMED_ASSAULT`, `EXTORTION`, `YOUTH_GANG_ACTIVITY`, `DRUG_RELATED_CRIME`, `UNLIT_ROAD`, `ROAD_ACCIDENT`, `MUGGING`, `DACOITY`, `THEFT_DACOITY`, `TEEN_GANG`, `TEEN_GANG_ARMED_ASSAULT`, `DRUG_ACTIVITY`
+- **`ReportSeverity`**: `LOW`, `MEDIUM`, `HIGH`
+- **`ReportStatus`**: `ACTIVE`, `RESOLVED`, `PURGED`
+- **`SafeZoneType`**: `HOSPITAL`, `POLICE_BOX`, `PHARMACY`
+- **`VerificationType`**: `PHONE_OTP`, `NID_DOCUMENT`
+- **`ModerationAction`**: `BAN_USER`, `UNBAN_USER`, `PURGE_REPORT`, `VERIFY_USER`, `REJECT_VERIFICATION`
+
+---
+
+## 3. REST API Endpoints
+
+### 3.1 System & Health
+
+#### `GET /`
+
+- **Auth**: Public
+- **Response (`200 OK`)**: Standard `{ success, data }` envelope containing API identity metadata:
+  ```json
+  {
+    "success": true,
+    "data": {
+      "name": "BD Safety Map API",
+      "status": "online",
+      "version": "1.0.0",
+      "endpoints": {
+        "health": "/health",
+        "dbHealth": "/health/db",
+        "stats": "/api/v1/stats",
+        "reports": "/api/v1/reports",
+        "safeZones": "/api/v1/safe-zones",
+        "safeRouting": "/api/v1/routes/safe-path",
+        "auth": "/api/v1/auth",
+        "media": "/api/v1/media",
+        "alerts": "/api/v1/alerts",
+        "admin": "/api/v1/admin",
+        "cron": "/api/v1/cron/news-crawl"
+      }
+    }
+  }
+  ```
+
+#### `GET /health` & `GET /api/v1/health`
+
+- **Auth**: Public
+- **Response (`200 OK`)**:
+  ```json
+  {
+    "success": true,
+    "message": "API is running",
+    "data": {
+      "status": "UP",
+      "message": "API is running"
+    }
+  }
+  ```
+
+#### `GET /health/db` & `GET /api/v1/health/db`
+
+- **Auth**: Public
+- **Response (`200 OK`)**:
+  ```json
+  {
+    "success": true,
+    "message": "Database connection successful",
+    "data": {
+      "status": "UP",
+      "database": "connected",
+      "message": "Database connection successful"
+    }
+  }
+  ```
+- **Error (`503 Service Unavailable`)**:
+  ```json
+  {
+    "success": false,
+    "error": {
+      "code": "DB_ERROR",
+      "message": "Database connection failed"
+    }
+  }
+  ```
+
+---
+
+### 3.2 Authentication (`/api/v1/auth`)
+
+#### `POST /api/v1/auth/device`
+
+Registers or authenticates an anonymous `USER` device session. Protected by `authDeviceRateLimiter` (20 attempts / 15 min per IP). Strictly blocks privileged (`ADMIN` / `VERIFIED_RESPONDER`), password-backed (`passwordHash != null`), or suspended accounts with `403`.
+
+- **Auth**: Public
+- **Request Body**:
+  ```json
+  {
+    "anonymousId": "dev-fp-a1b2c3d4",
+    "email": "citizen@example.com"
+  }
+  ```
+  *(Note: `email` is optional; defaults to `<anonymousId>@anonymous.local` on new device creation.)*
+- **Side Effects**: Sets `accessToken` and `refreshToken` `HttpOnly` cookies (`sameSite: 'lax'`).
+- **Response (`201 Created` on initial device registration, `200 OK` on repeat sign-in)**:
+  ```json
+  {
+    "success": true,
+    "data": {
+      "user": {
+        "id": "uuid",
+        "role": "USER"
+      },
+      "socketToken": "<jwt-socket-token>"
+    }
+  }
+  ```
+- **Errors**: `403` if account is privileged/password-protected or suspended (also clears auth cookies when suspended); `429` when rate-limited.
+
+#### `POST /api/v1/auth/login`
+
+Password authentication endpoint for `ADMIN` and password-protected accounts. Protected by `authLoginRateLimiter` (10 attempts / 15 min per IP).
+
+- **Auth**: Public
+- **Request Body**:
+  ```json
+  {
+    "email": "admin@safety.bd",
+    "password": "StrongPassword123"
+  }
+  ```
+- **Side Effects**: Sets `accessToken` and `refreshToken` `HttpOnly` cookies (`sameSite: 'lax'`). `refreshToken` is never exposed in the JSON body.
+- **Response (`200 OK`)**:
+  ```json
+  {
+    "success": true,
+    "data": {
+      "user": {
+        "id": "uuid",
+        "email": "admin@safety.bd",
+        "role": "ADMIN",
+        "isVerified": true,
+        "trustScore": 100
+      },
+      "accessToken": "<jwt-access-token>",
+      "socketToken": "<jwt-socket-token>"
+    }
+  }
+  ```
+- **Errors**: `401` on invalid credentials or suspended account; `429` when rate-limited.
+
+#### `POST /api/v1/auth/refresh`
+
+Single-use session refresh endpoint protected by `authRefreshRateLimiter` (30 requests / 15 min per IP). Atomically revokes the consumed `RefreshToken` record in PostgreSQL, issues a rotated `refreshToken` + `accessToken` `HttpOnly` cookie pair, and returns a fresh `socketToken`. Replaying a revoked refresh token returns `401`.
+
+- **Auth**: `refreshToken` HttpOnly cookie
+- **Response (`200 OK`)**:
+  ```json
+  {
+    "success": true,
+    "data": {
+      "socketToken": "<jwt-socket-token>"
+    }
+  }
+  ```
+- **Errors**: `401` if cookie is missing, token is revoked/expired/replayed, or account is missing/banned; `429` when rate-limited.
+
+#### `POST /api/v1/auth/logout`
+
+Revokes the current session's `refreshToken` in PostgreSQL (if cookie present) and clears `accessToken` and `refreshToken` cookies. Accepts valid or expired (signature-verified) `accessToken` sessions or a `refreshToken` cookie.
+
+- **Auth**: `optionalLogoutAuth` (`accessToken` or `refreshToken`)
+- **Response (`200 OK`)**:
+  ```json
+  {
+    "success": true,
+    "data": {}
+  }
+  ```
+
+---
+
+### 3.3 Users & Verification (`/api/v1/users`)
 
 #### `GET /api/v1/users/me`
-- **Description**: Retrieve the current authenticated user's profile, role, trust score, and verification status.
-- **Auth**: Protected (`requireAuth`)
-- **Response `200 OK`**:
-```json
-{
-  "success": true,
-  "data": {
-    "id": "b3e61c56-3472-4cfd-92a1-fa1e466c1b33",
-    "role": "CITIZEN",
-    "trustScore": 50,
-    "isVerified": false,
-    "isBanned": false,
-    "createdAt": "2026-10-25T12:00:00.000Z"
+
+Returns the currently authenticated user's profile, activity counts, and latest verification status.
+
+- **Auth**: `requireAuth`
+- **Response (`200 OK`)**:
+  ```json
+  {
+    "success": true,
+    "data": {
+      "id": "uuid",
+      "email": "citizen@example.com",
+      "role": "USER",
+      "isVerified": false,
+      "trustScore": 3,
+      "isBanned": false,
+      "createdAt": "2026-11-12T08:00:00.000Z",
+      "_count": {
+        "reports": 2,
+        "votes": 5,
+        "alertZones": 1
+      },
+      "verifications": [
+        {
+          "id": "uuid",
+          "type": "PHONE_OTP",
+          "status": "PENDING",
+          "phoneNumber": "+8801712345678",
+          "createdAt": "2026-11-12T08:15:00.000Z"
+        }
+      ]
+    }
   }
-}
-```
+  ```
 
 #### `POST /api/v1/users/verify`
-- **Description**: Submit a citizen KYC verification request (Phone OTP or National ID Document).
-- **Auth**: Protected (`requireAuth`)
-- **Request Body**:
-```json
-{
-  "type": "PHONE_OTP", // "PHONE_OTP" | "NID_DOCUMENT"
-  "documentUrl": "https://storage.supabase.co/..." // Optional URL if type is NID_DOCUMENT
-}
-```
-- **Response `201 Created`**:
-```json
-{
-  "success": true,
-  "data": {
-    "id": "d1a8e23f-...",
-    "userId": "b3e61c56-...",
+
+Submits a KYC verification request (`PHONE_OTP` or `NID_DOCUMENT`). Protected by `userVerifyRateLimiter` (10 requests / 15 min per IP). Suspended users (`403`) or users with an existing `PENDING` verification (`400`) are rejected.
+
+- **Auth**: `requireAuth`
+- **Request Body (`PHONE_OTP`)**:
+  ```json
+  {
     "type": "PHONE_OTP",
-    "status": "PENDING",
-    "createdAt": "2026-10-25T12:30:00.000Z"
+    "phoneNumber": "01712345678"
   }
-}
-```
+  ```
+  *(Requires a valid Bangladesh mobile number accepted by `BD_MOBILE_REGEX`; normalized via `normalizeBangladeshPhone`.)*
+- **Request Body (`NID_DOCUMENT`)**:
+  ```json
+  {
+    "type": "NID_DOCUMENT",
+    "documentUrl": "https://cdn.example.com/kyc/nid-front.jpg"
+  }
+  ```
+- **Response (`201 Created`)**: Returns the created `UserVerification` record.
 
 #### `POST /api/v1/users/verify/:id/approve`
-- **Description**: Approve a pending citizen verification request and promote the user to `VERIFIED_RESPONDER`.
-- **Auth**: Protected (`requireAuth`, `requireRole(['ADMIN'])`)
-- **URL Parameters**:
-  - `id`: UUID of the Verification record.
-- **Response `200 OK`**:
-```json
-{
-  "success": true,
-  "data": {
-    "userId": "b3e61c56-...",
-    "role": "VERIFIED_RESPONDER"
+
+*(Legacy compatibility alias for `POST /api/v1/admin/verifications/:id/approve`.)* Approves a pending verification request, sets `isVerified: true`, upgrades `USER` -> `VERIFIED_RESPONDER` (preserving `ADMIN` if already `ADMIN`), and writes an immutable `VERIFY_USER` entry in `ModerationLog`. Validates `:id` as UUID (`400`) and returns `404` if not found.
+
+- **Auth**: `requireAuth`, `requireRole(['ADMIN'])`
+- **Response (`200 OK`)**:
+  ```json
+  {
+    "success": true,
+    "data": {
+      "userId": "uuid",
+      "role": "VERIFIED_RESPONDER"
+    }
   }
-}
-```
+  ```
 
 ---
 
-### 3.4 Incident Reports & Community Moderation (`/api/v1/reports`)
+### 3.4 Crime & Hazard Reports (`/api/v1/reports`)
 
 #### `POST /api/v1/reports`
-- **Description**: Submit a new safety hazard incident report. When hardware GPS coordinates are provided (`x-device-lat`, `x-device-lng`), enforces a 200m PostGIS proximity check and marks `isGpsVerified: true` if `x-device-accuracy <= 250` and `x-gps-source` is not `"manual"`. Manual pin submissions omit these headers and persist `isGpsVerified: false`. Rate limit: 1 report per 15 minutes for standard citizens.
-- **Auth**: Protected (`requireAuth`)
-- **Optional Hardware GPS Headers**:
-  - `x-device-lat`: Client GPS latitude (e.g. `"23.7925"`, required if `x-device-lng` is provided)
-  - `x-device-lng`: Client GPS longitude (e.g. `"90.4078"`, required if `x-device-lat` is provided)
-  - `x-device-accuracy`: Client geolocation accuracy in meters (e.g. `"18"`, must be `<= 250` to earn `isGpsVerified: true`)
-  - `x-gps-source`: `"hardware"` | `"manual"`
-- **Request Body**:
-```json
-{
-  "category": "MUGGING", // "MUGGING" | "THEFT" | "UNLIT_ROAD" | "EXTORTION" | "DRUG_ACTIVITY"
-  "severity": "HIGH",    // "LOW" | "MEDIUM" | "HIGH"
-  "latitude": 23.7925,
-  "longitude": 90.4078,
-  "description": "Two individuals on a motorcycle snatching bags near Banani 11 bridge."
-}
-```
-- **Response `201 Created`**:
-```json
-{
-  "success": true,
-  "data": {
-    "id": "9a1b8c7d-...",
-    "category": "MUGGING",
+
+Creates a new citizen safety report, persists its PostGIS point, broadcasts `NEW_REPORT` and `STATS_UPDATED` via Socket.IO, and enqueues geofenced alert checks if `severity === 'HIGH'`.
+
+- **Auth**: `requireAuth`
+- **Rate Limit**: `reportCreationRateLimiter` (max 5/hour/IP) + 15-minute DB cooldown for `USER` role.
+- **Optional Device GPS Headers** (validated against `MAX_GPS_PROXIMITY_METERS = 200` and `MAX_HARDWARE_GPS_ACCURACY_METERS` when `x-device-lat` and `x-device-lng` are provided):
+  - `x-device-lat`, `x-device-lng`
+  - `x-device-accuracy`
+  - `x-gps-source`: `'hardware' | 'manual'` (`isGpsVerified` is `true` only when unmodified hardware GPS within accuracy threshold backs the check)
+- **Request Body** (`description` is trimmed and bounded to `1..1000` characters):
+  ```json
+  {
+    "category": "SNATCHING",
     "severity": "HIGH",
-    "isGpsVerified": true,
-    "latitude": 23.7925,
-    "longitude": 90.4078,
-    "description": "Two individuals on a motorcycle snatching bags near Banani 11 bridge.",
-    "status": "ACTIVE",
-    "upvotes": 0,
-    "downvotes": 0,
-    "expiresAt": "2026-10-25T18:00:00.000Z",
-    "createdAt": "2026-10-25T12:00:00.000Z"
+    "latitude": 23.7465,
+    "longitude": 90.376,
+    "description": "Two individuals snatched a phone near the bus stop."
   }
-}
-```
+  ```
+- **Response (`201 Created`)**: Returns the sanitized `Report` (reporter `userId` PII omitted) with `latitude`, `longitude`, and `fuzzedRadiusMeters: 150`.
+- **Errors**: `400` if coordinates fail proximity (>200m) or validation (`description` empty or > 1000 chars), `403` if suspended, `429` if IP or `USER` cooldown rate-limited.
 
 #### `GET /api/v1/reports`
-- **Description**: Query active safety reports within a geographic bounding box with deterministic coordinate fuzzing (approx. 50-100m for privacy).
+
+Queries active, non-expired reports inside a PostGIS map bounding box (`ST_MakeEnvelope`) with optional filters.
+
 - **Auth**: Public
 - **Query Parameters**:
-  - `minLng` *(required)*: Minimum longitude (e.g. `90.35`)
-  - `minLat` *(required)*: Minimum latitude (e.g. `23.70`)
-  - `maxLng` *(required)*: Maximum longitude (e.g. `90.45`)
-  - `maxLat` *(required)*: Maximum latitude (e.g. `23.85`)
-  - `category` *(optional)*: Filter by `MUGGING`, `THEFT`, `UNLIT_ROAD`, `EXTORTION`, `DRUG_ACTIVITY`
-  - `severity` *(optional)*: Filter by `LOW`, `MEDIUM`, `HIGH`
-  - `isNightReport` *(optional)*: `"true"` | `"false"`
-- **Response `200 OK`**:
-```json
-{
-  "success": true,
-  "data": [
-    {
-      "id": "9a1b8c7d-...",
-      "category": "MUGGING",
-      "severity": "HIGH",
-      "latitude": 23.7921, // Fuzzed coordinates for privacy
-      "longitude": 90.4082,
-      "description": "Two individuals on a motorcycle...",
-      "status": "ACTIVE",
-      "upvotes": 5,
-      "downvotes": 0,
-      "expiresAt": "2026-10-25T18:00:00.000Z",
-      "createdAt": "2026-10-25T12:00:00.000Z",
-      "sourceUrl": "https://www.thedailystar.net/...", // Present if verified from news
-      "sourceName": "The Daily Star"
-    }
-  ]
-}
-```
+  - `minLng`, `minLat`, `maxLng`, `maxLat` (required finite geographic bounds with `minLng < maxLng` and `minLat < maxLat`; `-180..180` / `-90..90`)
+  - `category` (optional `ReportCategory`)
+  - `severity` (optional `ReportSeverity`)
+  - `isNightReport` (optional `'true' | 'false'`)
+- **Response (`200 OK`)**: Array of sanitized active reports (no `userId`), each with `fuzzedRadiusMeters: 150`.
+- **Errors**: `400` on invalid/non-numeric or inverted bounds.
 
 #### `GET /api/v1/reports/:id`
-- **Description**: Fetch full details for a single incident report by UUID with reporter PII (`userId`) strictly stripped and fuzzed coordinates applied. Returns `isOwner: true` only when an authenticated viewer owns the report.
-- **Auth**: Public *(Optional authentication via `accessToken` cookie or `Authorization: Bearer <token>` to compute `isOwner`)*
-- **Response `200 OK`**:
-```json
-{
-  "success": true,
-  "data": {
-    "id": "9a1b8c7d-...",
-    "category": "MUGGING",
-    "severity": "HIGH",
-    "latitude": 23.7921,
-    "longitude": 90.4082,
-    "fuzzedRadiusMeters": 65,
-    "description": "...",
-    "status": "ACTIVE",
-    "isGpsVerified": true,
-    "upvotes": 5,
-    "downvotes": 0,
-    "authorVerified": false,
-    "authorRole": "USER",
-    "isOwner": false,
-    "createdAt": "...",
-    "media": []
-  }
-}
-```
+
+Fetches full details for a single report, including sanitized `media` (`blurredUrl` only; `originalUrl` excluded) and `isOwner`.
+
+- **Auth**: `optionalAuth` (computes `isOwner` if authenticated)
+- **Response (`200 OK`)**: Sanitized report details object with `latitude`, `longitude`, `fuzzedRadiusMeters: 150`, `isOwner`, and media metadata.
 
 #### `PATCH /api/v1/reports/:id/resolve`
-- **Description**: Mark an active incident report as `RESOLVED`. Omits reporter `userId` and returns fuzzed coordinates + `isOwner`.
-- **Auth**: Protected (`requireAuth` - Only report creator, `VERIFIED_RESPONDER`, or `ADMIN`)
-- **Response `200 OK`**:
-```json
-{
-  "success": true,
-  "data": {
-    "id": "9a1b8c7d-...",
-    "status": "RESOLVED",
-    "isOwner": true
-  }
-}
-```
+
+Marks an active report as `RESOLVED` and broadcasts `REPORT_RESOLVED` and `STATS_UPDATED`. Allowed only for the report author, `VERIFIED_RESPONDER`, or `ADMIN`.
+
+- **Auth**: `requireAuth`
+- **Response (`200 OK`)**: Updated sanitized report with `status: "RESOLVED"`, `fuzzedRadiusMeters: 150`, and `isOwner`.
+- **Errors**: `400` if already `RESOLVED` or `PURGED`; `403` if caller is neither author nor `ADMIN`/`VERIFIED_RESPONDER`; `404` if not found.
 
 #### `POST /api/v1/reports/:id/vote`
-- **Description**: Upvote (`1`) or downvote (`-1`) a report.
-  - Users cannot vote on their own report.
-  - A user can only vote once per report (re-voting updates the vote).
-  - Reaching **5 net downvotes** triggers the Trust Engine to auto-purge the report.
-- **Auth**: Protected (`requireAuth`)
+
+Casts an upvote (`1`) or downvote (`-1`) on a report. Protected by `reportVoteRateLimiter` (60 requests / 15 min per IP). Automatically increments the creator's `trustScore` on upvotes, and auto-purges (`status: 'PURGED'`, emits `REPORT_PURGED`, decrements creator `trustScore`) when `downvotes >= 5`.
+
+- **Auth**: `requireAuth`
 - **Request Body**:
-```json
-{
-  "voteType": 1 // 1 for Upvote, -1 for Downvote
-}
-```
-- **Response `201 Created`**:
-```json
-{
-  "success": true,
-  "data": {
-    "id": "9a1b8c7d-...",
-    "upvotes": 6,
-    "downvotes": 0,
-    "status": "ACTIVE"
+  ```json
+  {
+    "voteType": 1
   }
-}
-```
+  ```
+- **Response (`201 Created`)**: Updated sanitized `Report` record (reporter `userId` PII omitted) reflecting new `upvotes`, `downvotes`, and `status`.
+- **Errors**: `400` on self-vote, duplicate vote, or purged report; `403` if voter account is suspended; `404` if report is not found; `429` when rate-limited.
 
 #### `POST /api/v1/reports/:id/updates`
-- **Description**: Add a real-time, threaded context update to an ongoing incident (e.g. "Police arrived at the scene", "Road cleared").
-- **Auth**: Protected (`requireAuth`)
+
+Appends a threaded context update (`content` trimmed, `2..500` characters) to a non-purged report and broadcasts `NEW_REPORT_UPDATE` over Socket.IO. Protected by `reportUpdateRateLimiter` (20 requests / 15 min per IP).
+
+- **Auth**: `requireAuth`
 - **Request Body**:
-```json
-{
-  "content": "Police patrol vehicle just arrived at the location." // 2 to 500 characters
-}
-```
-- **Response `201 Created`**:
-```json
-{
-  "success": true,
-  "data": {
-    "id": "update-uuid",
-    "reportId": "9a1b8c7d-...",
-    "content": "Police patrol vehicle just arrived at the location.",
-    "createdAt": "2026-10-25T13:00:00.000Z",
-    "user": {
-      "role": "CITIZEN",
-      "trustScore": 50
+  ```json
+  {
+    "content": "Police patrol has arrived at the intersection."
+  }
+  ```
+- **Response (`201 Created`)**:
+  ```json
+  {
+    "success": true,
+    "data": {
+      "id": "uuid",
+      "reportId": "uuid",
+      "content": "Police patrol has arrived at the intersection.",
+      "createdAt": "2026-11-12T10:05:00.000Z",
+      "author": {
+        "isVerified": true,
+        "role": "VERIFIED_RESPONDER",
+        "alias": "Verified Responder"
+      }
     }
   }
-}
-```
+  ```
 
 #### `GET /api/v1/reports/:id/updates`
-- **Description**: Retrieve all threaded context updates for a specific report in chronological order.
+
+Lists chronological context updates for an existing, non-purged report.
+
 - **Auth**: Public
-- **Response `200 OK`**:
-```json
-{
-  "success": true,
-  "data": [
-    {
-      "id": "update-uuid",
-      "content": "Police patrol vehicle just arrived at the location.",
-      "createdAt": "2026-10-25T13:00:00.000Z",
-      "user": {
-        "role": "CITIZEN",
-        "trustScore": 50
-      }
-    }
-  ]
-}
-```
+- **Response (`200 OK`)**: Array of sanitized update objects ordered by `createdAt ASC`.
+- **Errors**: `404` if report does not exist or is `PURGED`.
 
 ---
 
-### 3.5 Safe Zones (`/api/v1/safe-zones`)
+### 3.5 Verified Safe Zones (`/api/v1/safe-zones`)
 
 #### `GET /api/v1/safe-zones`
-- **Description**: Fetch verified safe shelters (Hospitals, Police Boxes, Pharmacies). Supports viewport bounding box or proximity distance radius queries.
+
+Fetches verified safe havens (`HOSPITAL`, `POLICE_BOX`, `PHARMACY`) within a bounding box (`minLng`, `minLat`, `maxLng`, `maxLat`), within radial distance (`lat`, `lng`, optional `radius` defaulting to `5000` meters), or across default Bangladesh bounds (`88.0..93.0`, `20.5..27.0`) when no spatial filters are supplied. Automatically seeds default Bangladesh safe zones if the table is empty.
+
 - **Auth**: Public
 - **Query Parameters**:
-  - `minLng`, `minLat`, `maxLng`, `maxLat` *(optional)*: Viewport bounding box.
-  - `lat`, `lng`, `radius` *(optional)*: Proximity search centered on coordinates (`radius` in meters, default 5000m).
-  - `type` *(optional)*: Filter by `HOSPITAL`, `POLICE_BOX`, `PHARMACY`.
-- **Response `200 OK`**:
-```json
-{
-  "success": true,
-  "data": [
-    {
-      "id": "sz-uuid-1",
-      "name": "Gulshan Police Station",
-      "type": "POLICE_BOX",
-      "latitude": 23.7925,
-      "longitude": 90.4167,
-      "createdAt": "2026-10-20T00:00:00.000Z"
-    },
-    {
-      "id": "sz-uuid-2",
-      "name": "United Hospital Dhaka",
-      "type": "HOSPITAL",
-      "latitude": 23.8051,
-      "longitude": 90.4162,
-      "createdAt": "2026-10-20T00:00:00.000Z"
-    }
-  ]
-}
-```
+  - Bounding-box mode: strict finite numeric `minLng`, `minLat`, `maxLng`, `maxLat` (`minLng < maxLng`, `minLat < maxLat`), optional `type` (`SafeZoneType`)
+  - Radial mode: strict finite numeric `lat`, `lng`, optional positive `radius` (meters, default `5000`), optional `type` (`SafeZoneType`)
+- **Response (`200 OK`)**: Array of safe zones (`id`, `type`, `name`, `latitude`, `longitude`, plus numeric `distanceMeters` (`number`) in radial mode or `createdAt` in bounds mode).
+- **Errors**: `400` on non-numeric, partial, or out-of-range spatial query parameters.
 
 #### `POST /api/v1/safe-zones`
-- **Description**: Create a verified safe zone.
-- **Auth**: Protected (`requireAuth`, `requireRole(['ADMIN'])`)
+
+Creates and persists a verified safe haven with its PostGIS geography column.
+
+- **Auth**: `requireAuth`, `requireRole(['ADMIN'])`
 - **Request Body**:
-```json
-{
-  "name": "Kurmitola General Hospital",
-  "type": "HOSPITAL", // "HOSPITAL" | "POLICE_BOX" | "PHARMACY"
-  "latitude": 23.8242,
-  "longitude": 90.4072
-}
-```
-- **Response `201 Created`**:
-```json
-{
-  "success": true,
-  "data": {
-    "id": "new-sz-uuid",
-    "name": "Kurmitola General Hospital",
-    "type": "HOSPITAL",
-    "latitude": 23.8242,
-    "longitude": 90.4072
+  ```json
+  {
+    "name": "Dhanmondi Police Box",
+    "type": "POLICE_BOX",
+    "latitude": 23.7461,
+    "longitude": 90.3742
   }
-}
-```
+  ```
+- **Response (`201 Created`)**: Created safe zone (`id`, `type`, `name`, `latitude`, `longitude`, `createdAt`).
 
 #### `DELETE /api/v1/safe-zones/:id`
-- **Description**: Delete a safe zone by UUID.
-- **Auth**: Protected (`requireAuth`, `requireRole(['ADMIN'])`)
-- **Response `200 OK`**:
-```json
-{
-  "success": true,
-  "data": {
-    "message": "Safe zone deleted successfully"
+
+Deletes a safe zone by ID.
+
+- **Auth**: `requireAuth`, `requireRole(['ADMIN'])`
+- **Response (`200 OK`)**:
+  ```json
+  {
+    "success": true,
+    "data": {
+      "id": "uuid",
+      "deleted": true,
+      "name": "Dhanmondi Police Box"
+    }
   }
-}
-```
+  ```
+- **Errors**: `404` if safe zone does not exist.
 
 ---
 
-### 3.6 Safe Route Pathfinding (`/api/v1/routes`)
+### 3.6 Safe-Path Routing (`/api/v1/routes`)
 
 #### `POST /api/v1/routes/safe-path`
-- **Description**: Pathfinding engine that calculates a multi-waypoint navigation route avoiding active red hazard zones using PostGIS spatial safety buffers.
+
+Computes a safety-adjusted polyline route inside Bangladesh boundaries (`lat` 20.3–26.8, `lng` 87.8–92.9) that detours orthogonally around active corridor reports (`HIGH` = 500m, `MEDIUM` = 250m, `LOW` = 120m buffer). Protected by `safeRouteRateLimiter` (120 requests / 1 min per IP).
+
 - **Auth**: Public
-- **Request Body**:
-```json
-{
-  "startLat": 23.7808,
-  "startLng": 90.4152,
-  "endLat": 23.7925,
-  "endLng": 90.4078
-}
-```
-- **Response `200 OK`**:
-```json
-{
-  "success": true,
-  "data": {
-    "isDiverted": true,
-    "divertedReason": "Route diverted to maintain a 150m buffer from 2 active high-severity hazard zones.",
-    "waypoints": [
-      { "latitude": 23.7808, "longitude": 90.4152 },
-      { "latitude": 23.7865, "longitude": 90.4180 },
-      { "latitude": 23.7925, "longitude": 90.4078 }
-    ],
-    "hazardsAvoidedCount": 2,
-    "distanceMeters": 1850
+- **Request Body** (`.strict()`):
+  ```json
+  {
+    "startLat": 23.7465,
+    "startLng": 90.376,
+    "endLat": 23.758,
+    "endLng": 90.39
   }
-}
-```
+  ```
+- **Response (`200 OK`)**:
+  ```json
+  {
+    "success": true,
+    "data": {
+      "origin": [23.7465, 90.376],
+      "destination": [23.758, 90.39],
+      "directDistanceMeters": 1915,
+      "safeDistanceMeters": 2240,
+      "safetyRating": "HIGH_SAFETY",
+      "bypassedHazardsCount": 1,
+      "bypassedHazards": [
+        {
+          "id": "uuid",
+          "category": "SNATCHING",
+          "severity": "HIGH",
+          "latitude": 23.752,
+          "longitude": 90.383,
+          "distanceFromRouteMeters": 85
+        }
+      ],
+      "waypoints": [
+        [23.7465, 90.376],
+        [23.7568, 90.3792],
+        [23.758, 90.39]
+      ]
+    }
+  }
+  ```
+  *(`safetyRating` is `"CLEAR"` when `bypassedHazardsCount === 0`, or `"HIGH_SAFETY"` when hazards were detoured.)*
 
 ---
 
-### 3.7 Media & Privacy Pipeline (`/api/v1/media`)
-
-> **Note on Direct File Uploads**:
-> Direct `multipart/form-data` uploads are blocked with `415 Unsupported Media Type` to protect server memory. Clients must request a presigned URL, upload directly to cloud storage, and call `POST /confirm`.
-
-#### `GET /api/v1/media/presigned-url`
-- **Description**: Generates an authenticated presigned URL for direct upload to cloud storage (S3 / Supabase Storage).
-- **Auth**: Protected (`requireAuth` - Only report creator, `VERIFIED_RESPONDER`, or `ADMIN`)
-- **Query Parameters**:
-  - `reportId` *(required)*: UUID of the incident report.
-  - `fileType` *(required)*: `image/jpeg` | `image/png` | `image/webp`.
-  - `fileSize` *(required)*: File size in bytes (maximum 5,242,880 bytes / 5MB).
-- **Response `200 OK`**:
-```json
-{
-  "success": true,
-  "data": {
-    "uploadUrl": "https://storage.supabase.co/storage/v1/object/upload/sign/reports/...",
-    "fileKey": "reports/9a1b8c7d-uuid/evidence.jpg",
-    "publicUrl": "https://cdn.example.com/reports/9a1b8c7d-uuid/evidence.jpg",
-    "expiresInSeconds": 600,
-    "isMock": false
-  }
-}
-```
-
-#### `POST /api/v1/media/mock-upload`
-- **Description**: Development/S3-less fallback endpoint active only when cloud S3 storage is not configured (`isMock: true`). Accepts a compressed base64 data URI (`image/jpeg`, `image/png`, `image/webp` up to 512KB), verifies binary magic bytes, and stores sanitized `ReportMedia`. Returns `409 Conflict` when S3 is configured.
-- **Auth**: Protected (`requireAuth` - Only report creator, `VERIFIED_RESPONDER`, or `ADMIN`)
-- **Request Body**:
-```json
-{
-  "reportId": "9a1b8c7d-...",
-  "imageDataUrl": "data:image/jpeg;base64,/9j/4AAQ..."
-}
-```
-
-#### `POST /api/v1/media/confirm`
-- **Description**: Confirms an uploaded report image, validates that `fileKey` and/or `originalUrl` belong to the deployment's trusted storage bucket (`S3_PUBLIC_DOMAIN`, `STORAGE_CDN_URL`, `S3_ENDPOINT`, or default `S3_BUCKET`) under `reports/<reportId>/`, persists the `ReportMedia` record idempotently, and triggers privacy processing.
-- **Auth**: Protected (`requireAuth` - Only report creator, `VERIFIED_RESPONDER`, or `ADMIN`)
-- **Request Body** *(provide `fileKey`, `originalUrl`, or both referring to the same object)*:
-```json
-{
-  "reportId": "9a1b8c7d-...",
-  "fileKey": "reports/9a1b8c7d-uuid/evidence.jpg",
-  "originalUrl": "https://cdn.example.com/reports/9a1b8c7d-uuid/evidence.jpg"
-}
-```
-- **Response `201 Created` (or `200 OK` if already confirmed)** *(`originalUrl` is stripped from responses)*:
-```json
-{
-  "success": true,
-  "data": {
-    "id": "media-record-uuid",
-    "reportId": "9a1b8c7d-...",
-    "blurredUrl": "https://cdn.example.com/reports/9a1b8c7d-uuid/evidence.jpg",
-    "createdAt": "2026-11-12T07:00:00.000Z"
-  }
-}
-```
-- **Response `400 Bad Request`** *(untrusted host, query/hash params, path traversal, or mismatched `reportId`)*:
-```json
-{
-  "success": false,
-  "error": { "message": "Validation failed: body.originalUrl: originalUrl must start with a trusted storage prefix under reports/<reportId>/" }
-}
-```
-
-#### `POST /api/v1/media/webhook`
-- **Description**: Webhook handler receiving direct cloud storage event notifications (`INSERT` / `ObjectCreated`) when files are created under `reports/<reportId>/<filename>`.
-- **Auth**: Webhook secret required — fails closed (`401 Unauthorized`) unless `STORAGE_WEBHOOK_SECRET` is configured and matches header `x-webhook-secret` (verified via `crypto.timingSafeEqual`).
-- **Required Headers**:
-  - `x-webhook-secret: <STORAGE_WEBHOOK_SECRET>`
-- **Response `200 OK`**:
-```json
-{
-  "received": true
-}
-```
-- **Response `401 Unauthorized`** (missing, unconfigured, or invalid `x-webhook-secret`):
-```json
-{
-  "success": false,
-  "error": { "message": "Unauthorized: Missing or invalid webhook secret" }
-}
-```
-
----
-
-### 3.8 Geofenced Alerts (`/api/v1/alerts`)
+### 3.7 Geofenced Alerts (`/api/v1/alerts`)
 
 #### `POST /api/v1/alerts/zones`
-- **Description**: Create a personal alert geofence polygon. Automatically caps the area at **25 km²** to prevent abuse.
-- **Auth**: Protected (`requireAuth`)
+
+Creates a PostGIS geofenced monitoring polygon (`UserAlertZone`). Enforces closed GeoJSON ring validation, PostGIS topological validity (`ST_IsValid`, rejecting self-intersecting polygons with `400`), WGS84 bounds, max **5** active zones per user, and a **25 km²** maximum geodesic area cap.
+
+- **Auth**: `requireAuth`
 - **Request Body**:
-```json
-{
-  "name": "Home & Office Route",
-  "coordinates": [
-    [90.4100, 23.7900],
-    [90.4200, 23.7900],
-    [90.4200, 23.8000],
-    [90.4100, 23.8000],
-    [90.4100, 23.7900] // Closed ring (min 4 coordinate pairs)
-  ]
-}
-```
-- **Response `201 Created`**:
-```json
-{
-  "success": true,
-  "data": {
-    "id": "zone-uuid",
-    "name": "Home & Office Route",
-    "userId": "user-uuid",
-    "createdAt": "2026-10-25T14:00:00.000Z"
+  ```json
+  {
+    "name": "Dhanmondi Commute",
+    "coordinates": [
+      [90.37, 23.74],
+      [90.38, 23.74],
+      [90.38, 23.75],
+      [90.37, 23.75],
+      [90.37, 23.74]
+    ]
   }
-}
-```
+  ```
+- **Response (`201 Created`)**: `{ id, userId, name, isActive, createdAt, updatedAt, area }` (parsed GeoJSON polygon).
 
 #### `GET /api/v1/alerts/zones`
-- **Description**: Retrieve all alert zones created by the current user.
-- **Auth**: Protected (`requireAuth`)
-- **Response `200 OK`**:
-```json
-{
-  "success": true,
-  "data": [
-    {
-      "id": "zone-uuid",
-      "name": "Home & Office Route",
-      "coordinates": [ ... ],
-      "createdAt": "2026-10-25T14:00:00.000Z"
-    }
-  ]
-}
-```
+
+Lists all active geofenced alert zones belonging to the authenticated user.
+
+- **Auth**: `requireAuth`
+- **Response (`200 OK`)**: Array of `AlertZoneOutput` items.
 
 #### `DELETE /api/v1/alerts/zones/:id`
-- **Description**: Delete a user alert zone by UUID.
-- **Auth**: Protected (`requireAuth`)
-- **Response `200 OK`**:
-```json
-{
-  "success": true,
-  "data": {
-    "message": "Alert zone deleted successfully"
+
+Deletes one of the authenticated user's alert zones.
+
+- **Auth**: `requireAuth`
+- **Response (`200 OK`)**:
+  ```json
+  {
+    "success": true,
+    "data": {
+      "message": "Alert zone deleted successfully"
+    }
   }
-}
-```
+  ```
 
 #### `POST /api/v1/alerts/subscribe`
-- **Description**: Register browser Web Push subscription credentials for background hazard notifications.
-- **Auth**: Protected (`requireAuth`)
-- **Request Body**:
-```json
-{
-  "endpoint": "https://fcm.googleapis.com/fcm/send/...",
-  "keys": {
-    "p256dh": "BLc4x92...",
-    "auth": "sA9x2..."
+
+Registers/acknowledges a Web Push subscription contract for the authenticated user.
+
+- **Auth**: `requireAuth`
+- **Request Body** (`keys` optional):
+  ```json
+  {
+    "endpoint": "https://fcm.googleapis.com/fcm/send/...",
+    "keys": {
+      "p256dh": "...",
+      "auth": "..."
+    }
   }
-}
-```
-- **Response `200 OK`**:
-```json
-{
-  "success": true,
-  "data": {
-    "subscribed": true,
-    "userId": "user-uuid"
+  ```
+- **Response (`200 OK`)**:
+  ```json
+  {
+    "success": true,
+    "data": {
+      "subscribed": true,
+      "userId": "uuid"
+    }
   }
-}
-```
+  ```
 
 ---
 
-### 3.9 Admin Portal & Moderation (`/api/v1/admin`)
+### 3.8 Media & Privacy Auto-Blurring (`/api/v1/media`)
 
-> **Access Restriction**: All endpoints under `/api/v1/admin` require an authenticated session (`requireAuth`) with the role `ADMIN` (`requireRole(['ADMIN'])`). Unauthorized attempts return `403 Forbidden`.
+Note: `/api/v1/media` rejects `multipart/form-data` payloads with **`415 Unsupported Media Type`**. Uploads use direct-to-object-storage presigned URLs or the inline fallback when S3 is unconfigured.
 
-#### `POST /api/v1/admin/users/:id/ban`
-- **Description**: Ban a malicious user account. Immediately prevents report submissions and revokes active sessions.
-- **Request Body**:
-```json
-{
-  "reason": "Repeated submission of fabricated incident reports." // 3-500 chars
-}
-```
-- **Response `200 OK`**:
-```json
-{
-  "success": true,
-  "data": {
-    "userId": "target-user-uuid",
-    "isBanned": true,
-    "reason": "Repeated submission of fabricated incident reports."
-  }
-}
-```
+#### `GET /api/v1/media/presigned-url`
 
-#### `POST /api/v1/admin/users/:id/unban`
-- **Description**: Restore a previously banned user account.
-- **Request Body**:
-```json
-{
-  "reason": "User appeal verified and approved." // 3-500 chars
-}
-```
-- **Response `200 OK`**:
-```json
-{
-  "success": true,
-  "data": {
-    "userId": "target-user-uuid",
-    "isBanned": false
-  }
-}
-```
+Issues an S3/R2/Supabase Storage presigned `PUT` URL (or `isMock: true` indicator when S3 credentials are absent) for report owners, `VERIFIED_RESPONDER`, or `ADMIN`.
 
-#### `POST /api/v1/admin/reports/:id/purge`
-- **Description**: Force-delete a false, malicious, or spam incident report. Logs the action in `ModerationLog` and emits `REPORT_PURGED` via WebSocket to instantly remove the pin from all client screens.
-- **Request Body**:
-```json
-{
-  "reason": "False report verified with local authorities." // 3-500 chars
-}
-```
-- **Response `200 OK`**:
-```json
-{
-  "success": true,
-  "data": {
-    "reportId": "target-report-uuid",
-    "status": "PURGED"
-  }
-}
-```
-
-#### `GET /api/v1/admin/logs`
-- **Description**: Retrieve paginated audit trail of all moderation actions taken by admins or the automated Trust Engine.
+- **Auth**: `requireAuth`
 - **Query Parameters**:
-  - `page` *(optional)*: Page number (default: `1`)
-  - `limit` *(optional)*: Items per page (default: `20`)
-- **Response `200 OK`**:
-```json
-{
-  "success": true,
-  "data": {
-    "logs": [
-      {
-        "id": "log-uuid-1",
-        "action": "PURGE_REPORT",
-        "reason": "False report verified with local authorities.",
-        "adminId": "admin-uuid",
-        "targetReportId": "report-uuid",
-        "targetUserId": null,
-        "createdAt": "2026-10-25T15:00:00.000Z"
-      }
-    ],
-    "pagination": {
-      "page": 1,
-      "limit": 20,
-      "total": 42
+  - `reportId` (UUID)
+  - `fileType`: `'image/jpeg' | 'image/png' | 'image/webp'`
+  - `fileSize`: integer bytes, max `5242880` (5 MB)
+- **Response (`200 OK`)**: `{ uploadUrl, fileKey, publicUrl, expiresInSeconds, isMock }`
+
+#### `POST /api/v1/media/confirm`
+
+Confirms an uploaded object (`fileKey` or trusted `originalUrl`), inserts `ReportMedia`, runs `processPrivacyBlur`, and returns sanitized metadata without exposing `originalUrl`.
+
+- **Auth**: `requireAuth` (report owner, `VERIFIED_RESPONDER`, or `ADMIN`)
+- **Request Body**:
+  ```json
+  {
+    "reportId": "uuid",
+    "fileKey": "reports/<reportId>/<uuid>.jpg"
+  }
+  ```
+- **Response (`201 Created` or `200 OK` if idempotent)**:
+  ```json
+  {
+    "success": true,
+    "data": {
+      "id": "uuid",
+      "reportId": "uuid",
+      "blurredUrl": "https://...",
+      "createdAt": "2026-11-12T10:10:00.000Z"
     }
   }
-}
-```
+  ```
 
-#### `GET /api/v1/admin/analytics/trends`
-- **Description**: 30-day analytics trends of incident frequencies, category distributions, and peak hazard hours.
-- **Response `200 OK`**:
-```json
-{
-  "success": true,
-  "data": {
-    "totalIncidents30Days": 148,
-    "byCategory": {
-      "MUGGING": 54,
-      "THEFT": 39,
-      "UNLIT_ROAD": 28,
-      "EXTORTION": 18,
-      "DRUG_ACTIVITY": 9
-    },
-    "bySeverity": {
-      "HIGH": 62,
-      "MEDIUM": 55,
-      "LOW": 31
-    },
-    "nightIncidentsPercentage": 64.2
+#### `POST /api/v1/media/mock-upload`
+
+Authenticated fallback when S3 credentials are **not** configured (`isS3Configured() === false`). Accepts a compressed JPEG/PNG/WebP base64 data URI (<= 512 KB decoded), validates magic bytes, runs `processPrivacyBlur`, and stores `ReportMedia`.
+
+- **Auth**: `requireAuth` (report owner, `VERIFIED_RESPONDER`, or `ADMIN`)
+- **Request Body**:
+  ```json
+  {
+    "reportId": "uuid",
+    "imageDataUrl": "data:image/jpeg;base64,/9j/4AAQ..."
   }
-}
-```
+  ```
+- **Response (`201 Created` or `200 OK` if already persisted)**: `{ id, reportId, blurredUrl, createdAt }`
+- **Errors**: `409 Conflict` if S3 storage is configured; `400` on invalid image/size; `403`/`404` on report auth failure.
+
+#### `POST /api/v1/media/webhook`
+
+Server-to-server callback supporting S3 `ObjectCreated` event batches and Supabase Storage `INSERT` payloads. Strictly fails closed (`401`) whenever `STORAGE_WEBHOOK_SECRET` is unset, empty, missing, or mismatched against the `x-webhook-secret` header. Optionally filters by `STORAGE_WEBHOOK_BUCKET`.
+
+- **Auth**: `verifyStorageWebhookSecret` (`x-webhook-secret` header)
+- **Request Body** (must include `Records`, `record`, or `key`):
+  ```json
+  {
+    "Records": [
+      {
+        "eventName": "ObjectCreated:Put",
+        "s3": {
+          "bucket": { "name": "dangerzone-media" },
+          "object": { "key": "reports/<reportId>/<uuid>.jpg" }
+        }
+      }
+    ]
+  }
+  ```
+  *(Also accepts Supabase Storage format `{ "type": "INSERT", "record": { "bucket_id": "...", "name": "reports/<reportId>/<uuid>.jpg" } }` and direct key payload `{ "key": "reports/<reportId>/<uuid>.jpg" }`.)*
+- **Response (`200 OK`)**:
+  ```json
+  {
+    "success": true,
+    "data": {
+      "received": true
+    }
+  }
+  ```
+
+---
+
+### 3.9 Admin Moderation & Analytics (`/api/v1/admin`)
+
+All endpoints under `/api/v1/admin` require **`requireAuth`** + **`requireRole(['ADMIN'])`**.
 
 #### `GET /api/v1/admin/verifications`
-- **Description**: List all pending citizen KYC verification requests.
-- **Response `200 OK`**:
-```json
-{
-  "success": true,
-  "data": [
-    {
-      "id": "verify-uuid-1",
-      "userId": "user-uuid",
-      "type": "NID_DOCUMENT",
-      "documentUrl": "https://storage.supabase.co/...",
-      "status": "PENDING",
-      "createdAt": "2026-10-25T11:00:00.000Z"
+
+Lists all `PENDING` user KYC verification requests ordered oldest-first (`createdAt ASC`), including associated user info (`id`, `email`, `phoneNumber`, `role`, `trustScore`, `createdAt`).
+
+- **Auth**: `ADMIN`
+- **Response (`200 OK`)**: Array of `UserVerification` rows with nested `user`.
+
+#### `POST /api/v1/admin/verifications/:id/approve`
+
+Approves a pending verification request, sets `isVerified: true`, promotes `USER` -> `VERIFIED_RESPONDER` (preserving `ADMIN`), and logs `VERIFY_USER` in `ModerationLog`.
+
+- **Auth**: `ADMIN`
+- **Response (`200 OK`)**: Returns the updated user record (`id`, `anonymousId`, `email`, `role`, `isVerified`, `trustScore`, `isBanned`, `createdAt`, `updatedAt`).
+  ```json
+  {
+    "success": true,
+    "data": {
+      "id": "uuid",
+      "anonymousId": "dev-fp-a1b2c3d4",
+      "email": "citizen@example.com",
+      "role": "VERIFIED_RESPONDER",
+      "isVerified": true,
+      "trustScore": 3,
+      "isBanned": false,
+      "createdAt": "2026-11-12T08:00:00.000Z",
+      "updatedAt": "2026-11-12T10:00:00.000Z"
     }
-  ]
-}
-```
+  }
+  ```
 
 #### `POST /api/v1/admin/verifications/:id/reject`
-- **Description**: Reject a citizen verification request with a specified reason.
-- **Request Body**:
-```json
-{
-  "reason": "Uploaded document was unreadable or blurry." // 3-500 chars
-}
-```
-- **Response `200 OK`**:
-```json
-{
-  "success": true,
-  "data": {
-    "verificationId": "verify-uuid-1",
-    "status": "REJECTED",
-    "reason": "Uploaded document was unreadable or blurry."
+
+Rejects a pending verification request and records an immutable `REJECT_VERIFICATION` entry in `ModerationLog`.
+
+- **Auth**: `ADMIN`
+- **Request Body** (`reason` required, 3–500 chars): `{ "reason": "Document unreadable" }`
+- **Response (`200 OK`)**: Updated `UserVerification` record with `status: "REJECTED"`.
+
+#### `POST /api/v1/admin/users/:id/ban`
+
+Suspends a non-admin user (`isBanned: true`), revokes all active `RefreshToken` rows, logs `BAN_USER` in `ModerationLog`, and broadcasts `STATS_UPDATED`. Forbids self-banning and suspending peer `ADMIN` accounts (`403 Forbidden`).
+
+- **Auth**: `ADMIN`
+- **Request Body** (`reason` required, 3–500 chars): `{ "reason": "Repeated spam submissions" }`
+- **Response (`200 OK`)**: `{ "user": { id, email, role, isVerified, trustScore, isBanned, createdAt }, "log": { ... } }`
+- **Errors**: `403` when targeting self or any `ADMIN` user.
+
+#### `POST /api/v1/admin/users/:id/unban`
+
+Restores a banned user (`isBanned: false`), logs `UNBAN_USER` in `ModerationLog`, and broadcasts `STATS_UPDATED`.
+
+- **Auth**: `ADMIN`
+- **Request Body** (`reason` required, 3–500 chars): `{ "reason": "Appeal verified" }`
+- **Response (`200 OK`)**: `{ "user": { id, email, role, isVerified, trustScore, isBanned, createdAt }, "log": { ... } }`
+
+#### `POST /api/v1/admin/reports/:id/purge`
+
+Manually purges an incident (`status: 'PURGED'`), logs `PURGE_REPORT`, emits `REPORT_PURGED`, and broadcasts `STATS_UPDATED`.
+
+- **Auth**: `ADMIN`
+- **Request Body** (`reason` required, 3–500 chars): `{ "reason": "Duplicate or fabricated incident" }`
+- **Response (`200 OK`)**: `{ "report": { ... }, "log": { ... } }`
+
+#### `GET /api/v1/admin/logs`
+
+Returns paginated `ModerationLog` audit entries (`admin`, `targetUser`, `targetReport` relations included).
+
+- **Auth**: `ADMIN`
+- **Query Parameters** (strictly validated; rejects out-of-range or unknown query params with `400`): `page` (positive integer >= `1`, default `1`), `limit` (integer `1..100`, default `20`), `action` (optional `ModerationAction` enum filter)
+- **Response (`200 OK`)**:
+  ```json
+  {
+    "success": true,
+    "data": {
+      "logs": [],
+      "pagination": {
+        "total": 12,
+        "page": 1,
+        "limit": 20,
+        "totalPages": 1
+      }
+    }
   }
-}
-```
+  ```
+
+#### `GET /api/v1/admin/analytics/trends`
+
+Aggregates 30-day temporal crime & hazard trends, day-vs-night breakdown, and distributions by category, severity, and status.
+
+- **Auth**: `ADMIN`
+- **Query Parameters**: None (`timeframe` is fixed to `30_DAYS`; unexpected query params are rejected with `400`)
+- **Response (`200 OK`)**:
+  ```json
+  {
+    "success": true,
+    "data": {
+      "timeframe": "30_DAYS",
+      "startDate": "2026-10-13T10:00:00.000Z",
+      "totalReports": 42,
+      "nightReportsCount": 18,
+      "nightReportPercentage": 42.9,
+      "breakdown": {
+        "byCategory": { "SNATCHING": 12, "ROAD_ACCIDENT": 9 },
+        "bySeverity": { "HIGH": 15, "MEDIUM": 20, "LOW": 7 },
+        "byStatus": { "ACTIVE": 30, "RESOLVED": 8, "PURGED": 4 }
+      },
+      "timeline": [
+        { "date": "2026-11-12", "count": 6 }
+      ]
+    }
+  }
+  ```
 
 #### `POST /api/v1/admin/news/crawl`
-- **Description**: Manually trigger the automated 100% free RSS news crawler across major Bangladeshi news outlets (The Daily Star, Prothom Alo, Dhaka Tribune, BDNews24, etc.) and execute the cross-verification engine.
-- **Response `200 OK`**:
-```json
-{
-  "success": true,
-  "data": {
-    "status": "COMPLETED",
-    "articlesScanned": 45,
-    "incidentsExtracted": 4,
-    "crossVerifiedReports": 2
+
+Manually triggers the RSS news crawler (`triggerNewsCrawler()` with concurrency mutex).
+
+- **Auth**: `ADMIN`
+- **Response (`200 OK`)**:
+  ```json
+  {
+    "success": true,
+    "data": {
+      "status": "success",
+      "feedsChecked": 3,
+      "totalIngested": 4,
+      "totalSkipped": 19,
+      "totalVerifiedMatches": 1
+    }
   }
-}
-```
+  ```
+  *(Returns `{ "status": "in_progress", "ingested": 0 }` if a crawl is already running.)*
 
 ---
 
-## 4. Real-Time WebSocket Gateway (`Socket.IO`)
+### 3.10 Platform Statistics (`/api/v1/stats`)
 
-The API runs a real-time WebSocket server mounted alongside Express on the same port.
+#### `GET /api/v1/stats`
+
+Returns live platform-wide aggregates used by dashboards and synced in real time via `STATS_UPDATED`.
+
+- **Auth**: Public
+- **Response (`200 OK`)**:
+  ```json
+  {
+    "success": true,
+    "data": {
+      "totalReports": 128,
+      "activeReports": 34,
+      "resolvedReports": 19,
+      "criticalThreats": 11,
+      "totalCitizens": 85,
+      "verifiedCitizens": 12,
+      "safeHavens": 18,
+      "totalVotes": 240,
+      "lastActiveAt": "2026-11-12T09:58:00.000Z",
+      "timestamp": "2026-11-12T10:00:00.000Z"
+    }
+  }
+  ```
+
+---
+
+### 3.11 Cron Triggers (`/api/v1/cron`)
+
+#### `GET /api/v1/cron/news-crawl` & `POST /api/v1/cron/news-crawl`
+
+External scheduler trigger for the RSS news crawler (supporting platforms like Vercel Cron or Render/GitHub schedulers via `GET` or `POST`).
+
+- **Auth**: `verifyCronSecret` — accepts `x-cron-secret: <CRON_SECRET>` or `Authorization: Bearer <CRON_SECRET>`. Strictly fails closed (`401 Unauthorized`) whenever `CRON_SECRET` is unset, empty, missing, or mismatched.
+- **Rate Limit**: `cronNewsCrawlRateLimiter` (max 2 requests / 10 minutes per IP).
+- **Response (`200 OK`)**: Same payload as `POST /api/v1/admin/news/crawl` (`triggerNewsCrawler()` result) wrapped with `message` and `timestamp`.
+
+---
+
+### 3.12 Next.js App Router API Proxies (`apps/web/app/api`)
+
+In addition to the 43 Express endpoints in `apps/api`, the Next.js frontend exposes 3 App Router API route handlers (`GET /api/health`, `GET /api/cron/news-crawl`, and `POST /api/cron/news-crawl`):
+
+#### `GET /api/health` (`apps/web/app/api/health/route.ts`)
+
+Aggregates live status across the Next.js frontend, Express `/health`, and Express `/health/db` (targeting `INTERNAL_API_URL`, `NEXT_PUBLIC_API_URL`, or Render production backend).
+
+- **Auth**: Public
+- **Response**: `200 OK` (`status: "healthy"`) when both backend probes succeed, or `503 Service Unavailable` (`status: "degraded"`) otherwise.
+
+#### `GET /api/cron/news-crawl` & `POST /api/cron/news-crawl` (`apps/web/app/api/cron/news-crawl/route.ts`)
+
+Vercel Cron proxy handler (`export const POST = GET`) that verifies `CRON_SECRET` (`Authorization: Bearer <CRON_SECRET>` or `x-cron-secret`, failing closed with `401`) and forwards an authenticated `POST /api/v1/cron/news-crawl` request to the Express backend.
+
+- **Auth**: `CRON_SECRET` (`Bearer` or `x-cron-secret`, fail-closed `401`)
+- **Response**: JSON summary including `success`, `triggeredAt`, `backendStatus`, and forwarded backend `result`.
+
+---
+
+## 4. Real-Time WebSocket Gateway (Socket.IO)
 
 ### 4.1 Connection & Handshake Authentication
-- **Transport**: `websocket`, `polling`
-- **Auth**: The handshake extracts either the `accessToken` HttpOnly cookie or an explicit auth token passed in the handshake:
-```typescript
+
+Socket.IO attaches to the HTTP server with `cors: { origin: CORS_ORIGIN, credentials: true }`, `pingTimeout: 20000`, `pingInterval: 25000`.
+
+- **Guest Read-Only Mode**: Connecting with no credentials succeeds and joins `live_reports`.
+- **Authenticated Mode**: Checks the `accessToken` cookie first, falling back to `socket.handshake.auth.token` (which accepts either an `accessToken` or a scoped `socketToken`). Invalid/expired tokens or suspended/deleted users fail the handshake. Authenticated connections join both `live_reports` and `user:<userId>`.
+
+```ts
 import { io } from 'socket.io-client';
 
-const socket = io('https://danger-zone-bd.onrender.com', {
+const socket = io(API_URL, {
   withCredentials: true,
-  transports: ['websocket', 'polling'],
-  reconnection: true,
-  reconnectionDelay: 1000,
-  reconnectionAttempts: Infinity
+  auth: { token: socketToken }, // Required when cookies are not sent cross-origin
 });
 ```
 
-### 4.2 Auto Rooms
-- `live_reports`: Every connected client automatically joins this room to receive nationwide or viewport incident updates.
-- `user:<userId>`: Every authenticated user joins their personal room to receive targeted geofence push alerts.
+### 4.2 Client -> Server Events
 
-### 4.3 Client-to-Server Events
-
-#### `joinMapBounds`
-- **Payload**:
-```json
-{
-  "minLng": 90.35,
-  "minLat": 23.70,
-  "maxLng": 90.45,
-  "maxLat": 23.85
-}
-```
-- **Description**: Notifies the server of the client's current map viewport for geo-scoped broadcast filtering.
-
----
-
-### 4.4 Server-to-Client Broadcast Events
-
-| Event Name | Room | Payload Description |
+| Event | Payload | Purpose |
 | :--- | :--- | :--- |
-| `NEW_REPORT` | `live_reports` | Emitted when a new incident is submitted by a citizen or extracted from news portals. Excludes user PII and fuzzes coordinates. |
-| `REPORT_VOTED` | `live_reports` | Emitted when vote tallies change: `{ reportId, upvotes, downvotes, status }`. |
-| `REPORT_PURGED` | `live_reports` | Emitted when an incident is deleted or purged: `{ reportId, reason }`. |
-| `REPORT_EXPIRED` | `live_reports` | Emitted by Time-Decay worker when incidents age out: `{ reportIds, reason }`. |
-| `REPORT_RESOLVED`| `live_reports` | Emitted when an incident is marked resolved: `{ reportId, status, resolvedAt }`. |
-| `NEW_REPORT_UPDATE` | `live_reports` | Emitted when a threaded update is submitted: `{ reportId, update }`. |
-| `REPORT_VERIFIED` | `live_reports` | Emitted when a report is verified by a news outlet: `{ reportId, verifiedBy, sourceUrl, articleTitle }`. |
-| `GEOFENCE_ALERT` | `user:<userId>` | Emitted to a user's personal room when a new incident falls inside one of their saved alert zones. |
+| `join_map_bounds` | `{ minLng, minLat, maxLng, maxLat }` | Stores client viewport bounding box on `socket.data.bounds`. |
+| `disconnect` | Built-in | Cleans up socket state. |
+
+### 4.3 Server -> Client Events (Broadcast to `live_reports`)
+
+All `SOCKET_EVENTS` constants are exported by `@repo/shared`:
+
+| Event | Payload | Trigger |
+| :--- | :--- | :--- |
+| `NEW_REPORT` | Sanitized report (`id`, `category`, `severity`, `latitude`, `longitude`, `description`, `upvotes`, `downvotes`, `status`, `expiresAt`, `createdAt`, `sourceUrl`, `sourceName`, `isGpsVerified`) preserving exact 6-decimal coordinates | Citizen submission or news ingestion |
+| `REPORT_VOTED` | `{ reportId, upvotes, downvotes, status }` | Community vote cast |
+| `REPORT_PURGED` | `{ reportId, reason? }` | Trust-engine auto-purge (`downvotes >= 5`) or admin purge (`ADMIN_PURGED: ...`) |
+| `REPORT_EXPIRED` | `{ reportIds, reason: "TIME_DECAY_EXPIRED" }` | Time-decay cron purge |
+| `REPORT_RESOLVED` | `{ reportId, status: "RESOLVED", resolvedAt }` | Author, `VERIFIED_RESPONDER`, or `ADMIN` resolves report |
+| `NEW_REPORT_UPDATE` | `{ reportId, update }` | Threaded context update posted |
+| `REPORT_VERIFIED` | `{ reportId, verifiedBy, sourceUrl?, articleTitle? }` | News crawler cross-verifies citizen report |
+| `STATS_UPDATED` | `PlatformStats` object (same shape as `GET /api/v1/stats`) | Coalesced broadcast after mutations/expirations |
+
+### 4.4 Targeted Notifications (`user:<userId>`)
+
+| Event | Payload | Trigger |
+| :--- | :--- | :--- |
+| `GEOFENCE_ALERT` | Alert payload describing intersecting `HIGH` severity report & matched zone | Background `notificationWorker` match against `UserAlertZone` |
 
 ---
 
-## 5. Automated Background Jobs
+## 5. Automated Background Workers & Cron Jobs
 
-The backend executes autonomous scheduled tasks managed in `apps/api/src/jobs`:
+### 5.1 Time-Decay Expiry & Daily Retention Cleanup (`apps/api/src/jobs/timeDecayJob.ts`)
 
-1. **RSS News Crawler & Cross-Verification (`newsCrawlerJob.ts`)**:
-   - Runs on a recurring schedule.
-   - Fetches public RSS feeds from leading Bangladesh news portals.
-   - Classifies crime/safety articles into category and severity (`newsClassifierService.ts`).
-   - Geocodes mentioned landmarks using OpenStreetMap Nominatim with Dhaka local gazetteer fallbacks (`geocodingService.ts`).
-   - Cross-verifies active citizen reports within 500m / 48hr window, elevating citizen trust scores and appending press verification tags (`newsVerificationService.ts`).
+1. **Time-Decay Purge (`initTimeDecayCron`, default `*/5 * * * *`)**:
+   - Protected by concurrency mutex (`isPurging`).
+   - Transitions `ACTIVE` reports where `expiresAt < NOW()` to `status = 'PURGED'`, broadcasts `REPORT_EXPIRED`, and triggers `broadcastPlatformStats()`.
+   - **Citizen Report Lifespans (`calculateReportExpiry`)**:
+     - `THEFT`, `SNATCHING`, `MUGGING`, `EXTORTION`: **3 hours**
+     - `ROBBERY`, `THEFT_ROBBERY`, `DACOITY`, `THEFT_DACOITY`, `ARMED_ASSAULT`, `SNATCHING_ARMED_ASSAULT`: **4 hours**
+     - `ROAD_ACCIDENT`, `TEEN_GANG_ARMED_ASSAULT`: **6 hours**
+     - `YOUTH_GANG_ACTIVITY`, `TEEN_GANG`, `DRUG_RELATED_CRIME`, `DRUG_ACTIVITY`: **24 hours**
+     - `UNLIT_ROAD`: **14 days**
+2. **Daily Rolling Hard-Delete Retention (`initDailyRetentionCron`, default `0 3 * * *`)**:
+   - Calls `hardDeleteStaleRetentionData(30)` inside an isolated transaction (with `isHardCleaning` mutex) to permanently remove stale `PURGED` reports (cascading votes/updates/media and unlinking moderation logs), orphan news articles, and expired refresh tokens older than 30 days.
 
-2. **Time-Decay & Expiration Worker (`timeDecayJob.ts`)**:
-   - Evaluates active reports based on severity:
-     - `LOW`: 6 hours
-     - `MEDIUM`: 12 hours
-     - `HIGH`: 24 hours
-   - Upvotes extend expiration by 2 hours per vote (up to 48 hours maximum).
-   - Marks aged-out reports as `EXPIRED` and broadcasts `REPORT_EXPIRED`.
+### 5.2 Automated News Crawler (`apps/api/src/jobs/newsCrawlerJob.ts`, `newsCrawlerService.ts`, `newsVerificationService.ts`)
 
-3. **Geofence Proximity Notifier (`notificationWorker.ts`)**:
-   - On every new incident, checks for intersecting user alert zones via PostGIS `ST_Intersects`.
-   - Sends real-time WebSocket `GEOFENCE_ALERT` and Web Push notifications.
+- **Schedule**: `0 * * * *` (hourly) plus `scheduleStartupCrawl()` **10 seconds** after server boot to recover from container sleep/spin-downs.
+- **Feeds**: Google News BD Crime (EN), Google News BD Safety (BN), The Daily Star Law & Crime.
+- **Pipeline**: Filters foreign/overseas stories -> classifies category/severity (`newsClassifierService`) -> geocodes location -> deduplicates active incidents (`incidentDeduplicationService`) -> persists `NewsArticle` + verified `Report` -> cross-verifies active citizen reports within **500m** and a **24-hour** window (`crossVerifyCitizenReports`), emitting `REPORT_VERIFIED`.
+- **News Report Lifespans (`calculateNewsReportExpiry`)**: `ROAD_ACCIDENT` = 48h, violent/property crimes = 72h, recurring gang/drug hazards = 7 days, `UNLIT_ROAD` = 14 days, always guaranteeing at least **24 hours** of map visibility from time of ingestion.
 
-4. **Privacy Auto-Blur Pipeline (`privacyBlurService.ts`)**:
-   - Asynchronously processes uploaded evidence media to blur identifiable human faces and vehicle license plates before rendering to public clients.
+### 5.3 Geofenced Notification Worker (`apps/api/src/jobs/notificationWorker.ts`)
+
+- Triggered asynchronously when a `HIGH` severity report is created (`enqueueReportNotification`).
+- Evaluates PostGIS spatial intersection against active `UserAlertZone` polygons and emits targeted `GEOFENCE_ALERT` events to `user:<userId>`.
 
 ---
 
-## 6. Complete Endpoints Reference Table
+## 6. Complete Endpoints Summary Table
 
-| Method | Path | Auth / Role Guard | Description |
-| :--- | :--- | :--- | :--- |
-| `GET` | `/` | Public | Welcome banner & endpoint directory |
-| `GET` | `/health` | Public | API liveness health check |
-| `GET` | `/health/db` | Public | Database readiness health check |
-| `GET` | `/api/v1/health` | Public | API liveness health check |
-| `GET` | `/api/v1/health/db` | Public | Database readiness health check |
-| `POST` | `/api/v1/auth/device` | Public | Anonymous device login & JWT issuance |
-| `POST` | `/api/v1/auth/refresh` | Public (`refreshToken` cookie) | Refresh session JWT |
-| `POST` | `/api/v1/auth/logout` | Protected (`CITIZEN`) | Revoke refresh token & clear cookies |
-| `GET` | `/api/v1/users/me` | Protected (`CITIZEN`) | Get authenticated user profile |
-| `POST` | `/api/v1/users/verify` | Protected (`CITIZEN`) | Submit citizen KYC verification |
-| `POST` | `/api/v1/users/verify/:id/approve` | Protected (`ADMIN`) | Approve citizen KYC & elevate role |
-| `POST` | `/api/v1/reports` | Protected (`CITIZEN`, 200m GPS) | Submit incident report (rate limited 15m) |
-| `GET` | `/api/v1/reports` | Public | Get reports in bounding box (fuzzed coords) |
-| `GET` | `/api/v1/reports/:id` | Public | Get single report details by UUID |
-| `PATCH` | `/api/v1/reports/:id/resolve` | Protected (Author / `ADMIN`) | Mark report as resolved |
-| `POST` | `/api/v1/reports/:id/vote` | Protected (`CITIZEN`) | Upvote (`1`) or downvote (`-1`) |
-| `POST` | `/api/v1/reports/:id/updates` | Protected (`CITIZEN`) | Add threaded context update |
-| `GET` | `/api/v1/reports/:id/updates` | Public | Get all context updates for report |
-| `GET` | `/api/v1/safe-zones` | Public | Query safe zones by bbox or proximity |
-| `POST` | `/api/v1/safe-zones` | Protected (`ADMIN`) | Create verified safe zone |
-| `DELETE` | `/api/v1/safe-zones/:id` | Protected (`ADMIN`) | Delete safe zone by UUID |
-| `POST` | `/api/v1/routes/safe-path` | Public | Calculate route avoiding red hazard zones |
-| `GET` | `/api/v1/media/presigned-url` | Protected (Author / `ADMIN`) | Generate S3/Supabase upload presigned URL |
-| `POST` | `/api/v1/media/confirm` | Protected (Author / `ADMIN`) | Confirm upload & queue privacy blur |
-| `POST` | `/api/v1/media/webhook` | Protected (`x-webhook-secret` header) | Cloud storage event receiver |
-| `POST` | `/api/v1/alerts/zones` | Protected (`CITIZEN`) | Create alert zone (max 25 km²) |
-| `GET` | `/api/v1/alerts/zones` | Protected (`CITIZEN`) | List current user's alert zones |
-| `DELETE` | `/api/v1/alerts/zones/:id` | Protected (`CITIZEN`) | Delete alert zone by UUID |
-| `POST` | `/api/v1/alerts/subscribe` | Protected (`CITIZEN`) | Register Web Push credentials |
-| `POST` | `/api/v1/admin/users/:id/ban` | Protected (`ADMIN`) | Ban user account |
-| `POST` | `/api/v1/admin/users/:id/unban` | Protected (`ADMIN`) | Restore banned user account |
-| `POST` | `/api/v1/admin/reports/:id/purge` | Protected (`ADMIN`) | Purge false/spam report |
-| `GET` | `/api/v1/admin/logs` | Protected (`ADMIN`) | Get paginated moderation audit logs |
-| `GET` | `/api/v1/admin/analytics/trends` | Protected (`ADMIN`) | Get 30-day incident analytics & trends |
-| `GET` | `/api/v1/admin/verifications` | Protected (`ADMIN`) | List pending citizen KYC verifications |
-| `POST` | `/api/v1/admin/verifications/:id/reject` | Protected (`ADMIN`) | Reject citizen KYC verification |
-| `POST` | `/api/v1/admin/news/crawl` | Protected (`ADMIN`) | Trigger manual RSS crawl & verification |
+All **43** Express endpoints registered in `apps/api/src/app.ts` and `apps/api/src/routes/*.ts`:
+
+| # | Method | Full Path | Auth / Guard | Description |
+| :--- | :--- | :--- | :--- | :--- |
+| 1 | `GET` | `/` | Public | API identity & status metadata |
+| 2 | `GET` | `/health` | Public | Server liveness probe |
+| 3 | `GET` | `/health/db` | Public | PostgreSQL & PostGIS probe |
+| 4 | `GET` | `/api/v1/health` | Public | Versioned server liveness probe |
+| 5 | `GET` | `/api/v1/health/db` | Public | Versioned PostgreSQL & PostGIS probe |
+| 6 | `POST` | `/api/v1/auth/device` | Public + `authDeviceRateLimiter` | Anonymous/device `USER` login (`200`) & registration (`201`) |
+| 7 | `POST` | `/api/v1/auth/login` | Public + `authLoginRateLimiter` | Email/password login for `ADMIN` & password-protected accounts |
+| 8 | `POST` | `/api/v1/auth/refresh` | `authRefreshRateLimiter` + `refreshToken` cookie | Single-use refresh rotation + new `socketToken` |
+| 9 | `POST` | `/api/v1/auth/logout` | `optionalLogoutAuth` | Revoke refresh token & clear auth cookies (allows expired accessToken) |
+| 10 | `GET` | `/api/v1/users/me` | `requireAuth` | Authenticated user profile & activity counts |
+| 11 | `POST` | `/api/v1/users/verify` | `requireAuth` + `userVerifyRateLimiter` | Submit `PHONE_OTP` or `NID_DOCUMENT` verification |
+| 12 | `POST` | `/api/v1/users/verify/:id/approve` | `requireAuth` + `ADMIN` + UUID check | Legacy alias: approve user KYC verification (preserves `ADMIN` role) |
+| 13 | `POST` | `/api/v1/reports` | `requireAuth` + `reportCreationRateLimiter` | Submit safety report (sanitized output, exact coords + `fuzzedRadiusMeters: 150`) |
+| 14 | `GET` | `/api/v1/reports` | Public | Query active reports in strict PostGIS map bounds |
+| 15 | `GET` | `/api/v1/reports/:id` | `optionalAuth` | Single report detail, sanitized media (`blurredUrl`), & `isOwner` |
+| 16 | `PATCH` | `/api/v1/reports/:id/resolve` | `requireAuth` | Resolve incident (author, `VERIFIED_RESPONDER`, or `ADMIN`) |
+| 17 | `POST` | `/api/v1/reports/:id/vote` | `requireAuth` + `reportVoteRateLimiter` | Cast upvote (`1`) or downvote (`-1`) without leaking `userId` |
+| 18 | `POST` | `/api/v1/reports/:id/updates` | `requireAuth` + `reportUpdateRateLimiter` | Append trimmed threaded context update (`2..500` chars) |
+| 19 | `GET` | `/api/v1/reports/:id/updates` | Public | List report context updates |
+| 20 | `GET` | `/api/v1/safe-zones` | Public | List safe zones by strict bounds or radial distance (`number` `distanceMeters`) |
+| 21 | `POST` | `/api/v1/safe-zones` | `requireAuth` + `ADMIN` | Create verified safe zone |
+| 22 | `DELETE` | `/api/v1/safe-zones/:id` | `requireAuth` + `ADMIN` | Delete safe zone |
+| 23 | `POST` | `/api/v1/routes/safe-path` | Public + `safeRouteRateLimiter` | Compute hazard-avoiding safe polyline route |
+| 24 | `POST` | `/api/v1/alerts/zones` | `requireAuth` | Create PostGIS geofenced alert polygon (max 5 zones, <= 25 km²) |
+| 25 | `GET` | `/api/v1/alerts/zones` | `requireAuth` | List user's active alert zones |
+| 26 | `DELETE` | `/api/v1/alerts/zones/:id` | `requireAuth` | Delete user's alert zone |
+| 27 | `POST` | `/api/v1/alerts/subscribe` | `requireAuth` | Register Web Push subscription |
+| 28 | `GET` | `/api/v1/media/presigned-url` | `requireAuth` | Generate presigned S3 upload URL (or mock flag) |
+| 29 | `POST` | `/api/v1/media/confirm` | `requireAuth` | Confirm uploaded media & generate `blurredUrl` |
+| 30 | `POST` | `/api/v1/media/mock-upload` | `requireAuth` | Inline base64 evidence fallback when S3 is unconfigured |
+| 31 | `POST` | `/api/v1/media/webhook` | `verifyStorageWebhookSecret` | S3/Supabase storage callback (`x-webhook-secret`, fail-closed) |
+| 32 | `GET` | `/api/v1/admin/verifications` | `requireAuth` + `ADMIN` | List pending KYC verification requests |
+| 33 | `POST` | `/api/v1/admin/verifications/:id/approve` | `requireAuth` + `ADMIN` | Approve pending KYC verification |
+| 34 | `POST` | `/api/v1/admin/verifications/:id/reject` | `requireAuth` + `ADMIN` | Reject pending KYC verification |
+| 35 | `POST` | `/api/v1/admin/users/:id/ban` | `requireAuth` + `ADMIN` | Ban user, revoke sessions, & log `BAN_USER` |
+| 36 | `POST` | `/api/v1/admin/users/:id/unban` | `requireAuth` + `ADMIN` | Unban user & log `UNBAN_USER` |
+| 37 | `POST` | `/api/v1/admin/reports/:id/purge` | `requireAuth` + `ADMIN` | Manually purge report & broadcast `REPORT_PURGED` |
+| 38 | `GET` | `/api/v1/admin/logs` | `requireAuth` + `ADMIN` | Paginated `ModerationLog` audit trail |
+| 39 | `GET` | `/api/v1/admin/analytics/trends` | `requireAuth` + `ADMIN` | 30-day crime/hazard trends, night share, & category/severity/status breakdowns |
+| 40 | `POST` | `/api/v1/admin/news/crawl` | `requireAuth` + `ADMIN` | Manually trigger RSS news crawler |
+| 41 | `GET` | `/api/v1/stats` | Public | Live platform statistics snapshot |
+| 42 | `GET` | `/api/v1/cron/news-crawl` | `verifyCronSecret` + `cronNewsCrawlRateLimiter` | Scheduler `GET` trigger (`CRON_SECRET`, fail-closed) |
+| 43 | `POST` | `/api/v1/cron/news-crawl` | `verifyCronSecret` + `cronNewsCrawlRateLimiter` | Scheduler `POST` trigger (`CRON_SECRET`, fail-closed) |
+
+### Next.js Frontend API Proxies (`apps/web/app/api`)
+
+| # | Method | Path | Auth / Guard | Description |
+| :--- | :--- | :--- | :--- | :--- |
+| 44 | `GET` | `/api/health` | Public | Aggregated frontend + Express `/health` + `/health/db` status probe |
+| 45 | `GET` | `/api/cron/news-crawl` | `CRON_SECRET` (`Bearer` or `x-cron-secret`) | Vercel Cron proxy forwarding `POST /api/v1/cron/news-crawl` |
+| 46 | `POST` | `/api/cron/news-crawl` | `CRON_SECRET` (`Bearer` or `x-cron-secret`) | Vercel Cron proxy forwarding `POST /api/v1/cron/news-crawl` (`POST = GET`) |
