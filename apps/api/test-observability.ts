@@ -122,6 +122,19 @@ async function runTests() {
     }
     console.log(`✅ [4/9] User banned and ModerationLog created (Log ID: ${banLog.id}, Action: ${banLog.action})`);
 
+    const duplicateBanRes = await request(`/api/v1/admin/users/${regularUserId}/ban`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        cookie: `accessToken=${adminUserToken}`,
+      },
+      body: JSON.stringify({ reason: 'Duplicate ban attempt' }),
+    });
+    if (duplicateBanRes.status !== 400) {
+      throw new Error(`Expected 400 when re-banning already banned user, got ${duplicateBanRes.status}`);
+    }
+    console.log('  ✅ Redundant ban properly rejected with 400 Bad Request.');
+
     // 5. Test Banned User is Blocked from Reporting
     console.log('\n🧪 [Test 5] Verifying banned user is blocked from submitting reports...');
     const reportAttemptRes = await request('/api/v1/reports', {
@@ -173,6 +186,19 @@ async function runTests() {
       throw new Error('ModerationLog record missing for UNBAN_USER action!');
     }
     console.log(`✅ [6/9] User unbanned and ModerationLog created (Log ID: ${unbanLog.id}, Action: ${unbanLog.action})`);
+
+    const duplicateUnbanRes = await request(`/api/v1/admin/users/${regularUserId}/unban`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        cookie: `accessToken=${adminUserToken}`,
+      },
+      body: JSON.stringify({ reason: 'Duplicate unban attempt' }),
+    });
+    if (duplicateUnbanRes.status !== 400) {
+      throw new Error(`Expected 400 when unbanning already active user, got ${duplicateUnbanRes.status}`);
+    }
+    console.log('  ✅ Redundant unban on active user properly rejected with 400 Bad Request.');
 
     // 7. Test Admin Purge Report, Audit Logging & Socket.IO Broadcasting
     console.log('\n🧪 [Test 7] Admin purges report, creates ModerationLog and emits real-time event...');
