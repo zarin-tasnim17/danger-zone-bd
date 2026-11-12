@@ -1,5 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { triggerNewsCrawler } from '../jobs/newsCrawlerJob';
+import { cronNewsCrawlRateLimiter } from '../middleware/rateLimiter';
+import { verifyCronSecret } from '../middleware/verifyWebhookSecret';
 import { successResponse, errorResponse } from '../utils/responseFormatter';
 
 const router = Router();
@@ -9,17 +11,8 @@ const router = Router();
  * to run the news crawler on-demand.
  * Wakes up sleeping server instances and executes fresh news ingestion.
  */
-router.all('/news-crawl', async (req: Request, res: Response) => {
+const handleNewsCrawl = async (_req: Request, res: Response) => {
   try {
-    // Optional secret check if CRON_SECRET is configured
-    const cronSecret = process.env.CRON_SECRET;
-    if (cronSecret) {
-      const headerSecret = req.headers['x-cron-secret'] || req.headers['authorization'];
-      if (headerSecret !== cronSecret && headerSecret !== `Bearer ${cronSecret}`) {
-        return errorResponse(res, 'Unauthorized cron trigger', 401);
-      }
-    }
-
     console.log('[Cron Route] 🌐 Received automated news crawl request...');
     const result = await triggerNewsCrawler();
 
@@ -36,6 +29,11 @@ router.all('/news-crawl', async (req: Request, res: Response) => {
     console.error('[Cron Route] ❌ News crawl execution failed:', error);
     return errorResponse(res, error.message || 'News crawler failed', 500);
   }
-});
+};
+
+router
+  .route('/news-crawl')
+  .get(cronNewsCrawlRateLimiter, verifyCronSecret, handleNewsCrawl)
+  .post(cronNewsCrawlRateLimiter, verifyCronSecret, handleNewsCrawl);
 
 export default router;

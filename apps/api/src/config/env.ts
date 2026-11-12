@@ -23,6 +23,7 @@ const envSchema = z.object({
   S3_PUBLIC_DOMAIN: z.string().optional(),
   STORAGE_WEBHOOK_SECRET: z.string().optional(),
   STORAGE_WEBHOOK_BUCKET: z.string().optional(),
+  CRON_SECRET: z.string().optional(),
 });
 
 const _env = envSchema.safeParse(process.env);

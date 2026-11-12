@@ -84,3 +84,13 @@ export const authLoginRateLimiter = createRateLimiter({
   message: 'Too many login attempts. Please try again in 15 minutes.',
   keyPrefix: 'auth-login',
 });
+
+/**
+ * Automated cron endpoint protection (Max 2 requests per 10 minutes per IP)
+ */
+export const cronNewsCrawlRateLimiter = createRateLimiter({
+  windowMs: 10 * 60 * 1000, // 10 minutes
+  maxRequests: 2,
+  message: 'Anti-Abuse Protection: Cron news crawler can be triggered at most 2 times every 10 minutes.',
+  keyPrefix: 'cron-news-crawl',
+});
