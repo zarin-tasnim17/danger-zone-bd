@@ -57,23 +57,44 @@ async function runRecheckVerification() {
       throw new Error(`Bearer auth failed: status=${meRes.status}`);
     }
 
-    // 3. Banned User Defense on Vote & Context Update
-    console.log('\n🧪 [Test 3] Testing Banned User Defense on Votes & Updates...');
+    // 3. Banned User Defense on Device Re-Auth & Pre-Ban Active JWTs
+    console.log('\n🧪 [Test 3] Testing Banned User Defense on /auth/device & Pre-Ban JWTs...');
     const bannedUser = await prisma.user.create({
       data: {
         anonymousId: `banned-test-${Date.now()}`,
         email: `banned-${Date.now()}@test.local`,
-        isBanned: true
+        isBanned: false
       }
     });
-    const bannedAuth = await request('/api/v1/auth/device', {
+    const preBanAuth = await request('/api/v1/auth/device', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ anonymousId: bannedUser.anonymousId })
     });
-    const bannedCookie = `accessToken=${extractCookie(bannedAuth.cookies, 'accessToken')}`;
+    const preBanToken = extractCookie(preBanAuth.cookies, 'accessToken');
+    if (preBanAuth.status !== 200 || !preBanToken) {
+      throw new Error(`Expected initial /auth/device token before ban, got status=${preBanAuth.status}`);
+    }
+    const bannedCookie = `accessToken=${preBanToken}`;
 
-    // Create a dummy report
+    // Suspend user after issuing initial session
+    await prisma.user.update({
+      where: { id: bannedUser.id },
+      data: { isBanned: true }
+    });
+
+    const bannedReauth = await request('/api/v1/auth/device', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ anonymousId: bannedUser.anonymousId })
+    });
+    if (bannedReauth.status === 403 && !extractCookie(bannedReauth.cookies, 'accessToken')) {
+      console.log('  ✅ Banned user blocked from /auth/device with 403 Forbidden and no accessToken cookie');
+    } else {
+      throw new Error(`Expected 403 with no accessToken for banned /auth/device, got status=${bannedReauth.status}`);
+    }
+
+    // Create a dummy report owned by the now-suspended user
     const activeReport = await prisma.report.create({
       data: {
         userId: bannedUser.id,
@@ -85,26 +106,53 @@ async function runRecheckVerification() {
       }
     });
 
-    const voteRes = await request(`/api/v1/reports/${activeReport.id}/vote`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Cookie: bannedCookie },
-      body: JSON.stringify({ voteType: 1 })
-    });
-    if (voteRes.status === 403) {
-      console.log('  ✅ Banned user prevented from voting with 403 Forbidden');
-    } else {
-      throw new Error(`Expected 403 for banned user vote, got ${voteRes.status}`);
-    }
+    const blockedEndpoints = [
+      {
+        label: 'voting',
+        path: `/api/v1/reports/${activeReport.id}/vote`,
+        body: { voteType: 1 }
+      },
+      {
+        label: 'posting context updates',
+        path: `/api/v1/reports/${activeReport.id}/updates`,
+        body: { content: 'Malicious update attempt' }
+      },
+      {
+        label: 'creating alert zones',
+        path: '/api/v1/alerts/zones',
+        body: {
+          name: 'Suspended Zone',
+          coordinates: [
+            [90.41, 23.79],
+            [90.42, 23.79],
+            [90.42, 23.80],
+            [90.41, 23.79]
+          ]
+        }
+      },
+      {
+        label: 'submitting KYC verification',
+        path: '/api/v1/users/verify',
+        body: { type: 'PHONE_OTP' }
+      },
+      {
+        label: 'confirming media uploads',
+        path: '/api/v1/media/confirm',
+        body: { reportId: activeReport.id, fileKey: `reports/${activeReport.id}/test.jpg` }
+      }
+    ];
 
-    const updateRes = await request(`/api/v1/reports/${activeReport.id}/updates`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Cookie: bannedCookie },
-      body: JSON.stringify({ content: 'Malicious update attempt' })
-    });
-    if (updateRes.status === 403) {
-      console.log('  ✅ Banned user prevented from posting context updates with 403 Forbidden');
-    } else {
-      throw new Error(`Expected 403 for banned user update, got ${updateRes.status}`);
+    for (const check of blockedEndpoints) {
+      const res = await request(check.path, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Cookie: bannedCookie },
+        body: JSON.stringify(check.body)
+      });
+      if (res.status === 403) {
+        console.log(`  ✅ Banned pre-ban JWT prevented from ${check.label} (${check.path}) with 403 Forbidden`);
+      } else {
+        throw new Error(`Expected 403 for banned user ${check.label} (${check.path}), got ${res.status}`);
+      }
     }
 
     // 4. Admin KYC Verification Listing and Rejection
