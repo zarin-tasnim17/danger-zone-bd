@@ -260,6 +260,53 @@ async function runRecheckVerification() {
     }
     console.log('  ✅ Approving ADMIN KYC preserved ADMIN role and set isVerified=true');
 
+    // 4b. PHONE_OTP KYC Validation, Persistence & Admin Listing
+    const phoneAuth = await request('/api/v1/auth/device', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ anonymousId: `phone-kyc-${Date.now()}` })
+    });
+    const phoneCookie = `accessToken=${extractCookie(phoneAuth.cookies, 'accessToken')}`;
+
+    const missingPhoneRes = await request('/api/v1/users/verify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Cookie: phoneCookie },
+      body: JSON.stringify({ type: 'PHONE_OTP' })
+    });
+    if (missingPhoneRes.status !== 400) {
+      throw new Error(`Expected 400 when phoneNumber missing on PHONE_OTP: ${JSON.stringify(missingPhoneRes)}`);
+    }
+
+    const invalidPhoneRes = await request('/api/v1/users/verify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Cookie: phoneCookie },
+      body: JSON.stringify({ type: 'PHONE_OTP', phoneNumber: '12345' })
+    });
+    if (invalidPhoneRes.status !== 400) {
+      throw new Error(`Expected 400 on invalid Bangladeshi mobile number: ${JSON.stringify(invalidPhoneRes)}`);
+    }
+
+    const validPhoneRes = await request('/api/v1/users/verify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Cookie: phoneCookie },
+      body: JSON.stringify({ type: 'PHONE_OTP', phoneNumber: '01712345678' })
+    });
+    if (validPhoneRes.status !== 201 || validPhoneRes.data?.data?.phoneNumber !== '+8801712345678') {
+      throw new Error(`Expected normalized +8801712345678 on PHONE_OTP verify: ${JSON.stringify(validPhoneRes)}`);
+    }
+
+    const listPhoneVerif = await request('/api/v1/admin/verifications', {
+      method: 'GET',
+      headers: { Cookie: adminCookie }
+    });
+    const createdPhoneRow = Array.isArray(listPhoneVerif.data?.data)
+      ? listPhoneVerif.data.data.find((v: any) => v.id === validPhoneRes.data.data.id)
+      : null;
+    if (!createdPhoneRow || createdPhoneRow.phoneNumber !== '+8801712345678') {
+      throw new Error(`Expected admin verification list to expose phoneNumber: ${JSON.stringify(createdPhoneRow)}`);
+    }
+    console.log('  ✅ PHONE_OTP KYC validated, normalized (+8801712345678), persisted, and returned in admin listing');
+
     // 5. Admin Safe Zone Deletion
     console.log('\n🧪 [Test 5] Testing Admin Safe Zone Deletion (DELETE /api/v1/safe-zones/:id)...');
     const createdZone = await prisma.safeZone.create({
