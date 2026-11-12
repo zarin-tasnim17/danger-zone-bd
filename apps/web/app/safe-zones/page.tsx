@@ -578,7 +578,7 @@ export default function SafeZonesPage() {
         </section>
 
         {/* Admin Management Collapsible Drawer */}
-        {(user?.role === "ADMIN" || true) && (
+        {user?.role === "ADMIN" && (
           <section className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-xs transition-all">
             <button
               onClick={() => setShowAdminDrawer(!showAdminDrawer)}
@@ -602,7 +602,7 @@ export default function SafeZonesPage() {
 
               <div className="flex items-center gap-2">
                 <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
-                  {user?.role === "ADMIN" ? "ADMIN AUTHORIZED" : "AUTHORIZED"}
+                  ADMIN AUTHORIZED
                 </span>
                 <ChevronRight className={`w-4 h-4 text-slate-400 transition-transform ${showAdminDrawer ? "rotate-90" : ""}`} />
               </div>
