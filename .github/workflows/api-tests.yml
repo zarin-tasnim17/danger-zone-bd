@@ -42,8 +42,6 @@ jobs:
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
-        with:
-          version: 9
 
       - name: Setup Node.js 22
         uses: actions/setup-node@v4
@@ -54,8 +52,8 @@ jobs:
       - name: Install workspace dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build shared workspace package
-        run: pnpm --filter @repo/shared build || true
+      - name: Typecheck shared workspace package
+        run: pnpm --filter @repo/shared typecheck
 
       - name: Push Prisma schema & generate client
         working-directory: apps/api
@@ -63,8 +61,8 @@ jobs:
           DATABASE_URL: postgresql://postgres:postgres_ci_password@127.0.0.1:5432/dangerzonebd_test
           DIRECT_URL: postgresql://postgres:postgres_ci_password@127.0.0.1:5432/dangerzonebd_test
         run: |
-          npx prisma generate
-          npx prisma db push --skip-generate
+          pnpm exec prisma generate
+          pnpm exec prisma db push --skip-generate --accept-data-loss
 
       - name: Typecheck API & Test Suite
         working-directory: apps/api
