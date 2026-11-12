@@ -40,6 +40,18 @@ export const banUser = async (
     throw error;
   }
 
+  if (targetUser.id === adminId) {
+    const error: any = new Error('Administrators cannot ban their own account');
+    error.statusCode = 403;
+    throw error;
+  }
+
+  if (targetUser.role === 'ADMIN') {
+    const error: any = new Error('Administrators cannot ban another administrator account');
+    error.statusCode = 403;
+    throw error;
+  }
+
   if (targetUser.isBanned) {
     const error: any = new Error('User is already banned');
     error.statusCode = 400;
