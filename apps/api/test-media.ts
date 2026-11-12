@@ -1,4 +1,5 @@
 import http from 'http';
+import crypto from 'crypto';
 import { app } from './src/app';
 import { prisma } from './src/db/prisma';
 
@@ -32,6 +33,8 @@ async function runTests() {
   let user2Token = '';
   let testReportId = '';
   let createdMediaId = '';
+  const originalWebhookSecret = process.env.STORAGE_WEBHOOK_SECRET;
+  const originalWebhookBucket = process.env.STORAGE_WEBHOOK_BUCKET;
 
   try {
     // 2. Authenticate User 1
@@ -205,10 +208,123 @@ async function runTests() {
     }
     console.log('✅ Server RAM protection verified: Direct multipart uploads rejected with 415.');
 
+    // 11. Test Storage Webhook Authentication & Key Hardening ([SEC-002])
+    console.log('\n🧪 [Test 10] Verifying Storage Webhook secret auth & payload hardening...');
+    const webhookFileKey = `reports/${testReportId}/${crypto.randomUUID()}.jpg`;
+    const sampleWebhookPayload = {
+      type: 'INSERT',
+      record: {
+        bucket_id: 'incident-media',
+        name: webhookFileKey,
+      },
+    };
+
+    // 10a. Fail-closed when STORAGE_WEBHOOK_SECRET is unset
+    delete process.env.STORAGE_WEBHOOK_SECRET;
+    delete process.env.STORAGE_WEBHOOK_BUCKET;
+    const unconfiguredWebhookRes = await request('/api/v1/media/webhook', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(sampleWebhookPayload),
+    });
+    if (unconfiguredWebhookRes.status !== 401) {
+      throw new Error(`Expected 401 when webhook secret unset, got ${unconfiguredWebhookRes.status}`);
+    }
+
+    // 10b. Missing, wrong-length, and equal-length invalid secrets must return 401
+    const webhookSecret = crypto.randomBytes(32).toString('hex');
+    process.env.STORAGE_WEBHOOK_SECRET = webhookSecret;
+    const wrongSameLengthSecret = `${webhookSecret[0] === 'a' ? 'b' : 'a'}${webhookSecret.slice(1)}`;
+
+    for (const badHeaders of [
+      { 'Content-Type': 'application/json' },
+      { 'Content-Type': 'application/json', 'x-webhook-secret': 'short-wrong-secret' },
+      { 'Content-Type': 'application/json', 'x-webhook-secret': wrongSameLengthSecret },
+    ] as Record<string, string>[]) {
+      const badSecretRes = await request('/api/v1/media/webhook', {
+        method: 'POST',
+        headers: badHeaders,
+        body: JSON.stringify(sampleWebhookPayload),
+      });
+      if (badSecretRes.status !== 401) {
+        throw new Error(`Expected 401 for invalid webhook secret, got ${badSecretRes.status}`);
+      }
+    }
+
+    const beforeWebhookCount = await prisma.reportMedia.count({ where: { reportId: testReportId } });
+
+    // 10c. Valid x-webhook-secret processes valid INSERT object key
+    const validWebhookRes = await request('/api/v1/media/webhook', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-webhook-secret': webhookSecret,
+      },
+      body: JSON.stringify(sampleWebhookPayload),
+    });
+    if (validWebhookRes.status !== 200 || !validWebhookRes.data?.received) {
+      throw new Error(`Expected 200 { received: true } for valid webhook, got ${validWebhookRes.status}`);
+    }
+
+    const afterInsertCount = await prisma.reportMedia.count({ where: { reportId: testReportId } });
+    if (afterInsertCount !== beforeWebhookCount + 1) {
+      throw new Error(`Expected exactly 1 new ReportMedia row from webhook, got ${afterInsertCount - beforeWebhookCount}`);
+    }
+
+    // 10d. Duplicate delivery is idempotent
+    const duplicateWebhookRes = await request('/api/v1/media/webhook', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-webhook-secret': webhookSecret,
+      },
+      body: JSON.stringify(sampleWebhookPayload),
+    });
+    if (duplicateWebhookRes.status !== 200) {
+      throw new Error(`Expected 200 on duplicate webhook delivery, got ${duplicateWebhookRes.status}`);
+    }
+
+    // 10e. Non-INSERT events, traversal paths, non-UUIDs, blurred loops, and disallowed extensions are ignored
+    for (const ignoredPayload of [
+      { type: 'DELETE', record: { bucket_id: 'incident-media', name: `reports/${testReportId}/${crypto.randomUUID()}.jpg` } },
+      { type: 'INSERT', record: { bucket_id: 'incident-media', name: 'reports/not-a-uuid/fake.jpg' } },
+      { type: 'INSERT', record: { bucket_id: 'incident-media', name: `reports/${testReportId}/../../evil.jpg` } },
+      { type: 'INSERT', record: { bucket_id: 'incident-media', name: `reports/${testReportId}/malware.exe` } },
+      { type: 'INSERT', record: { bucket_id: 'incident-media', name: `reports/${testReportId}/blurred-loop.jpg` } },
+    ]) {
+      const ignoredRes = await request('/api/v1/media/webhook', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-webhook-secret': webhookSecret,
+        },
+        body: JSON.stringify(ignoredPayload),
+      });
+      if (ignoredRes.status !== 200) {
+        throw new Error(`Expected 200 for ignored webhook payload, got ${ignoredRes.status}`);
+      }
+    }
+
+    const finalWebhookCount = await prisma.reportMedia.count({ where: { reportId: testReportId } });
+    if (finalWebhookCount !== afterInsertCount) {
+      throw new Error(`Expected no duplicate or malicious ReportMedia rows, got ${finalWebhookCount} vs ${afterInsertCount}`);
+    }
+    console.log('✅ Storage webhook fail-closed auth, idempotency, and key validation verified.');
+
     console.log('\n🎉 ========================================================');
     console.log('🎉 ALL PHASE 10 FILE & MEDIA HANDLING TESTS PASSED (100%)!');
     console.log('🎉 ========================================================\n');
   } finally {
+    if (originalWebhookSecret === undefined) {
+      delete process.env.STORAGE_WEBHOOK_SECRET;
+    } else {
+      process.env.STORAGE_WEBHOOK_SECRET = originalWebhookSecret;
+    }
+    if (originalWebhookBucket === undefined) {
+      delete process.env.STORAGE_WEBHOOK_BUCKET;
+    } else {
+      process.env.STORAGE_WEBHOOK_BUCKET = originalWebhookBucket;
+    }
     // Cleanup fixtures
     console.log('🧹 Cleaning up test database fixtures...');
     try {
