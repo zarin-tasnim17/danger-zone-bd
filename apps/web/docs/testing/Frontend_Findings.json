@@ -1,0 +1,186 @@
+{
+  "generatedAt": "2026-11-12T16:22:56.515Z",
+  "auditScope": {
+    "frontendWorkspace": "apps/web",
+    "backendBaseline": "apps/api (BACKEND-001..BACKEND-014 verified fixed; 47 endpoints EP-001..EP-047)",
+    "applicationSourceModified": true,
+    "specificationFile": "dontADDgit/frontend_api_test.md"
+  },
+  "executionBaseline": {
+    "typecheck": "PASS (tsc --noEmit exit 0)",
+    "nextBuild": "PASS (next build exit 0, 13/13 App Router routes)",
+    "verificationTests": {
+      "total": 43,
+      "passed": 43,
+      "failed": 0,
+      "skipped": 0,
+      "layers": {
+        "mocked": { "total": 33, "passed": 33, "failed": 0, "skipped": 0 },
+        "contract": { "total": 4, "passed": 4, "failed": 0, "skipped": 0 },
+        "liveBackend": { "total": 3, "passed": 3, "failed": 0, "skipped": 0 },
+        "browserE2E": { "total": 3, "passed": 3, "failed": 0, "skipped": 0 }
+      }
+    },
+    "defectRegressionTests": {
+      "total": 11,
+      "passed": 11,
+      "failed": 0,
+      "skipped": 0,
+      "note": "All 11/11 defect regression tests (FRONTEND-001..FRONTEND-011) PASS; 54/54 total tests pass in --profile=report with 0 DB orphans."
+    }
+  },
+  "findings": [
+    {
+      "id": "FRONTEND-001",
+      "title": "Concurrent 401 responses trigger un-mutexed parallel POST /api/v1/auth/refresh calls colliding with single-use refresh rotation",
+      "category": "Authentication & Session Lifecycle / Concurrency",
+      "severity": "High",
+      "priority": "P1",
+      "status": "FIXED AND VERIFIED",
+      "affectedEndpoints": ["EP-008 POST /api/v1/auth/refresh", "EP-010 GET /api/v1/users/me"],
+      "locations": ["apps/web/lib/api.ts"],
+      "regressionTest": "apps/web/tests/regression/01-confirmed-frontend-defects.test.ts ([FRONTEND-001])",
+      "observedEvidence": "Fixed & verified: added module-scoped single-flight refreshInFlightPromise mutex in apps/web/lib/api.ts coalescing concurrent 401s behind one POST /api/v1/auth/refresh, updating setSocketToken, and retrying with skipAuthRefresh: true. [FRONTEND-001] PASS and api/01 PASS."
+    },
+    {
+      "id": "FRONTEND-002",
+      "title": "POST /api/v1/auth/login 401 invalid credentials triggers unintended silent /auth/refresh and retry",
+      "category": "Authentication & Error Handling",
+      "severity": "High",
+      "priority": "P1",
+      "status": "FIXED AND VERIFIED",
+      "affectedEndpoints": ["EP-007 POST /api/v1/auth/login", "EP-008 POST /api/v1/auth/refresh"],
+      "locations": ["apps/web/lib/api.ts"],
+      "regressionTest": "apps/web/tests/regression/01-confirmed-frontend-defects.test.ts ([FRONTEND-002])",
+      "observedEvidence": "Fixed & verified: excluded /auth/login and /auth/logout alongside /auth/refresh and /auth/device in shouldAttemptSilentRefresh() inside apps/web/lib/api.ts so failed logins throw ApiError(401) immediately. [FRONTEND-002] PASS and api/01 PASS."
+    },
+    {
+      "id": "FRONTEND-003",
+      "title": "loginAdminWithPassword leaves non-admin HttpOnly cookies active after rejecting non-ADMIN role",
+      "category": "Authorization & Session Isolation",
+      "severity": "High",
+      "priority": "P1",
+      "status": "FIXED AND VERIFIED",
+      "affectedEndpoints": ["EP-007 POST /api/v1/auth/login", "EP-009 POST /api/v1/auth/logout"],
+      "locations": ["apps/web/store/useAuthStore.ts"],
+      "regressionTest": "apps/web/tests/regression/01-confirmed-frontend-defects.test.ts ([FRONTEND-003])",
+      "observedEvidence": "Fixed & verified: loginAdminWithPassword revokes issued cookies via POST /auth/logout (skipAuthRefresh: true), clears setSocketToken(null), and resets store state before throwing the admin privilege error. [FRONTEND-003] PASS and api/02 PASS."
+    },
+    {
+      "id": "FRONTEND-004",
+      "title": "initAuth unconditionally calls POST /auth/device without checking /users/me, overwriting Admin/Responder sessions on reload and minting DB rows on logout",
+      "category": "Authentication & State Synchronization",
+      "severity": "High",
+      "priority": "P1",
+      "status": "FIXED AND VERIFIED",
+      "affectedEndpoints": ["EP-006 POST /api/v1/auth/device", "EP-009 POST /api/v1/auth/logout", "EP-010 GET /api/v1/users/me"],
+      "locations": ["apps/web/store/useAuthStore.ts", "apps/web/app/profile/page.tsx"],
+      "regressionTest": "apps/web/tests/regression/01-confirmed-frontend-defects.test.ts ([FRONTEND-004])",
+      "observedEvidence": "Fixed & verified: initAuth() checks GET /users/me first to preserve active ADMIN/VERIFIED_RESPONDER/USER sessions and only bootstraps /auth/device on 401; logout() clears session cleanly without minting an anonymous DB row; added resetAnonymousIdentity() for /profile reset. [FRONTEND-004] PASS and workflows/01 PASS."
+    },
+    {
+      "id": "FRONTEND-005",
+      "title": "alerts/page.tsx opens Socket.IO synchronously before awaited initAuth() resolves, breaking private user:<id> GEOFENCE_ALERT room attachment",
+      "category": "Real-Time WebSocket & Authentication Race",
+      "severity": "High",
+      "priority": "P1",
+      "status": "FIXED AND VERIFIED",
+      "affectedEndpoints": ["EP-047 WS /socket.io", "EP-006 POST /api/v1/auth/device"],
+      "locations": ["apps/web/app/alerts/page.tsx:207-244", "apps/web/lib/socket.ts:13-36"],
+      "regressionTest": "apps/web/tests/regression/01-confirmed-frontend-defects.test.ts ([FRONTEND-005])",
+      "observedEvidence": "Fixed & verified: alerts/page.tsx now attaches GEOFENCE_ALERT via getSocket() inside awaited bootstrap() after initAuth() resolves (with React cleanup cancellation), lib/socket.ts handles authenticated token upgrades/logout disconnects cleanly, [FRONTEND-005] PASS, live 3/3 PASS, and Chromium E2E connects /alerts cleanly as an authenticated socket user."
+    },
+    {
+      "id": "FRONTEND-006",
+      "title": "alerts/page.tsx fabricates synthetic https://push.safetymap.bd endpoint & dummy keys when PushManager subscription fails/is absent",
+      "category": "Form & Browser API Integrity",
+      "severity": "Medium",
+      "priority": "P2",
+      "status": "FIXED AND VERIFIED",
+      "affectedEndpoints": ["EP-027 POST /api/v1/alerts/subscribe"],
+      "locations": ["apps/web/app/alerts/page.tsx:457-553", "apps/web/public/sw.js:70-124"],
+      "regressionTest": "apps/web/tests/regression/01-confirmed-frontend-defects.test.ts ([FRONTEND-006])",
+      "observedEvidence": "Fixed & verified: removed synthetic https://push.safetymap.bd fallback and dummy keys; wired PushManager.subscribe with NEXT_PUBLIC_VAPID_PUBLIC_KEY and honest error reporting when unavailable/denied; added push and notificationclick listeners to public/sw.js. [FRONTEND-006] PASS and forms/01 5/5 PASS."
+    },
+    {
+      "id": "FRONTEND-007",
+      "title": "ReportIncidentModal submits malformed ': ' on whitespace input and lacks <=1000-character composed description guard",
+      "category": "Form Validation & Backend Schema Parity",
+      "severity": "Medium",
+      "priority": "P2",
+      "status": "FIXED AND VERIFIED",
+      "affectedEndpoints": ["EP-013 POST /api/v1/reports"],
+      "locations": ["apps/web/components/incidents/ReportIncidentModal.tsx"],
+      "regressionTest": "apps/web/tests/regression/01-confirmed-frontend-defects.test.ts ([FRONTEND-007])",
+      "observedEvidence": "Fixed & verified: ReportIncidentModal now rejects !title.trim() || !description.trim() before setting submitting state and enforces fullDescription.length <= 1000 matching backend Zod limits. [FRONTEND-007] PASS and forms/01 PASS."
+    },
+    {
+      "id": "FRONTEND-008",
+      "title": "safe-zones/page.tsx triggers redundant 3x GET /safe-zones loops via selectedZone dependency and submits NaN/null coordinates without pre-flight validation",
+      "category": "Form Validation & UI State Synchronization",
+      "severity": "Medium",
+      "priority": "P2",
+      "status": "FIXED AND VERIFIED",
+      "affectedEndpoints": ["EP-020 GET /api/v1/safe-zones", "EP-021 POST /api/v1/safe-zones"],
+      "locations": ["apps/web/app/safe-zones/page.tsx"],
+      "regressionTest": "apps/web/tests/regression/01-confirmed-frontend-defects.test.ts ([FRONTEND-008])",
+      "observedEvidence": "Fixed & verified: removed selectedZone from fetchSafeZones useCallback deps using functional updater setSelectedZone((prev) => prev ?? data[0]), eliminating the 3x GET /safe-zones mount loop in E2E; added name.trim().length < 2, Number.isFinite(lat/lng), and Bangladesh bounds validation before POST. [FRONTEND-008] PASS and e2e/01 PASS."
+    },
+    {
+      "id": "FRONTEND-009",
+      "title": "admin/page.tsx silently swallows dashboard fetch failures (console.warn only) and submits unvalidated <3-char reasons / non-UUID user IDs",
+      "category": "Error Handling & Admin Form Validation",
+      "severity": "Medium",
+      "priority": "P2",
+      "status": "FIXED AND VERIFIED",
+      "affectedEndpoints": [
+        "EP-032 GET /api/v1/admin/verifications",
+        "EP-034 POST /api/v1/admin/verifications/:id/reject",
+        "EP-035 POST /api/v1/admin/users/:id/ban",
+        "EP-036 POST /api/v1/admin/users/:id/unban",
+        "EP-037 POST /api/v1/admin/reports/:id/purge",
+        "EP-038 GET /api/v1/admin/logs",
+        "EP-039 GET /api/v1/admin/analytics/trends"
+      ],
+      "locations": ["apps/web/app/admin/page.tsx"],
+      "regressionTest": "apps/web/tests/regression/01-confirmed-frontend-defects.test.ts ([FRONTEND-009])",
+      "observedEvidence": "Fixed & verified: fetchAdminData now surfaces API failures via showToast(..., 'error') and visible error banner with Retry; purge/reject/ban/unban handlers enforce reason.trim().length >= 3 and UUID_PATTERN validation prior to calling /admin endpoints. [FRONTEND-009] PASS."
+    },
+    {
+      "id": "FRONTEND-010",
+      "title": "apiFetch lacks a default AbortController timeout guard and /report page snaps blank manual coordinates to Banani while quick prompts exceed maxLength=500",
+      "category": "Resilience, Timeouts & Input Handling",
+      "severity": "Medium",
+      "priority": "P2",
+      "status": "FIXED AND VERIFIED",
+      "affectedEndpoints": ["EP-013 POST /api/v1/reports", "ALL client apiFetch endpoints"],
+      "locations": ["apps/web/lib/api.ts", "apps/web/app/report/page.tsx"],
+      "regressionTest": "apps/web/tests/regression/01-confirmed-frontend-defects.test.ts ([FRONTEND-010])",
+      "observedEvidence": "Fixed & verified: apiFetch now enforces a default 25,000ms AbortController timeout linked with external AbortSignal and cleans up timers/listeners in finally; /report caps quick prompts at 500 chars via .slice(0, 500) and manages manual coordinate drafts cleanly without snapping empty inputs to Dhaka Banani. [FRONTEND-010] PASS, api/01 PASS, e2e/01 PASS."
+    },
+    {
+      "id": "FRONTEND-011",
+      "title": "Concurrent useAuthStore.initAuth() mounts duplicate POST /auth/device requests (201 + 400 StrictMode race and double auth on every page load)",
+      "category": "Concurrency & Duplicate API Calls",
+      "severity": "High",
+      "priority": "P1",
+      "status": "FIXED AND VERIFIED",
+      "affectedEndpoints": ["EP-006 POST /api/v1/auth/device", "EP-010 GET /api/v1/users/me"],
+      "locations": ["apps/web/store/useAuthStore.ts"],
+      "regressionTest": "apps/web/tests/regression/01-confirmed-frontend-defects.test.ts ([FRONTEND-011])",
+      "observedEvidence": "Fixed & verified: added module-scoped single-flight initAuthPromise deduplicating StrictMode/concurrent initAuth() calls cleanly. [FRONTEND-011] PASS and Chromium E2E logs show single GET /users/me per route transition without duplicate /auth/device writes."
+    }
+  ],
+  "verifiedNonIssues": [
+    {
+      "subject": "EP-018 / EP-019 ReportUpdate author.role & author.alias parity",
+      "verdict": "DISPROVEN HYPOTHESIS — MATCHES BACKEND",
+      "evidence": "Live API execution and apps/api/src/services/reportUpdateService.ts:48-62,99-113 return { id, reportId, content, createdAt, author: { isVerified, role, alias } }, matching app/reports/[id]/page.tsx cleanly (verified in contracts/01 & workflows/01)."
+    },
+    {
+      "subject": "EP-002 / EP-003 /health & /health/db direct client probe URL in app/health/page.tsx",
+      "verdict": "FIXED AND VERIFIED (LOW / ENVIRONMENTAL QUIRK RESOLVED)",
+      "evidence": "Normalized targetUrl in apps/web/app/health/page.tsx by stripping trailing slashes and /api/v1 (consistent with apps/web/app/api/health/route.ts) before probing /health and /health/db; verified live in Chromium E2E (GET /health 200, GET /health/db 200)."
+    }
+  ]
+}
