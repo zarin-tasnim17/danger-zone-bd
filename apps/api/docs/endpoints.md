@@ -298,8 +298,8 @@ Authentication uses short-lived JWT access tokens and persistent refresh tokens 
 ```
 
 #### `GET /api/v1/reports/:id`
-- **Description**: Fetch full details for a single incident report by UUID.
-- **Auth**: Public
+- **Description**: Fetch full details for a single incident report by UUID with reporter PII (`userId`) strictly stripped and fuzzed coordinates applied. Returns `isOwner: true` only when an authenticated viewer owns the report.
+- **Auth**: Public *(Optional authentication via `accessToken` cookie or `Authorization: Bearer <token>` to compute `isOwner`)*
 - **Response `200 OK`**:
 ```json
 {
@@ -310,20 +310,23 @@ Authentication uses short-lived JWT access tokens and persistent refresh tokens 
     "severity": "HIGH",
     "latitude": 23.7921,
     "longitude": 90.4082,
+    "fuzzedRadiusMeters": 65,
     "description": "...",
     "status": "ACTIVE",
     "upvotes": 5,
     "downvotes": 0,
+    "authorVerified": false,
+    "authorRole": "USER",
+    "isOwner": false,
     "createdAt": "...",
-    "updates": [],
     "media": []
   }
 }
 ```
 
 #### `PATCH /api/v1/reports/:id/resolve`
-- **Description**: Mark an active incident report as `RESOLVED`.
-- **Auth**: Protected (`requireAuth` - Only report creator or `ADMIN`)
+- **Description**: Mark an active incident report as `RESOLVED`. Omits reporter `userId` and returns fuzzed coordinates + `isOwner`.
+- **Auth**: Protected (`requireAuth` - Only report creator, `VERIFIED_RESPONDER`, or `ADMIN`)
 - **Response `200 OK`**:
 ```json
 {
@@ -331,7 +334,7 @@ Authentication uses short-lived JWT access tokens and persistent refresh tokens 
   "data": {
     "id": "9a1b8c7d-...",
     "status": "RESOLVED",
-    "resolvedAt": "2026-10-25T14:30:00.000Z"
+    "isOwner": true
   }
 }
 ```

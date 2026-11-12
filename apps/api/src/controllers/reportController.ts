@@ -49,7 +49,7 @@ export const getReports = async (req: Request, res: Response) => {
 export const getReportById = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const report = await reportService.fetchReportById(id);
+    const report = await reportService.fetchReportById(id, req.user?.id);
     return successResponse(res, report, 200);
   } catch (error: any) {
     const statusCode = error.statusCode || 400;

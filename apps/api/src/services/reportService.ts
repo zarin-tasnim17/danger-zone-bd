@@ -172,7 +172,7 @@ export const fetchReportsInBounds = async (bounds: BoundingBox, filters?: Report
 /**
  * Fetches a single incident by ID strictly stripping reporter PII and applying location fuzzing.
  */
-export const fetchReportById = async (reportId: string) => {
+export const fetchReportById = async (reportId: string, viewerUserId?: string) => {
   const report = await prisma.report.findUnique({
     where: { id: reportId },
     select: {
@@ -214,15 +214,16 @@ export const fetchReportById = async (reportId: string) => {
   }
 
   const fuzzed = getFuzzedCoordinates(report.id, report.latitude, report.longitude);
+  const { user, userId, ...safeReport } = report;
 
   return {
-    ...report,
+    ...safeReport,
     latitude: fuzzed.latitude,
     longitude: fuzzed.longitude,
     fuzzedRadiusMeters: fuzzed.fuzzedRadiusMeters,
-    authorVerified: report.user?.isVerified ?? false,
-    authorRole: report.user?.role ?? 'USER',
-    user: undefined // Strip user object completely
+    authorVerified: user?.isVerified ?? false,
+    authorRole: user?.role ?? 'USER',
+    isOwner: Boolean(viewerUserId && viewerUserId === userId),
   };
 };
 
@@ -275,5 +276,14 @@ export const resolveReport = async (reportId: string, userId: string, userRole: 
     resolvedAt: new Date().toISOString()
   });
 
-  return updated;
+  const fuzzed = getFuzzedCoordinates(updated.id, updated.latitude, updated.longitude);
+  const { userId: ownerId, ...safeUpdated } = updated;
+
+  return {
+    ...safeUpdated,
+    latitude: fuzzed.latitude,
+    longitude: fuzzed.longitude,
+    fuzzedRadiusMeters: fuzzed.fuzzedRadiusMeters,
+    isOwner: ownerId === userId,
+  };
 };

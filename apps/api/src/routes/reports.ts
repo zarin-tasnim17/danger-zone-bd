@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { createReport, getReports, getReportById, resolveReportHandler } from '../controllers/reportController';
 import { voteOnReport } from '../controllers/voteController';
 import { addUpdateHandler, getUpdatesHandler } from '../controllers/reportUpdateController';
-import { requireAuth } from '../middleware/requireAuth';
+import { requireAuth, optionalAuth } from '../middleware/requireAuth';
 import { validateRequest } from '../middleware/validateRequest';
 import { z } from 'zod';
 import { REPORT_CATEGORIES } from '@repo/shared';
@@ -63,7 +63,7 @@ const addUpdateSchema = z.object({
 
 router.post('/', requireAuth, reportCreationRateLimiter, validateRequest(reportSchema), createReport);
 router.get('/', validateRequest(boundsSchema), getReports);
-router.get('/:id', validateRequest(reportIdSchema), getReportById);
+router.get('/:id', optionalAuth, validateRequest(reportIdSchema), getReportById);
 router.patch('/:id/resolve', requireAuth, validateRequest(reportIdSchema), resolveReportHandler);
 router.post('/:id/vote', requireAuth, validateRequest(voteSchema), voteOnReport);
 
