@@ -150,7 +150,9 @@ export const deleteAlertZone = async (userId: string, zoneId: string): Promise<b
   `;
 
   if (existing.length === 0) {
-    throw new Error('Alert zone not found');
+    const error: any = new Error('Alert zone not found');
+    error.statusCode = 404;
+    throw error;
   }
 
   if (existing[0].userId !== userId) {

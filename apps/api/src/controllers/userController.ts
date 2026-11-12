@@ -34,6 +34,7 @@ export const approveVerify = async (req: Request, res: Response) => {
     
     return successResponse(res, { userId: updatedUser.id, role: updatedUser.role }, 200);
   } catch (error: any) {
-    return errorResponse(res, error.message, 400);
+    const statusCode = error.statusCode || 400;
+    return errorResponse(res, error.message, statusCode);
   }
 };

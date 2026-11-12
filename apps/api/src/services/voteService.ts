@@ -17,7 +17,9 @@ export const submitVote = async (userId: string, reportId: string, voteType: 1 |
 
   const report = await prisma.report.findUnique({ where: { id: reportId } });
   if (!report) {
-    throw new Error('Report not found');
+    const error: any = new Error('Report not found');
+    error.statusCode = 404;
+    throw error;
   }
   if (report.userId === userId) {
     throw new Error('You cannot vote on your own report');
