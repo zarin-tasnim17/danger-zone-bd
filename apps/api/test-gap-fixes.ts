@@ -551,7 +551,139 @@ async function runVerification() {
       await prisma.user.delete({ where: { id: rollbackUser.id } }).catch(() => {});
     }
 
-    console.log('\n🎉 ALL 12 VERIFICATION TESTS PASSED SUCCESSFULLY!');
+    // 13. DB-003: Cascade Foreign Key Deletions (Report & User)
+    console.log('\n🧪 [Test 13] Verifying DB-003 ON DELETE CASCADE foreign keys...');
+    const cascadeOwner = await prisma.user.create({
+      data: {
+        anonymousId: `db003-owner-${Date.now()}`,
+        email: `db003-owner-${Date.now()}@test.safety`
+      }
+    });
+    const cascadePeer = await prisma.user.create({
+      data: {
+        anonymousId: `db003-peer-${Date.now()}`,
+        email: `db003-peer-${Date.now()}@test.safety`
+      }
+    });
+
+    const createdLogIds: string[] = [];
+    try {
+      // 13a. Direct Report delete cascades Vote, ReportUpdate, ReportMedia and nulls ModerationLog.targetReportId
+      const targetReport = await createReport(cascadeOwner.id, {
+        category: 'THEFT',
+        severity: 'LOW',
+        latitude: 23.8103,
+        longitude: 90.4125,
+        description: 'DB-003 report cascade verification'
+      });
+
+      await prisma.vote.create({
+        data: { userId: cascadePeer.id, reportId: targetReport.id, voteType: 1 }
+      });
+      await prisma.reportUpdate.create({
+        data: { userId: cascadePeer.id, reportId: targetReport.id, content: 'Update before cascade delete' }
+      });
+      await prisma.reportMedia.create({
+        data: { reportId: targetReport.id, originalUrl: 'https://example.test/orig.jpg' }
+      });
+      const reportLog = await prisma.moderationLog.create({
+        data: {
+          adminId: adminUser.id,
+          targetReportId: targetReport.id,
+          action: 'PURGE_REPORT',
+          reason: 'DB-003 cascade verification'
+        }
+      });
+      createdLogIds.push(reportLog.id);
+
+      await prisma.report.delete({ where: { id: targetReport.id } });
+
+      const [votesLeft, updatesLeft, mediaLeft, refreshedReportLog] = await Promise.all([
+        prisma.vote.count({ where: { reportId: targetReport.id } }),
+        prisma.reportUpdate.count({ where: { reportId: targetReport.id } }),
+        prisma.reportMedia.count({ where: { reportId: targetReport.id } }),
+        prisma.moderationLog.findUnique({ where: { id: reportLog.id } })
+      ]);
+      if (votesLeft !== 0 || updatesLeft !== 0 || mediaLeft !== 0 || refreshedReportLog?.targetReportId !== null) {
+        throw new Error(
+          `DB-003 Report cascade check failed: votes=${votesLeft}, updates=${updatesLeft}, media=${mediaLeft}, targetReportId=${refreshedReportLog?.targetReportId}`
+        );
+      }
+      console.log('  ✅ Direct Report deletion cascaded Vote, ReportUpdate, ReportMedia & nulled ModerationLog.targetReportId');
+
+      // 13b. Direct User delete cascades RefreshToken, UserVerification, UserAlertZone, Report (+ nested Vote/ReportUpdate) & nulls ModerationLog.targetUserId
+      await prisma.user.update({
+        where: { id: cascadeOwner.id },
+        data: { lastReportAt: null }
+      });
+      const userReport = await createReport(cascadeOwner.id, {
+        category: 'UNLIT_ROAD',
+        severity: 'LOW',
+        latitude: 23.815,
+        longitude: 90.415,
+        description: 'DB-003 user cascade report'
+      });
+      await prisma.refreshToken.create({
+        data: {
+          userId: cascadeOwner.id,
+          token: `db003-rt-${crypto.randomBytes(8).toString('hex')}`,
+          expiresAt: new Date(Date.now() + 60_000)
+        }
+      });
+      await prisma.userVerification.create({
+        data: { userId: cascadeOwner.id, type: 'PHONE_OTP' }
+      });
+      await prisma.$executeRaw`
+        INSERT INTO "UserAlertZone" (id, "userId", name, area, "isActive", "createdAt", "updatedAt")
+        VALUES (
+          gen_random_uuid(),
+          ${cascadeOwner.id},
+          'DB-003 Temp Zone',
+          ST_GeogFromText('SRID=4326;POLYGON((90.40 23.80, 90.42 23.80, 90.42 23.82, 90.40 23.82, 90.40 23.80))'),
+          true,
+          NOW(),
+          NOW()
+        )
+      `;
+      await prisma.vote.create({
+        data: { userId: cascadePeer.id, reportId: userReport.id, voteType: 1 }
+      });
+      await prisma.reportUpdate.create({
+        data: { userId: cascadeOwner.id, reportId: userReport.id, content: 'Author update' }
+      });
+      const userLog = await prisma.moderationLog.create({
+        data: {
+          adminId: adminUser.id,
+          targetUserId: cascadeOwner.id,
+          action: 'BAN_USER',
+          reason: 'DB-003 user cascade verification'
+        }
+      });
+      createdLogIds.push(userLog.id);
+
+      await prisma.user.delete({ where: { id: cascadeOwner.id } });
+
+      const [rtLeft, verLeft, zoneLeft, repLeft, refreshedUserLog] = await Promise.all([
+        prisma.refreshToken.count({ where: { userId: cascadeOwner.id } }),
+        prisma.userVerification.count({ where: { userId: cascadeOwner.id } }),
+        prisma.$queryRaw<Array<{ cnt: number }>>`SELECT COUNT(*)::int AS cnt FROM "UserAlertZone" WHERE "userId" = ${cascadeOwner.id}`,
+        prisma.report.count({ where: { userId: cascadeOwner.id } }),
+        prisma.moderationLog.findUnique({ where: { id: userLog.id } })
+      ]);
+      if (rtLeft !== 0 || verLeft !== 0 || (zoneLeft[0]?.cnt ?? 0) !== 0 || repLeft !== 0 || refreshedUserLog?.targetUserId !== null) {
+        throw new Error(
+          `DB-003 User cascade check failed: rt=${rtLeft}, ver=${verLeft}, zones=${zoneLeft[0]?.cnt}, reports=${repLeft}, targetUserId=${refreshedUserLog?.targetUserId}`
+        );
+      }
+      console.log('  ✅ Direct User deletion cascaded RefreshToken, UserVerification, UserAlertZone, Report & nulled ModerationLog.targetUserId');
+    } finally {
+      if (createdLogIds.length > 0) {
+        await prisma.moderationLog.deleteMany({ where: { id: { in: createdLogIds } } }).catch(() => {});
+      }
+      await prisma.user.deleteMany({ where: { id: { in: [cascadeOwner.id, cascadePeer.id] } } }).catch(() => {});
+    }
+
+    console.log('\n🎉 ALL 13 VERIFICATION TESTS PASSED SUCCESSFULLY!');
   } finally {
     server.close();
   }
