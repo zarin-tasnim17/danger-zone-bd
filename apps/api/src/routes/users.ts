@@ -4,6 +4,7 @@ import { getMe, submitVerify, approveVerify } from '../controllers/userControlle
 import { requireAuth } from '../middleware/requireAuth';
 import { requireRole } from '../middleware/requireRole';
 import { validateRequest } from '../middleware/validateRequest';
+import { userVerifyRateLimiter } from '../middleware/rateLimiter';
 import { z } from 'zod';
 
 const router = Router();
@@ -39,7 +40,7 @@ const verifySchema = z.object({
 });
 
 router.get('/me', requireAuth, getMe);
-router.post('/verify', requireAuth, validateRequest(verifySchema), submitVerify);
+router.post('/verify', requireAuth, userVerifyRateLimiter, validateRequest(verifySchema), submitVerify);
 router.post('/verify/:id/approve', requireAuth, requireRole(['ADMIN']), approveVerify);
 
 export default router;

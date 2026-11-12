@@ -33,7 +33,7 @@ const handleNewsCrawl = async (_req: Request, res: Response) => {
 
 router
   .route('/news-crawl')
-  .get(cronNewsCrawlRateLimiter, verifyCronSecret, handleNewsCrawl)
-  .post(cronNewsCrawlRateLimiter, verifyCronSecret, handleNewsCrawl);
+  .get(verifyCronSecret, cronNewsCrawlRateLimiter, handleNewsCrawl)
+  .post(verifyCronSecret, cronNewsCrawlRateLimiter, handleNewsCrawl);
 
 export default router;

@@ -1,7 +1,11 @@
 import { Router } from 'express';
 import { loginDevice, loginPassword, refresh, logout } from '../controllers/authController';
 import { validateRequest } from '../middleware/validateRequest';
-import { authLoginRateLimiter } from '../middleware/rateLimiter';
+import {
+  authDeviceRateLimiter,
+  authLoginRateLimiter,
+  authRefreshRateLimiter,
+} from '../middleware/rateLimiter';
 import { z } from 'zod';
 
 const router = Router();
@@ -20,9 +24,9 @@ const passwordLoginSchema = z.object({
   }).strict()
 });
 
-router.post('/device', validateRequest(deviceLoginSchema), loginDevice);
+router.post('/device', authDeviceRateLimiter, validateRequest(deviceLoginSchema), loginDevice);
 router.post('/login', authLoginRateLimiter, validateRequest(passwordLoginSchema), loginPassword);
-router.post('/refresh', refresh);
+router.post('/refresh', authRefreshRateLimiter, refresh);
 router.post('/logout', logout);
 
 export default router;

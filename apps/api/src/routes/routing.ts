@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { calculateSafeRouteHandler } from '../controllers/routingController';
 import { validateRequest } from '../middleware/validateRequest';
+import { safeRouteRateLimiter } from '../middleware/rateLimiter';
 
 const router = Router();
 
@@ -15,6 +16,6 @@ const safeRouteSchema = z.object({
 });
 
 // Safe Route Pathfinding endpoint
-router.post('/safe-path', validateRequest(safeRouteSchema), calculateSafeRouteHandler);
+router.post('/safe-path', safeRouteRateLimiter, validateRequest(safeRouteSchema), calculateSafeRouteHandler);
 
 export default router;

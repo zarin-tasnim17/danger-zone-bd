@@ -7,7 +7,11 @@ import { validateRequest } from '../middleware/validateRequest';
 import { z } from 'zod';
 import { REPORT_CATEGORIES } from '@repo/shared';
 
-import { reportCreationRateLimiter } from '../middleware/rateLimiter';
+import {
+  reportCreationRateLimiter,
+  reportUpdateRateLimiter,
+  reportVoteRateLimiter,
+} from '../middleware/rateLimiter';
 
 const router = Router();
 
@@ -95,10 +99,10 @@ router.post('/', requireAuth, reportCreationRateLimiter, validateRequest(reportS
 router.get('/', validateRequest(boundsSchema), getReports);
 router.get('/:id', optionalAuth, validateRequest(reportIdSchema), getReportById);
 router.patch('/:id/resolve', requireAuth, validateRequest(reportIdSchema), resolveReportHandler);
-router.post('/:id/vote', requireAuth, validateRequest(voteSchema), voteOnReport);
+router.post('/:id/vote', requireAuth, reportVoteRateLimiter, validateRequest(voteSchema), voteOnReport);
 
 // Threaded Context Updates for active incidents
-router.post('/:id/updates', requireAuth, validateRequest(addUpdateSchema), addUpdateHandler);
+router.post('/:id/updates', requireAuth, reportUpdateRateLimiter, validateRequest(addUpdateSchema), addUpdateHandler);
 router.get('/:id/updates', validateRequest(reportIdSchema), getUpdatesHandler);
 
 export default router;

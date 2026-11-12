@@ -4,9 +4,11 @@ import helmet from 'helmet';
 import morgan from 'morgan';
 import cookieParser from 'cookie-parser';
 import { errorHandler } from './middleware/errorHandler';
+import { env } from './config/env';
 import healthRouter from './routes/health';
 
 const app = express();
+app.set('trust proxy', env.NODE_ENV === 'production' ? 1 : 'loopback');
 
 const rawCors = process.env.CORS_ORIGIN || 'http://localhost:3000';
 const corsOrigins = rawCors === '*' ? '*' : rawCors.split(',').map((o) => o.trim());
