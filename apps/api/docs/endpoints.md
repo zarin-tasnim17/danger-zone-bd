@@ -48,11 +48,13 @@ Authentication uses short-lived JWT access tokens and persistent refresh tokens 
 - `accessToken` (Expires: 15 minutes, `HttpOnly`, `SameSite=Strict`, `Secure` in production)
 - `refreshToken` (Expires: 7 days, `HttpOnly`, `SameSite=Strict`, `Secure` in production)
 
-### 2.3 Required Custom Headers for Specific Endpoints
+### 2.3 Optional Hardware GPS Headers (`POST /api/v1/reports`)
 - **Incident Reporting (`POST /api/v1/reports`)**:
-  - `x-device-lat`: Latitude string of client device GPS (e.g. `"23.8103"`).
-  - `x-device-lng`: Longitude string of client device GPS (e.g. `"90.4125"`).
-  - *Enforcement*: The server performs a Haversine distance check ensuring the device is within **200 meters** of the incident coordinates to prevent remote spam.
+  - `x-device-lat` *(optional, paired with `x-device-lng`)*: Latitude string of client device GPS (e.g. `"23.8103"`).
+  - `x-device-lng` *(optional, paired with `x-device-lat`)*: Longitude string of client device GPS (e.g. `"90.4125"`).
+  - `x-device-accuracy` *(optional)*: Browser `coords.accuracy` in meters (e.g. `"18"`).
+  - `x-gps-source` *(optional)*: `"hardware"` | `"manual"`.
+  - *Enforcement*: When device coordinates are supplied, the server enforces a PostGIS distance check (`<= 200 meters`). Reports are flagged `isGpsVerified: true` strictly when hardware GPS passes `<= 200m` proximity with `x-device-accuracy <= 250`; manual pin or coarse GPS submissions are stored with `isGpsVerified: false`.
   - *Rate Limiting*: 1 incident report per 15 minutes per authenticated user.
 
 ### 2.4 User Roles & Permissions
@@ -227,11 +229,13 @@ Authentication uses short-lived JWT access tokens and persistent refresh tokens 
 ### 3.4 Incident Reports & Community Moderation (`/api/v1/reports`)
 
 #### `POST /api/v1/reports`
-- **Description**: Submit a new safety hazard incident report. Enforces device proximity check (<= 200m) and rate limiting (1 report per 15 minutes).
+- **Description**: Submit a new safety hazard incident report. When hardware GPS coordinates are provided (`x-device-lat`, `x-device-lng`), enforces a 200m PostGIS proximity check and marks `isGpsVerified: true` if `x-device-accuracy <= 250` and `x-gps-source` is not `"manual"`. Manual pin submissions omit these headers and persist `isGpsVerified: false`. Rate limit: 1 report per 15 minutes for standard citizens.
 - **Auth**: Protected (`requireAuth`)
-- **Required Headers**:
-  - `x-device-lat`: Client GPS latitude (e.g. `"23.7925"`)
-  - `x-device-lng`: Client GPS longitude (e.g. `"90.4078"`)
+- **Optional Hardware GPS Headers**:
+  - `x-device-lat`: Client GPS latitude (e.g. `"23.7925"`, required if `x-device-lng` is provided)
+  - `x-device-lng`: Client GPS longitude (e.g. `"90.4078"`, required if `x-device-lat` is provided)
+  - `x-device-accuracy`: Client geolocation accuracy in meters (e.g. `"18"`, must be `<= 250` to earn `isGpsVerified: true`)
+  - `x-gps-source`: `"hardware"` | `"manual"`
 - **Request Body**:
 ```json
 {
@@ -250,6 +254,7 @@ Authentication uses short-lived JWT access tokens and persistent refresh tokens 
     "id": "9a1b8c7d-...",
     "category": "MUGGING",
     "severity": "HIGH",
+    "isGpsVerified": true,
     "latitude": 23.7925,
     "longitude": 90.4078,
     "description": "Two individuals on a motorcycle snatching bags near Banani 11 bridge.",
@@ -313,6 +318,7 @@ Authentication uses short-lived JWT access tokens and persistent refresh tokens 
     "fuzzedRadiusMeters": 65,
     "description": "...",
     "status": "ACTIVE",
+    "isGpsVerified": true,
     "upvotes": 5,
     "downvotes": 0,
     "authorVerified": false,

@@ -1,8 +1,16 @@
 import { prisma } from '../db/prisma';
 import { ReportCategory, ReportSeverity } from '@prisma/client';
+import { MAX_GPS_PROXIMITY_METERS, MAX_HARDWARE_GPS_ACCURACY_METERS } from '@repo/shared';
 import { isWithinDistance, getReportsInBounds, BoundingBox, ReportFilterOptions, getFuzzedCoordinates } from '../db/spatialUtils';
 import { emitNewReport, emitReportResolved } from '../sockets';
 import { enqueueReportNotification } from '../jobs';
+
+export interface DeviceGpsTelemetry {
+  latitude: number;
+  longitude: number;
+  accuracy?: number;
+  source?: 'hardware' | 'manual';
+}
 
 /**
  * Calculates dynamic time-decay expiration based on incident nature:
@@ -56,7 +64,7 @@ export const createReport = async (
     longitude: number;
     description?: string;
   },
-  deviceGps: { latitude: number; longitude: number }
+  deviceGps?: DeviceGpsTelemetry
 ) => {
   // Enforce account suspension check, trust score check, and rate-limiting check
   const user = await prisma.user.findUnique({
@@ -90,17 +98,30 @@ export const createReport = async (
     }
   }
 
-  // Critical Business Rule: Proximity validation (max 200m)
-  const isCloseEnough = await isWithinDistance(
-    payload.latitude, payload.longitude,
-    deviceGps.latitude, deviceGps.longitude,
-    200
-  );
+  let isGpsVerified = false;
 
-  if (!isCloseEnough) {
-    const error: any = new Error('Submitted coordinate is too far from your actual GPS location (max 200m).');
-    error.statusCode = 400;
-    throw error;
+  if (deviceGps) {
+    // Critical Business Rule: Proximity validation whenever device GPS coordinates are submitted (max 200m)
+    const isCloseEnough = await isWithinDistance(
+      payload.latitude, payload.longitude,
+      deviceGps.latitude, deviceGps.longitude,
+      MAX_GPS_PROXIMITY_METERS
+    );
+
+    if (!isCloseEnough) {
+      const error: any = new Error('Submitted coordinate is too far from your actual GPS location (max 200m).');
+      error.statusCode = 400;
+      throw error;
+    }
+
+    // Verified only when unmodified hardware geolocation within accuracy threshold backed the proximity check.
+    const hasHardwareAccuracy =
+      typeof deviceGps.accuracy === 'number' &&
+      Number.isFinite(deviceGps.accuracy) &&
+      deviceGps.accuracy >= 0 &&
+      deviceGps.accuracy <= MAX_HARDWARE_GPS_ACCURACY_METERS;
+
+    isGpsVerified = hasHardwareAccuracy && deviceGps.source !== 'manual';
   }
 
   const expiresAt = calculateReportExpiry(payload.category, now);
@@ -114,6 +135,7 @@ export const createReport = async (
         category: payload.category,
         severity: payload.severity,
         isNightReport,
+        isGpsVerified,
         latitude: payload.latitude,
         longitude: payload.longitude,
         description: payload.description,
@@ -146,6 +168,7 @@ export const createReport = async (
     upvotes: report.upvotes,
     downvotes: report.downvotes,
     status: report.status,
+    isGpsVerified: report.isGpsVerified,
     expiresAt: report.expiresAt,
     createdAt: report.createdAt
   });
@@ -183,6 +206,7 @@ export const fetchReportById = async (reportId: string, viewerUserId?: string) =
       category: true,
       severity: true,
       isNightReport: true,
+      isGpsVerified: true,
       latitude: true,
       longitude: true,
       description: true,

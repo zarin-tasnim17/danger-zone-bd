@@ -11,6 +11,20 @@ import { reportCreationRateLimiter } from '../middleware/rateLimiter';
 
 const router = Router();
 
+const parseFiniteHeaderNumber = (val: string): number => {
+  const trimmed = val.trim();
+  return trimmed.length === 0 ? Number.NaN : Number(trimmed);
+};
+
+const optionalCoordHeader = (min: number, max: number, label: string) =>
+  z
+    .string()
+    .refine((val) => {
+      const num = parseFiniteHeaderNumber(val);
+      return Number.isFinite(num) && num >= min && num <= max;
+    }, `${label} must be a valid number between ${min} and ${max}`)
+    .optional();
+
 const reportSchema = z.object({
   body: z.object({
     category: z.enum(REPORT_CATEGORIES),
@@ -20,9 +34,20 @@ const reportSchema = z.object({
     description: z.string().optional(),
   }).strict(),
   headers: z.object({
-    'x-device-lat': z.string().refine(val => !isNaN(parseFloat(val)), "Must be a number string"),
-    'x-device-lng': z.string().refine(val => !isNaN(parseFloat(val)), "Must be a number string")
-  }).passthrough()
+    'x-device-lat': optionalCoordHeader(-90, 90, 'x-device-lat'),
+    'x-device-lng': optionalCoordHeader(-180, 180, 'x-device-lng'),
+    'x-device-accuracy': z
+      .string()
+      .refine((val) => {
+        const num = parseFiniteHeaderNumber(val);
+        return Number.isFinite(num) && num >= 0;
+      }, 'x-device-accuracy must be a non-negative number string')
+      .optional(),
+    'x-gps-source': z.enum(['hardware', 'manual']).optional(),
+  }).passthrough().refine(
+    (headers) => (headers['x-device-lat'] === undefined) === (headers['x-device-lng'] === undefined),
+    { message: 'x-device-lat and x-device-lng must both be provided together or both omitted' }
+  )
 });
 
 const boundsSchema = z.object({

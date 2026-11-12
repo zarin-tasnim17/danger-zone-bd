@@ -8,10 +8,20 @@ export const createReport = async (req: Request, res: Response) => {
     const userId = req.user!.id;
     const payload = req.body;
     
-    const deviceGps = {
-      latitude: parseFloat(req.headers['x-device-lat'] as string),
-      longitude: parseFloat(req.headers['x-device-lng'] as string)
-    };
+    const rawLat = req.headers['x-device-lat'] as string | undefined;
+    const rawLng = req.headers['x-device-lng'] as string | undefined;
+    const rawAccuracy = req.headers['x-device-accuracy'] as string | undefined;
+    const gpsSource = req.headers['x-gps-source'] as 'hardware' | 'manual' | undefined;
+
+    const deviceGps =
+      rawLat !== undefined && rawLng !== undefined
+        ? {
+            latitude: Number(rawLat.trim()),
+            longitude: Number(rawLng.trim()),
+            accuracy: rawAccuracy !== undefined ? Number(rawAccuracy.trim()) : undefined,
+            source: gpsSource,
+          }
+        : undefined;
 
     const report = await reportService.createReport(userId, payload as any, deviceGps);
     return successResponse(res, report, 201);

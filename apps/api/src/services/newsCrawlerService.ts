@@ -344,6 +344,7 @@ export const processAndIngestNewsItems = async (
       createdAt: report.createdAt,
       sourceUrl: report.sourceUrl,
       sourceName: report.sourceName,
+      isGpsVerified: report.isGpsVerified,
     });
   }
 
