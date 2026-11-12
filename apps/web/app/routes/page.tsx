@@ -6,6 +6,7 @@ import Navbar from "@/components/layout/Navbar";
 import { apiFetch } from "@/lib/api";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useLanguageStore } from "@/store/useLanguageStore";
+import { showToast } from "@/store/useToastStore";
 import { BypassedHazardItem } from "@/components/routes/RoutePathMap";
 import {
   Navigation,
@@ -201,7 +202,7 @@ export default function RoutesPage() {
   // Acquire Citizen's live GPS for Origin
   const handleUseMyLocation = () => {
     if (!("geolocation" in navigator)) {
-      alert("Geolocation is not supported by your browser.");
+      showToast("Geolocation is not supported by your browser.", "error");
       return;
     }
 
@@ -214,7 +215,7 @@ export default function RoutesPage() {
       },
       (err) => {
         setIsLocatingUser(false);
-        alert("Failed to retrieve GPS location. Please allow browser location access.");
+        showToast("Failed to retrieve GPS location. Please allow browser location access.", "error");
       },
       { enableHighAccuracy: true, timeout: 10000 }
     );

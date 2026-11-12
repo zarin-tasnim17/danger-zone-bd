@@ -6,6 +6,7 @@ import Navbar from "@/components/layout/Navbar";
 import { apiFetch } from "@/lib/api";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useLanguageStore } from "@/store/useLanguageStore";
+import { showToast } from "@/store/useToastStore";
 import { getSocket } from "@/lib/socket";
 import {
   Bell,
@@ -299,7 +300,10 @@ export default function AlertsPage() {
   // Geolocate user to start drawing near them
   const handleGeolocate = () => {
     if (!navigator.geolocation) {
-      alert(isBn ? "আপনার ব্রাউজারে জিপিএস সমর্থিত নয়" : "Geolocation is not supported by your browser");
+      showToast(
+        isBn ? "আপনার ব্রাউজারে জিপিএস সমর্থিত নয়" : "Geolocation is not supported by your browser",
+        "error"
+      );
       return;
     }
     navigator.geolocation.getCurrentPosition(
@@ -320,7 +324,10 @@ export default function AlertsPage() {
         setZoneName(isBn ? "আমার বর্তমান অবস্থান বলয়" : "My Current Location Perimeter");
       },
       () => {
-        alert(isBn ? "জিপিএস অবস্থান সংগ্রহ করা যায়নি" : "Unable to retrieve your GPS location");
+        showToast(
+          isBn ? "জিপিএস অবস্থান সংগ্রহ করা যায়নি" : "Unable to retrieve your GPS location",
+          "error"
+        );
       }
     );
   };
@@ -429,7 +436,7 @@ export default function AlertsPage() {
       await apiFetch(`/alerts/zones/${id}`, { method: "DELETE" });
       fetchZones();
     } catch (err: any) {
-      alert(`Delete failed: ${err.message}`);
+      showToast(`Delete failed: ${err.message}`, "error");
     } finally {
       setDeletingId(null);
     }
@@ -501,13 +508,14 @@ export default function AlertsPage() {
       });
 
       setPushSubscribed(true);
-      alert(
+      showToast(
         isBn
           ? "ব্রাউজার ওয়েব পুশ অ্যালার্ট সফলভাবে নিবন্ধিত হয়েছে!"
-          : "Browser Web Push alert registration successful!"
+          : "Browser Web Push alert registration successful!",
+        "success"
       );
     } catch (err: any) {
-      alert(err.message);
+      showToast(err.message, "error");
     } finally {
       setIsSubscribingPush(false);
     }

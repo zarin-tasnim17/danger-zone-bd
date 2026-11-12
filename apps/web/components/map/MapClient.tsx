@@ -21,6 +21,7 @@ import LocationCalibrationModal from "./LocationCalibrationModal";
 import { useFilterStore } from "@/store/useFilterStore";
 import { useLanguageStore } from "@/store/useLanguageStore";
 import { useIncidentStore } from "@/store/useIncidentStore";
+import { showToast } from "@/store/useToastStore";
 import { DangerIncident, IncidentSeverity } from "@repo/shared";
 import { getTranslation } from "@/lib/translations";
 import { cleanIncidentTitle } from "@/lib/incidentUtils";
@@ -381,10 +382,12 @@ export default function MapClient() {
       window.location.hostname !== "localhost" &&
       window.location.hostname !== "127.0.0.1"
     ) {
-      alert(
+      showToast(
         isBn
           ? "মোবাইলে সরাসরি জিপিএস ব্যবহারের জন্য ব্রাউজারে সুরক্ষিত (HTTPS) সংযোগ প্রয়োজন।"
-          : "Mobile GPS hardware requires a Secure Context (HTTPS or localhost)."
+          : "Mobile GPS hardware requires a Secure Context (HTTPS or localhost).",
+        "warning",
+        6000
       );
       openCalibrationModal();
       return;
@@ -438,10 +441,12 @@ export default function MapClient() {
       setIsLocating(false);
       if (err.code === 1) {
         geoPermissionStateRef.current = 'denied';
-        alert(
+        showToast(
           isBn
             ? "লোকেশন পারমিশন পাওয়া যায়নি। আধুনিক অ্যান্ড্রয়েডে: (১) স্ক্রিনে কোনো ভাসমান বাবল/চ্যাট হেড বা স্ক্রিন ওভারলে চালু থাকলে বন্ধ করুন (এটি 'Try again' ত্রুটি দেয়), (২) অ্যাড্রেস বারের বাম দিকের আইকন থেকে Location Allow করুন এবং Chrome সেটিংসে 'Precise location' চালু রাখুন।"
-            : "Location permission was blocked or could not be confirmed.\n\nOn Android 12+, if tapping Allow says 'Try again':\n1. Close any floating bubbles/overlays (Messenger chat heads, Edge panel, blue-light filters, screen recorders) — Android blocks permission taps if overlays are active.\n2. Tap the Sliders/Lock icon next to the URL bar → Permissions → Location → Allow.\n3. Ensure 'Use precise location' is ON in Android App Settings for Chrome."
+            : "Location permission was blocked or could not be confirmed.\n\nOn Android 12+, if tapping Allow says 'Try again':\n1. Close any floating bubbles/overlays (Messenger chat heads, Edge panel, blue-light filters, screen recorders) — Android blocks permission taps if overlays are active.\n2. Tap the Sliders/Lock icon next to the URL bar → Permissions → Location → Allow.\n3. Ensure 'Use precise location' is ON in Android App Settings for Chrome.",
+          "warning",
+          9000
         );
       }
       fallbackToSavedOrModal();
@@ -1001,7 +1006,7 @@ export default function MapClient() {
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            voteIncident(incident.id, 1).catch((err) => alert(err.message));
+                            voteIncident(incident.id, 1).catch((err) => showToast(err.message, "error"));
                           }}
                           className="flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-semibold border border-emerald-200 transition cursor-pointer"
                           title="Confirm / Upvote"
@@ -1013,7 +1018,7 @@ export default function MapClient() {
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            voteIncident(incident.id, -1).catch((err) => alert(err.message));
+                            voteIncident(incident.id, -1).catch((err) => showToast(err.message, "error"));
                           }}
                           className="flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 font-semibold border border-rose-200 transition cursor-pointer"
                           title="Dispute / Downvote"

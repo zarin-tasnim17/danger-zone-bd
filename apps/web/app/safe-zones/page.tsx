@@ -7,6 +7,7 @@ import Navbar from "@/components/layout/Navbar";
 import { apiFetch } from "@/lib/api";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useLanguageStore } from "@/store/useLanguageStore";
+import { showToast } from "@/store/useToastStore";
 import type { SafeZoneItem, SafeZoneType } from "@repo/shared";
 import { getSafeZonePresentation, normalizeSafeZoneType } from "@/lib/safeZoneMeta";
 import {
@@ -273,7 +274,7 @@ export default function SafeZonesPage() {
         setSelectedZone(null);
       }
     } catch (err: any) {
-      alert(`Delete failed: ${err.message}`);
+      showToast(`Delete failed: ${err.message}`, "error");
     }
   };
 

@@ -6,6 +6,7 @@ import { useIncidentStore } from "@/store/useIncidentStore";
 import { useMapStore } from "@/store/useMapStore";
 import { useLanguageStore } from "@/store/useLanguageStore";
 import { useFilterStore } from "@/store/useFilterStore";
+import { showToast } from "@/store/useToastStore";
 import { getTranslation } from "@/lib/translations";
 import { DangerIncident } from "@repo/shared";
 import { cleanIncidentTitle, getCategoryIcon, getCategoryBadgeClass } from "@/lib/incidentUtils";
@@ -128,7 +129,7 @@ export default function IncidentFeed({ onIncidentSelect }: { onIncidentSelect?: 
       setCommentText("");
       setActiveCommentIncidentId(null);
     } catch (err: any) {
-      alert(err.message || "Failed to post update");
+      showToast(err.message || "Failed to post update", "error");
     } finally {
       setIsSubmittingComment(false);
     }
@@ -404,7 +405,7 @@ export default function IncidentFeed({ onIncidentSelect }: { onIncidentSelect?: 
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        voteIncident(item.id, 1).catch((err) => alert(err.message));
+                        voteIncident(item.id, 1).catch((err) => showToast(err.message, "error"));
                       }}
                       className="flex items-center gap-1 px-2 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-[10px] font-semibold transition active:scale-95 cursor-pointer"
                       title="Upvote / Corroborate"
@@ -416,7 +417,7 @@ export default function IncidentFeed({ onIncidentSelect }: { onIncidentSelect?: 
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        voteIncident(item.id, -1).catch((err) => alert(err.message));
+                        voteIncident(item.id, -1).catch((err) => showToast(err.message, "error"));
                       }}
                       className="flex items-center gap-1 px-2 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-[10px] font-semibold transition active:scale-95 cursor-pointer"
                       title="Downvote / Dispute"

@@ -7,6 +7,7 @@ import { useAuthStore } from "@/store/useAuthStore";
 import { useLanguageStore } from "@/store/useLanguageStore";
 import { apiFetch } from "@/lib/api";
 import { translations } from "@/lib/translations";
+import { showToast } from "@/store/useToastStore";
 import {
   ShieldAlert,
   ArrowLeft,
@@ -166,7 +167,7 @@ export default function AdminPage() {
       setPurgeReason("");
       fetchAdminData();
     } catch (err: any) {
-      alert(err.message || "Failed to purge report.");
+      showToast(err.message || "Failed to purge report.", "error");
     } finally {
       setIsPurging(false);
     }
@@ -186,7 +187,7 @@ export default function AdminPage() {
       setRejectReason("");
       fetchAdminData();
     } catch (err: any) {
-      alert(err.message || "Failed to reject verification.");
+      showToast(err.message || "Failed to reject verification.", "error");
     } finally {
       setIsRejecting(false);
     }
@@ -204,7 +205,7 @@ export default function AdminPage() {
         });
         fetchAdminData();
       } catch (err: any) {
-        alert(err.message || "Failed to approve verification.");
+        showToast(err.message || "Failed to approve verification.", "error");
       }
     },
     [fetchAdminData, isBn]
@@ -270,7 +271,10 @@ export default function AdminPage() {
 
   const handleBanUser = async (action: "ban" | "unban") => {
     if (!banUserId.trim()) {
-      alert(isBn ? "অনুগ্রহ করে টার্গেট ইউজার আইডি প্রদান করুন।" : "Please provide target user ID.");
+      showToast(
+        isBn ? "অনুগ্রহ করে টার্গেট ইউজার আইডি প্রদান করুন।" : "Please provide target user ID.",
+        "warning"
+      );
       return;
     }
     const reason =
@@ -284,16 +288,17 @@ export default function AdminPage() {
         method: "POST",
         body: JSON.stringify({ reason }),
       });
-      alert(
+      showToast(
         action === "ban"
           ? isBn ? "ইউজার সফলভাবে স্থগিত / নিষিদ্ধ করা হয়েছে।" : "User suspended successfully."
-          : isBn ? "ইউজার অ্যাকাউন্ট সফলভাবে পুনরুদ্ধার করা হয়েছে।" : "User restored successfully."
+          : isBn ? "ইউজার অ্যাকাউন্ট সফলভাবে পুনরুদ্ধার করা হয়েছে।" : "User restored successfully.",
+        "success"
       );
       setBanUserId("");
       setBanReason("");
       fetchAdminData();
     } catch (err: any) {
-      alert(err.message || `Failed to ${action} user.`);
+      showToast(err.message || `Failed to ${action} user.`, "error");
     }
   };
 

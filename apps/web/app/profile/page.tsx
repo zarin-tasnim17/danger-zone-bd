@@ -6,6 +6,7 @@ import Navbar from "@/components/layout/Navbar";
 import { apiFetch } from "@/lib/api";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useLanguageStore } from "@/store/useLanguageStore";
+import { showToast } from "@/store/useToastStore";
 import { BD_MOBILE_REGEX } from "@repo/shared";
 import {
   UserCheck,
@@ -139,13 +140,14 @@ export default function ProfilePage() {
         body: JSON.stringify({ anonymousId: anonId }),
       });
       const switchedUser = await initAuth();
-      alert(
+      showToast(
         isBn
           ? `সেশন সফলভাবে পরিবর্তন করা হয়েছে: ${switchedUser?.email || anonId}`
-          : `Switched session to: ${switchedUser?.email || anonId}`
+          : `Switched session to: ${switchedUser?.email || anonId}`,
+        "success"
       );
     } catch (err: any) {
-      alert(`Identity switch failed: ${err.message}`);
+      showToast(`Identity switch failed: ${err.message}`, "error");
     } finally {
       setIsSwitching(false);
     }
@@ -157,10 +159,11 @@ export default function ProfilePage() {
       : "Reset to a brand new anonymous citizen identity?";
     if (!window.confirm(msg)) return;
     await logout();
-    alert(
+    showToast(
       isBn
         ? "নতুন বেনামী ডিভাইস পরিচয় তৈরি করা হয়েছে।"
-        : "New anonymous device identity generated."
+        : "New anonymous device identity generated.",
+      "success"
     );
   };
 

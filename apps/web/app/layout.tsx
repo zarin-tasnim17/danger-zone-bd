@@ -5,6 +5,7 @@ import EmergencySosPill from "@/components/emergency/EmergencySosPill";
 import SafetyTutorialModal from "@/components/emergency/SafetyTutorialModal";
 import TermsConsentModal from "@/components/onboarding/TermsConsentModal";
 import ServiceWorkerRegister from "@/components/pwa/ServiceWorkerRegister";
+import ToastContainer from "@/components/ui/ToastContainer";
 
 export const metadata: Metadata = {
   title: "Danger Zone ⚡ — Bangladesh Safety & Alert Map",
@@ -35,6 +36,7 @@ export default function RootLayout({
         <SafetyTutorialModal />
         <TermsConsentModal />
         <ServiceWorkerRegister />
+        <ToastContainer />
       </body>
     </html>
   );

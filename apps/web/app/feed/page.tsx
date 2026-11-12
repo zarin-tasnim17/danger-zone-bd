@@ -7,6 +7,7 @@ import { apiFetch } from "@/lib/api";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useLanguageStore } from "@/store/useLanguageStore";
 import { useStatsStore } from "@/store/useStatsStore";
+import { showToast } from "@/store/useToastStore";
 import { getSocket } from "@/lib/socket";
 import {
   SOCKET_EVENTS,
@@ -350,7 +351,7 @@ export default function FeedPage() {
           )
         );
       }
-      alert(err.message || (isBn ? "ভোট সম্পন্ন করা যায়নি" : "Failed to record vote."));
+      showToast(err.message || (isBn ? "ভোট সম্পন্ন করা যায়নি" : "Failed to record vote."), "error");
       fetchIncidents();
     } finally {
       setVotingId(null);
@@ -395,7 +396,7 @@ export default function FeedPage() {
       }));
       setCommentInputText("");
     } catch (err: any) {
-      alert(err.message || (isBn ? "আপডেট পোস্ট করা যায়নি" : "Failed to submit update."));
+      showToast(err.message || (isBn ? "আপডেট পোস্ট করা যায়নি" : "Failed to submit update."), "error");
     } finally {
       setSubmittingCommentId(null);
     }
