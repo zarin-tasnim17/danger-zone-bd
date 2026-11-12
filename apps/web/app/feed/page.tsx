@@ -9,6 +9,7 @@ import { useLanguageStore } from "@/store/useLanguageStore";
 import { useStatsStore } from "@/store/useStatsStore";
 import { showToast } from "@/store/useToastStore";
 import { getSocket } from "@/lib/socket";
+import { formatCategoryLabel } from "@/lib/incidentUtils";
 import {
   SOCKET_EVENTS,
   getSocketReportId,
@@ -850,7 +851,7 @@ export default function FeedPage() {
                     {/* Category Title & Landmark Tag */}
                     <div className="space-y-1">
                       <div className="flex items-center gap-1.5 text-xs font-bold text-slate-500 uppercase tracking-wider font-mono">
-                        <span>{incident.category.replace("_", " ")}</span>
+                        <span>{formatCategoryLabel(incident.category, language)}</span>
                         {remainingTime && (
                           <span className="text-[10px] text-slate-400 font-normal">
                             • {remainingTime}

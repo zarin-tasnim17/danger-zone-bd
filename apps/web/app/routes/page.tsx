@@ -6,6 +6,7 @@ import Navbar from "@/components/layout/Navbar";
 import { apiFetch } from "@/lib/api";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useLanguageStore } from "@/store/useLanguageStore";
+import { formatCategoryLabel } from "@/lib/incidentUtils";
 import { showToast } from "@/store/useToastStore";
 import { BypassedHazardItem } from "@/components/routes/RoutePathMap";
 import {
@@ -705,7 +706,7 @@ export default function RoutesPage() {
                         >
                           <div>
                             <span className="font-bold text-red-900 uppercase">
-                              {hazard.category.replace("_", " ")}
+                              {formatCategoryLabel(hazard.category, language)}
                             </span>
                             <p className="text-[11px] text-red-700">
                               {isBn

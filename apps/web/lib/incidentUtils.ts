@@ -11,7 +11,38 @@ import {
   Car,
   AlertTriangle,
 } from "lucide-react";
-import { IncidentCategory } from "@repo/shared";
+import { IncidentCategory, Language } from "@repo/shared";
+import { translations } from "@/lib/translations";
+
+/**
+ * Formats a raw hazard category enum into a localized human-readable label,
+ * replacing all underscores globally when falling back to raw enum text.
+ */
+export function formatCategoryLabel(
+  category: string,
+  language: Language = "en"
+): string {
+  if (!category) return "";
+  const categories = translations[language]?.categories as
+    | Record<string, string>
+    | undefined;
+  const fallbackCategories = translations.en.categories as Record<
+    string,
+    string
+  >;
+  const normalizedUpper = category.toUpperCase();
+  const normalizedLower = category.toLowerCase();
+
+  return (
+    categories?.[category] ??
+    categories?.[normalizedUpper] ??
+    categories?.[normalizedLower] ??
+    fallbackCategories[category] ??
+    fallbackCategories[normalizedUpper] ??
+    fallbackCategories[normalizedLower] ??
+    category.replace(/_/g, " ")
+  );
+}
 
 /**
  * Cleans raw news headlines by stripping bracketed feed aggregator prefixes

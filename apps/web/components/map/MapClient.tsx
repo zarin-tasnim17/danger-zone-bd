@@ -24,7 +24,7 @@ import { useIncidentStore } from "@/store/useIncidentStore";
 import { showToast } from "@/store/useToastStore";
 import { DangerIncident, IncidentSeverity } from "@repo/shared";
 import { getTranslation } from "@/lib/translations";
-import { cleanIncidentTitle } from "@/lib/incidentUtils";
+import { cleanIncidentTitle, formatCategoryLabel } from "@/lib/incidentUtils";
 import { isIncidentCategoryMatch } from "@/lib/filterUtils";
 import { getSafeZonePresentation } from "@/lib/safeZoneMeta";
 import L from "leaflet";
@@ -946,7 +946,7 @@ export default function MapClient() {
                       }`}
                     />
                     <span className="font-bold">
-                      {(t.categories as any)[incident.category] || (t.categories as any)[incident.category.toLowerCase()] || incident.category}
+                      {formatCategoryLabel(incident.category, language)}
                     </span>
                     <span className="text-slate-400 font-normal">|</span>
                     <span className="text-slate-200 truncate max-w-[240px]">
@@ -973,7 +973,7 @@ export default function MapClient() {
                       </span>
 
                       <span className="text-[10px] text-slate-500 font-mono font-bold">
-                        {(t.categories as any)[incident.category] || (t.categories as any)[incident.category.toLowerCase()] || incident.category}
+                        {formatCategoryLabel(incident.category, language)}
                       </span>
                     </div>
 

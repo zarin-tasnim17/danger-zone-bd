@@ -16,6 +16,7 @@ import MapLayerSwitcher from "@/components/map/MapLayerSwitcher";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 import { createDangerMarkerIcon } from "@/lib/mapMarkerUtils";
+import { formatCategoryLabel } from "@/lib/incidentUtils";
 import { MapPin, Navigation, AlertTriangle, ShieldCheck, Flag } from "lucide-react";
 
 export interface BypassedHazardItem {
@@ -394,7 +395,7 @@ export default function RoutePathMap({
                     <span>{isBn ? "বাইপাসকৃত বিপদ" : "Avoided Hazard"}</span>
                   </div>
                   <p className="text-[11px] font-bold text-slate-800 uppercase">
-                    {hazard.category.replace("_", " ")}
+                    {formatCategoryLabel(hazard.category, language)}
                   </p>
                   <p className="text-[10px] text-slate-500">
                     {isBn
