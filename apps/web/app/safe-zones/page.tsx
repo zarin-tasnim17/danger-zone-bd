@@ -154,15 +154,15 @@ export default function SafeZonesPage() {
       const data = await apiFetch<SafeZoneItem[]>(query);
       setSafeZones(data || []);
 
-      if (data && data.length > 0 && !selectedZone) {
-        setSelectedZone(data[0]);
+      if (data && data.length > 0) {
+        setSelectedZone((prev) => prev ?? data[0]);
       }
     } catch (err: any) {
       setError(err.message || "Failed to load verified safe shelters");
     } finally {
       setIsLoading(false);
     }
-  }, [typeFilter, proximityMode, userLocation, radiusMeters, selectedZone]);
+  }, [typeFilter, proximityMode, userLocation, radiusMeters]);
 
   useEffect(() => {
     fetchSafeZones();
@@ -235,20 +235,49 @@ export default function SafeZonesPage() {
   // Admin: Create Safe Zone
   const handleCreateSafeZone = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newName.trim()) return;
-
-    setIsCreating(true);
     setCreateSuccess(null);
     setCreateError(null);
+
+    const trimmedName = newName.trim();
+    if (trimmedName.length < 2) {
+      setCreateError(
+        isBn
+          ? "নিরাপদ আশ্রয়স্থলের নাম কমপক্ষে ২ অক্ষরের হতে হবে।"
+          : "Safe shelter name must be at least 2 characters."
+      );
+      return;
+    }
+
+    const lat = parseFloat(newLat);
+    const lng = parseFloat(newLng);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+      setCreateError(
+        isBn
+          ? "অনুগ্রহ করে সঠিক অক্ষাংশ ও দ্রাঘিমাংশ সংখ্যা দিন।"
+          : "Please provide valid numeric latitude and longitude coordinates."
+      );
+      return;
+    }
+
+    if (lat < 20.0 || lat > 27.5 || lng < 88.0 || lng > 93.5) {
+      setCreateError(
+        isBn
+          ? "স্থানাঙ্ক অবশ্যই বাংলাদেশের সীমার মধ্যে (Lat 20.0–27.5, Lng 88.0–93.5) হতে হবে।"
+          : "Coordinates must be within Bangladesh bounds (Lat 20.0–27.5, Lng 88.0–93.5)."
+      );
+      return;
+    }
+
+    setIsCreating(true);
 
     try {
       const created = await apiFetch<SafeZoneItem>("/safe-zones", {
         method: "POST",
         body: JSON.stringify({
-          name: newName.trim(),
+          name: trimmedName,
           type: newType,
-          latitude: parseFloat(newLat),
-          longitude: parseFloat(newLng),
+          latitude: lat,
+          longitude: lng,
         }),
       });
 
