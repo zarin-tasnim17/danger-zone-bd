@@ -2,14 +2,22 @@ import bcrypt from 'bcrypt';
 import { prisma } from '../db/prisma';
 import { generateAccessToken, generateRefreshToken } from '../utils/jwt';
 
-const assertDeviceAuthAllowed = (account: { role: string; passwordHash: string | null }) => {
-  // Prevent device-based session issuance for privileged or password-protected accounts
+const createForbiddenError = (message: string) =>
+  Object.assign(new Error(message), { statusCode: 403 });
+
+const assertDeviceAuthAllowed = (account: {
+  role: string;
+  passwordHash: string | null;
+  isBanned: boolean;
+}) => {
+  // Prevent device-based session issuance for privileged, password-protected, or suspended accounts
   if (account.role !== 'USER' || Boolean(account.passwordHash)) {
-    const error = new Error(
+    throw createForbiddenError(
       'Privileged or password-protected accounts must authenticate with email and password via /auth/login.'
-    ) as Error & { statusCode?: number };
-    error.statusCode = 403;
-    throw error;
+    );
+  }
+  if (account.isBanned) {
+    throw createForbiddenError('Account is suspended');
   }
 };
 
@@ -43,6 +51,10 @@ export const loginOrRegisterDevice = async (anonymousId: string, email?: string)
         email: normalizedEmail || `${anonymousId}@anonymous.local`,
       }
     });
+  }
+
+  if (user.isBanned) {
+    throw createForbiddenError('Account is suspended');
   }
 
   const accessToken = generateAccessToken({ id: user.id, role: user.role, isVerified: user.isVerified });

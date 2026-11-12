@@ -15,6 +15,10 @@ export const loginDevice = async (req: Request, res: Response) => {
 
     return successResponse(res, { user: { id: user.id, role: user.role } }, 201);
   } catch (error: any) {
+    if (error?.statusCode === 403 && error?.message === 'Account is suspended') {
+      res.clearCookie('accessToken');
+      res.clearCookie('refreshToken');
+    }
     return errorResponse(res, error.message, error.statusCode || 400);
   }
 };
