@@ -14,6 +14,14 @@ export interface DeviceGpsTelemetry {
 }
 
 /**
+ * Strips reporter PII (`userId`) from public Report response payloads.
+ */
+export const sanitizeReportOutput = <T extends { userId?: string }>(report: T): Omit<T, 'userId'> => {
+  const { userId: _userId, ...safeReport } = report;
+  return safeReport;
+};
+
+/**
  * Calculates dynamic time-decay expiration based on incident nature:
  * - Active emergency crimes (MUGGING, THEFT, EXTORTION): 3 hours
  * - Recurring localized hotspots (DRUG_ACTIVITY): 24 hours
@@ -180,7 +188,7 @@ export const createReport = async (
   void broadcastPlatformStats();
 
   return {
-    ...report,
+    ...sanitizeReportOutput(report),
     latitude: fuzzed.latitude,
     longitude: fuzzed.longitude,
     fuzzedRadiusMeters: fuzzed.fuzzedRadiusMeters

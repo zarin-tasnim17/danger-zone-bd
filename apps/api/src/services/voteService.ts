@@ -1,6 +1,7 @@
 import { prisma } from '../db/prisma';
 import { emitReportVoted, emitReportPurged } from '../sockets';
 import { broadcastPlatformStats } from './statsService';
+import { sanitizeReportOutput } from './reportService';
 
 export const submitVote = async (userId: string, reportId: string, voteType: 1 | -1) => {
   const user = await prisma.user.findUnique({
@@ -102,5 +103,5 @@ export const submitVote = async (userId: string, reportId: string, voteType: 1 |
 
   void broadcastPlatformStats();
 
-  return result;
+  return sanitizeReportOutput(result);
 };
