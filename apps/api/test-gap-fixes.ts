@@ -5,6 +5,8 @@ import { app } from './src/app';
 import { initSocketServer } from './src/sockets';
 import { prisma } from './src/db/prisma';
 import { calculateReportExpiry, createReport, isNightTimeInBangladesh } from './src/services/reportService';
+import { getPlatformStats } from './src/services/statsService';
+import { setReportLocation } from './src/db/spatialUtils';
 
 const TEST_PORT = 5110;
 const SERVER_URL = `http://localhost:${TEST_PORT}`;
@@ -683,7 +685,76 @@ async function runVerification() {
       await prisma.user.deleteMany({ where: { id: { in: [cascadeOwner.id, cascadePeer.id] } } }).catch(() => {});
     }
 
-    console.log('\n🎉 ALL 13 VERIFICATION TESTS PASSED SUCCESSFULLY!');
+    // 14. DB-004: statsService Parity With Non-Null PostGIS Location
+    console.log('\n🧪 [Test 14] Verifying DB-004 statsService alignment with PostGIS location...');
+    const statsTestUser = await prisma.user.create({
+      data: {
+        anonymousId: `db004-stats-${Date.now()}`,
+        email: `db004-stats-${Date.now()}@test.safety`
+      }
+    });
+
+    try {
+      const [baselineStats, spatialActiveRows] = await Promise.all([
+        getPlatformStats(),
+        prisma.$queryRaw<Array<{ cnt: number }>>`
+          SELECT COUNT(*)::int AS cnt
+          FROM "Report"
+          WHERE status = 'ACTIVE' AND "expiresAt" > NOW() AND location IS NOT NULL
+        `
+      ]);
+      const spatialActiveCount = spatialActiveRows[0]?.cnt ?? 0;
+      if (baselineStats.activeReports !== spatialActiveCount) {
+        throw new Error(
+          `DB-004 baseline mismatch: stats.activeReports=${baselineStats.activeReports}, spatialActiveCount=${spatialActiveCount}`
+        );
+      }
+
+      const unindexedReport = await prisma.report.create({
+        data: {
+          userId: statsTestUser.id,
+          category: 'ROBBERY',
+          severity: 'HIGH',
+          latitude: 23.8103,
+          longitude: 90.4125,
+          description: 'DB-004 synthetic un-geolocated row',
+          expiresAt: new Date(Date.now() + 60 * 60 * 1000)
+        }
+      });
+
+      // Clear PostGIS column explicitly (bypasses BEFORE INSERT trigger trg_update_report_location)
+      await prisma.$executeRaw`
+        UPDATE "Report" SET location = NULL WHERE id = ${unindexedReport.id}
+      `;
+
+      const statsWithNullLoc = await getPlatformStats();
+      if (
+        statsWithNullLoc.totalReports !== baselineStats.totalReports ||
+        statsWithNullLoc.activeReports !== baselineStats.activeReports ||
+        statsWithNullLoc.criticalThreats !== baselineStats.criticalThreats
+      ) {
+        throw new Error(
+          `DB-004 regression: stats counted a Report row with location = NULL (${JSON.stringify(statsWithNullLoc)} vs ${JSON.stringify(baselineStats)})`
+        );
+      }
+
+      await setReportLocation(prisma, unindexedReport.id, 23.8103, 90.4125);
+      const statsWithLoc = await getPlatformStats();
+      if (
+        statsWithLoc.totalReports !== baselineStats.totalReports + 1 ||
+        statsWithLoc.activeReports !== baselineStats.activeReports + 1 ||
+        statsWithLoc.criticalThreats !== baselineStats.criticalThreats + 1
+      ) {
+        throw new Error(
+          `DB-004 regression: stats did not include newly geolocated report (${JSON.stringify(statsWithLoc)} vs ${JSON.stringify(baselineStats)})`
+        );
+      }
+      console.log('  ✅ getPlatformStats() excludes location = NULL rows and matches PostGIS active count');
+    } finally {
+      await prisma.user.delete({ where: { id: statsTestUser.id } }).catch(() => {});
+    }
+
+    console.log('\n🎉 ALL 14 VERIFICATION TESTS PASSED SUCCESSFULLY!');
   } finally {
     server.close();
   }
