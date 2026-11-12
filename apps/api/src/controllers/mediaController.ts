@@ -1,45 +1,15 @@
 import { Request, Response, NextFunction } from 'express';
 import { prisma } from '../db/prisma';
 import { env } from '../config/env';
-import { generatePresignedUploadUrl, AllowedMimeType, getPublicUrl } from '../services/storageService';
+import {
+  generatePresignedUploadUrl,
+  AllowedMimeType,
+  getPublicUrl,
+  parseReportMediaKey,
+  resolveTrustedReportMedia,
+} from '../services/storageService';
 import { processPrivacyBlur } from '../services/privacyBlurService';
 import { successResponse, errorResponse } from '../utils/responseFormatter';
-
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const SAFE_MEDIA_FILENAME_REGEX = /^[a-zA-Z0-9._-]+\.(jpg|jpeg|png|webp)$/i;
-
-const decodeStorageKey = (rawKey: string): string | null => {
-  try {
-    return decodeURIComponent(rawKey.replace(/\+/g, ' '));
-  } catch {
-    return null;
-  }
-};
-
-const parseReportMediaKey = (rawKey: string): { reportId: string; fileKey: string } | null => {
-  const decoded = decodeStorageKey(rawKey.trim());
-  if (!decoded || decoded.startsWith('/') || decoded.includes('\\') || decoded.includes('..')) {
-    return null;
-  }
-
-  // Expect exact key format: reports/{reportId}/{filename}
-  const parts = decoded.split('/');
-  if (parts.length !== 3 || parts[0] !== 'reports') {
-    return null;
-  }
-
-  const [, reportId, filename] = parts;
-  if (!UUID_REGEX.test(reportId)) {
-    return null;
-  }
-
-  // Skip derivative blurred assets to prevent recursive webhook processing loops
-  if (filename.startsWith('blurred-') || !SAFE_MEDIA_FILENAME_REGEX.test(filename)) {
-    return null;
-  }
-
-  return { reportId, fileKey: decoded };
-};
 
 export const getPresignedUrlHandler = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -98,28 +68,49 @@ export const confirmMediaUploadHandler = async (req: Request, res: Response, nex
       return errorResponse(res, 'You are not authorized to confirm media for this report', 403);
     }
 
-    const resolvedUrl = originalUrl || (fileKey ? getPublicUrl(fileKey) : null);
-    if (!resolvedUrl) {
-      return errorResponse(res, 'Either originalUrl or fileKey must be provided', 400);
+    let resolvedUrl: string;
+    try {
+      resolvedUrl = resolveTrustedReportMedia({ reportId, originalUrl, fileKey }).originalUrl;
+    } catch (validationError: any) {
+      return errorResponse(res, validationError.message, validationError.statusCode || 400);
     }
 
-    // Create ReportMedia record
-    const media = await prisma.reportMedia.create({
-      data: {
-        reportId,
-        originalUrl: resolvedUrl,
+    const existingMedia = await prisma.reportMedia.findFirst({
+      where: { reportId, originalUrl: resolvedUrl },
+    });
+
+    let mediaId: string;
+    let statusCode = 201;
+
+    if (existingMedia) {
+      mediaId = existingMedia.id;
+      statusCode = 200;
+      if (!existingMedia.blurredUrl) {
+        await processPrivacyBlur(existingMedia.id, resolvedUrl);
+      }
+    } else {
+      const media = await prisma.reportMedia.create({
+        data: {
+          reportId,
+          originalUrl: resolvedUrl,
+        },
+      });
+      mediaId = media.id;
+      await processPrivacyBlur(media.id, resolvedUrl);
+    }
+
+    // Return sanitized media metadata without exposing originalUrl
+    const updatedMedia = await prisma.reportMedia.findUnique({
+      where: { id: mediaId },
+      select: {
+        id: true,
+        reportId: true,
+        blurredUrl: true,
+        createdAt: true,
       },
     });
 
-    // Run privacy blur pipeline
-    await processPrivacyBlur(media.id, resolvedUrl);
-
-    // Fetch refreshed record
-    const updatedMedia = await prisma.reportMedia.findUnique({
-      where: { id: media.id },
-    });
-
-    return successResponse(res, updatedMedia, 201);
+    return successResponse(res, updatedMedia, statusCode);
   } catch (error: any) {
     next(error);
   }

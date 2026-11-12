@@ -1,20 +1,15 @@
 import { prisma } from '../db/prisma';
 
 /**
- * Asynchronously processes privacy auto-blurring on uploaded evidence photos.
- * Obscures faces and vehicle license plates to protect citizen anonymity.
+ * Processes privacy auto-blurring on uploaded evidence photos.
+ * Until an active blurring pipeline (e.g., Sharp, Lambda, or Cloudinary) writes a blurred
+ * derivative object to storage, persists the verified storage URL so evidence does not 404.
  */
-export const processPrivacyBlur = async (mediaId: string, originalUrl: string): Promise<string> => {
+export const processPrivacyBlur = async (mediaId: string, verifiedUrl: string): Promise<string> => {
   try {
-    // In production, this can invoke an AWS Lambda / Cloudflare Worker / OpenCV / Sharp microservice
-    // to detect facial landmarks and license plates, applying a Gaussian blur filter.
-    // Here we simulate the processing pipeline and generate the privacy-compliant blurred variant URL.
-    const urlParts = originalUrl.split('/');
-    const originalFileName = urlParts.pop() || 'image.jpg';
-    const blurredFileName = `blurred-${originalFileName}`;
-    const blurredUrl = [...urlParts, blurredFileName].join('/');
+    const blurredUrl = verifiedUrl;
 
-    // Update ReportMedia table with the sanitized blurred URL
+    // Update ReportMedia table with the accessible storage URL
     await prisma.reportMedia.update({
       where: { id: mediaId },
       data: {

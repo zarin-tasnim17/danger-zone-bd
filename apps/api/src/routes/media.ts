@@ -8,7 +8,11 @@ import {
   confirmMediaUploadHandler,
   handleStorageWebhook,
 } from '../controllers/mediaController';
-import { ALLOWED_MIME_TYPES, MAX_FILE_SIZE_BYTES } from '../services/storageService';
+import {
+  ALLOWED_MIME_TYPES,
+  MAX_FILE_SIZE_BYTES,
+  resolveTrustedReportMedia,
+} from '../services/storageService';
 
 const router = Router();
 
@@ -43,13 +47,35 @@ const presignedUrlSchema = z.object({
 });
 
 const confirmMediaSchema = z.object({
-  body: z.object({
-    reportId: z.string().uuid(),
-    originalUrl: z.string().url().optional(),
-    fileKey: z.string().min(1).optional(),
-  }).refine((data) => Boolean(data.originalUrl || data.fileKey), {
-    message: 'Either originalUrl or fileKey must be provided',
-  }),
+  body: z
+    .object({
+      reportId: z.string().uuid(),
+      originalUrl: z.string().url().optional(),
+      fileKey: z.string().min(1).optional(),
+    })
+    .superRefine((data, ctx) => {
+      if (!data.originalUrl && !data.fileKey) {
+        ctx.addIssue({
+          code: 'custom',
+          message: 'Either originalUrl or fileKey must be provided',
+        });
+        return;
+      }
+
+      if (!z.string().uuid().safeParse(data.reportId).success) {
+        return;
+      }
+
+      try {
+        resolveTrustedReportMedia(data);
+      } catch (err: any) {
+        ctx.addIssue({
+          code: 'custom',
+          path: data.originalUrl ? ['originalUrl'] : ['fileKey'],
+          message: err?.message || 'Untrusted or invalid media storage location',
+        });
+      }
+    }),
 });
 
 const webhookRecordSchema = z.object({
