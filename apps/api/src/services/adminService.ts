@@ -1,5 +1,6 @@
 import { prisma } from '../db/prisma';
 import { emitReportPurged } from '../sockets';
+import { broadcastPlatformStats } from './statsService';
 
 export interface ModerationLogOutput {
   id: string;
@@ -55,6 +56,8 @@ export const banUser = async (
     }),
   ]);
 
+  void broadcastPlatformStats();
+
   return { user: updatedUser, log };
 };
 
@@ -97,6 +100,8 @@ export const unbanUser = async (
       },
     }),
   ]);
+
+  void broadcastPlatformStats();
 
   return { user: updatedUser, log };
 };
@@ -147,6 +152,8 @@ export const purgeReport = async (
     reportId: targetReportId,
     reason: `ADMIN_PURGED: ${reason}`,
   });
+
+  void broadcastPlatformStats();
 
   return { report: updatedReport, log };
 };

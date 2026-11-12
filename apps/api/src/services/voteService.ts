@@ -1,5 +1,6 @@
 import { prisma } from '../db/prisma';
 import { emitReportVoted, emitReportPurged } from '../sockets';
+import { broadcastPlatformStats } from './statsService';
 
 export const submitVote = async (userId: string, reportId: string, voteType: 1 | -1) => {
   const user = await prisma.user.findUnique({
@@ -98,6 +99,8 @@ export const submitVote = async (userId: string, reportId: string, voteType: 1 |
       reason: 'TRUST_ENGINE_DOWNVOTE_THRESHOLD'
     });
   }
+
+  void broadcastPlatformStats();
 
   return result;
 };

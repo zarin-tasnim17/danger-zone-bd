@@ -1,6 +1,7 @@
 import cron from 'node-cron';
 import { prisma } from '../db/prisma';
 import { emitReportExpired } from '../sockets';
+import { broadcastPlatformStats } from '../services/statsService';
 
 let isPurging = false;
 
@@ -46,6 +47,8 @@ export const purgeExpiredReports = async (now: Date = new Date()): Promise<numbe
       reportIds: expiredIds,
       reason: 'TIME_DECAY_EXPIRED'
     });
+
+    void broadcastPlatformStats();
 
     return expiredIds.length;
   } catch (error) {

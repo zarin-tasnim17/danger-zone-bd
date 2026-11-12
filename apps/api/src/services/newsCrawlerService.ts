@@ -7,6 +7,7 @@ import { isForeignIncident } from './internationalIncidentFilter';
 import { crossVerifyCitizenReports } from './newsVerificationService';
 import { findDuplicateActiveReport } from './incidentDeduplicationService';
 import { emitNewReport } from '../sockets';
+import { broadcastPlatformStats } from './statsService';
 
 const parser = new Parser({
   headers: {
@@ -346,6 +347,10 @@ export const processAndIngestNewsItems = async (
       sourceName: report.sourceName,
       isGpsVerified: report.isGpsVerified,
     });
+  }
+
+  if (ingested > 0) {
+    void broadcastPlatformStats();
   }
 
   return { ingested, skipped, verifiedMatches };

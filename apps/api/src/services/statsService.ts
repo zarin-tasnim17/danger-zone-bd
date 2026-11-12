@@ -1,4 +1,5 @@
 import { prisma } from '../db/prisma';
+import { emitStatsUpdated, hasInitializedIO } from '../sockets';
 
 export interface PlatformStats {
   totalReports: number;
@@ -81,4 +82,32 @@ export const getPlatformStats = async (): Promise<PlatformStats> => {
     lastActiveAt: latestReport?.createdAt ? latestReport.createdAt.toISOString() : now.toISOString(),
     timestamp: now.toISOString(),
   };
+};
+
+let isBroadcastingStats = false;
+let hasPendingStatsBroadcast = false;
+
+/**
+ * Coalesces concurrent stats recalculations so rapid mutations (e.g. RSS batch ingestion)
+ * run at most one active query plus one trailing refresh and never block or fail callers.
+ */
+export const broadcastPlatformStats = async (): Promise<void> => {
+  if (!hasInitializedIO()) return;
+  if (isBroadcastingStats) {
+    hasPendingStatsBroadcast = true;
+    return;
+  }
+
+  isBroadcastingStats = true;
+  try {
+    do {
+      hasPendingStatsBroadcast = false;
+      const stats = await getPlatformStats();
+      emitStatsUpdated(stats);
+    } while (hasPendingStatsBroadcast && hasInitializedIO());
+  } catch (err) {
+    console.warn('[Stats Broadcaster] Failed to broadcast STATS_UPDATED:', err);
+  } finally {
+    isBroadcastingStats = false;
+  }
 };

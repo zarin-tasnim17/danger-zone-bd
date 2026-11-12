@@ -3,6 +3,7 @@ import { ReportCategory, ReportSeverity } from '@prisma/client';
 import { MAX_GPS_PROXIMITY_METERS, MAX_HARDWARE_GPS_ACCURACY_METERS } from '@repo/shared';
 import { isWithinDistance, getReportsInBounds, BoundingBox, ReportFilterOptions, getFuzzedCoordinates } from '../db/spatialUtils';
 import { emitNewReport, emitReportResolved } from '../sockets';
+import { broadcastPlatformStats } from './statsService';
 import { enqueueReportNotification } from '../jobs';
 
 export interface DeviceGpsTelemetry {
@@ -178,6 +179,8 @@ export const createReport = async (
     enqueueReportNotification(report);
   }
 
+  void broadcastPlatformStats();
+
   return {
     ...report,
     latitude: fuzzed.latitude,
@@ -299,6 +302,8 @@ export const resolveReport = async (reportId: string, userId: string, userRole: 
     status: updated.status,
     resolvedAt: new Date().toISOString()
   });
+
+  void broadcastPlatformStats();
 
   const fuzzed = getFuzzedCoordinates(updated.id, updated.latitude, updated.longitude);
   const { userId: ownerId, ...safeUpdated } = updated;
