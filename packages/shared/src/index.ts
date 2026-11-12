@@ -111,4 +111,46 @@ export const SOCKET_EVENTS = {
   NEW_REPORT_UPDATE: "NEW_REPORT_UPDATE",
   REPORT_VERIFIED: "REPORT_VERIFIED",
   GEOFENCE_ALERT: "GEOFENCE_ALERT",
+  STATS_UPDATED: "STATS_UPDATED",
 } as const;
+
+export interface SocketReportIdPayload {
+  reportId?: string;
+  id?: string;
+}
+
+export interface ReportVotedPayload extends SocketReportIdPayload {
+  upvotes: number;
+  downvotes: number;
+  status?: string;
+}
+
+export interface ReportPurgedPayload extends SocketReportIdPayload {
+  reason?: string;
+}
+
+export interface ReportExpiredPayload {
+  reportIds: string[];
+  reason?: string;
+}
+
+export interface ReportResolvedPayload extends SocketReportIdPayload {
+  status?: string;
+  resolvedAt?: string;
+}
+
+export interface NewReportUpdatePayload<TUpdate = any> extends SocketReportIdPayload {
+  update: TUpdate;
+}
+
+export interface ReportVerifiedPayload extends SocketReportIdPayload {
+  verifiedBy: string;
+  sourceUrl?: string;
+  articleTitle?: string;
+}
+
+export function getSocketReportId(
+  payload?: SocketReportIdPayload | null
+): string | undefined {
+  return payload?.reportId ?? payload?.id;
+}

@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { apiFetch } from "@/lib/api";
 import { getSocket } from "@/lib/socket";
+import { SOCKET_EVENTS } from "@repo/shared";
 
 export interface PlatformStats {
   totalReports: number;
@@ -46,8 +47,8 @@ export const useStatsStore = create<StatsState>((set, get) => ({
     const socket = getSocket();
     if (!socket) return;
 
-    socket.off("STATS_UPDATED");
-    socket.on("STATS_UPDATED", (newStats: PlatformStats) => {
+    socket.off(SOCKET_EVENTS.STATS_UPDATED);
+    socket.on(SOCKET_EVENTS.STATS_UPDATED, (newStats: PlatformStats) => {
       set({ stats: newStats });
     });
   },

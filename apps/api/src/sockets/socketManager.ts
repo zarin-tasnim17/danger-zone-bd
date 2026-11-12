@@ -1,5 +1,6 @@
 import { Server as SocketIOServer, Socket } from 'socket.io';
 import { Server as HttpServer } from 'http';
+import { SOCKET_EVENTS } from '@repo/shared';
 import { JwtPayload } from '../utils/jwt';
 import { verifyActiveAccessToken } from '../middleware/requireAuth';
 
@@ -102,12 +103,12 @@ export const initSocketServer = (httpServer: HttpServer): SocketIOServer => {
     }
 
     // Room subscription based on map bounds
-    socket.on('joinMapBounds', (bounds: { minLng: number; minLat: number; maxLng: number; maxLat: number }) => {
+    socket.on(SOCKET_EVENTS.JOIN_MAP_BOUNDS, (bounds: { minLng: number; minLat: number; maxLng: number; maxLat: number }) => {
       socket.data.bounds = bounds;
       console.log(`[Socket.IO] ${socket.id} updated viewport bounds:`, bounds);
     });
 
-    socket.on('disconnect', (reason) => {
+    socket.on(SOCKET_EVENTS.DISCONNECT, (reason) => {
       console.log(`[Socket.IO] Client disconnected: ${socket.id} (Reason: ${reason})`);
     });
   });
@@ -150,7 +151,7 @@ export interface SanitizedReportEvent {
  */
 export const emitNewReport = (report: SanitizedReportEvent) => {
   if (!io) return;
-  io.to('live_reports').emit('NEW_REPORT', report);
+  io.to('live_reports').emit(SOCKET_EVENTS.NEW_REPORT, report);
 };
 
 /**
@@ -158,7 +159,7 @@ export const emitNewReport = (report: SanitizedReportEvent) => {
  */
 export const emitReportVoted = (data: { reportId: string; upvotes: number; downvotes: number; status: string }) => {
   if (!io) return;
-  io.to('live_reports').emit('REPORT_VOTED', data);
+  io.to('live_reports').emit(SOCKET_EVENTS.REPORT_VOTED, data);
 };
 
 /**
@@ -166,7 +167,7 @@ export const emitReportVoted = (data: { reportId: string; upvotes: number; downv
  */
 export const emitReportPurged = (data: { reportId: string; reason?: string }) => {
   if (!io) return;
-  io.to('live_reports').emit('REPORT_PURGED', data);
+  io.to('live_reports').emit(SOCKET_EVENTS.REPORT_PURGED, data);
 };
 
 /**
@@ -174,7 +175,7 @@ export const emitReportPurged = (data: { reportId: string; reason?: string }) =>
  */
 export const emitReportExpired = (data: { reportIds: string[]; reason: string }) => {
   if (!io) return;
-  io.to('live_reports').emit('REPORT_EXPIRED', data);
+  io.to('live_reports').emit(SOCKET_EVENTS.REPORT_EXPIRED, data);
 };
 
 /**
@@ -182,7 +183,7 @@ export const emitReportExpired = (data: { reportIds: string[]; reason: string })
  */
 export const emitReportResolved = (data: { reportId: string; status: string; resolvedAt?: string }) => {
   if (!io) return;
-  io.to('live_reports').emit('REPORT_RESOLVED', data);
+  io.to('live_reports').emit(SOCKET_EVENTS.REPORT_RESOLVED, data);
 };
 
 /**
@@ -190,7 +191,7 @@ export const emitReportResolved = (data: { reportId: string; status: string; res
  */
 export const emitNewReportUpdate = (data: { reportId: string; update: any }) => {
   if (!io) return;
-  io.to('live_reports').emit('NEW_REPORT_UPDATE', data);
+  io.to('live_reports').emit(SOCKET_EVENTS.NEW_REPORT_UPDATE, data);
 };
 
 /**
@@ -198,7 +199,7 @@ export const emitNewReportUpdate = (data: { reportId: string; update: any }) => 
  */
 export const emitUserAlert = (userId: string, data: any) => {
   if (!io) return;
-  io.to(`user:${userId}`).emit('GEOFENCE_ALERT', data);
+  io.to(`user:${userId}`).emit(SOCKET_EVENTS.GEOFENCE_ALERT, data);
 };
 
 /**
@@ -206,7 +207,7 @@ export const emitUserAlert = (userId: string, data: any) => {
  */
 export const emitReportVerified = (data: { reportId: string; verifiedBy: string; sourceUrl?: string; articleTitle?: string }) => {
   if (!io) return;
-  io.to('live_reports').emit('REPORT_VERIFIED', data);
+  io.to('live_reports').emit(SOCKET_EVENTS.REPORT_VERIFIED, data);
 };
 
 
@@ -215,5 +216,5 @@ export const emitReportVerified = (data: { reportId: string; verifiedBy: string;
  */
 export const emitStatsUpdated = (stats: any) => {
   if (!io) return;
-  io.to('live_reports').emit('STATS_UPDATED', stats);
+  io.to('live_reports').emit(SOCKET_EVENTS.STATS_UPDATED, stats);
 };
