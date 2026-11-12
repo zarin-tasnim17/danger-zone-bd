@@ -34,6 +34,7 @@ async function runNewsCrawlerVerificationSuite() {
   const testUserIds: string[] = [];
   const testReportIds: string[] = [];
   const testArticleGuids: string[] = [];
+  const previousCronSecret = process.env.CRON_SECRET;
 
   try {
     // -------------------------------------------------------------
@@ -299,8 +300,129 @@ async function runNewsCrawlerVerificationSuite() {
       throw new Error(`Admin crawl trigger failed: status=${crawlRes.status}, data=${JSON.stringify(crawlRes.data)}`);
     }
 
-    console.log('\n🎉 ALL 5 TEST SUITES PASSED! 100% Free RSS News Crawler & Cross-Verification Engine is completely operational.');
+    // -------------------------------------------------------------
+    // Test 6: /api/v1/cron/news-crawl Fail-Closed Auth & Rate-Limit Verification
+    // -------------------------------------------------------------
+    console.log('\n🧪 [Test 6] Verifying /api/v1/cron/news-crawl fail-closed auth & rate limiting...');
+
+    // 6a. Fail closed when CRON_SECRET is unset or whitespace-only
+    delete process.env.CRON_SECRET;
+    const unsetSecretRes = await request('/api/v1/cron/news-crawl', {
+      method: 'POST',
+      headers: { 'x-forwarded-for': '198.51.100.1' },
+    });
+    if (unsetSecretRes.status !== 401) {
+      throw new Error(`Expected 401 when CRON_SECRET is unset, got ${unsetSecretRes.status}`);
+    }
+
+    process.env.CRON_SECRET = '   ';
+    const whitespaceSecretRes = await request('/api/v1/cron/news-crawl', {
+      method: 'POST',
+      headers: {
+        'x-forwarded-for': '198.51.100.2',
+        Authorization: 'Bearer    ',
+      },
+    });
+    if (whitespaceSecretRes.status !== 401) {
+      throw new Error(`Expected 401 when CRON_SECRET is whitespace-only, got ${whitespaceSecretRes.status}`);
+    }
+    console.log('  ✅ Fails closed (401) when CRON_SECRET is unset or empty');
+
+    // 6b. Reject invalid headers, bare Authorization, and wrong Bearer tokens
+    const cronTestSecret = `cron-secret-${crypto.randomBytes(8).toString('hex')}`;
+    process.env.CRON_SECRET = cronTestSecret;
+
+    const invalidCronHeaderRes = await request('/api/v1/cron/news-crawl', {
+      method: 'POST',
+      headers: {
+        'x-forwarded-for': '198.51.100.3',
+        'x-cron-secret': 'wrong-secret',
+      },
+    });
+    if (invalidCronHeaderRes.status !== 401) {
+      throw new Error(`Expected 401 for invalid x-cron-secret, got ${invalidCronHeaderRes.status}`);
+    }
+
+    const bareAuthRes = await request('/api/v1/cron/news-crawl', {
+      method: 'POST',
+      headers: {
+        'x-forwarded-for': '198.51.100.4',
+        Authorization: cronTestSecret,
+      },
+    });
+    if (bareAuthRes.status !== 401) {
+      throw new Error(`Expected 401 for bare Authorization header without Bearer prefix, got ${bareAuthRes.status}`);
+    }
+
+    const wrongBearerRes = await request('/api/v1/cron/news-crawl', {
+      method: 'POST',
+      headers: {
+        'x-forwarded-for': '198.51.100.5',
+        Authorization: 'Bearer wrong-secret',
+      },
+    });
+    if (wrongBearerRes.status !== 401) {
+      throw new Error(`Expected 401 for wrong Bearer token, got ${wrongBearerRes.status}`);
+    }
+    console.log('  ✅ Rejects invalid x-cron-secret, bare Authorization, and wrong Bearer tokens with 401');
+
+    // 6c. Unsupported HTTP method (PUT) must not run crawler
+    const putMethodRes = await request('/api/v1/cron/news-crawl', {
+      method: 'PUT',
+      headers: {
+        'x-forwarded-for': '198.51.100.6',
+        Authorization: `Bearer ${cronTestSecret}`,
+      },
+    });
+    if (putMethodRes.status !== 404) {
+      throw new Error(`Expected 404 for unsupported PUT method, got ${putMethodRes.status}`);
+    }
+    console.log('  ✅ Rejects unsupported PUT method (404)');
+
+    // 6d. Valid Bearer & x-cron-secret requests succeed (max 2 per 10 min), 3rd triggers 429
+    const validBearerRes = await request('/api/v1/cron/news-crawl', {
+      method: 'GET',
+      headers: {
+        'x-forwarded-for': '198.51.100.6',
+        Authorization: `Bearer ${cronTestSecret}`,
+      },
+    });
+    if (validBearerRes.status !== 200) {
+      throw new Error(`Expected 200 for valid GET Bearer cron trigger, got ${validBearerRes.status}`);
+    }
+
+    const validHeaderRes = await request('/api/v1/cron/news-crawl', {
+      method: 'POST',
+      headers: {
+        'x-forwarded-for': '198.51.100.6',
+        'x-cron-secret': cronTestSecret,
+      },
+    });
+    if (validHeaderRes.status !== 200) {
+      throw new Error(`Expected 200 for valid POST x-cron-secret trigger, got ${validHeaderRes.status}`);
+    }
+
+    const rateLimitedRes = await request('/api/v1/cron/news-crawl', {
+      method: 'POST',
+      headers: {
+        'x-forwarded-for': '198.51.100.6',
+        Authorization: `Bearer ${cronTestSecret}`,
+      },
+    });
+    if (rateLimitedRes.status !== 429 || rateLimitedRes.data?.error?.code !== 'RATE_LIMIT_EXCEEDED') {
+      throw new Error(
+        `Expected 429 RATE_LIMIT_EXCEEDED on 3rd request, got status=${rateLimitedRes.status}, data=${JSON.stringify(rateLimitedRes.data)}`
+      );
+    }
+    console.log('  ✅ Accepts GET/POST with valid Bearer or x-cron-secret (200) and throttles 3rd request (429)');
+
+    console.log('\n🎉 ALL 6 TEST SUITES PASSED! 100% Free RSS News Crawler & Cross-Verification Engine is completely operational.');
   } finally {
+    if (previousCronSecret === undefined) {
+      delete process.env.CRON_SECRET;
+    } else {
+      process.env.CRON_SECRET = previousCronSecret;
+    }
     // Teardown test artifacts
     console.log('\n🧹 Cleaning up test records...');
     try {
