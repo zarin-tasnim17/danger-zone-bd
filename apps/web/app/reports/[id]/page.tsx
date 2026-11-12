@@ -9,6 +9,7 @@ import { useAuthStore } from "@/store/useAuthStore";
 import { useIncidentStore } from "@/store/useIncidentStore";
 import { useLanguageStore } from "@/store/useLanguageStore";
 import { getSocket } from "@/lib/socket";
+import { getSafeZonePresentation } from "@/lib/safeZoneMeta";
 import {
   SOCKET_EVENTS,
   getSocketReportId,
@@ -1388,7 +1389,7 @@ export default function ReportDetailsPage() {
                   ) : (
                     <div className="space-y-2.5">
                       {nearbySafeHavens.map((zone) => {
-                        const isPolice = zone.type === "POLICE_STATION";
+                        const zoneMeta = getSafeZonePresentation(zone.type, language);
                         const distKm = (zone.distanceMeters / 1000).toFixed(1);
                         return (
                           <div
@@ -1397,20 +1398,22 @@ export default function ReportDetailsPage() {
                           >
                             <div className="flex items-center gap-3 min-w-0">
                               <div
-                                className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border ${
-                                  isPolice
-                                    ? "bg-blue-50 text-blue-600 border-blue-200"
-                                    : "bg-emerald-50 text-emerald-600 border-emerald-200"
-                                }`}
+                                className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border ${zoneMeta.boxClass}`}
                               >
-                                {isPolice ? <Building2 className="w-4 h-4" /> : <Hospital className="w-4 h-4" />}
+                                {zoneMeta.iconKey === "police" ? (
+                                  <Building2 className="w-4 h-4" />
+                                ) : zoneMeta.iconKey === "pharmacy" ? (
+                                  <Pill className="w-4 h-4" />
+                                ) : (
+                                  <Hospital className="w-4 h-4" />
+                                )}
                               </div>
                               <div className="min-w-0">
                                 <h4 className="text-xs font-bold text-slate-900 truncate">
-                                  {language === "bn" && (zone as any).nameBn ? (zone as any).nameBn : zone.name}
+                                  {language === "bn" && zone.nameBn ? zone.nameBn : zone.name}
                                 </h4>
                                 <div className="text-[11px] text-slate-500 flex items-center gap-1.5 font-medium">
-                                  <span>{isPolice ? "Police Station" : "Hospital / Medical"}</span>
+                                  <span>{zoneMeta.label}</span>
                                   <span>•</span>
                                   <span className="font-mono text-slate-700 font-bold">{distKm} km</span>
                                 </div>

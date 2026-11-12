@@ -201,8 +201,8 @@ export function createSafeZoneIcon(
   type: string,
   isSelected: boolean = false
 ): L.DivIcon {
-  const normType = (type || "").toUpperCase();
-  const isPolice = normType === "POLICE_STATION" || normType === "POLICE_BOX";
+  const normType = (type || "").trim().toUpperCase();
+  const isPolice = normType === "POLICE_BOX" || normType === "POLICE_STATION";
   const isHospital = normType === "HOSPITAL";
   const isPharmacy = normType === "PHARMACY";
   const isFireStation = normType === "FIRE_STATION";

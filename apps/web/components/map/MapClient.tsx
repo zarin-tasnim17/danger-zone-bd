@@ -25,6 +25,7 @@ import { DangerIncident, IncidentSeverity } from "@repo/shared";
 import { getTranslation } from "@/lib/translations";
 import { cleanIncidentTitle } from "@/lib/incidentUtils";
 import { isIncidentCategoryMatch } from "@/lib/filterUtils";
+import { getSafeZonePresentation } from "@/lib/safeZoneMeta";
 import L from "leaflet";
 import {
   Crosshair,
@@ -852,37 +853,40 @@ export default function MapClient() {
 
         {/* Render Verified Safe Zones */}
         {showSafeZones &&
-          safeZones.map((zone) => (
-            <Marker
-              key={`safe-zone-${zone.id}`}
-              position={[zone.latitude, zone.longitude]}
-              icon={createSafeZoneIcon(zone.type)}
-            >
-              <Popup autoPanPadding={[24, 24]}>
-                <div className="p-3 max-w-[260px] text-slate-900">
-                  <div className="flex items-center gap-1.5 mb-1">
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">
-                      {zone.type.replace("_", " ")}
-                    </span>
-                    <span className="text-[10px] text-emerald-600 font-semibold">✓ Verified Haven</span>
+          safeZones.map((zone) => {
+            const zoneMeta = getSafeZonePresentation(zone.type, language);
+            return (
+              <Marker
+                key={`safe-zone-${zone.id}`}
+                position={[zone.latitude, zone.longitude]}
+                icon={createSafeZoneIcon(zone.type)}
+              >
+                <Popup autoPanPadding={[24, 24]}>
+                  <div className="p-3 max-w-[260px] text-slate-900">
+                    <div className="flex items-center gap-1.5 mb-1">
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${zoneMeta.badgeClass}`}>
+                        {zoneMeta.label}
+                      </span>
+                      <span className="text-[10px] text-emerald-600 font-semibold">✓ Verified Haven</span>
+                    </div>
+                    <h4 className="font-bold text-sm text-slate-900 mt-1">{zone.name}</h4>
+                    <p className="text-xs text-slate-600 mt-0.5">
+                      Designated 24/7 sanctuary point during emergencies.
+                    </p>
+                    <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between">
+                      <Link
+                        href="/safe-zones"
+                        className="text-[11px] font-bold text-blue-600 hover:text-blue-700 flex items-center gap-0.5"
+                      >
+                        <span>All Safe Havens</span>
+                        <ArrowUpRight className="w-3 h-3" />
+                      </Link>
+                    </div>
                   </div>
-                  <h4 className="font-bold text-sm text-slate-900 mt-1">{zone.name}</h4>
-                  <p className="text-xs text-slate-600 mt-0.5">
-                    Designated 24/7 sanctuary point during emergencies.
-                  </p>
-                  <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between">
-                    <Link
-                      href="/safe-zones"
-                      className="text-[11px] font-bold text-blue-600 hover:text-blue-700 flex items-center gap-0.5"
-                    >
-                      <span>All Safe Havens</span>
-                      <ArrowUpRight className="w-3 h-3" />
-                    </Link>
-                  </div>
-                </div>
-              </Popup>
-            </Marker>
-          ))}
+                </Popup>
+              </Marker>
+            );
+          })}
 
         {/* Render Deduplicated Danger Perimeter Circles (Clean cartographic perimeters without blob stacking) */}
         {dangerPerimeterCircles.map((circle) => (
