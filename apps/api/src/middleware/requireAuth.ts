@@ -43,12 +43,14 @@ export const verifyActiveAccessToken = async (token: string): Promise<JwtPayload
   };
 };
 
+const extractAccessToken = (req: Request): string | undefined =>
+  req.cookies?.accessToken ||
+  (req.headers.authorization?.startsWith('Bearer ')
+    ? req.headers.authorization.split(' ')[1]
+    : undefined);
+
 export const requireAuth = async (req: Request, res: Response, next: NextFunction) => {
-  const token =
-    req.cookies?.accessToken ||
-    (req.headers.authorization?.startsWith('Bearer ')
-      ? req.headers.authorization.split(' ')[1]
-      : undefined);
+  const token = extractAccessToken(req);
 
   if (!token) {
     return errorResponse(res, 'Unauthorized: No access token provided', 401);
@@ -63,4 +65,27 @@ export const requireAuth = async (req: Request, res: Response, next: NextFunctio
     }
     return next(error);
   }
+};
+
+/**
+ * Populates `req.user` when a valid active token is present while keeping public routes
+ * accessible to anonymous, expired, or suspended viewers (`req.user = undefined`).
+ */
+export const optionalAuth = async (req: Request, _res: Response, next: NextFunction) => {
+  const token = extractAccessToken(req);
+  if (!token) {
+    return next();
+  }
+
+  try {
+    req.user = await verifyActiveAccessToken(token);
+  } catch (error: any) {
+    if (error?.statusCode === 401 || error?.statusCode === 403) {
+      req.user = undefined;
+    } else {
+      return next(error);
+    }
+  }
+
+  return next();
 };
