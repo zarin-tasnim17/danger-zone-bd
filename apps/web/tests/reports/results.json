@@ -1,0 +1,435 @@
+{
+  "generatedAt": "2026-11-12T16:22:56.514Z",
+  "profile": "report",
+  "totalDurationMs": 69530,
+  "overall": {
+    "total": 54,
+    "passed": 54,
+    "failed": 0,
+    "skipped": 0
+  },
+  "verificationSuites": {
+    "total": 43,
+    "passed": 43,
+    "failed": 0,
+    "skipped": 0
+  },
+  "defectRegressionSuite": {
+    "total": 11,
+    "passed": 11,
+    "failed": 0,
+    "skipped": 0
+  },
+  "layers": {
+    "mocked": {
+      "total": 33,
+      "passed": 33,
+      "failed": 0,
+      "skipped": 0
+    },
+    "contract": {
+      "total": 4,
+      "passed": 4,
+      "failed": 0,
+      "skipped": 0
+    },
+    "liveBackend": {
+      "total": 3,
+      "passed": 3,
+      "failed": 0,
+      "skipped": 0
+    },
+    "browserE2E": {
+      "total": 3,
+      "passed": 3,
+      "failed": 0,
+      "skipped": 0
+    },
+    "regression": {
+      "total": 11,
+      "passed": 11,
+      "failed": 0,
+      "skipped": 0
+    }
+  },
+  "cases": [
+    {
+      "name": "resolveApiUrl resolves browser same-origin /api/v1 proxy paths without duplicating prefixes",
+      "file": "unit/01-lib-utilities.test.ts",
+      "layer": "mocked",
+      "status": "PASS",
+      "durationMs": 1.26
+    },
+    {
+      "name": "resolveApiUrl resolves SSR server paths from INTERNAL_API_URL cleanly",
+      "file": "unit/01-lib-utilities.test.ts",
+      "layer": "mocked",
+      "status": "PASS",
+      "durationMs": 0.38
+    },
+    {
+      "name": "evaluateHardwareGpsProximity classifies HARDWARE_VERIFIED, OUT_OF_RANGE, LOW_ACCURACY, and UNAVAILABLE accurately",
+      "file": "unit/01-lib-utilities.test.ts",
+      "layer": "mocked",
+      "status": "PASS",
+      "durationMs": 0.45
+    },
+    {
+      "name": "validateEvidenceFile enforces allowed MIME types, non-empty size, and 5MB cap",
+      "file": "unit/01-lib-utilities.test.ts",
+      "layer": "mocked",
+      "status": "PASS",
+      "durationMs": 2.62
+    },
+    {
+      "name": "filterUtils, incidentUtils, safeZoneMeta, and @repo/shared phone normalization handle edge cases",
+      "file": "unit/01-lib-utilities.test.ts",
+      "layer": "mocked",
+      "status": "PASS",
+      "durationMs": 0.7
+    },
+    {
+      "name": "includes credentials: include, unwraps { success: true, data }, and omits JSON Content-Type for FormData",
+      "file": "api/01-mocked-api-and-resilience.test.ts",
+      "layer": "mocked",
+      "status": "PASS",
+      "durationMs": 7.46
+    },
+    {
+      "name": "extracts structured backend Zod validation error messages and string rate-limit errors accurately",
+      "file": "api/01-mocked-api-and-resilience.test.ts",
+      "layer": "mocked",
+      "status": "PASS",
+      "durationMs": 2.42
+    },
+    {
+      "name": "handles HTTP 401 -> silent POST /api/v1/auth/refresh -> single retry on subsequent 200 OK",
+      "file": "api/01-mocked-api-and-resilience.test.ts",
+      "layer": "mocked",
+      "status": "PASS",
+      "durationMs": 1.48
+    },
+    {
+      "name": "coalesces parallel 401 responses behind a single-flight POST /auth/refresh mutex (FRONTEND-001)",
+      "file": "api/01-mocked-api-and-resilience.test.ts",
+      "layer": "mocked",
+      "status": "PASS",
+      "durationMs": 28.83
+    },
+    {
+      "name": "skips silent /auth/refresh on POST /auth/login 401 responses (FRONTEND-002)",
+      "file": "api/01-mocked-api-and-resilience.test.ts",
+      "layer": "mocked",
+      "status": "PASS",
+      "durationMs": 0.89
+    },
+    {
+      "name": "handles HTML 502 Bad Gateway, network TypeError offline failures, and AbortController timeouts cleanly",
+      "file": "api/01-mocked-api-and-resilience.test.ts",
+      "layer": "mocked",
+      "status": "PASS",
+      "durationMs": 28.79
+    },
+    {
+      "name": "useAuthStore.initAuth creates persistent deviceId, authenticates via /auth/device, and loads /users/me",
+      "file": "api/02-stores-and-sockets-mocked.test.ts",
+      "layer": "mocked",
+      "status": "PASS",
+      "durationMs": 14.64
+    },
+    {
+      "name": "useAuthStore.loginAdminWithPassword rejects non-ADMIN accounts and revokes newly issued cookies via /auth/logout",
+      "file": "api/02-stores-and-sockets-mocked.test.ts",
+      "layer": "mocked",
+      "status": "PASS",
+      "durationMs": 2.04
+    },
+    {
+      "name": "useIncidentStore fetches incidents & safeZones, handles optimistic vote rollback on API failure, and deduplicates in-flight votes",
+      "file": "api/02-stores-and-sockets-mocked.test.ts",
+      "layer": "mocked",
+      "status": "PASS",
+      "durationMs": 40.49
+    },
+    {
+      "name": "useStatsStore handles both unwrapped and nested response payloads cleanly",
+      "file": "api/02-stores-and-sockets-mocked.test.ts",
+      "layer": "mocked",
+      "status": "PASS",
+      "durationMs": 1.51
+    },
+    {
+      "name": "EP-044 GET /api/health returns 200 healthy JSON when upstream /health and /health/db succeed",
+      "file": "api/03-next-route-handlers.test.ts",
+      "layer": "mocked",
+      "status": "PASS",
+      "durationMs": 12.21
+    },
+    {
+      "name": "EP-044 GET /api/health returns 503 degraded when upstream DB probe fails or is unreachable",
+      "file": "api/03-next-route-handlers.test.ts",
+      "layer": "mocked",
+      "status": "PASS",
+      "durationMs": 1.43
+    },
+    {
+      "name": "EP-045/EP-046 fails closed (401) when CRON_SECRET is missing or wrong, and forwards POST with Bearer token when valid",
+      "file": "api/03-next-route-handlers.test.ts",
+      "layer": "mocked",
+      "status": "PASS",
+      "durationMs": 4.81
+    },
+    {
+      "name": "covers 100% of EP-001..EP-047 in the coverage manifest without missing or duplicate IDs",
+      "file": "contracts/01-backend-contract-alignment.test.ts",
+      "layer": "contract",
+      "status": "PASS",
+      "durationMs": 1.26
+    },
+    {
+      "name": "validates all frontend outgoing POST/GET request shapes against strict backend Zod schemas",
+      "file": "contracts/01-backend-contract-alignment.test.ts",
+      "layer": "contract",
+      "status": "PASS",
+      "durationMs": 7.45
+    },
+    {
+      "name": "verifies ReportDetailPage author.role & author.alias match EP-018/EP-019 sanitized response contract",
+      "file": "contracts/01-backend-contract-alignment.test.ts",
+      "layer": "contract",
+      "status": "PASS",
+      "durationMs": 1.39
+    },
+    {
+      "name": "verifies dev-test internal diagnostic routes match current EP endpoints rather than drifted stubs",
+      "file": "contracts/01-backend-contract-alignment.test.ts",
+      "layer": "contract",
+      "status": "PASS",
+      "durationMs": 0.34
+    },
+    {
+      "name": "reuses stored bd_safety_device_id across initAuth calls without generating duplicate anonymous identities",
+      "file": "authentication/01-auth-session-lifecycle.test.ts",
+      "layer": "mocked",
+      "status": "PASS",
+      "durationMs": 14.08
+    },
+    {
+      "name": "admin password login succeeds only when role === ADMIN",
+      "file": "authentication/01-auth-session-lifecycle.test.ts",
+      "layer": "mocked",
+      "status": "PASS",
+      "durationMs": 2.18
+    },
+    {
+      "name": "logout posts to /auth/logout and clears session without minting a new anonymous identity",
+      "file": "authentication/01-auth-session-lifecycle.test.ts",
+      "layer": "mocked",
+      "status": "PASS",
+      "durationMs": 1.25
+    },
+    {
+      "name": "resetAnonymousIdentity explicitly rotates device identity when requested on /profile",
+      "file": "authentication/01-auth-session-lifecycle.test.ts",
+      "layer": "mocked",
+      "status": "PASS",
+      "durationMs": 3.39
+    },
+    {
+      "name": "/safe-zones restricts SafeZone creation and deletion controls exclusively to user?.role === \"ADMIN\"",
+      "file": "authorization/01-rbac-guard-matrix.test.ts",
+      "layer": "mocked",
+      "status": "PASS",
+      "durationMs": 1.37
+    },
+    {
+      "name": "/admin enforces explicit Admin role login gate before exposing moderation actions",
+      "file": "authorization/01-rbac-guard-matrix.test.ts",
+      "layer": "mocked",
+      "status": "PASS",
+      "durationMs": 0.76
+    },
+    {
+      "name": "/reports/[id] enforces ownership (report?.isOwner) and ADMIN/VERIFIED_RESPONDER separation on Resolve vs Purge controls",
+      "file": "authorization/01-rbac-guard-matrix.test.ts",
+      "layer": "mocked",
+      "status": "PASS",
+      "durationMs": 0.54
+    },
+    {
+      "name": "validates BD KYC phone normalization and international URL constraints for PHONE_OTP & NID_DOCUMENT",
+      "file": "forms/01-forms-media-geofence-validation.test.ts",
+      "layer": "mocked",
+      "status": "PASS",
+      "durationMs": 3.55
+    },
+    {
+      "name": "checks alert geofence polygon closure & Bangladesh bounding constraints",
+      "file": "forms/01-forms-media-geofence-validation.test.ts",
+      "layer": "mocked",
+      "status": "PASS",
+      "durationMs": 1.96
+    },
+    {
+      "name": "checks Safe Route Bangladesh bounding box and Safe Zone NaN/min-length edge cases",
+      "file": "forms/01-forms-media-geofence-validation.test.ts",
+      "layer": "mocked",
+      "status": "PASS",
+      "durationMs": 2.59
+    },
+    {
+      "name": "reproduces ReportIncidentModal whitespace formatting producing empty \": \" payload & >1000 char overflow risk",
+      "file": "forms/01-forms-media-geofence-validation.test.ts",
+      "layer": "mocked",
+      "status": "PASS",
+      "durationMs": 1.35
+    },
+    {
+      "name": "confirms admin moderation actions require minimum 3-char reason which admin UI does not enforce pre-flight",
+      "file": "forms/01-forms-media-geofence-validation.test.ts",
+      "layer": "mocked",
+      "status": "PASS",
+      "durationMs": 0.93
+    },
+    {
+      "name": "Badge renders severity, pulse indicator, and verification variants deterministically",
+      "file": "components/01-ui-rendering-and-props.test.ts",
+      "layer": "mocked",
+      "status": "PASS",
+      "durationMs": 4.8
+    },
+    {
+      "name": "Button & GlassCard render loading disabled states and container variants without SSR crashes",
+      "file": "components/01-ui-rendering-and-props.test.ts",
+      "layer": "mocked",
+      "status": "PASS",
+      "durationMs": 0.97
+    },
+    {
+      "name": "IncidentFeed & ToastContainer SSR snapshots match React 18 getInitialState safely (hydrated tests run in Browser E2E)",
+      "file": "components/01-ui-rendering-and-props.test.ts",
+      "layer": "mocked",
+      "status": "PASS",
+      "durationMs": 4.94
+    },
+    {
+      "name": "verifies Next.js GET /api/health proxy against live Express /health & /health/db",
+      "file": "workflows/01-live-backend-integration.test.ts",
+      "layer": "liveBackend",
+      "status": "PASS",
+      "durationMs": 274.59
+    },
+    {
+      "name": "executes complete citizen -> responder -> admin lifecycle via real apiFetch, Zustand stores & HttpOnly cookies",
+      "file": "workflows/01-live-backend-integration.test.ts",
+      "layer": "liveBackend",
+      "status": "PASS",
+      "durationMs": 27245.21
+    },
+    {
+      "name": "connects to live Express Socket.IO server and receives joined room events",
+      "file": "workflows/01-live-backend-integration.test.ts",
+      "layer": "liveBackend",
+      "status": "PASS",
+      "durationMs": 126.39
+    },
+    {
+      "name": "loads /, completes real browser anonymous HttpOnly auth + feed + safe-zones + stats without page errors",
+      "file": "e2e/01-browser-playwright-e2e.test.ts",
+      "layer": "browserE2E",
+      "status": "PASS",
+      "durationMs": 3971.98
+    },
+    {
+      "name": "submits an interactive incident form on /report and opens its live /reports/[id] dossier",
+      "file": "e2e/01-browser-playwright-e2e.test.ts",
+      "layer": "browserE2E",
+      "status": "PASS",
+      "durationMs": 6077.09
+    },
+    {
+      "name": "navigates all remaining routes (/feed, /routes, /safe-zones, /alerts, /profile, /health, /dev-test, /admin) with 0 uncaught runtime errors",
+      "file": "e2e/01-browser-playwright-e2e.test.ts",
+      "layer": "browserE2E",
+      "status": "PASS",
+      "durationMs": 16179.98
+    },
+    {
+      "name": "[FRONTEND-001] concurrent 401 responses MUST coalesce behind a single-flight /auth/refresh promise instead of firing duplicate rotations",
+      "file": "regression/01-confirmed-frontend-defects.test.ts",
+      "layer": "regression",
+      "status": "PASS",
+      "durationMs": 35.28
+    },
+    {
+      "name": "[FRONTEND-002] failed POST /auth/login (401 Invalid credentials) MUST NOT trigger silent /auth/refresh",
+      "file": "regression/01-confirmed-frontend-defects.test.ts",
+      "layer": "regression",
+      "status": "PASS",
+      "durationMs": 1.44
+    },
+    {
+      "name": "[FRONTEND-003] loginAdminWithPassword rejecting non-ADMIN role MUST call POST /auth/logout so browser cookies do not stay polluted",
+      "file": "regression/01-confirmed-frontend-defects.test.ts",
+      "layer": "regression",
+      "status": "PASS",
+      "durationMs": 1.47
+    },
+    {
+      "name": "[FRONTEND-004] initAuth MUST check existing /users/me session before unconditionally overwriting cookies with POST /auth/device",
+      "file": "regression/01-confirmed-frontend-defects.test.ts",
+      "layer": "regression",
+      "status": "PASS",
+      "durationMs": 0.9
+    },
+    {
+      "name": "[FRONTEND-005] alerts/page.tsx MUST await initAuth() before calling getSocket() so user:<id> room joins reliably",
+      "file": "regression/01-confirmed-frontend-defects.test.ts",
+      "layer": "regression",
+      "status": "PASS",
+      "durationMs": 0.79
+    },
+    {
+      "name": "[FRONTEND-006] alerts/page.tsx MUST NOT fabricate fake https://push.safetymap.bd Web Push subscriptions on PushManager failure",
+      "file": "regression/01-confirmed-frontend-defects.test.ts",
+      "layer": "regression",
+      "status": "PASS",
+      "durationMs": 0.73
+    },
+    {
+      "name": "[FRONTEND-007] ReportIncidentModal MUST validate trimmed non-empty title/description and enforce <=1000 composed character limit",
+      "file": "regression/01-confirmed-frontend-defects.test.ts",
+      "layer": "regression",
+      "status": "PASS",
+      "durationMs": 0.55
+    },
+    {
+      "name": "[FRONTEND-008] safe-zones/page.tsx MUST validate finite lat/lng and >=2 char name without selectedZone useEffect refetch loop",
+      "file": "regression/01-confirmed-frontend-defects.test.ts",
+      "layer": "regression",
+      "status": "PASS",
+      "durationMs": 0.56
+    },
+    {
+      "name": "[FRONTEND-009] admin/page.tsx MUST surface API errors to the admin UI and enforce >=3-char moderation reasons",
+      "file": "regression/01-confirmed-frontend-defects.test.ts",
+      "layer": "regression",
+      "status": "PASS",
+      "durationMs": 0.76
+    },
+    {
+      "name": "[FRONTEND-010] apiFetch MUST enforce a default AbortController timeout to prevent hung upstream requests",
+      "file": "regression/01-confirmed-frontend-defects.test.ts",
+      "layer": "regression",
+      "status": "PASS",
+      "durationMs": 0.61
+    },
+    {
+      "name": "[FRONTEND-011] concurrent useAuthStore.initAuth() calls (e.g. StrictMode double-mount) MUST deduplicate behind a single-flight promise instead of firing parallel POST /auth/device requests",
+      "file": "regression/01-confirmed-frontend-defects.test.ts",
+      "layer": "regression",
+      "status": "PASS",
+      "durationMs": 29.92
+    }
+  ]
+}

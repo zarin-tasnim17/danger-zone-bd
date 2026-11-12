@@ -7,7 +7,20 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test:web": "npx tsx tests/framework/runner.ts --profile=all",
+    "test:web:unit": "npx tsx tests/framework/runner.ts --profile=unit",
+    "test:web:mocked": "npx tsx tests/framework/runner.ts --profile=mocked",
+    "test:web:contracts": "npx tsx tests/framework/runner.ts --profile=contracts",
+    "test:web:auth": "npx tsx tests/framework/runner.ts --profile=auth",
+    "test:web:forms": "npx tsx tests/framework/runner.ts --profile=forms",
+    "test:web:components": "npx tsx tests/framework/runner.ts --profile=components",
+    "test:web:live": "npx tsx tests/framework/runner.ts --profile=live",
+    "test:web:workflows": "npx tsx tests/framework/runner.ts --profile=workflows",
+    "test:web:e2e": "npx tsx tests/framework/runner.ts --profile=e2e",
+    "test:web:regression": "npx tsx tests/framework/runner.ts --profile=regression",
+    "test:web:ci": "npx tsx tests/framework/runner.ts --profile=ci",
+    "test:web:report": "npx tsx tests/framework/runner.ts --profile=report"
   },
   "dependencies": {
     "@repo/shared": "workspace:*",

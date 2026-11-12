@@ -1,0 +1,525 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>DangerZoneBD Frontend API Audit Test Report</title>
+<style>
+  body { font-family: system-ui, -apple-system, sans-serif; margin: 24px; color: #0f172a; background: #f8fafc; }
+  h1 { margin-bottom: 4px; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; margin: 16px 0 24px; }
+  .card { background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 14px; }
+  .card h3 { margin: 0 0 6px; font-size: 12px; text-transform: uppercase; color: #64748b; }
+  .card p { margin: 0; font-size: 20px; font-weight: 700; }
+  table { width: 100%; border-collapse: collapse; background: #fff; border: 1px solid #e2e8f0; }
+  th, td { border-bottom: 1px solid #e2e8f0; padding: 8px 10px; text-align: left; font-size: 13px; vertical-align: top; }
+  th { background: #f1f5f9; }
+  .status-PASS { color: #15803d; font-weight: 700; }
+  .status-FAIL { color: #b91c1c; font-weight: 700; }
+  .status-SKIP { color: #a16207; font-weight: 700; }
+  .badge { padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: 600; background: #e2e8f0; }
+  .layer-liveBackend { background: #dbeafe; color: #1d4ed8; }
+  .layer-browserE2E { background: #dcfce7; color: #166534; }
+  .layer-regression { background: #fee2e2; color: #991b1b; }
+</style>
+</head>
+<body>
+  <h1>DangerZoneBD Frontend API Integration Test Report</h1>
+  <p>Profile: <strong>report</strong> | Generated: 2026-11-12T16:22:56.514Z | Duration: 69.53s</p>
+  <div class="cards">
+    <div class="card"><h3>Mocked Unit/API/Forms</h3><p>33/33 passed</p></div>
+    <div class="card"><h3>Contract Validation</h3><p>4/4 passed</p></div>
+    <div class="card"><h3>Live Backend Integration</h3><p>3/3 passed</p></div>
+    <div class="card"><h3>Real Chromium E2E</h3><p>3/3 passed</p></div>
+    <div class="card"><h3>Defect Regression (Unfixed)</h3><p>0 confirmed / 11</p></div>
+  </div>
+  <table>
+    <thead><tr><th>Layer</th><th>File</th><th>Test Case</th><th>Status</th><th>Duration</th><th>Details</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><span class="badge layer-mocked">mocked</span></td>
+        <td><code>unit/01-lib-utilities.test.ts</code></td>
+        <td>resolveApiUrl resolves browser same-origin /api/v1 proxy paths without duplicating prefixes</td>
+        <td><span class="status status-PASS">PASS</span></td>
+        <td>1.26 ms</td>
+        <td><small></small></td>
+      </tr>
+
+      <tr>
+        <td><span class="badge layer-mocked">mocked</span></td>
+        <td><code>unit/01-lib-utilities.test.ts</code></td>
+        <td>resolveApiUrl resolves SSR server paths from INTERNAL_API_URL cleanly</td>
+        <td><span class="status status-PASS">PASS</span></td>
+        <td>0.38 ms</td>
+        <td><small></small></td>
+      </tr>
+
+      <tr>
+        <td><span class="badge layer-mocked">mocked</span></td>
+        <td><code>unit/01-lib-utilities.test.ts</code></td>
+        <td>evaluateHardwareGpsProximity classifies HARDWARE_VERIFIED, OUT_OF_RANGE, LOW_ACCURACY, and UNAVAILABLE accurately</td>
+        <td><span class="status status-PASS">PASS</span></td>
+        <td>0.45 ms</td>
+        <td><small></small></td>
+      </tr>
+
+      <tr>
+        <td><span class="badge layer-mocked">mocked</span></td>
+        <td><code>unit/01-lib-utilities.test.ts</code></td>
+        <td>validateEvidenceFile enforces allowed MIME types, non-empty size, and 5MB cap</td>
+        <td><span class="status status-PASS">PASS</span></td>
+        <td>2.62 ms</td>
+        <td><small></small></td>
+      </tr>
+
+      <tr>
+        <td><span class="badge layer-mocked">mocked</span></td>
+        <td><code>unit/01-lib-utilities.test.ts</code></td>
+        <td>filterUtils, incidentUtils, safeZoneMeta, and @repo/shared phone normalization handle edge cases</td>
+        <td><span class="status status-PASS">PASS</span></td>
+        <td>0.7 ms</td>
+        <td><small></small></td>
+      </tr>
+
+      <tr>
+        <td><span class="badge layer-mocked">mocked</span></td>
+        <td><code>api/01-mocked-api-and-resilience.test.ts</code></td>
+        <td>includes credentials: include, unwraps { success: true, data }, and omits JSON Content-Type for FormData</td>
+        <td><span class="status status-PASS">PASS</span></td>
+        <td>7.46 ms</td>
+        <td><small></small></td>
+      </tr>
+
+      <tr>
+        <td><span class="badge layer-mocked">mocked</span></td>
+        <td><code>api/01-mocked-api-and-resilience.test.ts</code></td>
+        <td>extracts structured backend Zod validation error messages and string rate-limit errors accurately</td>
+        <td><span class="status status-PASS">PASS</span></td>
+        <td>2.42 ms</td>
+        <td><small></small></td>
+      </tr>
+
+      <tr>
+        <td><span class="badge layer-mocked">mocked</span></td>
+        <td><code>api/01-mocked-api-and-resilience.test.ts</code></td>
+        <td>handles HTTP 401 -&gt; silent POST /api/v1/auth/refresh -&gt; single retry on subsequent 200 OK</td>
+        <td><span class="status status-PASS">PASS</span></td>
+        <td>1.48 ms</td>
+        <td><small></small></td>
+      </tr>
+
+      <tr>
+        <td><span class="badge layer-mocked">mocked</span></td>
+        <td><code>api/01-mocked-api-and-resilience.test.ts</code></td>
+        <td>coalesces parallel 401 responses behind a single-flight POST /auth/refresh mutex (FRONTEND-001)</td>
+        <td><span class="status status-PASS">PASS</span></td>
+        <td>28.83 ms</td>
+        <td><small></small></td>
+      </tr>
+
+      <tr>
+        <td><span class="badge layer-mocked">mocked</span></td>
+        <td><code>api/01-mocked-api-and-resilience.test.ts</code></td>
+        <td>skips silent /auth/refresh on POST /auth/login 401 responses (FRONTEND-002)</td>
+        <td><span class="status status-PASS">PASS</span></td>
+        <td>0.89 ms</td>
+        <td><small></small></td>
+      </tr>
+
+      <tr>
+        <td><span class="badge layer-mocked">mocked</span></td>
+        <td><code>api/01-mocked-api-and-resilience.test.ts</code></td>
+        <td>handles HTML 502 Bad Gateway, network TypeError offline failures, and AbortController timeouts cleanly</td>
+        <td><span class="status status-PASS">PASS</span></td>
+        <td>28.79 ms</td>
+        <td><small></small></td>
+      </tr>
+
+      <tr>
+        <td><span class="badge layer-mocked">mocked</span></td>
+        <td><code>api/02-stores-and-sockets-mocked.test.ts</code></td>
+        <td>useAuthStore.initAuth creates persistent deviceId, authenticates via /auth/device, and loads /users/me</td>
+        <td><span class="status status-PASS">PASS</span></td>
+        <td>14.64 ms</td>
+        <td><small></small></td>
+      </tr>
+
+      <tr>
+        <td><span class="badge layer-mocked">mocked</span></td>
+        <td><code>api/02-stores-and-sockets-mocked.test.ts</code></td>
+        <td>useAuthStore.loginAdminWithPassword rejects non-ADMIN accounts and revokes newly issued cookies via /auth/logout</td>
+        <td><span class="status status-PASS">PASS</span></td>
+        <td>2.04 ms</td>
+        <td><small></small></td>
+      </tr>
+
+      <tr>
+        <td><span class="badge layer-mocked">mocked</span></td>
+        <td><code>api/02-stores-and-sockets-mocked.test.ts</code></td>
+        <td>useIncidentStore fetches incidents &amp; safeZones, handles optimistic vote rollback on API failure, and deduplicates in-flight votes</td>
+        <td><span class="status status-PASS">PASS</span></td>
+        <td>40.49 ms</td>
+        <td><small></small></td>
+      </tr>
+
+      <tr>
+        <td><span class="badge layer-mocked">mocked</span></td>
+        <td><code>api/02-stores-and-sockets-mocked.test.ts</code></td>
+        <td>useStatsStore handles both unwrapped and nested response payloads cleanly</td>
+        <td><span class="status status-PASS">PASS</span></td>
+        <td>1.51 ms</td>
+        <td><small></small></td>
+      </tr>
+
+      <tr>
+        <td><span class="badge layer-mocked">mocked</span></td>
+        <td><code>api/03-next-route-handlers.test.ts</code></td>
+        <td>EP-044 GET /api/health returns 200 healthy JSON when upstream /health and /health/db succeed</td>
+        <td><span class="status status-PASS">PASS</span></td>
+        <td>12.21 ms</td>
+        <td><small></small></td>
+      </tr>
+
+      <tr>
+        <td><span class="badge layer-mocked">mocked</span></td>
+        <td><code>api/03-next-route-handlers.test.ts</code></td>
+        <td>EP-044 GET /api/health returns 503 degraded when upstream DB probe fails or is unreachable</td>
+        <td><span class="status status-PASS">PASS</span></td>
+        <td>1.43 ms</td>
+        <td><small></small></td>
+      </tr>
+
+      <tr>
+        <td><span class="badge layer-mocked">mocked</span></td>
+        <td><code>api/03-next-route-handlers.test.ts</code></td>
+        <td>EP-045/EP-046 fails closed (401) when CRON_SECRET is missing or wrong, and forwards POST with Bearer token when valid</td>
+        <td><span class="status status-PASS">PASS</span></td>
+        <td>4.81 ms</td>
+        <td><small></small></td>
+      </tr>
+
+      <tr>
+        <td><span class="badge layer-contract">contract</span></td>
+        <td><code>contracts/01-backend-contract-alignment.test.ts</code></td>
+        <td>covers 100% of EP-001..EP-047 in the coverage manifest without missing or duplicate IDs</td>
+        <td><span class="status status-PASS">PASS</span></td>
+        <td>1.26 ms</td>
+        <td><small></small></td>
+      </tr>
+
+      <tr>
+        <td><span class="badge layer-contract">contract</span></td>
+        <td><code>contracts/01-backend-contract-alignment.test.ts</code></td>
+        <td>validates all frontend outgoing POST/GET request shapes against strict backend Zod schemas</td>
+        <td><span class="status status-PASS">PASS</span></td>
+        <td>7.45 ms</td>
+        <td><small></small></td>
+      </tr>
+
+      <tr>
+        <td><span class="badge layer-contract">contract</span></td>
+        <td><code>contracts/01-backend-contract-alignment.test.ts</code></td>
+        <td>verifies ReportDetailPage author.role &amp; author.alias match EP-018/EP-019 sanitized response contract</td>
+        <td><span class="status status-PASS">PASS</span></td>
+        <td>1.39 ms</td>
+        <td><small></small></td>
+      </tr>
+
+      <tr>
+        <td><span class="badge layer-contract">contract</span></td>
+        <td><code>contracts/01-backend-contract-alignment.test.ts</code></td>
+        <td>verifies dev-test internal diagnostic routes match current EP endpoints rather than drifted stubs</td>
+        <td><span class="status status-PASS">PASS</span></td>
+        <td>0.34 ms</td>
+        <td><small></small></td>
+      </tr>
+
+      <tr>
+        <td><span class="badge layer-mocked">mocked</span></td>
+        <td><code>authentication/01-auth-session-lifecycle.test.ts</code></td>
+        <td>reuses stored bd_safety_device_id across initAuth calls without generating duplicate anonymous identities</td>
+        <td><span class="status status-PASS">PASS</span></td>
+        <td>14.08 ms</td>
+        <td><small></small></td>
+      </tr>
+
+      <tr>
+        <td><span class="badge layer-mocked">mocked</span></td>
+        <td><code>authentication/01-auth-session-lifecycle.test.ts</code></td>
+        <td>admin password login succeeds only when role === ADMIN</td>
+        <td><span class="status status-PASS">PASS</span></td>
+        <td>2.18 ms</td>
+        <td><small></small></td>
+      </tr>
+
+      <tr>
+        <td><span class="badge layer-mocked">mocked</span></td>
+        <td><code>authentication/01-auth-session-lifecycle.test.ts</code></td>
+        <td>logout posts to /auth/logout and clears session without minting a new anonymous identity</td>
+        <td><span class="status status-PASS">PASS</span></td>
+        <td>1.25 ms</td>
+        <td><small></small></td>
+      </tr>
+
+      <tr>
+        <td><span class="badge layer-mocked">mocked</span></td>
+        <td><code>authentication/01-auth-session-lifecycle.test.ts</code></td>
+        <td>resetAnonymousIdentity explicitly rotates device identity when requested on /profile</td>
+        <td><span class="status status-PASS">PASS</span></td>
+        <td>3.39 ms</td>
+        <td><small></small></td>
+      </tr>
+
+      <tr>
+        <td><span class="badge layer-mocked">mocked</span></td>
+        <td><code>authorization/01-rbac-guard-matrix.test.ts</code></td>
+        <td>/safe-zones restricts SafeZone creation and deletion controls exclusively to user?.role === &quot;ADMIN&quot;</td>
+        <td><span class="status status-PASS">PASS</span></td>
+        <td>1.37 ms</td>
+        <td><small></small></td>
+      </tr>
+
+      <tr>
+        <td><span class="badge layer-mocked">mocked</span></td>
+        <td><code>authorization/01-rbac-guard-matrix.test.ts</code></td>
+        <td>/admin enforces explicit Admin role login gate before exposing moderation actions</td>
+        <td><span class="status status-PASS">PASS</span></td>
+        <td>0.76 ms</td>
+        <td><small></small></td>
+      </tr>
+
+      <tr>
+        <td><span class="badge layer-mocked">mocked</span></td>
+        <td><code>authorization/01-rbac-guard-matrix.test.ts</code></td>
+        <td>/reports/[id] enforces ownership (report?.isOwner) and ADMIN/VERIFIED_RESPONDER separation on Resolve vs Purge controls</td>
+        <td><span class="status status-PASS">PASS</span></td>
+        <td>0.54 ms</td>
+        <td><small></small></td>
+      </tr>
+
+      <tr>
+        <td><span class="badge layer-mocked">mocked</span></td>
+        <td><code>forms/01-forms-media-geofence-validation.test.ts</code></td>
+        <td>validates BD KYC phone normalization and international URL constraints for PHONE_OTP &amp; NID_DOCUMENT</td>
+        <td><span class="status status-PASS">PASS</span></td>
+        <td>3.55 ms</td>
+        <td><small></small></td>
+      </tr>
+
+      <tr>
+        <td><span class="badge layer-mocked">mocked</span></td>
+        <td><code>forms/01-forms-media-geofence-validation.test.ts</code></td>
+        <td>checks alert geofence polygon closure &amp; Bangladesh bounding constraints</td>
+        <td><span class="status status-PASS">PASS</span></td>
+        <td>1.96 ms</td>
+        <td><small></small></td>
+      </tr>
+
+      <tr>
+        <td><span class="badge layer-mocked">mocked</span></td>
+        <td><code>forms/01-forms-media-geofence-validation.test.ts</code></td>
+        <td>checks Safe Route Bangladesh bounding box and Safe Zone NaN/min-length edge cases</td>
+        <td><span class="status status-PASS">PASS</span></td>
+        <td>2.59 ms</td>
+        <td><small></small></td>
+      </tr>
+
+      <tr>
+        <td><span class="badge layer-mocked">mocked</span></td>
+        <td><code>forms/01-forms-media-geofence-validation.test.ts</code></td>
+        <td>reproduces ReportIncidentModal whitespace formatting producing empty &quot;: &quot; payload &amp; &gt;1000 char overflow risk</td>
+        <td><span class="status status-PASS">PASS</span></td>
+        <td>1.35 ms</td>
+        <td><small></small></td>
+      </tr>
+
+      <tr>
+        <td><span class="badge layer-mocked">mocked</span></td>
+        <td><code>forms/01-forms-media-geofence-validation.test.ts</code></td>
+        <td>confirms admin moderation actions require minimum 3-char reason which admin UI does not enforce pre-flight</td>
+        <td><span class="status status-PASS">PASS</span></td>
+        <td>0.93 ms</td>
+        <td><small></small></td>
+      </tr>
+
+      <tr>
+        <td><span class="badge layer-mocked">mocked</span></td>
+        <td><code>components/01-ui-rendering-and-props.test.ts</code></td>
+        <td>Badge renders severity, pulse indicator, and verification variants deterministically</td>
+        <td><span class="status status-PASS">PASS</span></td>
+        <td>4.8 ms</td>
+        <td><small></small></td>
+      </tr>
+
+      <tr>
+        <td><span class="badge layer-mocked">mocked</span></td>
+        <td><code>components/01-ui-rendering-and-props.test.ts</code></td>
+        <td>Button &amp; GlassCard render loading disabled states and container variants without SSR crashes</td>
+        <td><span class="status status-PASS">PASS</span></td>
+        <td>0.97 ms</td>
+        <td><small></small></td>
+      </tr>
+
+      <tr>
+        <td><span class="badge layer-mocked">mocked</span></td>
+        <td><code>components/01-ui-rendering-and-props.test.ts</code></td>
+        <td>IncidentFeed &amp; ToastContainer SSR snapshots match React 18 getInitialState safely (hydrated tests run in Browser E2E)</td>
+        <td><span class="status status-PASS">PASS</span></td>
+        <td>4.94 ms</td>
+        <td><small></small></td>
+      </tr>
+
+      <tr>
+        <td><span class="badge layer-liveBackend">liveBackend</span></td>
+        <td><code>workflows/01-live-backend-integration.test.ts</code></td>
+        <td>verifies Next.js GET /api/health proxy against live Express /health &amp; /health/db</td>
+        <td><span class="status status-PASS">PASS</span></td>
+        <td>274.59 ms</td>
+        <td><small></small></td>
+      </tr>
+
+      <tr>
+        <td><span class="badge layer-liveBackend">liveBackend</span></td>
+        <td><code>workflows/01-live-backend-integration.test.ts</code></td>
+        <td>executes complete citizen -&gt; responder -&gt; admin lifecycle via real apiFetch, Zustand stores &amp; HttpOnly cookies</td>
+        <td><span class="status status-PASS">PASS</span></td>
+        <td>27245.21 ms</td>
+        <td><small></small></td>
+      </tr>
+
+      <tr>
+        <td><span class="badge layer-liveBackend">liveBackend</span></td>
+        <td><code>workflows/01-live-backend-integration.test.ts</code></td>
+        <td>connects to live Express Socket.IO server and receives joined room events</td>
+        <td><span class="status status-PASS">PASS</span></td>
+        <td>126.39 ms</td>
+        <td><small></small></td>
+      </tr>
+
+      <tr>
+        <td><span class="badge layer-browserE2E">browserE2E</span></td>
+        <td><code>e2e/01-browser-playwright-e2e.test.ts</code></td>
+        <td>loads /, completes real browser anonymous HttpOnly auth + feed + safe-zones + stats without page errors</td>
+        <td><span class="status status-PASS">PASS</span></td>
+        <td>3971.98 ms</td>
+        <td><small></small></td>
+      </tr>
+
+      <tr>
+        <td><span class="badge layer-browserE2E">browserE2E</span></td>
+        <td><code>e2e/01-browser-playwright-e2e.test.ts</code></td>
+        <td>submits an interactive incident form on /report and opens its live /reports/[id] dossier</td>
+        <td><span class="status status-PASS">PASS</span></td>
+        <td>6077.09 ms</td>
+        <td><small></small></td>
+      </tr>
+
+      <tr>
+        <td><span class="badge layer-browserE2E">browserE2E</span></td>
+        <td><code>e2e/01-browser-playwright-e2e.test.ts</code></td>
+        <td>navigates all remaining routes (/feed, /routes, /safe-zones, /alerts, /profile, /health, /dev-test, /admin) with 0 uncaught runtime errors</td>
+        <td><span class="status status-PASS">PASS</span></td>
+        <td>16179.98 ms</td>
+        <td><small></small></td>
+      </tr>
+
+      <tr>
+        <td><span class="badge layer-regression">regression</span></td>
+        <td><code>regression/01-confirmed-frontend-defects.test.ts</code></td>
+        <td>[FRONTEND-001] concurrent 401 responses MUST coalesce behind a single-flight /auth/refresh promise instead of firing duplicate rotations</td>
+        <td><span class="status status-PASS">PASS</span></td>
+        <td>35.28 ms</td>
+        <td><small></small></td>
+      </tr>
+
+      <tr>
+        <td><span class="badge layer-regression">regression</span></td>
+        <td><code>regression/01-confirmed-frontend-defects.test.ts</code></td>
+        <td>[FRONTEND-002] failed POST /auth/login (401 Invalid credentials) MUST NOT trigger silent /auth/refresh</td>
+        <td><span class="status status-PASS">PASS</span></td>
+        <td>1.44 ms</td>
+        <td><small></small></td>
+      </tr>
+
+      <tr>
+        <td><span class="badge layer-regression">regression</span></td>
+        <td><code>regression/01-confirmed-frontend-defects.test.ts</code></td>
+        <td>[FRONTEND-003] loginAdminWithPassword rejecting non-ADMIN role MUST call POST /auth/logout so browser cookies do not stay polluted</td>
+        <td><span class="status status-PASS">PASS</span></td>
+        <td>1.47 ms</td>
+        <td><small></small></td>
+      </tr>
+
+      <tr>
+        <td><span class="badge layer-regression">regression</span></td>
+        <td><code>regression/01-confirmed-frontend-defects.test.ts</code></td>
+        <td>[FRONTEND-004] initAuth MUST check existing /users/me session before unconditionally overwriting cookies with POST /auth/device</td>
+        <td><span class="status status-PASS">PASS</span></td>
+        <td>0.9 ms</td>
+        <td><small></small></td>
+      </tr>
+
+      <tr>
+        <td><span class="badge layer-regression">regression</span></td>
+        <td><code>regression/01-confirmed-frontend-defects.test.ts</code></td>
+        <td>[FRONTEND-005] alerts/page.tsx MUST await initAuth() before calling getSocket() so user:&lt;id&gt; room joins reliably</td>
+        <td><span class="status status-PASS">PASS</span></td>
+        <td>0.79 ms</td>
+        <td><small></small></td>
+      </tr>
+
+      <tr>
+        <td><span class="badge layer-regression">regression</span></td>
+        <td><code>regression/01-confirmed-frontend-defects.test.ts</code></td>
+        <td>[FRONTEND-006] alerts/page.tsx MUST NOT fabricate fake https://push.safetymap.bd Web Push subscriptions on PushManager failure</td>
+        <td><span class="status status-PASS">PASS</span></td>
+        <td>0.73 ms</td>
+        <td><small></small></td>
+      </tr>
+
+      <tr>
+        <td><span class="badge layer-regression">regression</span></td>
+        <td><code>regression/01-confirmed-frontend-defects.test.ts</code></td>
+        <td>[FRONTEND-007] ReportIncidentModal MUST validate trimmed non-empty title/description and enforce &lt;=1000 composed character limit</td>
+        <td><span class="status status-PASS">PASS</span></td>
+        <td>0.55 ms</td>
+        <td><small></small></td>
+      </tr>
+
+      <tr>
+        <td><span class="badge layer-regression">regression</span></td>
+        <td><code>regression/01-confirmed-frontend-defects.test.ts</code></td>
+        <td>[FRONTEND-008] safe-zones/page.tsx MUST validate finite lat/lng and &gt;=2 char name without selectedZone useEffect refetch loop</td>
+        <td><span class="status status-PASS">PASS</span></td>
+        <td>0.56 ms</td>
+        <td><small></small></td>
+      </tr>
+
+      <tr>
+        <td><span class="badge layer-regression">regression</span></td>
+        <td><code>regression/01-confirmed-frontend-defects.test.ts</code></td>
+        <td>[FRONTEND-009] admin/page.tsx MUST surface API errors to the admin UI and enforce &gt;=3-char moderation reasons</td>
+        <td><span class="status status-PASS">PASS</span></td>
+        <td>0.76 ms</td>
+        <td><small></small></td>
+      </tr>
+
+      <tr>
+        <td><span class="badge layer-regression">regression</span></td>
+        <td><code>regression/01-confirmed-frontend-defects.test.ts</code></td>
+        <td>[FRONTEND-010] apiFetch MUST enforce a default AbortController timeout to prevent hung upstream requests</td>
+        <td><span class="status status-PASS">PASS</span></td>
+        <td>0.61 ms</td>
+        <td><small></small></td>
+      </tr>
+
+      <tr>
+        <td><span class="badge layer-regression">regression</span></td>
+        <td><code>regression/01-confirmed-frontend-defects.test.ts</code></td>
+        <td>[FRONTEND-011] concurrent useAuthStore.initAuth() calls (e.g. StrictMode double-mount) MUST deduplicate behind a single-flight promise instead of firing parallel POST /auth/device requests</td>
+        <td><span class="status status-PASS">PASS</span></td>
+        <td>29.92 ms</td>
+        <td><small></small></td>
+      </tr></tbody>
+  </table>
+</body>
+</html>

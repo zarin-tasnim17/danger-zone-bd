@@ -1,0 +1,440 @@
+{
+  "generatedAt": "2026-11-12T16:22:56.515Z",
+  "profile": "report",
+  "totalBackendInterfaces": 47,
+  "manifestEntries": 47,
+  "consumedByFrontend": 37,
+  "nextjsProxyOrCronHandlers": 4,
+  "intentionallyBackendOnly": 6,
+  "coverageBreakdown": {
+    "contractValidated": 47,
+    "mockedUnitOrComponentTested": 41,
+    "liveBackendIntegrationTested": 38,
+    "browserE2ETested": 13
+  },
+  "endpoints": [
+    {
+      "id": "EP-001",
+      "route": "GET /",
+      "frontendIntegration": "BACKEND_ONLY_API",
+      "testedMocked": false,
+      "testedContract": true,
+      "testedLiveBackend": true,
+      "testedBrowserE2E": false
+    },
+    {
+      "id": "EP-002",
+      "route": "GET /health",
+      "frontendIntegration": "CONSUMED",
+      "testedMocked": true,
+      "testedContract": true,
+      "testedLiveBackend": true,
+      "testedBrowserE2E": true
+    },
+    {
+      "id": "EP-003",
+      "route": "GET /health/db",
+      "frontendIntegration": "CONSUMED",
+      "testedMocked": true,
+      "testedContract": true,
+      "testedLiveBackend": true,
+      "testedBrowserE2E": true
+    },
+    {
+      "id": "EP-004",
+      "route": "GET /api/v1/health",
+      "frontendIntegration": "BACKEND_ONLY_API",
+      "testedMocked": false,
+      "testedContract": true,
+      "testedLiveBackend": true,
+      "testedBrowserE2E": false
+    },
+    {
+      "id": "EP-005",
+      "route": "GET /api/v1/health/db",
+      "frontendIntegration": "BACKEND_ONLY_API",
+      "testedMocked": false,
+      "testedContract": true,
+      "testedLiveBackend": true,
+      "testedBrowserE2E": false
+    },
+    {
+      "id": "EP-006",
+      "route": "POST /api/v1/auth/device",
+      "frontendIntegration": "CONSUMED",
+      "testedMocked": true,
+      "testedContract": true,
+      "testedLiveBackend": true,
+      "testedBrowserE2E": true
+    },
+    {
+      "id": "EP-007",
+      "route": "POST /api/v1/auth/login",
+      "frontendIntegration": "CONSUMED",
+      "testedMocked": true,
+      "testedContract": true,
+      "testedLiveBackend": true,
+      "testedBrowserE2E": false
+    },
+    {
+      "id": "EP-008",
+      "route": "POST /api/v1/auth/refresh",
+      "frontendIntegration": "CONSUMED",
+      "testedMocked": true,
+      "testedContract": true,
+      "testedLiveBackend": false,
+      "testedBrowserE2E": false
+    },
+    {
+      "id": "EP-009",
+      "route": "POST /api/v1/auth/logout",
+      "frontendIntegration": "CONSUMED",
+      "testedMocked": true,
+      "testedContract": true,
+      "testedLiveBackend": true,
+      "testedBrowserE2E": false
+    },
+    {
+      "id": "EP-010",
+      "route": "GET /api/v1/users/me",
+      "frontendIntegration": "CONSUMED",
+      "testedMocked": true,
+      "testedContract": true,
+      "testedLiveBackend": true,
+      "testedBrowserE2E": true
+    },
+    {
+      "id": "EP-011",
+      "route": "POST /api/v1/users/verify",
+      "frontendIntegration": "CONSUMED",
+      "testedMocked": true,
+      "testedContract": true,
+      "testedLiveBackend": true,
+      "testedBrowserE2E": false
+    },
+    {
+      "id": "EP-012",
+      "route": "POST /api/v1/users/verify/:id/approve",
+      "frontendIntegration": "BACKEND_ONLY_API",
+      "testedMocked": false,
+      "testedContract": true,
+      "testedLiveBackend": false,
+      "testedBrowserE2E": false
+    },
+    {
+      "id": "EP-013",
+      "route": "POST /api/v1/reports",
+      "frontendIntegration": "CONSUMED",
+      "testedMocked": true,
+      "testedContract": true,
+      "testedLiveBackend": true,
+      "testedBrowserE2E": true
+    },
+    {
+      "id": "EP-014",
+      "route": "GET /api/v1/reports",
+      "frontendIntegration": "CONSUMED",
+      "testedMocked": true,
+      "testedContract": true,
+      "testedLiveBackend": true,
+      "testedBrowserE2E": true
+    },
+    {
+      "id": "EP-015",
+      "route": "GET /api/v1/reports/:id",
+      "frontendIntegration": "CONSUMED",
+      "testedMocked": true,
+      "testedContract": true,
+      "testedLiveBackend": true,
+      "testedBrowserE2E": true
+    },
+    {
+      "id": "EP-016",
+      "route": "PATCH /api/v1/reports/:id/resolve",
+      "frontendIntegration": "CONSUMED",
+      "testedMocked": true,
+      "testedContract": true,
+      "testedLiveBackend": true,
+      "testedBrowserE2E": false
+    },
+    {
+      "id": "EP-017",
+      "route": "POST /api/v1/reports/:id/vote",
+      "frontendIntegration": "CONSUMED",
+      "testedMocked": true,
+      "testedContract": true,
+      "testedLiveBackend": true,
+      "testedBrowserE2E": false
+    },
+    {
+      "id": "EP-018",
+      "route": "POST /api/v1/reports/:id/updates",
+      "frontendIntegration": "CONSUMED",
+      "testedMocked": true,
+      "testedContract": true,
+      "testedLiveBackend": true,
+      "testedBrowserE2E": false
+    },
+    {
+      "id": "EP-019",
+      "route": "GET /api/v1/reports/:id/updates",
+      "frontendIntegration": "CONSUMED",
+      "testedMocked": true,
+      "testedContract": true,
+      "testedLiveBackend": true,
+      "testedBrowserE2E": true
+    },
+    {
+      "id": "EP-020",
+      "route": "GET /api/v1/safe-zones",
+      "frontendIntegration": "CONSUMED",
+      "testedMocked": true,
+      "testedContract": true,
+      "testedLiveBackend": true,
+      "testedBrowserE2E": true
+    },
+    {
+      "id": "EP-021",
+      "route": "POST /api/v1/safe-zones",
+      "frontendIntegration": "CONSUMED",
+      "testedMocked": true,
+      "testedContract": true,
+      "testedLiveBackend": true,
+      "testedBrowserE2E": false
+    },
+    {
+      "id": "EP-022",
+      "route": "DELETE /api/v1/safe-zones/:id",
+      "frontendIntegration": "CONSUMED",
+      "testedMocked": true,
+      "testedContract": true,
+      "testedLiveBackend": true,
+      "testedBrowserE2E": false
+    },
+    {
+      "id": "EP-023",
+      "route": "POST /api/v1/routes/safe-path",
+      "frontendIntegration": "CONSUMED",
+      "testedMocked": true,
+      "testedContract": true,
+      "testedLiveBackend": true,
+      "testedBrowserE2E": false
+    },
+    {
+      "id": "EP-024",
+      "route": "POST /api/v1/alerts/zones",
+      "frontendIntegration": "CONSUMED",
+      "testedMocked": true,
+      "testedContract": true,
+      "testedLiveBackend": true,
+      "testedBrowserE2E": false
+    },
+    {
+      "id": "EP-025",
+      "route": "GET /api/v1/alerts/zones",
+      "frontendIntegration": "CONSUMED",
+      "testedMocked": true,
+      "testedContract": true,
+      "testedLiveBackend": true,
+      "testedBrowserE2E": true
+    },
+    {
+      "id": "EP-026",
+      "route": "DELETE /api/v1/alerts/zones/:id",
+      "frontendIntegration": "CONSUMED",
+      "testedMocked": true,
+      "testedContract": true,
+      "testedLiveBackend": true,
+      "testedBrowserE2E": false
+    },
+    {
+      "id": "EP-027",
+      "route": "POST /api/v1/alerts/subscribe",
+      "frontendIntegration": "CONSUMED",
+      "testedMocked": true,
+      "testedContract": true,
+      "testedLiveBackend": true,
+      "testedBrowserE2E": false
+    },
+    {
+      "id": "EP-028",
+      "route": "GET /api/v1/media/presigned-url",
+      "frontendIntegration": "CONSUMED",
+      "testedMocked": true,
+      "testedContract": true,
+      "testedLiveBackend": true,
+      "testedBrowserE2E": false
+    },
+    {
+      "id": "EP-029",
+      "route": "POST /api/v1/media/confirm",
+      "frontendIntegration": "CONSUMED",
+      "testedMocked": true,
+      "testedContract": true,
+      "testedLiveBackend": true,
+      "testedBrowserE2E": false
+    },
+    {
+      "id": "EP-030",
+      "route": "POST /api/v1/media/mock-upload",
+      "frontendIntegration": "CONSUMED",
+      "testedMocked": true,
+      "testedContract": true,
+      "testedLiveBackend": false,
+      "testedBrowserE2E": false
+    },
+    {
+      "id": "EP-031",
+      "route": "POST /api/v1/media/webhook",
+      "frontendIntegration": "BACKEND_ONLY_WEBHOOK",
+      "testedMocked": false,
+      "testedContract": true,
+      "testedLiveBackend": false,
+      "testedBrowserE2E": false
+    },
+    {
+      "id": "EP-032",
+      "route": "GET /api/v1/admin/verifications",
+      "frontendIntegration": "CONSUMED",
+      "testedMocked": true,
+      "testedContract": true,
+      "testedLiveBackend": true,
+      "testedBrowserE2E": false
+    },
+    {
+      "id": "EP-033",
+      "route": "POST /api/v1/admin/verifications/:id/approve",
+      "frontendIntegration": "CONSUMED",
+      "testedMocked": true,
+      "testedContract": true,
+      "testedLiveBackend": true,
+      "testedBrowserE2E": false
+    },
+    {
+      "id": "EP-034",
+      "route": "POST /api/v1/admin/verifications/:id/reject",
+      "frontendIntegration": "CONSUMED",
+      "testedMocked": true,
+      "testedContract": true,
+      "testedLiveBackend": true,
+      "testedBrowserE2E": false
+    },
+    {
+      "id": "EP-035",
+      "route": "POST /api/v1/admin/users/:id/ban",
+      "frontendIntegration": "CONSUMED",
+      "testedMocked": true,
+      "testedContract": true,
+      "testedLiveBackend": true,
+      "testedBrowserE2E": false
+    },
+    {
+      "id": "EP-036",
+      "route": "POST /api/v1/admin/users/:id/unban",
+      "frontendIntegration": "CONSUMED",
+      "testedMocked": true,
+      "testedContract": true,
+      "testedLiveBackend": true,
+      "testedBrowserE2E": false
+    },
+    {
+      "id": "EP-037",
+      "route": "POST /api/v1/admin/reports/:id/purge",
+      "frontendIntegration": "CONSUMED",
+      "testedMocked": true,
+      "testedContract": true,
+      "testedLiveBackend": true,
+      "testedBrowserE2E": false
+    },
+    {
+      "id": "EP-038",
+      "route": "GET /api/v1/admin/logs",
+      "frontendIntegration": "CONSUMED",
+      "testedMocked": true,
+      "testedContract": true,
+      "testedLiveBackend": true,
+      "testedBrowserE2E": false
+    },
+    {
+      "id": "EP-039",
+      "route": "GET /api/v1/admin/analytics/trends",
+      "frontendIntegration": "CONSUMED",
+      "testedMocked": true,
+      "testedContract": true,
+      "testedLiveBackend": true,
+      "testedBrowserE2E": false
+    },
+    {
+      "id": "EP-040",
+      "route": "POST /api/v1/admin/news/crawl",
+      "frontendIntegration": "CONSUMED",
+      "testedMocked": true,
+      "testedContract": true,
+      "testedLiveBackend": false,
+      "testedBrowserE2E": false
+    },
+    {
+      "id": "EP-041",
+      "route": "GET /api/v1/stats",
+      "frontendIntegration": "CONSUMED",
+      "testedMocked": true,
+      "testedContract": true,
+      "testedLiveBackend": true,
+      "testedBrowserE2E": true
+    },
+    {
+      "id": "EP-042",
+      "route": "GET /api/v1/cron/news-crawl",
+      "frontendIntegration": "BACKEND_ONLY_API",
+      "testedMocked": false,
+      "testedContract": true,
+      "testedLiveBackend": false,
+      "testedBrowserE2E": false
+    },
+    {
+      "id": "EP-043",
+      "route": "POST /api/v1/cron/news-crawl",
+      "frontendIntegration": "PROXY_OR_CRON",
+      "testedMocked": true,
+      "testedContract": true,
+      "testedLiveBackend": false,
+      "testedBrowserE2E": false
+    },
+    {
+      "id": "EP-044",
+      "route": "GET /api/health",
+      "frontendIntegration": "PROXY_OR_CRON",
+      "testedMocked": true,
+      "testedContract": true,
+      "testedLiveBackend": true,
+      "testedBrowserE2E": true
+    },
+    {
+      "id": "EP-045",
+      "route": "GET /api/cron/news-crawl",
+      "frontendIntegration": "PROXY_OR_CRON",
+      "testedMocked": true,
+      "testedContract": true,
+      "testedLiveBackend": false,
+      "testedBrowserE2E": false
+    },
+    {
+      "id": "EP-046",
+      "route": "POST /api/cron/news-crawl",
+      "frontendIntegration": "PROXY_OR_CRON",
+      "testedMocked": true,
+      "testedContract": true,
+      "testedLiveBackend": false,
+      "testedBrowserE2E": false
+    },
+    {
+      "id": "EP-047",
+      "route": "WS /socket.io",
+      "frontendIntegration": "CONSUMED",
+      "testedMocked": true,
+      "testedContract": true,
+      "testedLiveBackend": true,
+      "testedBrowserE2E": true
+    }
+  ]
+}
