@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, ApiError } from "@/lib/api";
 import { getSocket, setSocketAuthToken } from "@/lib/socket";
 
 export interface AuthUser {
@@ -31,10 +31,24 @@ interface AuthState {
   initAuth: () => Promise<AuthUser | null>;
   loginAdminWithPassword: (email: string, password: string) => Promise<AuthUser>;
   logout: () => Promise<void>;
+  resetAnonymousIdentity: () => Promise<AuthUser | null>;
   refreshProfile: () => Promise<void>;
 }
 
 const DEVICE_ID_KEY = "bd_safety_device_id";
+let initAuthPromise: Promise<AuthUser | null> | null = null;
+
+function getOrCreateDeviceId(): string {
+  let deviceId = localStorage.getItem(DEVICE_ID_KEY);
+  if (!deviceId) {
+    deviceId =
+      typeof crypto !== "undefined" && crypto.randomUUID
+        ? crypto.randomUUID()
+        : `anon-dev-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+    localStorage.setItem(DEVICE_ID_KEY, deviceId);
+  }
+  return deviceId;
+}
 
 export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
@@ -45,46 +59,66 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   initAuth: async () => {
     if (typeof window === "undefined") return null;
 
-    set({ isLoading: true, error: null });
+    if (!initAuthPromise) {
+      initAuthPromise = (async () => {
+        set({ isLoading: true, error: null });
 
-    try {
-      let deviceId = localStorage.getItem(DEVICE_ID_KEY);
-      if (!deviceId) {
-        deviceId = typeof crypto !== "undefined" && crypto.randomUUID
-          ? crypto.randomUUID()
-          : `anon-dev-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
-        localStorage.setItem(DEVICE_ID_KEY, deviceId);
-      }
+        try {
+          const existingDeviceId = localStorage.getItem(DEVICE_ID_KEY);
 
-      set({ deviceId });
+          // Probe existing session first so ADMIN, VERIFIED_RESPONDER, and USER cookies are preserved
+          try {
+            const existingProfile = await apiFetch<AuthUser>("/users/me");
+            set({
+              user: existingProfile,
+              deviceId: existingDeviceId,
+              isLoading: false,
+            });
+            getSocket();
+            return existingProfile;
+          } catch (probeErr: any) {
+            // Only mint/re-auth anonymous device identity when session is unauthenticated (401)
+            if (!(probeErr instanceof ApiError && probeErr.statusCode === 401)) {
+              throw probeErr;
+            }
+          }
 
-      // Silent device authentication
-      const deviceAuth = await apiFetch<{
-        user?: { id: string; role: string };
-        socketToken?: string;
-      }>("/auth/device", {
-        method: "POST",
-        body: JSON.stringify({ anonymousId: deviceId }),
-      });
+          const deviceId = getOrCreateDeviceId();
+          set({ deviceId });
 
-      if (deviceAuth?.socketToken) {
-        setSocketAuthToken(deviceAuth.socketToken);
-      }
+          // Silent device authentication for unauthenticated guests
+          const deviceAuth = await apiFetch<{
+            user?: { id: string; role: string };
+            socketToken?: string;
+          }>("/auth/device", {
+            method: "POST",
+            body: JSON.stringify({ anonymousId: deviceId }),
+          });
 
-      // Retrieve full user profile
-      const profile = await apiFetch<AuthUser>("/users/me");
+          if (deviceAuth?.socketToken) {
+            setSocketAuthToken(deviceAuth.socketToken);
+          }
 
-      set({ user: profile, isLoading: false });
+          // Retrieve full user profile
+          const profile = await apiFetch<AuthUser>("/users/me");
 
-      // Initialize Socket connection now that cookies & scoped socketToken are set
-      getSocket();
+          set({ user: profile, isLoading: false });
 
-      return profile;
-    } catch (err: any) {
-      console.warn("[Auth] Silent device authentication fallback notice:", err.message);
-      set({ user: null, isLoading: false, error: err.message });
-      return null;
+          // Initialize Socket connection now that cookies & scoped socketToken are set
+          getSocket();
+
+          return profile;
+        } catch (err: any) {
+          console.warn("[Auth] Silent device authentication fallback notice:", err.message);
+          set({ user: null, isLoading: false, error: err.message });
+          return null;
+        } finally {
+          initAuthPromise = null;
+        }
+      })();
     }
+
+    return initAuthPromise;
   },
 
   loginAdminWithPassword: async (email: string, password: string) => {
@@ -98,6 +132,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const profile = await apiFetch<AuthUser>("/users/me");
 
       if (profile.role !== "ADMIN") {
+        await apiFetch("/auth/logout", {
+          method: "POST",
+          skipAuthRefresh: true,
+        }).catch(() => {});
+        getSocket()?.disconnect();
+        setSocketAuthToken(null);
+        set({ user: null });
         throw new Error("This account does not have administrator privileges.");
       }
 
@@ -125,16 +166,24 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   logout: async () => {
     try {
-      await apiFetch("/auth/logout", { method: "POST" });
+      await apiFetch("/auth/logout", {
+        method: "POST",
+        skipAuthRefresh: true,
+      });
     } catch {
       // Ignore logout errors
     }
 
-    set({ user: null });
+    if (typeof window !== "undefined") {
+      localStorage.removeItem(DEVICE_ID_KEY);
+    }
+    getSocket()?.disconnect();
     setSocketAuthToken(null);
+    set({ user: null, deviceId: null, isLoading: false, error: null });
+  },
 
-    // Re-initialize as new anonymous citizen
-    localStorage.removeItem(DEVICE_ID_KEY);
-    await get().initAuth();
+  resetAnonymousIdentity: async () => {
+    await get().logout();
+    return await get().initAuth();
   },
 }));

@@ -49,6 +49,54 @@ export function resolveApiUrl(endpoint: string): string {
   return `${base}${cleanEndpoint}`;
 }
 
+const AUTH_NO_REFRESH_PATHS = [
+  '/auth/refresh',
+  '/auth/device',
+  '/auth/login',
+  '/auth/logout',
+];
+
+let refreshPromise: Promise<boolean> | null = null;
+
+/**
+ * Coalesces concurrent 401 refresh attempts behind a single in-flight promise so
+ * single-use rotated refresh tokens are never consumed twice simultaneously.
+ */
+async function refreshSessionSingleFlight(): Promise<boolean> {
+  if (!refreshPromise) {
+    refreshPromise = (async () => {
+      try {
+        const refreshUrl = resolveApiUrl('/auth/refresh');
+        const refreshRes = await fetch(refreshUrl, {
+          method: 'POST',
+          credentials: 'include',
+        });
+
+        if (!refreshRes.ok) {
+          return false;
+        }
+
+        const refreshJson = await refreshRes.json().catch(() => null);
+        if (typeof window !== 'undefined' && refreshJson?.data?.socketToken) {
+          setSocketAuthToken(refreshJson.data.socketToken);
+        }
+        return true;
+      } catch {
+        return false;
+      } finally {
+        refreshPromise = null;
+      }
+    })();
+  }
+  return refreshPromise;
+}
+
+function shouldAttemptSilentRefresh(endpoint: string, skipAuthRefresh?: boolean): boolean {
+  if (skipAuthRefresh) return false;
+  const endpointPath = endpoint.split('?')[0];
+  return !AUTH_NO_REFRESH_PATHS.some((path) => endpointPath.includes(path));
+}
+
 /**
  * Universal typed API fetcher:
  * - Automatically handles credentials: 'include' (HttpOnly cookie propagation)
@@ -82,30 +130,15 @@ export async function apiFetch<T = any>(
     );
   }
 
-  // Handle 401 Unauthorized with silent token refresh
+  // Handle 401 Unauthorized with single-flight silent token refresh
   if (
     response.status === 401 &&
-    !options.skipAuthRefresh &&
-    !endpoint.includes('/auth/refresh') &&
-    !endpoint.includes('/auth/device')
+    shouldAttemptSilentRefresh(endpoint, options.skipAuthRefresh)
   ) {
-    try {
-      const refreshUrl = resolveApiUrl('/auth/refresh');
-      const refreshRes = await fetch(refreshUrl, {
-        method: 'POST',
-        credentials: 'include',
-      });
-
-      if (refreshRes.ok) {
-        const refreshJson = await refreshRes.json().catch(() => null);
-        if (typeof window !== 'undefined' && refreshJson?.data?.socketToken) {
-          setSocketAuthToken(refreshJson.data.socketToken);
-        }
-        // Retry original request once
-        return apiFetch<T>(endpoint, { ...options, skipAuthRefresh: true });
-      }
-    } catch {
-      // Refresh failed, proceed to error throw below
+    const refreshed = await refreshSessionSingleFlight();
+    if (refreshed) {
+      // Retry original request once
+      return apiFetch<T>(endpoint, { ...options, skipAuthRefresh: true });
     }
   }
 

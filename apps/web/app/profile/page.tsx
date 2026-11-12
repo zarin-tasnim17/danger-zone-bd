@@ -42,7 +42,7 @@ import {
 } from "lucide-react";
 
 export default function ProfilePage() {
-  const { user, deviceId, initAuth, logout, refreshProfile } = useAuthStore();
+  const { user, deviceId, initAuth, resetAnonymousIdentity, refreshProfile } = useAuthStore();
   const { language } = useLanguageStore();
   const isBn = language === "bn";
 
@@ -158,7 +158,7 @@ export default function ProfilePage() {
       ? "আপনি কি সম্পূর্ণ নতুন বেনামী নাগরিক পরিচয় তৈরি করতে চান?"
       : "Reset to a brand new anonymous citizen identity?";
     if (!window.confirm(msg)) return;
-    await logout();
+    await resetAnonymousIdentity();
     showToast(
       isBn
         ? "নতুন বেনামী ডিভাইস পরিচয় তৈরি করা হয়েছে।"
