@@ -567,12 +567,21 @@ Authentication uses short-lived JWT access tokens and persistent refresh tokens 
 ```
 
 #### `POST /api/v1/media/webhook`
-- **Description**: Webhook handler receiving direct cloud storage event notifications when files are created.
-- **Auth**: Public (Validated via internal webhook secret header)
+- **Description**: Webhook handler receiving direct cloud storage event notifications (`INSERT` / `ObjectCreated`) when files are created under `reports/<reportId>/<filename>`.
+- **Auth**: Webhook secret required — fails closed (`401 Unauthorized`) unless `STORAGE_WEBHOOK_SECRET` is configured and matches header `x-webhook-secret` (verified via `crypto.timingSafeEqual`).
+- **Required Headers**:
+  - `x-webhook-secret: <STORAGE_WEBHOOK_SECRET>`
 - **Response `200 OK`**:
 ```json
 {
   "received": true
+}
+```
+- **Response `401 Unauthorized`** (missing, unconfigured, or invalid `x-webhook-secret`):
+```json
+{
+  "success": false,
+  "error": { "message": "Unauthorized: Missing or invalid webhook secret" }
 }
 ```
 
@@ -949,7 +958,7 @@ The backend executes autonomous scheduled tasks managed in `apps/api/src/jobs`:
 | `POST` | `/api/v1/routes/safe-path` | Public | Calculate route avoiding red hazard zones |
 | `GET` | `/api/v1/media/presigned-url` | Protected (Author / `ADMIN`) | Generate S3/Supabase upload presigned URL |
 | `POST` | `/api/v1/media/confirm` | Protected (Author / `ADMIN`) | Confirm upload & queue privacy blur |
-| `POST` | `/api/v1/media/webhook` | Public (Webhook secret) | Cloud storage event receiver |
+| `POST` | `/api/v1/media/webhook` | Protected (`x-webhook-secret` header) | Cloud storage event receiver |
 | `POST` | `/api/v1/alerts/zones` | Protected (`CITIZEN`) | Create alert zone (max 25 km²) |
 | `GET` | `/api/v1/alerts/zones` | Protected (`CITIZEN`) | List current user's alert zones |
 | `DELETE` | `/api/v1/alerts/zones/:id` | Protected (`CITIZEN`) | Delete alert zone by UUID |
