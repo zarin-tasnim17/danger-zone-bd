@@ -1,9 +1,17 @@
 import bcrypt from 'bcrypt';
 import { prisma } from '../db/prisma';
-import { generateAccessToken, generateRefreshToken } from '../utils/jwt';
+import { generateAccessToken, generateRefreshToken, generateSocketToken } from '../utils/jwt';
 
 const createForbiddenError = (message: string) =>
   Object.assign(new Error(message), { statusCode: 403 });
+
+const issueClientTokens = (user: { id: string; role: string; isVerified: boolean }) => {
+  const claims = { id: user.id, role: user.role, isVerified: user.isVerified };
+  return {
+    accessToken: generateAccessToken(claims),
+    socketToken: generateSocketToken(claims),
+  };
+};
 
 const assertDeviceAuthAllowed = (account: {
   role: string;
@@ -57,7 +65,7 @@ export const loginOrRegisterDevice = async (anonymousId: string, email?: string)
     throw createForbiddenError('Account is suspended');
   }
 
-  const accessToken = generateAccessToken({ id: user.id, role: user.role, isVerified: user.isVerified });
+  const { accessToken, socketToken } = issueClientTokens(user);
   const refreshToken = generateRefreshToken({ id: user.id });
 
   // Save refresh token to db
@@ -69,7 +77,7 @@ export const loginOrRegisterDevice = async (anonymousId: string, email?: string)
     }
   });
 
-  return { user, accessToken, refreshToken };
+  return { user, accessToken, refreshToken, socketToken };
 };
 
 export const refreshSession = async (token: string, userId: string) => {
@@ -86,9 +94,7 @@ export const refreshSession = async (token: string, userId: string) => {
     throw new Error('User not found or banned');
   }
 
-  const accessToken = generateAccessToken({ id: user.id, role: user.role, isVerified: user.isVerified });
-  
-  return { accessToken };
+  return issueClientTokens(user);
 };
 
 export const logout = async (token: string) => {
@@ -128,7 +134,7 @@ export const loginWithPassword = async (email: string, password: string) => {
     throw new Error('Invalid email or password');
   }
 
-  const accessToken = generateAccessToken({ id: user.id, role: user.role, isVerified: user.isVerified });
+  const { accessToken, socketToken } = issueClientTokens(user);
   const refreshToken = generateRefreshToken({ id: user.id });
 
   // Save refresh token to db
@@ -140,5 +146,5 @@ export const loginWithPassword = async (email: string, password: string) => {
     },
   });
 
-  return { user, accessToken, refreshToken };
+  return { user, accessToken, refreshToken, socketToken };
 };

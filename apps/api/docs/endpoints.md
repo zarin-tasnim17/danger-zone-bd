@@ -135,19 +135,22 @@ Authentication uses short-lived JWT access tokens and persistent refresh tokens 
     "user": {
       "id": "b3e61c56-3472-4cfd-92a1-fa1e466c1b33",
       "role": "CITIZEN" // or "ADMIN" / "VERIFIED_RESPONDER"
-    }
+    },
+    "socketToken": "<15m scoped Socket.IO JWT>"
   }
 }
 ```
 
 #### `POST /api/v1/auth/refresh`
-- **Description**: Refreshes expired `accessToken` using the valid `refreshToken` HttpOnly cookie.
+- **Description**: Refreshes expired `accessToken` using the valid `refreshToken` HttpOnly cookie and returns a fresh scoped `socketToken`.
 - **Auth**: Public (Requires `refreshToken` cookie)
 - **Response `200 OK`**:
 ```json
 {
   "success": true,
-  "data": {}
+  "data": {
+    "socketToken": "<15m scoped Socket.IO JWT>"
+  }
 }
 ```
 

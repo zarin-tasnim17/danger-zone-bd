@@ -15,12 +15,23 @@ declare global {
  * Verifies a JWT access token and validates against live database state
  * so suspended (`isBanned`) or deleted accounts are rejected immediately.
  */
-export const verifyActiveAccessToken = async (token: string): Promise<JwtPayload> => {
+export const verifyActiveAccessToken = async (
+  token: string,
+  options?: { allowSocketToken?: boolean }
+): Promise<JwtPayload> => {
   let decoded: JwtPayload;
   try {
     decoded = verifyAccessToken(token);
   } catch {
     throw Object.assign(new Error('Unauthorized: Invalid or expired token'), { statusCode: 401 });
+  }
+
+  if (
+    decoded.tokenUse !== undefined &&
+    decoded.tokenUse !== 'access' &&
+    !(options?.allowSocketToken && decoded.tokenUse === 'socket')
+  ) {
+    throw Object.assign(new Error('Unauthorized: Invalid token scope'), { statusCode: 401 });
   }
 
   const account = await prisma.user.findUnique({

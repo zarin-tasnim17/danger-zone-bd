@@ -7,13 +7,13 @@ import { successResponse, errorResponse } from '../utils/responseFormatter';
 export const loginDevice = async (req: Request, res: Response) => {
   try {
     const { anonymousId, email } = req.body;
-    const { user, accessToken, refreshToken } = await authService.loginOrRegisterDevice(anonymousId, email);
+    const { user, accessToken, refreshToken, socketToken } = await authService.loginOrRegisterDevice(anonymousId, email);
 
     // Set cookies
     res.cookie('accessToken', accessToken, { httpOnly: true, secure: env.NODE_ENV === 'production', sameSite: 'lax', maxAge: 15 * 60 * 1000 });
     res.cookie('refreshToken', refreshToken, { httpOnly: true, secure: env.NODE_ENV === 'production', sameSite: 'lax', maxAge: 7 * 24 * 60 * 60 * 1000 });
 
-    return successResponse(res, { user: { id: user.id, role: user.role } }, 201);
+    return successResponse(res, { user: { id: user.id, role: user.role }, socketToken }, 201);
   } catch (error: any) {
     if (error?.statusCode === 403 && error?.message === 'Account is suspended') {
       res.clearCookie('accessToken');
@@ -26,7 +26,7 @@ export const loginDevice = async (req: Request, res: Response) => {
 export const loginPassword = async (req: Request, res: Response) => {
   try {
     const { email, password } = req.body;
-    const { user, accessToken, refreshToken } = await authService.loginWithPassword(email, password);
+    const { user, accessToken, refreshToken, socketToken } = await authService.loginWithPassword(email, password);
 
     // Set cookies
     res.cookie('accessToken', accessToken, {
@@ -54,6 +54,7 @@ export const loginPassword = async (req: Request, res: Response) => {
         },
         accessToken,
         refreshToken,
+        socketToken,
       },
       200
     );
@@ -68,11 +69,11 @@ export const refresh = async (req: Request, res: Response) => {
     if (!refreshToken) throw new Error('No refresh token provided');
 
     const decoded = verifyRefreshToken(refreshToken);
-    const { accessToken } = await authService.refreshSession(refreshToken, decoded.id);
+    const { accessToken, socketToken } = await authService.refreshSession(refreshToken, decoded.id);
 
     res.cookie('accessToken', accessToken, { httpOnly: true, secure: env.NODE_ENV === 'production', sameSite: 'lax', maxAge: 15 * 60 * 1000 });
 
-    return successResponse(res, {}, 200);
+    return successResponse(res, { socketToken }, 200);
   } catch (error: any) {
     return errorResponse(res, 'Unauthorized', 401);
   }
