@@ -62,25 +62,47 @@ async function runMissingFeaturesVerification() {
     const adminCookie = `accessToken=${extractCookie(adminAuth.cookies, 'accessToken')}`;
     console.log(`  ✅ Citizen (${citizenId}) and Admin (${adminUser.id}) authenticated.`);
 
-    // 3. Test Safe Zones API
+    // 3. Test Safe Zones API & DB-002 Seed Check Memoization
     console.log('\n🧪 [Test 2] Testing Safe Zones API (GET /api/v1/safe-zones)...');
-    const safeZonesRes = await request('/api/v1/safe-zones');
-    if (safeZonesRes.status !== 200) {
-      throw new Error(`Failed to fetch safe zones: ${JSON.stringify(safeZonesRes.data)}`);
-    }
-    const safeZones = safeZonesRes.data.data;
-    if (!Array.isArray(safeZones) || safeZones.length === 0) {
-      throw new Error('Expected safe zones to be automatically seeded and returned');
-    }
-    console.log(`  ✅ Default safe zones automatically seeded: returned ${safeZones.length} safe havens`);
-    console.log(`     Sample safe haven: "${safeZones[0].name}" (${safeZones[0].type})`);
+    let safeZoneCountQueries = 0;
+    const origSafeZoneCount = prisma.safeZone.count.bind(prisma.safeZone);
+    (prisma.safeZone as any).count = (...args: any[]) => {
+      safeZoneCountQueries++;
+      return origSafeZoneCount(...args);
+    };
 
-    // Proximity lookup
-    const farmgateProximity = await request('/api/v1/safe-zones?lat=23.7565&lng=90.3888&radius=2000');
-    if (farmgateProximity.status !== 200) {
-      throw new Error(`Proximity query failed: ${JSON.stringify(farmgateProximity.data)}`);
+    try {
+      const [safeZonesRes, concurrentRes] = await Promise.all([
+        request('/api/v1/safe-zones'),
+        request('/api/v1/safe-zones?minLng=88.0&minLat=20.5&maxLng=93.0&maxLat=27.0'),
+      ]);
+      if (safeZonesRes.status !== 200 || concurrentRes.status !== 200) {
+        throw new Error(`Failed to fetch safe zones: ${JSON.stringify(safeZonesRes.data)}`);
+      }
+      const safeZones = safeZonesRes.data.data;
+      if (!Array.isArray(safeZones) || safeZones.length === 0) {
+        throw new Error('Expected safe zones to be automatically seeded and returned');
+      }
+      console.log(`  ✅ Default safe zones automatically seeded: returned ${safeZones.length} safe havens`);
+      console.log(`     Sample safe haven: "${safeZones[0].name}" (${safeZones[0].type})`);
+
+      // Proximity lookup & repeat request (must not trigger another safeZone.count() query)
+      const farmgateProximity = await request('/api/v1/safe-zones?lat=23.7565&lng=90.3888&radius=2000');
+      if (farmgateProximity.status !== 200) {
+        throw new Error(`Proximity query failed: ${JSON.stringify(farmgateProximity.data)}`);
+      }
+      const repeatBoundsRes = await request('/api/v1/safe-zones?minLng=89.0&minLat=22.0&maxLng=91.0&maxLat=24.0');
+      if (repeatBoundsRes.status !== 200) {
+        throw new Error(`Repeat bounds query failed: ${JSON.stringify(repeatBoundsRes.data)}`);
+      }
+      if (safeZoneCountQueries > 1) {
+        throw new Error(`DB-002 regression: expected at most 1 safeZone.count() query across 4 requests, got ${safeZoneCountQueries}`);
+      }
+      console.log(`  ✅ Proximity radius safe zones query returned ${farmgateProximity.data.data.length} havens nearby`);
+      console.log(`  ✅ [DB-002] safeZone.count() executed ${safeZoneCountQueries} time across 4 concurrent/sequential requests`);
+    } finally {
+      (prisma.safeZone as any).count = origSafeZoneCount;
     }
-    console.log(`  ✅ Proximity radius safe zones query returned ${farmgateProximity.data.data.length} havens nearby`);
 
     // Admin create safe zone
     console.log('\n🧪 [Test 3] Testing Admin Safe Zone Creation (POST /api/v1/safe-zones)...');
