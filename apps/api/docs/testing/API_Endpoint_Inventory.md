@@ -12,14 +12,14 @@
 
 | Classification | Count | Endpoint IDs | Notes |
 | :--- | :---: | :--- | :--- |
-| `IMPLEMENTED AND DOCUMENTED` | 46 | `EP-001`–`EP-011`, `EP-013`–`EP-047` | All 46 primary HTTP/WebSocket interfaces align cleanly with `endpoints.md`; all `BACKEND-001`..`BACKEND-014` defects are resolved and verified. |
+| `IMPLEMENTED AND DOCUMENTED` | 46 | `EP-001`–`EP-011`, `EP-013`–`EP-047` | All 46 primary HTTP/WebSocket interfaces verified passing; all `BACKEND-001`..`BACKEND-014` defects are `FIXED AND VERIFIED` (minor doc note: `endpoints.md:275` still lists `accessToken` in the `/auth/login` JSON example whereas runtime keeps both `accessToken` and `refreshToken` in `HttpOnly` cookies). |
 | `DUPLICATE OR CONFLICTING ROUTE` | 1 | `EP-012` (`POST /api/v1/users/verify/:id/approve`) legacy alias of `EP-033` (`POST /api/v1/admin/verifications/:id/approve`) | Both approve a `UserVerification` record; `EP-012` now enforces UUID validation (`validateRequest`), returns `404` on missing verification (`BACKEND-007`), and is kept as a documented legacy alias (`BACKEND-010`). |
-| `CONTRACT DRIFT` | 0 | — | All 17 previously drifting contracts (`BACKEND-001`..`BACKEND-014`) have been remediated and aligned. |
+| `CONTRACT DRIFT` | 0 | — | All 17 previously drifting runtime contracts (`BACKEND-001`..`BACKEND-014`) are `FIXED AND VERIFIED` (see `endpoints.md:275` doc note on `EP-007`). |
 | `IMPLEMENTED BUT UNDOCUMENTED` | 0 | — | All 46 HTTP endpoints + Socket.IO gateway are listed in `endpoints.md`. |
 | `DOCUMENTED BUT MISSING` | 0 | — | All documented routes exist in `apps/api/src/` or `apps/web/app/api/`. |
 | `DEPRECATED OR DEAD` | 0 | — | No unmounted routers or dead route handlers found. |
 
-*(Execution Tally across all 47 inventoried interfaces: **47/47 executed** — **47 `EXECUTED — PASS`**, **0 `EXECUTED — DEFECT CONFIRMED`**; all `BACKEND-001`..`BACKEND-014` remediation regressions verified.)*
+*(Execution Tally across all 47 inventoried interfaces: **47/47 executed** — **47 `EXECUTED — PASS`**, **0 `EXECUTED — DEFECT CONFIRMED`**; full post-fix suite verified **68/68** test cases passing across **16** test files including `regression/01` and `regression/02`, with `BACKEND-001`..`BACKEND-014` all `FIXED AND VERIFIED`.)*
 
 ---
 
@@ -194,8 +194,8 @@
 4. **Full Path**: `/api/v1/auth/login`
 5. **Source Definition Location**: `apps/api/src/routes/auth.ts`, `authController.ts`, `authService.ts`
 6. **Summary / Business Purpose**: Authenticates `ADMIN` and password-protected accounts via email and bcrypt password.
-7. **Discovery Status**: `IMPLEMENTED AND DOCUMENTED` *(`BACKEND-001`, `BACKEND-002`, `BACKEND-003` resolved)*
-8. **Documentation Match Status**: Aligned with `endpoints.md` (`refreshToken` kept in `HttpOnly` cookie only)
+7. **Discovery Status**: `IMPLEMENTED AND DOCUMENTED` *(`BACKEND-001`, `BACKEND-002`, `BACKEND-003` — `FIXED AND VERIFIED`)*
+8. **Documentation Match Status**: Cookie-only hardening active (`accessToken` & `refreshToken` kept in `HttpOnly` cookies only; minor doc drift remains at `apps/api/docs/endpoints.md:275` which still shows `accessToken` in JSON example)
 9. **Auth Requirement**: Public
 10. **Required Roles / Permissions**: Account with non-null `passwordHash` and `isBanned === false`
 11. **Resource Ownership Rules**: Matches `User.email`
@@ -204,14 +204,14 @@
 14. **Request Headers Required / Optional**: `Content-Type: application/json`
 15. **Request Body Schema**: `passwordLoginSchema` (`routes/auth.ts`): `{ email: string (email), password: string (min 6) }` (`.strict()`)
 16. **Response Status Codes**: `200`, `400`, `401`, `429`
-17. **Success Response Shape**: `{ success: true, data: { user: { id, email, role, isVerified, trustScore }, accessToken, socketToken } }` + `HttpOnly` cookies (`accessToken`, `refreshToken`)
+17. **Success Response Shape**: `{ success: true, data: { user: { id, email, role, isVerified, trustScore }, socketToken } }` + `HttpOnly` cookies (`accessToken`, `refreshToken`)
 18. **Error Response Shapes**: `400` validation error; `401` invalid credentials or banned user; `429` `RATE_LIMIT_EXCEEDED`
 19. **Side Effects**: Inserts `RefreshToken` row; sets `accessToken` & `refreshToken` cookies
 20. **Rate Limits / Security Controls**: `authLoginRateLimiter` (10 req / 15 min per `req.ip`, proxy-safe), fail-closed >= 32-char JWT secrets (`BACKEND-003`)
 21. **Risk Level**: `CRITICAL`
-22. **Edge Cases & Special Constraints**: Uniform `401` message for unknown email vs bad password; `refreshToken` never exposed in JSON body (`BACKEND-002`).
-23. **Test Cases Mapped**: `apps/api/tests/authentication/01-auth-lifecycle.test.ts`, `apps/api/tests/security/01-owasp-security-checks.test.ts`, `apps/api/tests/regression/01-confirmed-defects-regression.test.ts`
-24. **Actual Testing Status**: `EXECUTED — PASS` (`BACKEND-001`, `BACKEND-002`, `BACKEND-003` resolved)
+22. **Edge Cases & Special Constraints**: Uniform `401` message for unknown email vs bad password; `accessToken` and `refreshToken` are omitted from JSON body and delivered strictly as `HttpOnly` cookies (`BACKEND-002`).
+23. **Test Cases Mapped**: `apps/api/tests/authentication/01-auth-lifecycle.test.ts`, `apps/api/tests/security/01-owasp-security-checks.test.ts`, `apps/api/tests/regression/01-confirmed-defects-regression.test.ts`, `apps/api/tests/regression/02-post-fix-edge-cases-regression.test.ts`
+24. **Actual Testing Status**: `EXECUTED — PASS` (`BACKEND-001`, `BACKEND-002`, `BACKEND-003` — `FIXED AND VERIFIED`)
 
 #### `EP-008` — `POST /api/v1/auth/refresh`
 1. **Endpoint ID**: `EP-008`
@@ -1301,49 +1301,49 @@ All `/api/v1/admin/*` routes sit behind `router.use(requireAuth, requireRole(['A
 
 | ID | Method & Path | Domain | Auth / Role | Request / Response / Security Tested | Mapped Test Module(s) | Linked Finding(s) | Actual Testing Status |
 | :--- | :--- | :--- | :--- | :---: | :--- | :--- | :--- |
-| `EP-001` | `GET /` | System | Public | Yes / Yes / Yes | `api/01-health-system-proxy.test.ts`, `security/01` | `BACKEND-009` (Resolved) | `EXECUTED — PASS` |
-| `EP-002` | `GET /health` | System | Public | Yes / Yes / Yes | `api/01-health-system-proxy.test.ts`, `performance/01` | `BACKEND-009` (Resolved) | `EXECUTED — PASS` |
-| `EP-003` | `GET /health/db` | System | Public | Yes / Yes / Yes | `api/01-health-system-proxy.test.ts` | `BACKEND-009` (Resolved) | `EXECUTED — PASS` |
-| `EP-004` | `GET /api/v1/health` | System | Public | Yes / Yes / Yes | `api/01-health-system-proxy.test.ts` | `BACKEND-009` (Resolved) | `EXECUTED — PASS` |
-| `EP-005` | `GET /api/v1/health/db` | System | Public | Yes / Yes / Yes | `api/01-health-system-proxy.test.ts` | `BACKEND-009` (Resolved) | `EXECUTED — PASS` |
-| `EP-006` | `POST /api/v1/auth/device` | Auth | Public + RL | Yes / Yes / Yes | `api/02`, `authentication/01`, `regression/01` | `BACKEND-001`, `BACKEND-008` (Resolved) | `EXECUTED — PASS` |
-| `EP-007` | `POST /api/v1/auth/login` | Auth | Public + RL | Yes / Yes / Yes | `api/02`, `authentication/01`, `security/01`, `regression/01` | `BACKEND-001`, `BACKEND-002`, `BACKEND-003` (Resolved) | `EXECUTED — PASS` |
-| `EP-008` | `POST /api/v1/auth/refresh` | Auth | `refreshToken` + RL | Yes / Yes / Yes | `authentication/01`, `api/02`, `regression/01` | `BACKEND-002`, `BACKEND-003` (Resolved) | `EXECUTED — PASS` |
-| `EP-009` | `POST /api/v1/auth/logout` | Auth | `optionalLogoutAuth` | Yes / Yes / Yes | `authentication/01`, `api/02`, `regression/01` | `BACKEND-002` (Resolved) | `EXECUTED — PASS` |
+| `EP-001` | `GET /` | System | Public | Yes / Yes / Yes | `api/01-health-system-proxy.test.ts`, `security/01`, `regression/02` | `BACKEND-009` (`FIXED AND VERIFIED`) | `EXECUTED — PASS` |
+| `EP-002` | `GET /health` | System | Public | Yes / Yes / Yes | `api/01-health-system-proxy.test.ts`, `performance/01`, `regression/02` | `BACKEND-009` (`FIXED AND VERIFIED`) | `EXECUTED — PASS` |
+| `EP-003` | `GET /health/db` | System | Public | Yes / Yes / Yes | `api/01-health-system-proxy.test.ts`, `regression/02` | `BACKEND-009` (`FIXED AND VERIFIED`) | `EXECUTED — PASS` |
+| `EP-004` | `GET /api/v1/health` | System | Public | Yes / Yes / Yes | `api/01-health-system-proxy.test.ts`, `regression/02` | `BACKEND-009` (`FIXED AND VERIFIED`) | `EXECUTED — PASS` |
+| `EP-005` | `GET /api/v1/health/db` | System | Public | Yes / Yes / Yes | `api/01-health-system-proxy.test.ts`, `regression/02` | `BACKEND-009` (`FIXED AND VERIFIED`) | `EXECUTED — PASS` |
+| `EP-006` | `POST /api/v1/auth/device` | Auth | Public + RL | Yes / Yes / Yes | `api/02`, `authentication/01`, `regression/01`, `regression/02` | `BACKEND-001`, `BACKEND-008` (`FIXED AND VERIFIED`) | `EXECUTED — PASS` |
+| `EP-007` | `POST /api/v1/auth/login` | Auth | Public + RL | Yes / Yes / Yes | `api/02`, `authentication/01`, `security/01`, `regression/01`, `regression/02` | `BACKEND-001`, `BACKEND-002`, `BACKEND-003` (`FIXED AND VERIFIED`) | `EXECUTED — PASS` |
+| `EP-008` | `POST /api/v1/auth/refresh` | Auth | `refreshToken` + RL | Yes / Yes / Yes | `authentication/01`, `api/02`, `regression/01`, `regression/02` | `BACKEND-001`, `BACKEND-002`, `BACKEND-003` (`FIXED AND VERIFIED`) | `EXECUTED — PASS` |
+| `EP-009` | `POST /api/v1/auth/logout` | Auth | `optionalLogoutAuth` | Yes / Yes / Yes | `authentication/01`, `api/02`, `regression/01`, `regression/02` | `BACKEND-002` (`FIXED AND VERIFIED`) | `EXECUTED — PASS` |
 | `EP-010` | `GET /api/v1/users/me` | Users | `requireAuth` | Yes / Yes / Yes | `api/02-auth-users.test.ts`, `authentication/01` | — | `EXECUTED — PASS` |
-| `EP-011` | `POST /api/v1/users/verify` | Users | `requireAuth` + RL | Yes / Yes / Yes | `api/02-auth-users.test.ts`, `workflows/01` | `BACKEND-001` (Resolved) | `EXECUTED — PASS` |
-| `EP-012` | `POST /api/v1/users/verify/:id/approve` | Users | `ADMIN` | Yes / Yes / Yes | `api/02`, `authorization/01`, `regression/01` | `BACKEND-007`, `BACKEND-010` (Resolved) | `EXECUTED — PASS` |
-| `EP-013` | `POST /api/v1/reports` | Reports | `requireAuth` + RL | Yes / Yes / Yes | `api/03`, `validation/01`, `workflows/01`, `regression/01` | `BACKEND-004`, `BACKEND-011` (Resolved) | `EXECUTED — PASS` |
-| `EP-014` | `GET /api/v1/reports` | Reports | Public | Yes / Yes / Yes | `api/03`, `performance/01`, `regression/01` | `BACKEND-012` (Resolved) | `EXECUTED — PASS` |
+| `EP-011` | `POST /api/v1/users/verify` | Users | `requireAuth` + RL | Yes / Yes / Yes | `api/02-auth-users.test.ts`, `workflows/01`, `regression/02` | `BACKEND-001` (`FIXED AND VERIFIED`) | `EXECUTED — PASS` |
+| `EP-012` | `POST /api/v1/users/verify/:id/approve` | Users | `ADMIN` | Yes / Yes / Yes | `api/02`, `authorization/01`, `regression/01`, `regression/02` | `BACKEND-007`, `BACKEND-010` (`FIXED AND VERIFIED`) | `EXECUTED — PASS` |
+| `EP-013` | `POST /api/v1/reports` | Reports | `requireAuth` + RL | Yes / Yes / Yes | `api/03`, `validation/01`, `workflows/01`, `regression/01`, `regression/02` | `BACKEND-004`, `BACKEND-011` (`FIXED AND VERIFIED`) | `EXECUTED — PASS` |
+| `EP-014` | `GET /api/v1/reports` | Reports | Public | Yes / Yes / Yes | `api/03`, `performance/01`, `regression/01`, `regression/02` | `BACKEND-012` (`FIXED AND VERIFIED`) | `EXECUTED — PASS` |
 | `EP-015` | `GET /api/v1/reports/:id` | Reports | `optionalAuth` | Yes / Yes / Yes | `api/03`, `security/01` | — | `EXECUTED — PASS` |
 | `EP-016` | `PATCH /api/v1/reports/:id/resolve` | Reports | Owner / Responder / Admin | Yes / Yes / Yes | `api/03`, `authorization/01`, `workflows/01` | — | `EXECUTED — PASS` |
-| `EP-017` | `POST /api/v1/reports/:id/vote` | Reports | `requireAuth` + RL | Yes / Yes / Yes | `api/03`, `database/01`, `workflows/01`, `regression/01` | `BACKEND-001`, `BACKEND-007`, `BACKEND-011` (Resolved) | `EXECUTED — PASS` |
-| `EP-018` | `POST /api/v1/reports/:id/updates` | Reports | `requireAuth` + RL | Yes / Yes / Yes | `api/03`, `validation/01`, `regression/01` | `BACKEND-001`, `BACKEND-005` (Resolved) | `EXECUTED — PASS` |
+| `EP-017` | `POST /api/v1/reports/:id/vote` | Reports | `requireAuth` + RL | Yes / Yes / Yes | `api/03`, `database/01`, `workflows/01`, `regression/01`, `regression/02` | `BACKEND-001`, `BACKEND-007`, `BACKEND-011` (`FIXED AND VERIFIED`) | `EXECUTED — PASS` |
+| `EP-018` | `POST /api/v1/reports/:id/updates` | Reports | `requireAuth` + RL | Yes / Yes / Yes | `api/03`, `validation/01`, `regression/01`, `regression/02` | `BACKEND-001`, `BACKEND-005` (`FIXED AND VERIFIED`) | `EXECUTED — PASS` |
 | `EP-019` | `GET /api/v1/reports/:id/updates` | Reports | Public | Yes / Yes / Yes | `api/03` | — | `EXECUTED — PASS` |
-| `EP-020` | `GET /api/v1/safe-zones` | Safe Zones | Public | Yes / Yes / Yes | `api/04`, `validation/01`, `performance/01`, `regression/01` | `BACKEND-006`, `BACKEND-009` (Resolved) | `EXECUTED — PASS` |
+| `EP-020` | `GET /api/v1/safe-zones` | Safe Zones | Public | Yes / Yes / Yes | `api/04`, `validation/01`, `performance/01`, `regression/01`, `regression/02` | `BACKEND-006`, `BACKEND-009` (`FIXED AND VERIFIED`) | `EXECUTED — PASS` |
 | `EP-021` | `POST /api/v1/safe-zones` | Safe Zones | `ADMIN` | Yes / Yes / Yes | `api/04`, `authorization/01`, `validation/01` | — | `EXECUTED — PASS` |
 | `EP-022` | `DELETE /api/v1/safe-zones/:id` | Safe Zones | `ADMIN` | Yes / Yes / Yes | `api/04`, `authorization/01` | — | `EXECUTED — PASS` |
-| `EP-023` | `POST /api/v1/routes/safe-path` | Routing | Public + RL | Yes / Yes / Yes | `api/04`, `validation/01`, `workflows/01`, `performance/01` | `BACKEND-001` (Resolved) | `EXECUTED — PASS` |
-| `EP-024` | `POST /api/v1/alerts/zones` | Alerts | `requireAuth` | Yes / Yes / Yes | `api/05`, `validation/01`, `workflows/01`, `regression/01` | `BACKEND-014` (Resolved) | `EXECUTED — PASS` |
+| `EP-023` | `POST /api/v1/routes/safe-path` | Routing | Public + RL | Yes / Yes / Yes | `api/04`, `validation/01`, `workflows/01`, `performance/01`, `regression/02` | `BACKEND-001` (`FIXED AND VERIFIED`) | `EXECUTED — PASS` |
+| `EP-024` | `POST /api/v1/alerts/zones` | Alerts | `requireAuth` | Yes / Yes / Yes | `api/05`, `validation/01`, `workflows/01`, `regression/01` | `BACKEND-014` (`FIXED AND VERIFIED`) | `EXECUTED — PASS` |
 | `EP-025` | `GET /api/v1/alerts/zones` | Alerts | `requireAuth` | Yes / Yes / Yes | `api/05`, `authorization/01` | — | `EXECUTED — PASS` |
-| `EP-026` | `DELETE /api/v1/alerts/zones/:id` | Alerts | Owner | Yes / Yes / Yes | `api/05`, `authorization/01`, `regression/01` | `BACKEND-007` (Resolved) | `EXECUTED — PASS` |
+| `EP-026` | `DELETE /api/v1/alerts/zones/:id` | Alerts | Owner | Yes / Yes / Yes | `api/05`, `authorization/01`, `regression/01` | `BACKEND-007` (`FIXED AND VERIFIED`) | `EXECUTED — PASS` |
 | `EP-027` | `POST /api/v1/alerts/subscribe` | Alerts | `requireAuth` | Yes / Yes / Yes | `api/05`, `validation/01` | — | `EXECUTED — PASS` |
 | `EP-028` | `GET /api/v1/media/presigned-url` | Media | Owner / Responder / Admin | Yes / Yes / Yes | `api/05`, `authorization/01`, `validation/01` | — | `EXECUTED — PASS` |
 | `EP-029` | `POST /api/v1/media/confirm` | Media | Owner / Responder / Admin | Yes / Yes / Yes | `api/05`, `security/01`, `authorization/01` | — | `EXECUTED — PASS` |
 | `EP-030` | `POST /api/v1/media/mock-upload` | Media | Owner / Responder / Admin | Yes / Yes / Yes | `api/05`, `security/01`, `validation/01` | — | `EXECUTED — PASS` |
-| `EP-031` | `POST /api/v1/media/webhook` | Media | `x-webhook-secret` | Yes / Yes / Yes | `api/05`, `security/01`, `regression/01` | `BACKEND-009` (Resolved) | `EXECUTED — PASS` |
+| `EP-031` | `POST /api/v1/media/webhook` | Media | `x-webhook-secret` | Yes / Yes / Yes | `api/05`, `security/01`, `regression/01` | `BACKEND-009` (`FIXED AND VERIFIED`) | `EXECUTED — PASS` |
 | `EP-032` | `GET /api/v1/admin/verifications` | Admin | `ADMIN` | Yes / Yes / Yes | `api/06`, `authorization/01` | — | `EXECUTED — PASS` |
 | `EP-033` | `POST /api/v1/admin/verifications/:id/approve` | Admin | `ADMIN` | Yes / Yes / Yes | `api/06`, `authorization/01`, `workflows/01` | — | `EXECUTED — PASS` |
-| `EP-034` | `POST /api/v1/admin/verifications/:id/reject` | Admin | `ADMIN` | Yes / Yes / Yes | `api/06`, `authorization/01`, `regression/01` | `BACKEND-010` (Resolved) | `EXECUTED — PASS` |
-| `EP-035` | `POST /api/v1/admin/users/:id/ban` | Admin | `ADMIN` | Yes / Yes / Yes | `api/06`, `authentication/01`, `database/01`, `workflows/01`, `regression/01` | `BACKEND-013` (Resolved) | `EXECUTED — PASS` |
+| `EP-034` | `POST /api/v1/admin/verifications/:id/reject` | Admin | `ADMIN` | Yes / Yes / Yes | `api/06`, `authorization/01`, `regression/01`, `regression/02` | `BACKEND-010` (`FIXED AND VERIFIED`) | `EXECUTED — PASS` |
+| `EP-035` | `POST /api/v1/admin/users/:id/ban` | Admin | `ADMIN` | Yes / Yes / Yes | `api/06`, `authentication/01`, `database/01`, `workflows/01`, `regression/01` | `BACKEND-013` (`FIXED AND VERIFIED`) | `EXECUTED — PASS` |
 | `EP-036` | `POST /api/v1/admin/users/:id/unban` | Admin | `ADMIN` | Yes / Yes / Yes | `api/06`, `authorization/01`, `workflows/01` | — | `EXECUTED — PASS` |
 | `EP-037` | `POST /api/v1/admin/reports/:id/purge` | Admin | `ADMIN` | Yes / Yes / Yes | `api/06`, `authorization/01`, `workflows/01` | — | `EXECUTED — PASS` |
-| `EP-038` | `GET /api/v1/admin/logs` | Admin | `ADMIN` | Yes / Yes / Yes | `api/06`, `authorization/01`, `regression/01` | `BACKEND-009` (Resolved) | `EXECUTED — PASS` |
-| `EP-039` | `GET /api/v1/admin/analytics/trends` | Admin | `ADMIN` | Yes / Yes / Yes | `api/06`, `authorization/01` | `BACKEND-009` (Resolved) | `EXECUTED — PASS` |
+| `EP-038` | `GET /api/v1/admin/logs` | Admin | `ADMIN` | Yes / Yes / Yes | `api/06`, `authorization/01`, `regression/01`, `regression/02` | `BACKEND-009`, `BACKEND-010` (`FIXED AND VERIFIED`) | `EXECUTED — PASS` |
+| `EP-039` | `GET /api/v1/admin/analytics/trends` | Admin | `ADMIN` | Yes / Yes / Yes | `api/06`, `authorization/01`, `regression/02` | `BACKEND-009` (`FIXED AND VERIFIED`) | `EXECUTED — PASS` |
 | `EP-040` | `POST /api/v1/admin/news/crawl` | Admin | `ADMIN` | Yes / Yes / Yes | `authorization/01`, `api/06` | — | `EXECUTED — PASS` |
 | `EP-041` | `GET /api/v1/stats` | Stats | Public | Yes / Yes / Yes | `api/06`, `performance/01` | — | `EXECUTED — PASS` |
-| `EP-042` | `GET /api/v1/cron/news-crawl` | Cron | `CRON_SECRET` + RL | Yes / Yes / Yes | `api/06`, `security/01`, `regression/01` | `BACKEND-001` (Resolved) | `EXECUTED — PASS` |
-| `EP-043` | `POST /api/v1/cron/news-crawl` | Cron | `CRON_SECRET` + RL | Yes / Yes / Yes | `api/06`, `security/01` | `BACKEND-001` (Resolved) | `EXECUTED — PASS` |
+| `EP-042` | `GET /api/v1/cron/news-crawl` | Cron | `CRON_SECRET` + RL | Yes / Yes / Yes | `api/06`, `security/01`, `regression/01` | `BACKEND-001` (`FIXED AND VERIFIED`) | `EXECUTED — PASS` |
+| `EP-043` | `POST /api/v1/cron/news-crawl` | Cron | `CRON_SECRET` + RL | Yes / Yes / Yes | `api/06`, `security/01`, `regression/02` | `BACKEND-001` (`FIXED AND VERIFIED`) | `EXECUTED — PASS` |
 | `EP-044` | `GET /api/health` (Next.js) | Proxy | Public | Yes / Yes / Yes | `api/01-health-system-proxy.test.ts` | — | `EXECUTED — PASS` |
 | `EP-045` | `GET /api/cron/news-crawl` (Next.js) | Proxy | `CRON_SECRET` | Yes / Yes / Yes | `api/01-health-system-proxy.test.ts`, `security/01` | — | `EXECUTED — PASS` |
 | `EP-046` | `POST /api/cron/news-crawl` (Next.js) | Proxy | `CRON_SECRET` | Yes / Yes / Yes | `api/01-health-system-proxy.test.ts` | — | `EXECUTED — PASS` |

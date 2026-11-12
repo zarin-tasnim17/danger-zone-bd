@@ -148,11 +148,14 @@ async function runTests() {
     socketClient.disconnect();
     console.log('\n🎉 ALL PHASE 9 TIME-DECAY TESTS PASSED SUCCESSFULLY!');
   } finally {
+    await prisma.$disconnect();
     server.close();
   }
 }
 
-runTests().catch((err) => {
-  console.error('\n❌ Test failed:', err);
-  process.exit(1);
-});
+runTests()
+  .then(() => process.exit(0))
+  .catch((err) => {
+    console.error('\n❌ Test failed:', err);
+    process.exit(1);
+  });

@@ -35,6 +35,7 @@ async function runTests() {
   let user1Token = '';
   let user2Id = '';
   let user2Token = '';
+  let user3Id = '';
   let socketClient2: ClientSocket | null = null;
   let createdZoneId = '';
   let insideReportId = '';
@@ -241,12 +242,23 @@ async function runTests() {
       spuriousAlertReceived = true;
     });
 
-    // User 1 reports incident 10km away at Daulatpur (22.8900, 89.5100)
+    // Distinct user submits incident 10km away at Daulatpur (22.8900, 89.5100) to avoid User 1's 15-min cooldown
+    const user3Auth = await request('/api/v1/auth/device', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ anonymousId: `test-notifier-outside-${Date.now()}` }),
+    });
+    if (user3Auth.status !== 200 && user3Auth.status !== 201) {
+      throw new Error(`User 3 auth failed: ${JSON.stringify(user3Auth.data)}`);
+    }
+    user3Id = user3Auth.data?.data?.user?.id || '';
+    const user3Token = extractCookie(user3Auth.cookies, 'accessToken');
+
     const outsideReportRes = await request('/api/v1/reports', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        cookie: `accessToken=${user1Token}`,
+        cookie: `accessToken=${user3Token}`,
         'x-device-lat': '22.8900',
         'x-device-lng': '89.5100',
       },
@@ -258,6 +270,9 @@ async function runTests() {
         description: 'Theft incident far away in Daulatpur.',
       }),
     });
+    if (outsideReportRes.status !== 201 || !outsideReportRes.data?.data?.id) {
+      throw new Error(`Out-of-zone report creation failed: ${outsideReportRes.status} ${JSON.stringify(outsideReportRes.data)}`);
+    }
     outsideReportId = outsideReportRes.data.data.id;
 
     // Wait 500ms to ensure no spurious alert is emitted
@@ -316,16 +331,23 @@ async function runTests() {
         await prisma.refreshToken.deleteMany({ where: { userId: user2Id } });
         await prisma.user.deleteMany({ where: { id: user2Id } });
       }
+      if (user3Id) {
+        await prisma.refreshToken.deleteMany({ where: { userId: user3Id } });
+        await prisma.user.deleteMany({ where: { id: user3Id } });
+      }
       console.log('✅ Cleanup complete.');
     } catch (cleanErr) {
       console.warn('⚠️ Cleanup warning:', cleanErr);
     }
 
+    await prisma.$disconnect();
     server.close();
   }
 }
 
-runTests().catch((err) => {
-  console.error('\n❌ Test execution failed:', err);
-  process.exit(1);
-});
+runTests()
+  .then(() => process.exit(0))
+  .catch((err) => {
+    console.error('\n❌ Test execution failed:', err);
+    process.exit(1);
+  });

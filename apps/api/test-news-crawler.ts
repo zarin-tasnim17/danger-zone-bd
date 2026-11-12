@@ -43,10 +43,10 @@ async function runNewsCrawlerVerificationSuite() {
     console.log('\n🧪 [Test 1] Testing Bilingual Keyword Classifier (Bangla + English)...');
 
     const muggingBn = classifyNewsText('মিরপুরে অস্ত্র ঠেকিয়ে পথচারীর মোবাইল ও টাকা ছিনতাই', '');
-    if (muggingBn.isSafetyRelated && muggingBn.category === 'MUGGING' && muggingBn.severity === 'HIGH') {
-      console.log('  ✅ Bangla mugging text classified as MUGGING (HIGH severity)');
+    if (muggingBn.isSafetyRelated && muggingBn.category === 'SNATCHING' && muggingBn.severity === 'HIGH') {
+      console.log('  ✅ Bangla snatching text classified as SNATCHING (HIGH severity)');
     } else {
-      throw new Error(`Bangla mugging classification failed: ${JSON.stringify(muggingBn)}`);
+      throw new Error(`Bangla snatching classification failed: ${JSON.stringify(muggingBn)}`);
     }
 
     const extortionBn = classifyNewsText('ব্যবসায়ীর কাছে চাঁদা না পেয়ে অস্ত্রের মুখে হুমকি, এলাকায় চাঁদাবাজি আতঙ্ক', '');
@@ -71,8 +71,8 @@ async function runNewsCrawlerVerificationSuite() {
     }
 
     const drugEn = classifyNewsText('Police arrest drug syndicate with 50,000 yaba pills and narcotics in Chittagong', '');
-    if (drugEn.isSafetyRelated && drugEn.category === 'DRUG_ACTIVITY' && drugEn.severity === 'MEDIUM') {
-      console.log('  ✅ English narcotics text classified as DRUG_ACTIVITY (MEDIUM severity)');
+    if (drugEn.isSafetyRelated && drugEn.category === 'DRUG_RELATED_CRIME' && drugEn.severity === 'MEDIUM') {
+      console.log('  ✅ English narcotics text classified as DRUG_RELATED_CRIME (MEDIUM severity)');
     } else {
       throw new Error(`English drug classification failed: ${JSON.stringify(drugEn)}`);
     }
@@ -120,7 +120,7 @@ async function runNewsCrawlerVerificationSuite() {
 
     const mockNewsItem = {
       guid: testGuid,
-      title: 'মিরপুর ১০ নম্বরে অস্ত্রের মুখে যুবকের মোবাইল ছিনতাই',
+      title: `মিরপুর ১০ নম্বরে অস্ত্রের মুখে যুবকের মোবাইল ছিনতাই CaseRef${Date.now()}`,
       link: `https://test-news.bd/articles/${testGuid}`,
       pubDate: new Date(),
       contentSnippet: 'মিরপুরে গতকাল রাতে ঘটনাটি ঘটে',
@@ -171,15 +171,15 @@ async function runNewsCrawlerVerificationSuite() {
     });
     testUserIds.push(citizenUser.id);
 
-    // Citizen creates an unverified report at Dhanmondi (23.7465, 90.3760)
+    // Citizen creates an unverified report at Gopalganj (23.0051, 89.8266)
     const citizenReport = await prisma.report.create({
       data: {
         userId: citizenUser.id,
-        category: 'MUGGING',
+        category: 'EXTORTION',
         severity: 'HIGH',
-        latitude: 23.7465,
-        longitude: 90.376,
-        description: 'Just witnessed a mugging near Dhanmondi lake',
+        latitude: 23.0051,
+        longitude: 89.8266,
+        description: 'Just witnessed extortion near Gopalganj town market',
         status: 'ACTIVE',
         expiresAt: new Date(Date.now() + 4 * 60 * 60 * 1000),
       },
@@ -189,20 +189,20 @@ async function runNewsCrawlerVerificationSuite() {
     // Populate PostGIS location column
     await prisma.$executeRaw`
       UPDATE "Report"
-      SET location = ST_SetSRID(ST_MakePoint(90.3760, 23.7465), 4326)::geography
+      SET location = ST_SetSRID(ST_MakePoint(89.8266, 23.0051), 4326)::geography
       WHERE id = ${citizenReport.id}
     `;
 
-    // Now ingest a press report within 500m (at Dhanmondi 23.7465, 90.3760)
+    // Now ingest a press report within 500m (at Gopalganj 23.0051, 89.8266)
     const pressGuid = `press-corroboration-${Date.now()}`;
     testArticleGuids.push(pressGuid);
 
     const pressItem = {
       guid: pressGuid,
-      title: 'ধানমন্ডি লেকে প্রকাশ্যে অস্ত্রের মুখে ছিনতাই, মোবাইল ও টাকা লুট',
+      title: `গোপালগঞ্জ বাজারে প্রকাশ্যে ব্যবসায়ীর কাছে চাঁদাবাজি ও চাঁদা দাবি Ref${Date.now()}`,
       link: `https://test-news.bd/articles/${pressGuid}`,
       pubDate: new Date(),
-      contentSnippet: 'ধানমন্ডি এলাকায় ছিনতাই',
+      contentSnippet: 'গোপালগঞ্জ এলাকায় চাঁদাবাজি',
       sourceName: 'Prothom Alo Online',
     };
 

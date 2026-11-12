@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="dangerzonebd-api-report" tests="68" failures="0" skipped="0" time="283.951">
+  <testcase classname="tests\api\01-health-system-proxy.test.ts" name="EP-001 GET / returns service metadata and security headers" time="0.047"/>
+  <testcase classname="tests\api\01-health-system-proxy.test.ts" name="EP-002 GET /health returns live UP liveness payload" time="0.006"/>
+  <testcase classname="tests\api\01-health-system-proxy.test.ts" name="EP-003 GET /health/db confirms live PostgreSQL/PostGIS connectivity" time="0.637"/>
+  <testcase classname="tests\api\01-health-system-proxy.test.ts" name="EP-004 &amp; EP-005 Versioned /api/v1/health and /api/v1/health/db match root probes" time="0.227"/>
+  <testcase classname="tests\api\01-health-system-proxy.test.ts" name="HTTP protocol checks: malformed JSON yields clean 400 and unknown route yields 404 without stack trace" time="0.025"/>
+  <testcase classname="tests\api\01-health-system-proxy.test.ts" name="EP-044 Next.js GET /api/health aggregates live Express backend and returns 503 when upstream unreachable" time="0.284"/>
+  <testcase classname="tests\api\01-health-system-proxy.test.ts" name="EP-045 &amp; EP-046 Next.js GET/POST /api/cron/news-crawl fail closed on missing/bad CRON_SECRET" time="0.006"/>
+  <testcase classname="tests\api\01-health-system-proxy.test.ts" name="Error envelope sanity check on bad media webhook call" time="0.004"/>
+  <testcase classname="tests\api\02-auth-users.test.ts" name="EP-006 POST /api/v1/auth/device creates anonymous USER, sets HttpOnly cookies, and rejects mass-assignment keys via .strict()" time="1.354"/>
+  <testcase classname="tests\api\02-auth-users.test.ts" name="EP-006 rejects empty anonymousId (400) and blocks device login on password-backed ADMIN (403)" time="1.071"/>
+  <testcase classname="tests\api\02-auth-users.test.ts" name="EP-007 &amp; EP-008 &amp; EP-009 Password login -&gt; refresh -&gt; logout lifecycle" time="2.327"/>
+  <testcase classname="tests\api\02-auth-users.test.ts" name="EP-010 GET /api/v1/users/me returns sanitized profile with counts and never leaks passwordHash/anonymousId" time="1.267"/>
+  <testcase classname="tests\api\02-auth-users.test.ts" name="EP-011 &amp; EP-012 POST /api/v1/users/verify (PHONE_OTP &amp; NID_DOCUMENT) + legacy /users/verify/:id/approve" time="6.192"/>
+  <testcase classname="tests\api\03-reports-votes-updates.test.ts" name="EP-013 POST /api/v1/reports creates report with hardware GPS verification and rejects &gt;200m GPS drift" time="3.868"/>
+  <testcase classname="tests\api\03-reports-votes-updates.test.ts" name="EP-014 &amp; EP-015 GET /reports bounds filtering + GET /reports/:id PII sanitization &amp; isOwner" time="4.339"/>
+  <testcase classname="tests\api\03-reports-votes-updates.test.ts" name="EP-016 PATCH /api/v1/reports/:id/resolve works for owner and VERIFIED_RESPONDER, prevents duplicate resolve" time="5.436"/>
+  <testcase classname="tests\api\03-reports-votes-updates.test.ts" name="EP-017, EP-018, EP-019 Votes (upvote/switch/reject invalid voteType) and Threaded Updates lifecycle" time="7.850"/>
+  <testcase classname="tests\api\04-safe-zones-routing.test.ts" name="EP-020, EP-021, EP-022 Safe Zones public queries (default, bounds, radial, type) &amp; Admin Create/Delete" time="3.794"/>
+  <testcase classname="tests\api\04-safe-zones-routing.test.ts" name="EP-023 POST /api/v1/routes/safe-path rejects out-of-Bangladesh bounds, nested payloads, and detours around HIGH hazard" time="2.442"/>
+  <testcase classname="tests\api\05-alerts-media.test.ts" name="EP-024, EP-025, EP-026, EP-027 Alert zone CRUD &amp; push subscription lifecycle" time="5.080"/>
+  <testcase classname="tests\api\05-alerts-media.test.ts" name="EP-028 &amp; EP-029 Presigned URL -&gt; Media Confirm (idempotent + strips originalUrl) &amp; rejects multipart 415" time="4.609"/>
+  <testcase classname="tests\api\05-alerts-media.test.ts" name="EP-030 POST /api/v1/media/mock-upload accepts valid PNG, JPEG, and WEBP magic-byte data URIs" time="5.951"/>
+  <testcase classname="tests\api\05-alerts-media.test.ts" name="EP-031 POST /api/v1/media/webhook enforces fail-closed secret and idempotently records valid callback" time="2.437"/>
+  <testcase classname="tests\api\06-admin-stats-cron.test.ts" name="EP-032..EP-039 Admin KYC approve/reject, ban/unban, report purge, audit logs &amp; analytics trends" time="12.966"/>
+  <testcase classname="tests\api\06-admin-stats-cron.test.ts" name="EP-041 GET /api/v1/stats reflects live aggregate counts cleanly" time="0.597"/>
+  <testcase classname="tests\api\06-admin-stats-cron.test.ts" name="EP-040, EP-042, EP-043 Cron GET/POST fail-closed 401 when unset/wrong and Admin/Cron crawler handles concurrency cleanly" time="4.918"/>
+  <testcase classname="tests\api\07-sockets-realtime.test.ts" name="Allows guest read-only socket &amp; authenticated socketToken handshake; rejects tampered/non-string tokens" time="1.401"/>
+  <testcase classname="tests\api\07-sockets-realtime.test.ts" name="Broadcasts sanitized NEW_REPORT, REPORT_VOTED, NEW_REPORT_UPDATE, REPORT_RESOLVED, REPORT_PURGED, and targeted GEOFENCE_ALERT" time="8.925"/>
+  <testcase classname="tests\authentication\01-auth-lifecycle.test.ts" name="Rejects unauthenticated calls with 401 across all protected routes" time="0.107"/>
+  <testcase classname="tests\authentication\01-auth-lifecycle.test.ts" name="Rejects expired, malformed, wrong-secret, alg=none, and socketToken tokens on REST requireAuth routes" time="1.117"/>
+  <testcase classname="tests\authentication\01-auth-lifecycle.test.ts" name="Issues HttpOnly, SameSite=Lax cookies and immediately blocks banned users across REST, refresh, and Socket.IO" time="4.443"/>
+  <testcase classname="tests\authorization\01-rbac-ownership-matrix.test.ts" name="Vertical privilege boundary: USER &amp; VERIFIED_RESPONDER receive 403 on all ADMIN endpoints" time="7.524"/>
+  <testcase classname="tests\authorization\01-rbac-ownership-matrix.test.ts" name="Horizontal BOLA/IDOR: User B cannot resolve User A report, delete User A alert zone, or attach media to User A report" time="8.720"/>
+  <testcase classname="tests\authorization\01-rbac-ownership-matrix.test.ts" name="Ban authorization guard: non-admin USER receives 403 trying to ban a target while ADMIN succeeds (200)" time="3.297"/>
+  <testcase classname="tests\validation\01-schema-strictness-boundaries.test.ts" name="Enforces .strict() mass-assignment/unknown-field rejection on strict schemas" time="2.672"/>
+  <testcase classname="tests\validation\01-schema-strictness-boundaries.test.ts" name="PostGIS geofence validation: rejects unclosed, self-intersecting, &gt;25 km² polygons, and &gt;5 zones per user" time="9.830"/>
+  <testcase classname="tests\validation\01-schema-strictness-boundaries.test.ts" name="Report, Media &amp; GPS header boundaries (lat/lng extremes, 5MB limit, MIME types, incomplete GPS headers)" time="3.227"/>
+  <testcase classname="tests\security\01-owasp-security-checks.test.ts" name="Prevents SSRF &amp; path traversal on POST /api/v1/media/confirm" time="3.385"/>
+  <testcase classname="tests\security\01-owasp-security-checks.test.ts" name="Rejects spoofed HTML payloads &amp; mismatched magic-byte headers on POST /api/v1/media/mock-upload" time="2.435"/>
+  <testcase classname="tests\security\01-owasp-security-checks.test.ts" name="Enforces rate limit on POST /api/v1/auth/login (429 after 10 attempts per IP)" time="3.759"/>
+  <testcase classname="tests\security\01-owasp-security-checks.test.ts" name="Parameterizes SQL/PostGIS inputs and avoids secret leakage on SQLi/XSS probes" time="1.549"/>
+  <testcase classname="tests\database\01-integrity-transactions-concurrency.test.ts" name="Enforces unique Vote constraint under concurrent identical requests (no double-counting)" time="4.862"/>
+  <testcase classname="tests\database\01-integrity-transactions-concurrency.test.ts" name="Trust Engine atomic threshold: 5 distinct downvotes trigger PURGED status &amp; -15 author trustScore" time="9.413"/>
+  <testcase classname="tests\database\01-integrity-transactions-concurrency.test.ts" name="Ban transaction atomically marks ALL RefreshToken rows revoked in PostgreSQL" time="2.933"/>
+  <testcase classname="tests\workflows\01-e2e-state-transitions.test.ts" name="E2E Onboarding -&gt; KYC Approval -&gt; Role Promotion -&gt; Cooldown Exemption -&gt; Third-Party Resolve" time="9.970"/>
+  <testcase classname="tests\workflows\01-e2e-state-transitions.test.ts" name="E2E Hazard Routing Lifecycle: Active HIGH hazard triggers detour -&gt; RESOLVED removes hazard from safe-path" time="3.194"/>
+  <testcase classname="tests\performance\01-fuzzing-and-load-baseline.test.ts" name="Deterministic fuzzing (30 seeded mutations) yields zero 500 crashes and zero info leaks" time="19.729"/>
+  <testcase classname="tests\performance\01-fuzzing-and-load-baseline.test.ts" name="Measures bounded concurrency latency (P50/P90/P95/P99 &amp; RPS) across core read/compute endpoints" time="10.362"/>
+  <testcase classname="tests\regression\01-confirmed-defects-regression.test.ts" name="[BACKEND-001] Unauthenticated calls to /api/v1/cron/news-crawl must NOT exhaust authenticated cron rate-limit quota on same IP" time="3.107"/>
+  <testcase classname="tests\regression\01-confirmed-defects-regression.test.ts" name="[BACKEND-002] /auth/login should not leak refreshToken in JSON, /auth/refresh must rotate refreshToken, and /auth/logout must work with expired accessToken" time="3.163"/>
+  <testcase classname="tests\regression\01-confirmed-defects-regression.test.ts" name="[BACKEND-003] JWT_SECRET and JWT_REFRESH_SECRET in .env must be &gt;= 32 characters without hardcoded fallbacks" time="0.001"/>
+  <testcase classname="tests\regression\01-confirmed-defects-regression.test.ts" name="[BACKEND-004] POST /api/v1/reports must reject empty string &quot;&quot; and &gt;1000-char description with 400" time="1.285"/>
+  <testcase classname="tests\regression\01-confirmed-defects-regression.test.ts" name="[BACKEND-005] POST /api/v1/reports/:id/updates must reject whitespace-only content with 400" time="2.111"/>
+  <testcase classname="tests\regression\01-confirmed-defects-regression.test.ts" name="[BACKEND-006] GET /api/v1/safe-zones must return 400 for non-numeric spatial parameters (?lat=abc&amp;lng=def)" time="0.004"/>
+  <testcase classname="tests\regression\01-confirmed-defects-regression.test.ts" name="[BACKEND-007] Missing resource IDs on /reports/:id/vote, /alerts/zones/:id, and /users/verify/:id/approve must return 404 (not 400)" time="3.232"/>
+  <testcase classname="tests\regression\01-confirmed-defects-regression.test.ts" name="[BACKEND-008] Repeat sign-in on POST /api/v1/auth/device for existing anonymousId should return 200 OK instead of 201 Created" time="1.362"/>
+  <testcase classname="tests\regression\01-confirmed-defects-regression.test.ts" name="[BACKEND-009] API contract consistency: /media/webhook uses {success,data}, /admin/logs rejects limit&gt;100, and /safe-zones distanceMeters is a number" time="2.239"/>
+  <testcase classname="tests\regression\01-confirmed-defects-regression.test.ts" name="[BACKEND-010] Admin verification rejection must record a distinct rejection ModerationLog.action instead of VERIFY_USER" time="3.486"/>
+  <testcase classname="tests\regression\01-confirmed-defects-regression.test.ts" name="[BACKEND-011] POST /api/v1/reports and POST /api/v1/reports/:id/vote must NOT expose reporter userId PII in response JSON" time="3.337"/>
+  <testcase classname="tests\regression\01-confirmed-defects-regression.test.ts" name="[BACKEND-012] GET /api/v1/reports must reject inverted bounds (minLng &gt;= maxLng or minLat &gt;= maxLat) with 400" time="0.006"/>
+  <testcase classname="tests\regression\01-confirmed-defects-regression.test.ts" name="[BACKEND-013] POST /api/v1/admin/users/:id/ban must forbid self-banning and peer-ADMIN suspension (403)" time="2.518"/>
+  <testcase classname="tests\regression\01-confirmed-defects-regression.test.ts" name="[BACKEND-014] POST /api/v1/alerts/zones must reject topologically invalid self-intersecting polygons (ST_IsValid) with 400" time="1.962"/>
+  <testcase classname="tests\regression\02-post-fix-edge-cases-regression.test.ts" name="[BACKEND-001] POST /cron/news-crawl ordering, unref cleanup timer, and all newly added route rate limiters enforce 429" time="7.396"/>
+  <testcase classname="tests\regression\02-post-fix-edge-cases-regression.test.ts" name="[BACKEND-002] Login omits accessToken &amp; refreshToken JSON, /refresh rotates DB row &amp; cookie, expired-access /logout revokes DB row &amp; clears cookies" time="2.843"/>
+  <testcase classname="tests\regression\02-post-fix-edge-cases-regression.test.ts" name="[BACKEND-003] Booting env.ts fails closed when JWT_SECRET or JWT_REFRESH_SECRET is empty or &lt; 32 chars" time="0.828"/>
+  <testcase classname="tests\regression\02-post-fix-edge-cases-regression.test.ts" name="[BACKEND-004 &amp; BACKEND-005] Report description &amp; update content enforce exact whitespace/1000-char boundaries" time="4.150"/>
+  <testcase classname="tests\regression\02-post-fix-edge-cases-regression.test.ts" name="[BACKEND-006 &amp; BACKEND-012] Strict spatial coordinate bounds, trailing garbage, and inverted bounding box checks" time="0.017"/>
+  <testcase classname="tests\regression\02-post-fix-edge-cases-regression.test.ts" name="[BACKEND-009 &amp; BACKEND-010] Envelopes (/health*, /), strict /admin/logs &amp; /analytics/trends params, legacy approve UUID validation &amp; action filter" time="5.599"/>
+</testsuite>

@@ -9,9 +9,9 @@
     "reportDocument": "apps/api/docs/testing/API_Test_Report.md",
     "executionCommand": "npm --prefix apps/api run test:api:report",
     "executionWindowUtc": {
-      "start": "2026-11-12T14:02:36.647Z",
-      "end": "2026-11-12T14:06:53.354Z",
-      "totalDurationMs": 256703.86
+      "start": "2026-11-12T14:23:00.502Z",
+      "end": "2026-11-12T14:27:44.454Z",
+      "totalDurationMs": 283950.69
     },
     "discoveredInterfaces": {
       "expressHttpRoutes": 43,
@@ -24,28 +24,50 @@
       "dead": 0
     },
     "suiteCounts": {
-      "totalFiles": 15,
-      "totalCases": 62,
-      "passed": 62,
+      "totalFiles": 16,
+      "totalCases": 68,
+      "passed": 68,
       "failed": 0,
       "skipped": 0,
       "verificationSuitesPassed": 48,
       "verificationSuitesTotal": 48,
-      "defectRegressionPassed": 14,
-      "defectRegressionTotal": 14
+      "defectRegressionPassed": 20,
+      "defectRegressionTotal": 20
     },
     "databaseIsolationCheck": {
       "ORPHAN_USERS": 0,
       "ORPHAN_REPORTS": 0,
-      "ORPHAN_SAFE_ZONES": 0
+      "ORPHAN_SAFE_ZONES": 0,
+      "ORPHAN_ALERT_ZONES": 0,
+      "ORPHAN_REFRESH_TOKENS": 0,
+      "ORPHAN_MOD_LOGS": 0
     },
-    "productionReadinessVerdict": "GO (All 14 audit findings BACKEND-001..BACKEND-014 resolved and verified; 62/62 tests passing, 0 failed, 0 skipped)",
+    "productionReadinessVerdict": "GO (All 14 audit findings BACKEND-001..BACKEND-014 FIXED AND VERIFIED; typecheck exit 0; 68/68 tests passing across 16 suites with 0 failed, 0 skipped, and 0 orphan DB records; ensure deployment secrets CRON_SECRET and STORAGE_WEBHOOK_SECRET are populated in runtime env)",
     "severityBreakdown": {
       "Critical": 0,
       "High": 6,
       "Medium": 5,
       "Low": 3,
       "Total": 14
+    },
+    "postFixVerification": {
+      "verificationDate": "2026-11-12",
+      "typecheckCommand": "npm --prefix apps/api run typecheck",
+      "typecheckExitCode": 0,
+      "fullSuiteCommand": "npm --prefix apps/api run test:api:report",
+      "regressionSuites": [
+        "apps/api/tests/regression/01-confirmed-defects-regression.test.ts",
+        "apps/api/tests/regression/02-post-fix-edge-cases-regression.test.ts"
+      ],
+      "newRegressionsIntroduced": 0,
+      "documentationDriftNotes": [
+        "apps/api/docs/endpoints.md:275 still lists accessToken in POST /api/v1/auth/login JSON example, whereas BACKEND-002 keeps both accessToken and refreshToken in HttpOnly cookies only."
+      ],
+      "operationalConfigurationRisks": [
+        "CRON_SECRET and STORAGE_WEBHOOK_SECRET are unset in local apps/api/.env and apps/web/.env* (endpoints intentionally fail closed with 401 until configured in deployment env).",
+        "Root .env still contains short legacy JWT_SECRET (20 chars) and JWT_REFRESH_SECRET (24 chars), unused when running apps/api directly from apps/api/.env (64-char secrets).",
+        "Local apps/api/.env sets NODE_ENV=production, enabling trust proxy = 1 and secure cookie flags."
+      ]
     }
   },
   "findings": [
@@ -56,8 +78,17 @@
       "priority": "P1",
       "category": "Security / Rate Limiting & Availability",
       "module": "Rate Limiter Middleware & Route Guards",
-      "status": "RESOLVED",
-      "endpointIds": ["EP-006", "EP-007", "EP-011", "EP-017", "EP-018", "EP-023", "EP-042", "EP-043"],
+      "status": "FIXED AND VERIFIED",
+      "endpointIds": [
+        "EP-006",
+        "EP-007",
+        "EP-011",
+        "EP-017",
+        "EP-018",
+        "EP-023",
+        "EP-042",
+        "EP-043"
+      ],
       "affectedRoutes": [
         "GET /api/v1/cron/news-crawl",
         "POST /api/v1/cron/news-crawl",
@@ -112,7 +143,28 @@
         "3+ unauthenticated requests to /api/v1/cron/news-crawl return 401 and never consume legitimate cron quota for that IP.",
         "Subsequent authenticated request with valid secret returns 200.",
         "Spoofed X-Forwarded-For headers do not reset per-client login quota when direct socket connection originates from the same peer."
-      ]
+      ],
+      "postFixVerification": {
+        "verificationStatus": "FIXED AND VERIFIED",
+        "fixCommit": "e4329b1",
+        "implementedFixSummary": "Reordered cron.ts so verifyCronSecret runs before cronNewsCrawlRateLimiter; added .unref() on rateLimiter cleanup timer; switched clientIp to Express req.ip with trust proxy setting in app.ts; calibrated rate limiters on /auth/device, /auth/refresh, /reports/:id/vote, /reports/:id/updates, /users/verify, and /routes/safe-path.",
+        "verifiedFiles": [
+          "apps/api/src/middleware/rateLimiter.ts",
+          "apps/api/src/app.ts",
+          "apps/api/src/routes/cron.ts",
+          "apps/api/src/routes/auth.ts",
+          "apps/api/src/routes/reports.ts",
+          "apps/api/src/routes/users.ts",
+          "apps/api/src/routes/routing.ts"
+        ],
+        "testsRerun": [
+          "tests/regression/01-confirmed-defects-regression.test.ts [BACKEND-001]",
+          "tests/regression/02-post-fix-edge-cases-regression.test.ts [BACKEND-001]",
+          "tests/security/01-owasp-security-checks.test.ts",
+          "tests/api/06-admin-stats-cron.test.ts"
+        ],
+        "actualResultAfterFix": "Unauthenticated /cron/news-crawl GET & POST return 401 without exhausting authenticated cron quota (subsequent authenticated request returns 200); .unref() confirmed on cleanup interval; newly added limiters enforce 429 cleanly; spoofed X-Forwarded-For does not bypass /auth/login limiter."
+      }
     },
     {
       "id": "BACKEND-002",
@@ -121,8 +173,12 @@
       "priority": "P1",
       "category": "Authentication / Session Lifecycle",
       "module": "Auth Controller, Service & Routes",
-      "status": "RESOLVED",
-      "endpointIds": ["EP-007", "EP-008", "EP-009"],
+      "status": "FIXED AND VERIFIED",
+      "endpointIds": [
+        "EP-007",
+        "EP-008",
+        "EP-009"
+      ],
       "affectedRoutes": [
         "POST /api/v1/auth/login",
         "POST /api/v1/auth/refresh",
@@ -167,7 +223,26 @@
         "POST /api/v1/auth/login response JSON omits refreshToken.",
         "Replaying a previously consumed refreshToken returns 401.",
         "POST /api/v1/auth/logout with an expired accessToken and valid refreshToken returns 200, revokes DB RefreshToken, and clears auth cookies."
-      ]
+      ],
+      "postFixVerification": {
+        "verificationStatus": "FIXED AND VERIFIED",
+        "fixCommit": "6bf7891",
+        "implementedFixSummary": "Omitted accessToken and refreshToken from /auth/login JSON response (HttpOnly cookies only, preserving socketToken); implemented transactional single-use refreshToken rotation + replay rejection (401) in /auth/refresh; added signature-verified expired-access handling in /auth/logout so DB RefreshToken revocation and cookie clearing succeed with 200.",
+        "verifiedFiles": [
+          "apps/api/src/controllers/authController.ts",
+          "apps/api/src/services/authService.ts",
+          "apps/api/src/routes/auth.ts",
+          "apps/api/src/middleware/requireAuth.ts",
+          "apps/api/src/utils/jwt.ts"
+        ],
+        "testsRerun": [
+          "tests/regression/01-confirmed-defects-regression.test.ts [BACKEND-002]",
+          "tests/regression/02-post-fix-edge-cases-regression.test.ts [BACKEND-002]",
+          "tests/authentication/01-auth-lifecycle.test.ts",
+          "tests/api/02-auth-users.test.ts"
+        ],
+        "actualResultAfterFix": "Login JSON omits accessToken and refreshToken; /auth/refresh rotates DB RefreshToken and HttpOnly cookies and rejects replayed tokens with 401; /auth/logout with an expired accessToken + valid refreshToken cookie returns 200, marks DB RefreshToken revoked, and clears auth cookies. (Note: apps/api/docs/endpoints.md:275 still mentions accessToken in JSON example.)"
+      }
     },
     {
       "id": "BACKEND-003",
@@ -176,8 +251,13 @@
       "priority": "P1",
       "category": "Configuration & Cryptographic Security",
       "module": "Environment Configuration",
-      "status": "RESOLVED",
-      "endpointIds": ["EP-006", "EP-007", "EP-008", "EP-047"],
+      "status": "FIXED AND VERIFIED",
+      "endpointIds": [
+        "EP-006",
+        "EP-007",
+        "EP-008",
+        "EP-047"
+      ],
       "affectedRoutes": [
         "POST /api/v1/auth/login",
         "POST /api/v1/auth/device",
@@ -210,7 +290,22 @@
       "acceptanceCriteria": [
         "JWT_SECRET and JWT_REFRESH_SECRET in .env are >= 32 characters.",
         "Boot fails cleanly if either secret is missing or under 32 characters, with no default strings in env.ts."
-      ]
+      ],
+      "postFixVerification": {
+        "verificationStatus": "FIXED AND VERIFIED",
+        "fixCommit": "56852c4",
+        "implementedFixSummary": "Removed hardcoded fallback JWT secret strings in env.ts and enforced >= 32 characters via Zod at boot; rotated JWT_SECRET and JWT_REFRESH_SECRET in apps/api/.env to 64 characters.",
+        "verifiedFiles": [
+          "apps/api/src/config/env.ts",
+          "apps/api/.env"
+        ],
+        "testsRerun": [
+          "tests/regression/01-confirmed-defects-regression.test.ts [BACKEND-003]",
+          "tests/regression/02-post-fix-edge-cases-regression.test.ts [BACKEND-003]",
+          "tests/authentication/01-auth-lifecycle.test.ts"
+        ],
+        "actualResultAfterFix": "apps/api/.env secrets pass >= 32-character check and booting env.ts with missing or short (<32-char) JWT_SECRET / JWT_REFRESH_SECRET fails closed immediately."
+      }
     },
     {
       "id": "BACKEND-004",
@@ -219,9 +314,13 @@
       "priority": "P1",
       "category": "Input Validation & Resource Exhaustion",
       "module": "Reports Validation Schema",
-      "status": "RESOLVED",
-      "endpointIds": ["EP-013"],
-      "affectedRoutes": ["POST /api/v1/reports"],
+      "status": "FIXED AND VERIFIED",
+      "endpointIds": [
+        "EP-013"
+      ],
+      "affectedRoutes": [
+        "POST /api/v1/reports"
+      ],
       "files": [
         {
           "path": "apps/api/src/routes/reports.ts",
@@ -237,7 +336,9 @@
       "reproRequest": {
         "method": "POST",
         "path": "/api/v1/reports",
-        "headers": { "Authorization": "Bearer <REDACTED>" },
+        "headers": {
+          "Authorization": "Bearer <REDACTED>"
+        },
         "body": {
           "category": "THEFT",
           "severity": "LOW",
@@ -256,7 +357,22 @@
         "POST /api/v1/reports with description: \"\" or whitespace returns 400.",
         "POST /api/v1/reports with description > 1000 characters returns 400.",
         "Omitted description (undefined) still succeeds with 201."
-      ]
+      ],
+      "postFixVerification": {
+        "verificationStatus": "FIXED AND VERIFIED",
+        "fixCommit": "e9fe89e",
+        "implementedFixSummary": "Updated reportSchema.body.description in apps/api/src/routes/reports.ts to z.string().trim().min(1).max(1000).optional().",
+        "verifiedFiles": [
+          "apps/api/src/routes/reports.ts",
+          "apps/api/src/services/reportService.ts"
+        ],
+        "testsRerun": [
+          "tests/regression/01-confirmed-defects-regression.test.ts [BACKEND-004]",
+          "tests/regression/02-post-fix-edge-cases-regression.test.ts [BACKEND-004 & BACKEND-005]",
+          "tests/api/03-reports-votes-updates.test.ts"
+        ],
+        "actualResultAfterFix": "Empty \"\", whitespace-only, and 1001-char descriptions return 400; 1000-char valid descriptions and omitted descriptions return 201."
+      }
     },
     {
       "id": "BACKEND-005",
@@ -265,9 +381,13 @@
       "priority": "P2",
       "category": "Input Validation",
       "module": "Report Updates Schema & Service",
-      "status": "RESOLVED",
-      "endpointIds": ["EP-018"],
-      "affectedRoutes": ["POST /api/v1/reports/:id/updates"],
+      "status": "FIXED AND VERIFIED",
+      "endpointIds": [
+        "EP-018"
+      ],
+      "affectedRoutes": [
+        "POST /api/v1/reports/:id/updates"
+      ],
       "files": [
         {
           "path": "apps/api/src/routes/reports.ts",
@@ -283,8 +403,12 @@
       "reproRequest": {
         "method": "POST",
         "path": "/api/v1/reports/<REPORT_UUID>/updates",
-        "headers": { "Authorization": "Bearer <REDACTED>" },
-        "body": { "content": "   " }
+        "headers": {
+          "Authorization": "Bearer <REDACTED>"
+        },
+        "body": {
+          "content": "   "
+        }
       },
       "expectedBehavior": "Whitespace-only content (\"   \") must fail Zod validation with 400 Bad Request because trimmed length is 0 (< min 2).",
       "actualBehavior": "Schema check runs before trimming, passes 3 spaces (>= min 2), and service trims to \"\" — returning HTTP 201 Created instead of 400 (201 !== 400).",
@@ -294,7 +418,22 @@
       "regressionTestName": "[BACKEND-005] POST /api/v1/reports/:id/updates must reject whitespace-only content with 400",
       "acceptanceCriteria": [
         "POST /api/v1/reports/:id/updates with content: \"   \" returns 400 Bad Request and inserts no row."
-      ]
+      ],
+      "postFixVerification": {
+        "verificationStatus": "FIXED AND VERIFIED",
+        "fixCommit": "1793d32",
+        "implementedFixSummary": "Added .trim() before .min(2).max(500) on addUpdateSchema.body.content in apps/api/src/routes/reports.ts.",
+        "verifiedFiles": [
+          "apps/api/src/routes/reports.ts",
+          "apps/api/src/services/reportUpdateService.ts"
+        ],
+        "testsRerun": [
+          "tests/regression/01-confirmed-defects-regression.test.ts [BACKEND-005]",
+          "tests/regression/02-post-fix-edge-cases-regression.test.ts [BACKEND-004 & BACKEND-005]",
+          "tests/validation/01-schema-strictness-boundaries.test.ts"
+        ],
+        "actualResultAfterFix": "Whitespace-only \"   \" and \" a \" fail with 400; valid trimmed content >= 2 chars returns 201."
+      }
     },
     {
       "id": "BACKEND-006",
@@ -303,9 +442,13 @@
       "priority": "P2",
       "category": "Input Validation",
       "module": "Safe Zones Query Validation",
-      "status": "RESOLVED",
-      "endpointIds": ["EP-020"],
-      "affectedRoutes": ["GET /api/v1/safe-zones"],
+      "status": "FIXED AND VERIFIED",
+      "endpointIds": [
+        "EP-020"
+      ],
+      "affectedRoutes": [
+        "GET /api/v1/safe-zones"
+      ],
       "files": [
         {
           "path": "apps/api/src/routes/safeZones.ts",
@@ -331,7 +474,22 @@
       "acceptanceCriteria": [
         "GET /api/v1/safe-zones?lat=abc&lng=def returns 400 Bad Request.",
         "Out-of-range lat/lng values or non-numeric radius/bounds return 400."
-      ]
+      ],
+      "postFixVerification": {
+        "verificationStatus": "FIXED AND VERIFIED",
+        "fixCommit": "6c238e0",
+        "implementedFixSummary": "Enforced strict numeric regex, finite latitude (-90..90), longitude (-180..180), positive radius, and complete/ordered bounding box validation in apps/api/src/routes/safeZones.ts and safeZoneController.ts.",
+        "verifiedFiles": [
+          "apps/api/src/routes/safeZones.ts",
+          "apps/api/src/controllers/safeZoneController.ts"
+        ],
+        "testsRerun": [
+          "tests/regression/01-confirmed-defects-regression.test.ts [BACKEND-006]",
+          "tests/regression/02-post-fix-edge-cases-regression.test.ts [BACKEND-006 & BACKEND-012]",
+          "tests/api/04-safe-zones-routing.test.ts"
+        ],
+        "actualResultAfterFix": "Non-numeric params, trailing garbage (90.3abc), out-of-range coordinates (lat=95), negative radius, partial params, and inverted bounds return 400 Bad Request."
+      }
     },
     {
       "id": "BACKEND-007",
@@ -340,8 +498,12 @@
       "priority": "P2",
       "category": "HTTP & REST Error Semantics",
       "module": "Votes, Alert Zones & User Verification Controllers",
-      "status": "RESOLVED",
-      "endpointIds": ["EP-012", "EP-017", "EP-026"],
+      "status": "FIXED AND VERIFIED",
+      "endpointIds": [
+        "EP-012",
+        "EP-017",
+        "EP-026"
+      ],
       "affectedRoutes": [
         "POST /api/v1/reports/:id/vote",
         "DELETE /api/v1/alerts/zones/:id",
@@ -372,8 +534,12 @@
       "reproRequest": {
         "method": "POST",
         "path": "/api/v1/reports/00000000-0000-4000-8000-000000000000/vote",
-        "headers": { "Authorization": "Bearer <REDACTED>" },
-        "body": { "voteType": 1 }
+        "headers": {
+          "Authorization": "Bearer <REDACTED>"
+        },
+        "body": {
+          "voteType": 1
+        }
       },
       "expectedBehavior": "Valid UUID referencing a non-existent Report, UserAlertZone, or UserVerification must return HTTP 404 Not Found.",
       "actualBehavior": "POST /api/v1/reports/<missing-uuid>/vote returned 400 instead of 404 (400 !== 404); DELETE /api/v1/alerts/zones/<missing-uuid> and POST /api/v1/users/verify/<missing-uuid>/approve also return 400.",
@@ -383,7 +549,24 @@
       "regressionTestName": "[BACKEND-007] Missing resource IDs on /reports/:id/vote, /alerts/zones/:id, and /users/verify/:id/approve must return 404 (not 400)",
       "acceptanceCriteria": [
         "All three endpoints return HTTP 404 Not Found when supplied a valid but non-existent UUID."
-      ]
+      ],
+      "postFixVerification": {
+        "verificationStatus": "FIXED AND VERIFIED",
+        "fixCommit": "d624171",
+        "implementedFixSummary": "Attached statusCode = 404 to missing-target errors in voteService.ts and alertZoneService.ts and propagated error.statusCode in userController.ts.",
+        "verifiedFiles": [
+          "apps/api/src/services/voteService.ts",
+          "apps/api/src/services/alertZoneService.ts",
+          "apps/api/src/controllers/userController.ts"
+        ],
+        "testsRerun": [
+          "tests/regression/01-confirmed-defects-regression.test.ts [BACKEND-007]",
+          "tests/api/02-auth-users.test.ts",
+          "tests/api/03-reports-votes-updates.test.ts",
+          "tests/api/05-alerts-media.test.ts"
+        ],
+        "actualResultAfterFix": "Non-existent valid UUIDs return HTTP 404 across POST /reports/:id/vote, DELETE /alerts/zones/:id, and POST /users/verify/:id/approve."
+      }
     },
     {
       "id": "BACKEND-008",
@@ -392,9 +575,13 @@
       "priority": "P3",
       "category": "HTTP & REST Semantics",
       "module": "Auth Controller & Route",
-      "status": "RESOLVED",
-      "endpointIds": ["EP-006"],
-      "affectedRoutes": ["POST /api/v1/auth/device"],
+      "status": "FIXED AND VERIFIED",
+      "endpointIds": [
+        "EP-006"
+      ],
+      "affectedRoutes": [
+        "POST /api/v1/auth/device"
+      ],
       "files": [
         {
           "path": "apps/api/src/controllers/authController.ts",
@@ -410,7 +597,9 @@
       "reproRequest": {
         "method": "POST",
         "path": "/api/v1/auth/device",
-        "body": { "anonymousId": "regress-dev-<existing>" }
+        "body": {
+          "anonymousId": "regress-dev-<existing>"
+        }
       },
       "expectedBehavior": "First device registration returns 201 Created; subsequent sign-ins for an already existing anonymousId return 200 OK.",
       "actualBehavior": "Second sign-in for the same anonymousId returned 201 Created instead of 200 (201 !== 200).",
@@ -421,7 +610,21 @@
       "acceptanceCriteria": [
         "First POST /api/v1/auth/device returns 201.",
         "Second POST /api/v1/auth/device for the same anonymousId returns 200."
-      ]
+      ],
+      "postFixVerification": {
+        "verificationStatus": "FIXED AND VERIFIED",
+        "fixCommit": "ee4ae6e",
+        "implementedFixSummary": "Returned isNewUser from authService device login and returned 201 Created only on new anonymous user creation vs 200 OK on repeat sign-in in authController.ts.",
+        "verifiedFiles": [
+          "apps/api/src/controllers/authController.ts",
+          "apps/api/src/services/authService.ts"
+        ],
+        "testsRerun": [
+          "tests/regression/01-confirmed-defects-regression.test.ts [BACKEND-008]",
+          "tests/api/02-auth-users.test.ts"
+        ],
+        "actualResultAfterFix": "Initial POST /api/v1/auth/device returns 201 Created; repeat sign-in with the same anonymousId returns 200 OK."
+      }
     },
     {
       "id": "BACKEND-009",
@@ -430,8 +633,18 @@
       "priority": "P3",
       "category": "API Contract & Serialization Consistency",
       "module": "Safe Zones, Admin, Media Webhook, Root & Health Routes",
-      "status": "RESOLVED",
-      "endpointIds": ["EP-001", "EP-002", "EP-003", "EP-004", "EP-005", "EP-020", "EP-031", "EP-038", "EP-039"],
+      "status": "FIXED AND VERIFIED",
+      "endpointIds": [
+        "EP-001",
+        "EP-002",
+        "EP-003",
+        "EP-004",
+        "EP-005",
+        "EP-020",
+        "EP-031",
+        "EP-038",
+        "EP-039"
+      ],
       "affectedRoutes": [
         "GET /api/v1/safe-zones",
         "GET /api/v1/admin/logs",
@@ -482,7 +695,31 @@
         "typeof zone.distanceMeters === 'number'.",
         "GET /api/v1/admin/logs?limit=101 returns 400.",
         "POST /api/v1/media/webhook returns { success: true, data: ... }."
-      ]
+      ],
+      "postFixVerification": {
+        "verificationStatus": "FIXED AND VERIFIED",
+        "fixCommit": "8a8d2c3",
+        "implementedFixSummary": "Cast distanceMeters to number in safeZoneService.ts; replaced silent clamping with strict Zod query validation on /admin/logs and /admin/analytics/trends; standardized /, /health, /health/db, /api/v1/health, /api/v1/health/db, and /media/webhook to { success, data } envelopes.",
+        "verifiedFiles": [
+          "apps/api/src/services/safeZoneService.ts",
+          "apps/api/src/services/adminService.ts",
+          "apps/api/src/controllers/adminController.ts",
+          "apps/api/src/routes/admin.ts",
+          "apps/api/src/controllers/mediaController.ts",
+          "apps/api/src/routes/media.ts",
+          "apps/api/src/app.ts",
+          "apps/api/src/routes/health.ts"
+        ],
+        "testsRerun": [
+          "tests/regression/01-confirmed-defects-regression.test.ts [BACKEND-009]",
+          "tests/regression/02-post-fix-edge-cases-regression.test.ts [BACKEND-009 & BACKEND-010]",
+          "tests/api/01-health-system-proxy.test.ts",
+          "tests/api/04-safe-zones-routing.test.ts",
+          "tests/api/05-alerts-media.test.ts",
+          "tests/api/06-admin-stats-cron.test.ts"
+        ],
+        "actualResultAfterFix": "typeof distanceMeters === \"number\"; /admin/logs rejects limit>100, non-numeric limit, page<1, and extra params with 400; /admin/analytics/trends rejects invalid query params with 400; /, /health*, and /media/webhook return { success: true, data }."
+      }
     },
     {
       "id": "BACKEND-010",
@@ -491,8 +728,11 @@
       "priority": "P3",
       "category": "Audit Integrity & Route Maintainability",
       "module": "User Verification & Admin Routes",
-      "status": "RESOLVED",
-      "endpointIds": ["EP-012", "EP-034"],
+      "status": "FIXED AND VERIFIED",
+      "endpointIds": [
+        "EP-012",
+        "EP-034"
+      ],
       "affectedRoutes": [
         "POST /api/v1/admin/verifications/:id/reject",
         "POST /api/v1/users/verify/:id/approve"
@@ -517,8 +757,12 @@
       "reproRequest": {
         "method": "POST",
         "path": "/api/v1/admin/verifications/<VERIFICATION_UUID>/reject",
-        "headers": { "Authorization": "Bearer <ADMIN_REDACTED>" },
-        "body": { "reason": "Audit distinct ModerationLog action check" }
+        "headers": {
+          "Authorization": "Bearer <ADMIN_REDACTED>"
+        },
+        "body": {
+          "reason": "Audit distinct ModerationLog action check"
+        }
       },
       "expectedBehavior": "Rejecting KYC must record a distinct ModerationAction enum value (e.g., REJECT_VERIFICATION) rather than sharing VERIFY_USER with approvals, and verification approval should use one canonical validated route.",
       "actualBehavior": "Rejected KYC inserts ModerationLog row with action === 'VERIFY_USER' identically to approvals, and both /users/verify/:id/approve and /admin/verifications/:id/approve coexist with mismatched shapes.",
@@ -529,7 +773,25 @@
       "acceptanceCriteria": [
         "ModerationLog created by rejectVerification uses a distinct rejection action rather than VERIFY_USER.",
         "Approval endpoint behavior and UUID validation are consistent."
-      ]
+      ],
+      "postFixVerification": {
+        "verificationStatus": "FIXED AND VERIFIED",
+        "fixCommit": "e2611b4",
+        "implementedFixSummary": "Added ModerationAction.REJECT_VERIFICATION in schema.prisma, updated rejectVerification in userService.ts and log filter validation in adminService.ts/admin routes, and enforced verifyIdParamSchema UUID validation on legacy /users/verify/:id/approve.",
+        "verifiedFiles": [
+          "apps/api/prisma/schema.prisma",
+          "apps/api/src/services/userService.ts",
+          "apps/api/src/services/adminService.ts",
+          "apps/api/src/routes/users.ts"
+        ],
+        "testsRerun": [
+          "tests/regression/01-confirmed-defects-regression.test.ts [BACKEND-010]",
+          "tests/regression/02-post-fix-edge-cases-regression.test.ts [BACKEND-009 & BACKEND-010]",
+          "tests/api/02-auth-users.test.ts",
+          "tests/api/06-admin-stats-cron.test.ts"
+        ],
+        "actualResultAfterFix": "Verification rejection logs REJECT_VERIFICATION, GET /admin/logs?action=REJECT_VERIFICATION returns filtered rows cleanly, and invalid UUID on /users/verify/:id/approve returns 400."
+      }
     },
     {
       "id": "BACKEND-011",
@@ -538,8 +800,11 @@
       "priority": "P1",
       "category": "Privacy & Excessive Data Exposure (OWASP API3)",
       "module": "Reports & Votes Services",
-      "status": "RESOLVED",
-      "endpointIds": ["EP-013", "EP-017"],
+      "status": "FIXED AND VERIFIED",
+      "endpointIds": [
+        "EP-013",
+        "EP-017"
+      ],
       "affectedRoutes": [
         "POST /api/v1/reports",
         "POST /api/v1/reports/:id/vote"
@@ -564,8 +829,12 @@
       "reproRequest": {
         "method": "POST",
         "path": "/api/v1/reports/<REPORT_UUID>/vote",
-        "headers": { "Authorization": "Bearer <ANY_VOTER_REDACTED>" },
-        "body": { "voteType": 1 }
+        "headers": {
+          "Authorization": "Bearer <ANY_VOTER_REDACTED>"
+        },
+        "body": {
+          "voteType": 1
+        }
       },
       "expectedBehavior": "Report creation and voting responses must strip userId (matching sanitizeReportOutput in GET /reports and GET /reports/:id) so anonymous reporters cannot be correlated by other authenticated users.",
       "actualBehavior": "Both POST /api/v1/reports and POST /api/v1/reports/:id/vote return raw Prisma Report records containing userId ('userId' in response === true, breaking assertion true !== false). Any authenticated voter can harvest another reporter's account UUID.",
@@ -576,7 +845,21 @@
       "acceptanceCriteria": [
         "'userId' property is absent from POST /api/v1/reports response data.",
         "'userId' property is absent from POST /api/v1/reports/:id/vote response data."
-      ]
+      ],
+      "postFixVerification": {
+        "verificationStatus": "FIXED AND VERIFIED",
+        "fixCommit": "2b82253",
+        "implementedFixSummary": "Passed createReport and castVote responses through sanitizeReportOutput to strip reporter userId PII while preserving ownership/coordinate logic.",
+        "verifiedFiles": [
+          "apps/api/src/services/reportService.ts",
+          "apps/api/src/services/voteService.ts"
+        ],
+        "testsRerun": [
+          "tests/regression/01-confirmed-defects-regression.test.ts [BACKEND-011]",
+          "tests/api/03-reports-votes-updates.test.ts"
+        ],
+        "actualResultAfterFix": "Both POST /api/v1/reports and POST /api/v1/reports/:id/vote exclude reporter userId from response JSON."
+      }
     },
     {
       "id": "BACKEND-012",
@@ -585,9 +868,13 @@
       "priority": "P2",
       "category": "Input Validation / Spatial Query Contract",
       "module": "Reports Query Validation",
-      "status": "RESOLVED",
-      "endpointIds": ["EP-014"],
-      "affectedRoutes": ["GET /api/v1/reports"],
+      "status": "FIXED AND VERIFIED",
+      "endpointIds": [
+        "EP-014"
+      ],
+      "affectedRoutes": [
+        "GET /api/v1/reports"
+      ],
       "files": [
         {
           "path": "apps/api/src/routes/reports.ts",
@@ -607,7 +894,21 @@
       "regressionTestName": "[BACKEND-012] GET /api/v1/reports must reject inverted bounds (minLng >= maxLng or minLat >= maxLat) with 400",
       "acceptanceCriteria": [
         "GET /api/v1/reports with minLng >= maxLng or minLat >= maxLat returns 400 Bad Request."
-      ]
+      ],
+      "postFixVerification": {
+        "verificationStatus": "FIXED AND VERIFIED",
+        "fixCommit": "fbd231a",
+        "implementedFixSummary": "Added strict coordQueryParam numeric format, geographic range validation (-90..90 lat, -180..180 lng), and minLng < maxLng / minLat < maxLat bounds refinement to GET /api/v1/reports.",
+        "verifiedFiles": [
+          "apps/api/src/routes/reports.ts"
+        ],
+        "testsRerun": [
+          "tests/regression/01-confirmed-defects-regression.test.ts [BACKEND-012]",
+          "tests/regression/02-post-fix-edge-cases-regression.test.ts [BACKEND-006 & BACKEND-012]",
+          "tests/api/03-reports-votes-updates.test.ts"
+        ],
+        "actualResultAfterFix": "Inverted bounds (minLng >= maxLng or minLat >= maxLat), trailing garbage (90.3abc), and out-of-range coordinates return 400 Bad Request."
+      }
     },
     {
       "id": "BACKEND-013",
@@ -616,9 +917,13 @@
       "priority": "P1",
       "category": "Broken Function Level Authorization & Availability",
       "module": "Admin Moderation Service",
-      "status": "RESOLVED",
-      "endpointIds": ["EP-035"],
-      "affectedRoutes": ["POST /api/v1/admin/users/:id/ban"],
+      "status": "FIXED AND VERIFIED",
+      "endpointIds": [
+        "EP-035"
+      ],
+      "affectedRoutes": [
+        "POST /api/v1/admin/users/:id/ban"
+      ],
       "files": [
         {
           "path": "apps/api/src/services/adminService.ts",
@@ -629,8 +934,12 @@
       "reproRequest": {
         "method": "POST",
         "path": "/api/v1/admin/users/<PEER_ADMIN_UUID>/ban",
-        "headers": { "Authorization": "Bearer <ADMIN1_REDACTED>" },
-        "body": { "reason": "Regression check: peer admin ban safeguard" }
+        "headers": {
+          "Authorization": "Bearer <ADMIN1_REDACTED>"
+        },
+        "body": {
+          "reason": "Regression check: peer admin ban safeguard"
+        }
       },
       "expectedBehavior": "Banning another ADMIN account or the caller's own account must be rejected with 403 Forbidden to prevent privilege sabotage and accidental admin lockout.",
       "actualBehavior": "Admin 1 successfully banned Admin 2 (HTTP 200 OK instead of 403, revoking Admin 2's refresh tokens) and can ban themselves (200 !== 403).",
@@ -641,7 +950,21 @@
       "acceptanceCriteria": [
         "POST /api/v1/admin/users/:id/ban returns 403 when target is self or another ADMIN.",
         "Non-admin USER/VERIFIED_RESPONDER targets remain bannable (200)."
-      ]
+      ],
+      "postFixVerification": {
+        "verificationStatus": "FIXED AND VERIFIED",
+        "fixCommit": "f5b684e",
+        "implementedFixSummary": "Added 403 Forbidden guards in banUser (adminService.ts) when targetUser.id === adminId or targetUser.role === \"ADMIN\".",
+        "verifiedFiles": [
+          "apps/api/src/services/adminService.ts"
+        ],
+        "testsRerun": [
+          "tests/regression/01-confirmed-defects-regression.test.ts [BACKEND-013]",
+          "tests/authorization/01-rbac-ownership-matrix.test.ts",
+          "tests/api/06-admin-stats-cron.test.ts"
+        ],
+        "actualResultAfterFix": "Self-banning and peer-ADMIN banning both return 403 Forbidden; non-admin user suspension remains 200 OK."
+      }
     },
     {
       "id": "BACKEND-014",
@@ -650,9 +973,13 @@
       "priority": "P2",
       "category": "Spatial Data Integrity (PostGIS)",
       "module": "Alert Zone Service",
-      "status": "RESOLVED",
-      "endpointIds": ["EP-024"],
-      "affectedRoutes": ["POST /api/v1/alerts/zones"],
+      "status": "FIXED AND VERIFIED",
+      "endpointIds": [
+        "EP-024"
+      ],
+      "affectedRoutes": [
+        "POST /api/v1/alerts/zones"
+      ],
       "files": [
         {
           "path": "apps/api/src/services/alertZoneService.ts",
@@ -663,7 +990,9 @@
       "reproRequest": {
         "method": "POST",
         "path": "/api/v1/alerts/zones",
-        "headers": { "Authorization": "Bearer <USER_REDACTED>" },
+        "headers": {
+          "Authorization": "Bearer <USER_REDACTED>"
+        },
         "body": {
           "name": "Regression Bowtie Polygon",
           "coordinates": "BOWTIE_SELF_INTERSECTING_POLYGON (figure-eight 5-vertex closed ring)"
@@ -678,7 +1007,21 @@
       "acceptanceCriteria": [
         "Self-intersecting bowtie polygons fail with 400 Bad Request and are not persisted in UserAlertZone.",
         "Valid convex/concave non-self-intersecting closed polygons within 25 km² continue to succeed with 201."
-      ]
+      ],
+      "postFixVerification": {
+        "verificationStatus": "FIXED AND VERIFIED",
+        "fixCommit": "54569bd",
+        "implementedFixSummary": "Added PostGIS ST_IsValid / ST_IsValidReason topology check in createAlertZone before inserting UserAlertZone.",
+        "verifiedFiles": [
+          "apps/api/src/services/alertZoneService.ts"
+        ],
+        "testsRerun": [
+          "tests/regression/01-confirmed-defects-regression.test.ts [BACKEND-014]",
+          "tests/validation/01-schema-strictness-boundaries.test.ts",
+          "tests/api/05-alerts-media.test.ts"
+        ],
+        "actualResultAfterFix": "Self-intersecting bowtie polygons fail with 400 Bad Request and are rejected before insertion."
+      }
     }
   ]
 }

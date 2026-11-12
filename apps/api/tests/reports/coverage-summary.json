@@ -1,0 +1,99 @@
+{
+  "profile": "report",
+  "generatedAt": "2026-11-12T14:27:44.454Z",
+  "inventoriedEndpoints": {
+    "express": 43,
+    "nextProxy": 3,
+    "websocket": 1,
+    "total": 47
+  },
+  "suiteBreakdown": {
+    "tests\\api\\01-health-system-proxy.test.ts": {
+      "total": 8,
+      "passed": 8,
+      "failed": 0
+    },
+    "tests\\api\\02-auth-users.test.ts": {
+      "total": 5,
+      "passed": 5,
+      "failed": 0
+    },
+    "tests\\api\\03-reports-votes-updates.test.ts": {
+      "total": 4,
+      "passed": 4,
+      "failed": 0
+    },
+    "tests\\api\\04-safe-zones-routing.test.ts": {
+      "total": 2,
+      "passed": 2,
+      "failed": 0
+    },
+    "tests\\api\\05-alerts-media.test.ts": {
+      "total": 4,
+      "passed": 4,
+      "failed": 0
+    },
+    "tests\\api\\06-admin-stats-cron.test.ts": {
+      "total": 3,
+      "passed": 3,
+      "failed": 0
+    },
+    "tests\\api\\07-sockets-realtime.test.ts": {
+      "total": 2,
+      "passed": 2,
+      "failed": 0
+    },
+    "tests\\authentication\\01-auth-lifecycle.test.ts": {
+      "total": 3,
+      "passed": 3,
+      "failed": 0
+    },
+    "tests\\authorization\\01-rbac-ownership-matrix.test.ts": {
+      "total": 3,
+      "passed": 3,
+      "failed": 0
+    },
+    "tests\\validation\\01-schema-strictness-boundaries.test.ts": {
+      "total": 3,
+      "passed": 3,
+      "failed": 0
+    },
+    "tests\\security\\01-owasp-security-checks.test.ts": {
+      "total": 4,
+      "passed": 4,
+      "failed": 0
+    },
+    "tests\\database\\01-integrity-transactions-concurrency.test.ts": {
+      "total": 3,
+      "passed": 3,
+      "failed": 0
+    },
+    "tests\\workflows\\01-e2e-state-transitions.test.ts": {
+      "total": 2,
+      "passed": 2,
+      "failed": 0
+    },
+    "tests\\performance\\01-fuzzing-and-load-baseline.test.ts": {
+      "total": 2,
+      "passed": 2,
+      "failed": 0
+    },
+    "tests\\regression\\01-confirmed-defects-regression.test.ts": {
+      "total": 14,
+      "passed": 14,
+      "failed": 0
+    },
+    "tests\\regression\\02-post-fix-edge-cases-regression.test.ts": {
+      "total": 6,
+      "passed": 6,
+      "failed": 0
+    }
+  },
+  "summary": {
+    "total": 68,
+    "passed": 68,
+    "failed": 0,
+    "skipped": 0
+  },
+  "perfMetricsAvailable": true
+}

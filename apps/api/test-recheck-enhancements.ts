@@ -72,7 +72,7 @@ async function runRecheckVerification() {
       body: JSON.stringify({ anonymousId: bannedUser.anonymousId })
     });
     const preBanToken = extractCookie(preBanAuth.cookies, 'accessToken');
-    if (preBanAuth.status !== 200 || !preBanToken) {
+    if ((preBanAuth.status !== 200 && preBanAuth.status !== 201) || !preBanToken) {
       throw new Error(`Expected initial /auth/device token before ban, got status=${preBanAuth.status}`);
     }
     const bannedCookie = `accessToken=${preBanToken}`;
@@ -331,11 +331,14 @@ async function runRecheckVerification() {
     console.log('\n🎉 ALL RECHECK VERIFICATION TESTS PASSED SUCCESSFULLY!');
     process.exit(0);
   } finally {
+    await prisma.$disconnect();
     server.close();
   }
 }
 
-runRecheckVerification().catch((err) => {
-  console.error('\n❌ Recheck Verification failed:', err);
-  process.exit(1);
-});
+runRecheckVerification()
+  .then(() => process.exit(0))
+  .catch((err) => {
+    console.error('\n❌ Recheck Verification failed:', err);
+    process.exit(1);
+  });

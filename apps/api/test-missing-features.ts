@@ -251,8 +251,8 @@ async function runMissingFeaturesVerification() {
     }
     console.log('  ✅ Rapid submission blocked by User.lastReportAt check (HTTP 429 Rate Limit Exceeded)');
 
-    // 7. Test Location Fuzzing (Deterministic Cryptographic Jitter)
-    console.log('\n🧪 [Test 7] Testing Location Fuzzing (Deterministic Cryptographic Jitter)...');
+    // 7. Test Location Coordinates (Exact Pin Preservation + Privacy Radius Ring)
+    console.log('\n🧪 [Test 7] Testing Exact Pin Coordinates & Privacy Perimeter Ring...');
     const singleReportLookup = await request(`/api/v1/reports/${reportId}`);
     if (singleReportLookup.status !== 200) {
       throw new Error(`Report lookup failed: ${JSON.stringify(singleReportLookup.data)}`);
@@ -263,18 +263,26 @@ async function runMissingFeaturesVerification() {
       fuzzedReport.latitude, fuzzedReport.longitude
     );
 
-    console.log(`  ✅ Location Fuzzing Verification:`);
+    console.log(`  ✅ Location Coordinate Verification:`);
     console.log(`     Actual GPS: (${reportLat}, ${reportLng})`);
-    console.log(`     Public Fuzzed GPS: (${fuzzedReport.latitude}, ${fuzzedReport.longitude})`);
-    console.log(`     Offset Distance: ${distanceDiff.toFixed(1)} meters (Target: 40-80m)`);
-    console.log(`     Fuzzed Danger Perimeter Radius: ${fuzzedReport.fuzzedRadiusMeters} meters`);
+    console.log(`     Public Pin GPS: (${fuzzedReport.latitude}, ${fuzzedReport.longitude})`);
+    console.log(`     Offset Distance: ${distanceDiff.toFixed(1)} meters (Expected <= 1m exact pin)`);
+    console.log(`     Privacy Perimeter Radius: ${fuzzedReport.fuzzedRadiusMeters} meters`);
 
-    if (distanceDiff < 30 || distanceDiff > 95) {
-      throw new Error(`Fuzzing offset of ${distanceDiff}m is outside expected 40-80m privacy range!`);
+    if (
+      distanceDiff > 1 ||
+      Math.abs(fuzzedReport.latitude - Number(reportLat.toFixed(6))) > 1e-6 ||
+      Math.abs(fuzzedReport.longitude - Number(reportLng.toFixed(6))) > 1e-6
+    ) {
+      throw new Error(`Coordinate mismatch: offset=${distanceDiff}m (${fuzzedReport.latitude}, ${fuzzedReport.longitude})`);
+    }
+    if (fuzzedReport.fuzzedRadiusMeters !== 150) {
+      throw new Error(`Expected fuzzedRadiusMeters === 150, got ${fuzzedReport.fuzzedRadiusMeters}`);
     }
 
     console.log('\n🎉 ALL 7 MISSING FEATURE VERIFICATION TESTS PASSED SUCCESSFULLY!');
   } finally {
+    await prisma.$disconnect();
     server.close();
   }
 }

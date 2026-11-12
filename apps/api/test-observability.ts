@@ -323,11 +323,14 @@ async function runTests() {
       console.warn('⚠️ Cleanup warning:', cleanErr);
     }
 
+    await prisma.$disconnect();
     server.close();
   }
 }
 
-runTests().catch((err) => {
-  console.error('\n❌ Test execution failed:', err);
-  process.exit(1);
-});
+runTests()
+  .then(() => process.exit(0))
+  .catch((err) => {
+    console.error('\n❌ Test execution failed:', err);
+    process.exit(1);
+  });

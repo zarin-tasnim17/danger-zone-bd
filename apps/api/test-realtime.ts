@@ -37,6 +37,8 @@ async function runTests() {
   let crossOriginSocket: ClientSocket | null = null;
   let authSocket: ClientSocket | null = null;
   let bannedTestUserId: string | null = null;
+  const testUserIds: string[] = [];
+  const testReportIds: string[] = [];
 
   try {
     // -------------------------------------------------------------
@@ -124,6 +126,7 @@ async function runTests() {
     if (!socketToken || !authedUserId) {
       throw new Error(`Device login did not return socketToken or user.id: ${JSON.stringify(authRes.data)}`);
     }
+    testUserIds.push(authedUserId);
 
     // Ensure scoped socketToken is rejected on HTTP REST endpoints
     const restWithSocketToken = await request('/api/v1/users/me', {
@@ -223,6 +226,7 @@ async function runTests() {
     }
 
     const createdReportId = createReportRes.data.data.id;
+    testReportIds.push(createdReportId);
     console.log(`Report created in database (ID: ${createdReportId}). Waiting for WebSocket event...`);
 
     const [receivedReport, guestReport, crossOriginReport] = await Promise.all([
@@ -302,6 +306,9 @@ async function runTests() {
       if (voterAuth.status !== 200 && voterAuth.status !== 201) {
         throw new Error(`Voter auth failed: ${JSON.stringify(voterAuth.data)}`);
       }
+      if (voterAuth.data?.data?.user?.id) {
+        testUserIds.push(voterAuth.data.data.user.id);
+      }
       const voterToken = extractCookie(voterAuth.cookies, 'accessToken');
 
       const voteRes = await request(`/api/v1/reports/${createdReportId}/vote`, {
@@ -361,11 +368,25 @@ async function runTests() {
       });
     });
 
+    // Authenticate a distinct reporter so Test 5 avoids Test 3's 15-min submission cooldown
+    const secondReporterAuth = await request('/api/v1/auth/device', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ anonymousId: `test-second-reporter-${Date.now()}` })
+    });
+    if (secondReporterAuth.status !== 200 && secondReporterAuth.status !== 201) {
+      throw new Error(`Second reporter auth failed: ${JSON.stringify(secondReporterAuth.data)}`);
+    }
+    const secondReporterToken = extractCookie(secondReporterAuth.cookies, 'accessToken');
+    if (secondReporterAuth.data?.data?.user?.id) {
+      testUserIds.push(secondReporterAuth.data.data.user.id);
+    }
+
     const activeReportRes = await request('/api/v1/reports', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Cookie': `accessToken=${accessToken}`,
+        'Cookie': `accessToken=${secondReporterToken}`,
         'x-device-lat': targetLat.toString(),
         'x-device-lng': targetLng.toString()
       },
@@ -381,6 +402,7 @@ async function runTests() {
       throw new Error(`Second test report creation failed: ${JSON.stringify(activeReportRes.data)}`);
     }
     const secondReportId = activeReportRes.data.data.id;
+    testReportIds.push(secondReportId);
 
     const updateEventPromise = new Promise<any>((resolve) => {
       authSocket!.on(SOCKET_EVENTS.NEW_REPORT_UPDATE, (payload) => {
@@ -416,7 +438,7 @@ async function runTests() {
 
     const resolveRes = await request(`/api/v1/reports/${secondReportId}/resolve`, {
       method: 'PATCH',
-      headers: { 'Cookie': `accessToken=${accessToken}` }
+      headers: { 'Cookie': `accessToken=${secondReporterToken}` }
     });
     if (resolveRes.status !== 200) {
       throw new Error(`Resolving report failed: ${JSON.stringify(resolveRes.data)}`);
@@ -465,15 +487,23 @@ async function runTests() {
     guestSocket?.disconnect();
     crossOriginSocket?.disconnect();
     authSocket?.disconnect();
+    if (testReportIds.length > 0) {
+      await prisma.report.deleteMany({ where: { id: { in: testReportIds } } }).catch(() => {});
+    }
     if (bannedTestUserId) {
-      await prisma.user.deleteMany({ where: { id: bannedTestUserId } }).catch(() => {});
+      testUserIds.push(bannedTestUserId);
+    }
+    if (testUserIds.length > 0) {
+      await prisma.user.deleteMany({ where: { id: { in: testUserIds } } }).catch(() => {});
     }
     await prisma.$disconnect();
     server.close();
   }
 }
 
-runTests().catch((err) => {
-  console.error('\n❌ Test failed:', err);
-  process.exit(1);
-});
+runTests()
+  .then(() => process.exit(0))
+  .catch((err) => {
+    console.error('\n❌ Test failed:', err);
+    process.exit(1);
+  });
