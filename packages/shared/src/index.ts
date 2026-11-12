@@ -31,6 +31,21 @@ export type ReportSeverity = (typeof REPORT_SEVERITIES)[number];
 export const REPORT_STATUSES = ["ACTIVE", "RESOLVED", "PURGED"] as const;
 export type ReportStatus = (typeof REPORT_STATUSES)[number];
 
+export const SAFE_ZONE_TYPES = ["HOSPITAL", "POLICE_BOX", "PHARMACY"] as const;
+export type SafeZoneType = (typeof SAFE_ZONE_TYPES)[number];
+export type SafeZoneItemType = SafeZoneType | "POLICE_STATION";
+
+export interface SafeZoneItem {
+  id: string;
+  name: string;
+  nameBn?: string;
+  type: SafeZoneItemType;
+  latitude: number;
+  longitude: number;
+  createdAt?: string;
+  distanceMeters?: number | string;
+}
+
 // Backward-compatible unified types for web and api
 export type IncidentSeverity =
   | ReportSeverity

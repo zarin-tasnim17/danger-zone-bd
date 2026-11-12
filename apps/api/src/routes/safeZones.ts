@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
+import { SAFE_ZONE_TYPES } from '@repo/shared';
 import {
   getSafeZonesHandler,
   createSafeZoneHandler,
@@ -20,14 +21,14 @@ const safeZoneQuerySchema = z.object({
     lat: z.string().optional(),
     lng: z.string().optional(),
     radius: z.string().optional(),
-    type: z.enum(['HOSPITAL', 'POLICE_BOX', 'PHARMACY']).optional(),
+    type: z.enum(SAFE_ZONE_TYPES).optional(),
   }).passthrough(),
 });
 
 const createSafeZoneSchema = z.object({
   body: z.object({
     name: z.string().min(2).max(150),
-    type: z.enum(['HOSPITAL', 'POLICE_BOX', 'PHARMACY']),
+    type: z.enum(SAFE_ZONE_TYPES),
     latitude: z.number().min(-90).max(90),
     longitude: z.number().min(-180).max(180),
   }).strict(),
