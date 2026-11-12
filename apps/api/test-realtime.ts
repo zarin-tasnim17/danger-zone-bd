@@ -346,6 +346,21 @@ async function runTests() {
       throw new Error('getSocketReportId helper failed contract assertion');
     }
 
+    const statsUpdatedPromise = new Promise<any>((resolve) => {
+      const statsEvents: any[] = [];
+      authSocket!.on(SOCKET_EVENTS.STATS_UPDATED, (statsPayload) => {
+        statsEvents.push(statsPayload);
+        if (
+          typeof statsPayload?.activeReports === 'number' &&
+          typeof statsPayload?.resolvedReports === 'number' &&
+          typeof statsPayload?.totalVotes === 'number' &&
+          statsEvents.length >= 2
+        ) {
+          resolve(statsPayload);
+        }
+      });
+    });
+
     const activeReportRes = await request('/api/v1/reports', {
       method: 'POST',
       headers: {
@@ -415,6 +430,14 @@ async function runTests() {
       throw new Error(`Unexpected REPORT_RESOLVED payload: ${JSON.stringify(resolvedPayload)}`);
     }
 
+    const latestStats = await Promise.race([
+      statsUpdatedPromise,
+      new Promise((_, reject) => setTimeout(() => reject(new Error('Timed out waiting for STATS_UPDATED!')), 3000))
+    ]) as any;
+    if (latestStats.resolvedReports < 1) {
+      throw new Error(`Expected resolvedReports >= 1 in STATS_UPDATED, got: ${JSON.stringify(latestStats)}`);
+    }
+
     const verifiedEventPromise = new Promise<any>((resolve) => {
       authSocket!.on(SOCKET_EVENTS.REPORT_VERIFIED, (payload) => {
         if (getSocketReportId(payload) === secondReportId) resolve(payload);
@@ -432,7 +455,7 @@ async function runTests() {
     if (verifiedPayload.reportId !== secondReportId || verifiedPayload.verifiedBy !== 'The Daily Star') {
       throw new Error(`Unexpected REPORT_VERIFIED payload: ${JSON.stringify(verifiedPayload)}`);
     }
-    console.log('✅ Passed: NEW_REPORT_UPDATE, REPORT_RESOLVED & REPORT_VERIFIED emit canonical { reportId } contracts');
+    console.log('✅ Passed: NEW_REPORT_UPDATE, REPORT_RESOLVED, REPORT_VERIFIED & STATS_UPDATED emit canonical contracts');
 
     // -------------------------------------------------------------
     // Cleanup
