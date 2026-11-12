@@ -66,7 +66,7 @@ interface ReportUpdate {
 
 interface ReportDetails {
   id: string;
-  userId?: string;
+  isOwner?: boolean;
   category: ReportCategory;
   severity: "LOW" | "MEDIUM" | "HIGH";
   isNightReport?: boolean;
@@ -214,10 +214,26 @@ export default function ReportDetailsPage() {
     }
   }, [reportId, loadData, language, showToast]);
 
+  // Re-sync ownership flag once auth completes if the initial lookup ran before cookies were ready
+  useEffect(() => {
+    if (!reportId || !user?.id) return;
+    let cancelled = false;
+    apiFetch<ReportDetails>(`/reports/${reportId}`)
+      .then((fresh) => {
+        if (!cancelled && fresh) {
+          setReport((prev) => (prev ? { ...prev, isOwner: fresh.isOwner } : fresh));
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [reportId, user?.id]);
+
   const handleVote = async (voteType: 1 | -1) => {
     if (!report) return;
 
-    if (user && report.userId && user.id === report.userId) {
+    if (report.isOwner) {
       showToast(
         language === "en" ? "You cannot vote on your own incident report." : "নিজের রিপোর্টে ভোট দেওয়া যাবে না।",
         "error"
@@ -307,7 +323,15 @@ export default function ReportDetailsPage() {
       const updated = await apiFetch<ReportDetails>(`/reports/${reportId}/resolve`, {
         method: "PATCH",
       });
-      setReport(updated);
+      setReport((prev) =>
+        prev
+          ? {
+              ...prev,
+              status: updated.status,
+              isOwner: updated.isOwner ?? prev.isOwner,
+            }
+          : updated
+      );
       setIsResolveModalOpen(false);
       showToast(
         language === "en" ? "Incident marked as RESOLVED & CLEARED." : "ঘটনাটি সমাধান ও নিরাপদ হিসেবে চিহ্নিত হয়েছে।",
@@ -485,7 +509,7 @@ export default function ReportDetailsPage() {
     }
   }, [report?.category]);
 
-  const isAuthor = Boolean(user && report?.userId && user.id === report.userId);
+  const isAuthor = Boolean(report?.isOwner);
   const isAdmin = user?.role === "ADMIN";
   const isVerifiedResponder = user?.role === "VERIFIED_RESPONDER";
   const canResolve = Boolean((isAuthor || isAdmin || isVerifiedResponder) && report?.status === "ACTIVE");
