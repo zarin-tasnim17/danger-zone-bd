@@ -72,7 +72,20 @@ export const createAlertZone = async (
   };
   const geoJsonStr = JSON.stringify(geoJson);
 
-  // 3. PostGIS Geodesic Area Calculation & Anti-Abuse Cap (25 km²)
+  // 3. PostGIS Topological Validity Check (ST_IsValid)
+  const validityResult: any[] = await prisma.$queryRaw`
+    SELECT ST_IsValid(ST_SetSRID(ST_GeomFromGeoJSON(${geoJsonStr}), 4326)) as "isValid",
+           ST_IsValidReason(ST_SetSRID(ST_GeomFromGeoJSON(${geoJsonStr}), 4326)) as "reason"
+  `;
+  if (!validityResult[0]?.isValid) {
+    const error: any = new Error(
+      `Invalid polygon topology: ${validityResult[0]?.reason || 'Polygon is self-intersecting or non-simple'}`
+    );
+    error.statusCode = 400;
+    throw error;
+  }
+
+  // 4. PostGIS Geodesic Area Calculation & Anti-Abuse Cap (25 km²)
   const areaResult: any[] = await prisma.$queryRaw`
     SELECT ST_Area(ST_SetSRID(ST_GeomFromGeoJSON(${geoJsonStr}), 4326)::geography) as "sqMeters"
   `;
