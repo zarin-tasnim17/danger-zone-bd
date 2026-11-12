@@ -157,45 +157,91 @@ describe('[Regression][Unfixed Frontend Defects] Deterministic Reproduction Suit
       'utf8'
     );
     assert.equal(
-      src.includes('!title.trim()') || src.includes('title.trim().length'),
+      src.includes('!title.trim()') && src.includes('!description.trim()'),
       true,
-      'ReportIncidentModal must reject whitespace-only titles/descriptions before posting ": "'
+      'ReportIncidentModal must reject whitespace-only titles and descriptions before posting ": "'
+    );
+    assert.equal(
+      src.includes('fullDescription.length > 1000'),
+      true,
+      'ReportIncidentModal must enforce <= 1000 composed character limit matching createReportSchema'
     );
   });
 
-  it('[FRONTEND-008] safe-zones/page.tsx MUST validate finite lat/lng and >=2 char name without selectedZone useEffect refetch loop', () => {
+  it('[FRONTEND-008] safe-zones/page.tsx MUST validate finite lat/lng, Bangladesh bounds, >=2 char name without selectedZone useEffect refetch loop', () => {
     const src = fs.readFileSync(
       path.join(WEB_TEST_CONFIG.webRoot, 'app/safe-zones/page.tsx'),
       'utf8'
     );
+    assert.equal(src.includes('trimmedName.length < 2'), true, 'Must enforce >= 2 char safe zone name');
     assert.equal(
-      src.includes('Number.isFinite(') || src.includes('isNaN('),
+      src.includes('!Number.isFinite(lat) || !Number.isFinite(lng)'),
       true,
-      'safe-zones/page.tsx must validate parsed coordinates before POST /api/v1/safe-zones'
+      'safe-zones/page.tsx must reject NaN/Infinity coordinates before POST /api/v1/safe-zones'
+    );
+    assert.equal(
+      src.includes('lat < 20.0 || lat > 27.5 || lng < 88.0 || lng > 93.5'),
+      true,
+      'safe-zones/page.tsx must validate Bangladesh coordinate bounds (20.0..27.5, 88.0..93.5)'
+    );
+    const fetchIdx = src.indexOf('const fetchSafeZones = useCallback');
+    const effectIdx = src.indexOf('useEffect(() =>', fetchIdx);
+    const fetchBlock = fetchIdx !== -1 && effectIdx !== -1 ? src.slice(fetchIdx, effectIdx) : '';
+    assert.equal(fetchBlock.includes('setSelectedZone((prev) => prev ?? data[0])'), true);
+    assert.equal(
+      /\},\s*\[[^\]]*selectedZone[^\]]*\]\s*\)/.test(fetchBlock),
+      false,
+      'selectedZone must not appear in fetchSafeZones useCallback dependency array (avoids 3x mount refetch loop)'
     );
   });
 
-  it('[FRONTEND-009] admin/page.tsx MUST surface API errors to the admin UI and enforce >=3-char moderation reasons', () => {
+  it('[FRONTEND-009] admin/page.tsx MUST surface API errors, validate >=3-char moderation reasons, and validate target UUID', () => {
     const src = fs.readFileSync(path.join(WEB_TEST_CONFIG.webRoot, 'app/admin/page.tsx'), 'utf8');
     assert.equal(src.includes('.trim().length < 3'), true);
+    assert.equal(src.includes('UUID_PATTERN.test(trimmedUserId)'), true, 'Must validate user UUID before ban/unban');
     assert.equal(src.includes('fetchAdminData'), true);
     const fetchAdminIdx = src.indexOf('const fetchAdminData');
     const useEffectAfterFetchIdx = src.indexOf('useEffect', fetchAdminIdx);
+    const fetchAdminSlice = src.slice(fetchAdminIdx, useEffectAfterFetchIdx);
     assert.equal(
-      /catch\s*\([^)]*\)\s*\{[\s\S]*?showToast/.test(
-        src.slice(fetchAdminIdx, useEffectAfterFetchIdx)
-      ),
+      /catch\s*\([^)]*\)\s*\{[\s\S]*?setDataError[\s\S]*?showToast/.test(fetchAdminSlice),
       true,
-      'fetchAdminData must surface API errors in UI instead of only logging console.warn'
+      'fetchAdminData must surface API errors in both inline error banner and toast'
     );
   });
 
-  it('[FRONTEND-010] apiFetch MUST enforce a default AbortController timeout to prevent hung upstream requests', () => {
-    const src = fs.readFileSync(path.join(WEB_TEST_CONFIG.webRoot, 'lib/api.ts'), 'utf8');
+  it('[FRONTEND-010] apiFetch MUST enforce a default AbortController timeout and /report MUST cap quick prompts & preserve manual coordinate inputs', async () => {
+    const apiSrc = fs.readFileSync(path.join(WEB_TEST_CONFIG.webRoot, 'lib/api.ts'), 'utf8');
+    assert.equal(apiSrc.includes('DEFAULT_API_TIMEOUT_MS'), true);
+    assert.equal(apiSrc.includes('AbortController'), true);
+
+    fetchMock.on('/api/v1/hung-upstream', ({ signal }) => {
+      return new Promise<Response>((_resolve, reject) => {
+        signal?.addEventListener('abort', () => {
+          reject(new DOMException('The operation was aborted', 'AbortError'));
+        });
+      });
+    });
+
+    await assert.rejects(
+      () => apiFetch('/hung-upstream', { timeoutMs: 25 }),
+      (err: unknown) =>
+        err instanceof ApiError &&
+        err.statusCode === 0 &&
+        err.data?.isNetworkError === true &&
+        err.data?.isTimeout === true
+    );
+
+    const reportSrc = fs.readFileSync(path.join(WEB_TEST_CONFIG.webRoot, 'app/report/page.tsx'), 'utf8');
     assert.equal(
-      src.includes('AbortController') || src.includes('AbortSignal.timeout'),
+      reportSrc.includes('next.slice(0, 500)'),
       true,
-      'lib/api.ts must enforce a request timeout guard via AbortController or AbortSignal.timeout'
+      '/report quick contextual prompts must clamp description at 500 characters'
+    );
+    assert.equal(
+      reportSrc.includes('setLatInput(raw)') && reportSrc.includes('setLngInput(raw)'),
+      true,
+      '/report coordinate inputs must retain string draft without snapping empty input back to Dhaka Banani default'
     );
   });
 
