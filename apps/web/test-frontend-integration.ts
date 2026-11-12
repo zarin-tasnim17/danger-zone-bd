@@ -242,6 +242,33 @@ async function runFrontendIntegrationSuite() {
       throw new Error(`Vote failed: ${JSON.stringify(voteRes)}`);
     }
 
+    // 5b. Self-vote rejection (403) + duplicate vote rejection (400) leave report tallies unchanged
+    const selfVoteRes = await request(`/api/v1/reports/${testReportId}/vote`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Cookie: `accessToken=${citizenCookie}`,
+      },
+      body: JSON.stringify({ voteType: 1 }),
+    });
+    assert.strictEqual(selfVoteRes.status, 403, `Expected 403 on self-vote, got ${selfVoteRes.status}`);
+
+    const duplicateVoteRes = await request(`/api/v1/reports/${testReportId}/vote`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Cookie: `accessToken=${voterCookie}`,
+      },
+      body: JSON.stringify({ voteType: 1 }),
+    });
+    assert.strictEqual(duplicateVoteRes.status, 400, `Expected 400 on duplicate vote, got ${duplicateVoteRes.status}`);
+
+    const postRejectLookup = await request(`/api/v1/reports/${testReportId}`);
+    assert.strictEqual(postRejectLookup.status, 200);
+    assert.strictEqual(postRejectLookup.data?.data?.upvotes, 1);
+    assert.strictEqual(postRejectLookup.data?.data?.downvotes, 0);
+    console.log('  ✅ Rejected self-vote (403) and duplicate vote (400) kept vote counts unchanged (1/0)');
+
     // -------------------------------------------------------------
     // Test 6: Threaded Context Update (addContextUpdate)
     // -------------------------------------------------------------
