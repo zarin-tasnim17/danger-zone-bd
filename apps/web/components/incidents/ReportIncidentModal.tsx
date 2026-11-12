@@ -23,22 +23,15 @@ import {
 import { ReportCategory, ReportSeverity } from "@repo/shared";
 import { useMapStore } from "@/store/useMapStore";
 import { apiFetch } from "@/lib/api";
+import {
+  HardwareGpsFix,
+  evaluateHardwareGpsProximity,
+  buildHardwareGpsHeaders,
+} from "@/lib/gpsVerification";
 
 interface ReportModalProps {
   isOpen: boolean;
   onClose: () => void;
-}
-
-function calculateDistanceMeters(lat1: number, lon1: number, lat2: number, lon2: number) {
-  const R = 6371e3; // Earth radius in meters
-  const toRad = (v: number) => (v * Math.PI) / 180;
-  const dLat = toRad(lat2 - lat1);
-  const dLon = toRad(lon2 - lon1);
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return Math.round(R * c);
 }
 
 // Option A: Primary incident tags for reporting
@@ -152,46 +145,43 @@ export default function ReportIncidentModal({ isOpen, onClose }: ReportModalProp
 
   const mapCenter = useMapStore((state) => state.center);
   const setMapCenter = useMapStore((state) => state.setCenter);
-  const [deviceGps, setDeviceGps] = useState<{ lat: number; lng: number } | null>(null);
+  const [hardwareGps, setHardwareGps] = useState<HardwareGpsFix | null>(null);
 
-  // Attempt to fetch current device GPS on modal open and align map pin to citizen's live location
+  // Request live browser geolocation on modal open without fabricating fallback coordinates
   useEffect(() => {
-    if (isOpen && typeof window !== "undefined" && "geolocation" in navigator) {
+    if (!isOpen) return;
+
+    if (typeof window !== "undefined" && "geolocation" in navigator) {
       navigator.geolocation.getCurrentPosition(
         (pos) => {
           const coords = {
             lat: pos.coords.latitude,
             lng: pos.coords.longitude,
           };
-          setDeviceGps(coords);
+          const accuracy = Number.isFinite(pos.coords.accuracy) ? pos.coords.accuracy : Infinity;
+          setHardwareGps({ ...coords, accuracy });
           setMapCenter(coords);
         },
         (err) => {
           console.warn("[GPS Proximity Radar] Geolocation unavailable:", err.message);
+          setHardwareGps(null);
         },
         { enableHighAccuracy: true, timeout: 6000, maximumAge: 30000 }
       );
+    } else {
+      setHardwareGps(null);
     }
   }, [isOpen, setMapCenter]);
 
-  // Live distance calculation between user's real GPS and map incident pin
-  const proximityDistance = useMemo(() => {
-    if (!deviceGps) return null;
-    return calculateDistanceMeters(
-      deviceGps.lat,
-      deviceGps.lng,
-      mapCenter.lat,
-      mapCenter.lng
-    );
-  }, [deviceGps, mapCenter]);
+  const gpsEvaluation = useMemo(
+    () => evaluateHardwareGpsProximity(hardwareGps, mapCenter.lat, mapCenter.lng),
+    [hardwareGps, mapCenter]
+  );
 
-  // Proximity validity check (< 200 meters)
-  const isWithinProximity = proximityDistance === null || proximityDistance <= 200;
-
-  // Auto-align map center with real GPS
+  // Auto-align map center with eligible hardware GPS
   const handleSyncToGps = () => {
-    if (deviceGps) {
-      setMapCenter(deviceGps);
+    if (hardwareGps && gpsEvaluation.isEligibleHardwareGps) {
+      setMapCenter({ lat: hardwareGps.lat, lng: hardwareGps.lng });
     }
   };
 
@@ -268,29 +258,15 @@ export default function ReportIncidentModal({ isOpen, onClose }: ReportModalProp
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
-
-    // Enforce 200m proximity rule if device GPS was successfully captured
-    if (proximityDistance !== null && proximityDistance > 200) {
-      setErrorMessage(
-        language === "en"
-          ? `Anti-Spam Geofence Violation: You are ${proximityDistance}m away from the pinned location. Reports must be within 200m of your live GPS.`
-          : `ভুয়া রিপোর্ট প্রতিরোধ: আপনি নির্বাচিত স্থান থেকে ${proximityDistance} মিটার দূরে আছেন। রিপোর্ট প্রকাশের জন্য আপনার বর্তমান জিপিএস ২০০ মিটারের মধ্যে হতে হবে।`
-      );
-      return;
-    }
-
     setIsSubmitting(true);
 
     try {
-      const actualGps = deviceGps || { lat: mapCenter.lat, lng: mapCenter.lng };
+      const gpsHeaders = buildHardwareGpsHeaders(hardwareGps, gpsEvaluation);
       const fullDescription = `${title.trim()}${locationName.trim() ? ` [${locationName.trim()}]` : ""}: ${description.trim()}`;
 
       await apiFetch("/reports", {
         method: "POST",
-        headers: {
-          "x-device-lat": actualGps.lat.toString(),
-          "x-device-lng": actualGps.lng.toString(),
-        },
+        headers: gpsHeaders,
         body: JSON.stringify({
           category: resolvedCategory,
           severity,
@@ -488,7 +464,7 @@ export default function ReportIncidentModal({ isOpen, onClose }: ReportModalProp
             {/* Proximity GPS Radar Status Bar */}
             <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between text-xs">
               <div className="flex items-center gap-2">
-                <Navigation className={`w-4 h-4 ${isWithinProximity ? "text-emerald-600" : "text-amber-600"}`} />
+                <Navigation className={`w-4 h-4 ${gpsEvaluation.isVerified ? "text-emerald-600" : "text-amber-600"}`} />
                 <div>
                   <span className="font-semibold text-slate-800">
                     {language === "en" ? "Incident Pin Location" : "রিপোর্টের ম্যাপ পিন"}:
@@ -496,17 +472,23 @@ export default function ReportIncidentModal({ isOpen, onClose }: ReportModalProp
                   <span className="font-mono text-slate-600">
                     {mapCenter.lat.toFixed(4)}, {mapCenter.lng.toFixed(4)}
                   </span>
-                  {proximityDistance !== null && (
-                    <span className={`block text-[11px] ${isWithinProximity ? "text-emerald-700" : "text-amber-700 font-semibold"}`}>
-                      {language === "en"
-                        ? `(GPS Offset: ${proximityDistance}m ${isWithinProximity ? "✓ Verified" : "⚠️ Too Far"})`
-                        : `(জিপিএস দূরত্ব: ${proximityDistance}মি. ${isWithinProximity ? "✓ সঠিক" : "⚠️ ২০০ মিটারের বেশি"})`}
-                    </span>
-                  )}
+                  <span className={`block text-[11px] ${gpsEvaluation.isVerified ? "text-emerald-700" : "text-amber-700 font-semibold"}`}>
+                    {gpsEvaluation.isVerified
+                      ? language === "en"
+                        ? `Hardware GPS Verified (${gpsEvaluation.distanceMeters}m ≤ 200m)`
+                        : `হার্ডওয়্যার জিপিএস যাচাইকৃত (${gpsEvaluation.distanceMeters}মি ≤ ২০০মি)`
+                      : gpsEvaluation.status === "OUT_OF_RANGE"
+                        ? language === "en"
+                          ? `Manual Pin / Unverified GPS (${gpsEvaluation.distanceMeters}m away > 200m)`
+                          : `ম্যানুয়াল পিন / অযাচাইকৃত জিপিএস (${gpsEvaluation.distanceMeters}মি দূরে)`
+                        : language === "en"
+                          ? "Manual Pin / Unverified GPS"
+                          : "ম্যানুয়াল পিন / অযাচাইকৃত জিপিএস"}
+                  </span>
                 </div>
               </div>
 
-              {deviceGps && (
+              {gpsEvaluation.isEligibleHardwareGps && (
                 <button
                   type="button"
                   onClick={handleSyncToGps}

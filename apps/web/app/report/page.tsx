@@ -57,19 +57,6 @@ const ReportPinMap = dynamic(() => import("@/components/report/ReportPinMap"), {
   ),
 });
 
-// Haversine distance calculator in meters
-function calculateDistanceMeters(lat1: number, lon1: number, lat2: number, lon2: number) {
-  const R = 6371e3;
-  const toRad = (v: number) => (v * Math.PI) / 180;
-  const dLat = toRad(lat2 - lat1);
-  const dLon = toRad(lon2 - lon1);
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return Math.round(R * c);
-}
-
 // Check if Bangladesh time (UTC+6) is currently night (8 PM to 5 AM)
 function isCurrentNightBangladesh(): boolean {
   const now = new Date();
@@ -77,7 +64,12 @@ function isCurrentNightBangladesh(): boolean {
   return bdHour >= 20 || bdHour < 5;
 }
 
-import { ReportCategory } from "@repo/shared";
+import { MAX_GPS_PROXIMITY_METERS, ReportCategory } from "@repo/shared";
+import {
+  HardwareGpsFix,
+  evaluateHardwareGpsProximity,
+  buildHardwareGpsHeaders,
+} from "@/lib/gpsVerification";
 type IncidentCategory = ReportCategory;
 type IncidentSeverity = "LOW" | "MEDIUM" | "HIGH";
 
@@ -326,11 +318,8 @@ export default function ReportPage() {
   const [longitude, setLongitude] = useState<number>(90.4078);
   const [description, setDescription] = useState<string>("");
 
-  // Live Device GPS
-  const [deviceGps, setDeviceGps] = useState<{ lat: number; lng: number } | null>(null);
-  const [gpsAccuracy, setGpsAccuracy] = useState<number | null>(null);
-  const [isAcquiringGps, setIsAcquiringGps] = useState<boolean>(false);
-  const [gpsNotice, setGpsNotice] = useState<string | null>(null);
+  // Unmodified live hardware GPS (never populated from calibrated store or manual pin actions)
+  const [hardwareGps, setHardwareGps] = useState<HardwareGpsFix | null>(null);
 
   // File Upload State
   const [file, setFile] = useState<File | null>(null);
@@ -347,69 +336,45 @@ export default function ReportPage() {
     initAuth();
   }, [initAuth]);
 
-  // Automatically request device GPS once on load (respecting calibrated location)
+  // Seed initial map pin from saved location if any, and always query genuine hardware geolocation separately.
   useEffect(() => {
-    let hasCalibrated = false;
+    let hasSavedPin = false;
     if (typeof window !== "undefined") {
       const saved = useMapStore.getState().loadSavedLocation();
       if (saved) {
-        hasCalibrated = true;
+        hasSavedPin = true;
         setLatitude(saved.lat);
         setLongitude(saved.lng);
-        setDeviceGps({ lat: saved.lat, lng: saved.lng });
-        setGpsAccuracy(saved.accuracy || 25);
-        setGpsNotice(
-          isBn
-            ? "✓ আপনার সংরক্ষিত সঠিক অবস্থান থেকে পিন শুরু হয়েছে।"
-            : "✓ Initialized from your saved calibrated location."
-        );
       }
     }
 
     if (typeof window !== "undefined" && "geolocation" in navigator) {
-      if (!hasCalibrated) setIsAcquiringGps(true);
       navigator.geolocation.getCurrentPosition(
         (pos) => {
           const lat = Number(pos.coords.latitude.toFixed(6));
           const lng = Number(pos.coords.longitude.toFixed(6));
-          if (!hasCalibrated) {
-            setDeviceGps({ lat, lng });
-            setGpsAccuracy(pos.coords.accuracy || null);
+          const accuracy = Number.isFinite(pos.coords.accuracy) ? pos.coords.accuracy : Infinity;
+          setHardwareGps({ lat, lng, accuracy });
+
+          if (!hasSavedPin) {
             setLatitude(lat);
             setLongitude(lng);
-            setGpsNotice(
-              isBn
-                ? "✓ আপনার বর্তমান জিপিএস অবস্থান সফলভাবে সনাক্ত হয়েছে।"
-                : "✓ Live device GPS location successfully acquired."
-            );
           }
-          setIsAcquiringGps(false);
         },
         (err) => {
           console.warn("[Report] Geolocation notice:", err.message);
-          setIsAcquiringGps(false);
-          if (!hasCalibrated) {
-            setDeviceGps(null);
-          }
+          setHardwareGps(null);
         },
         { enableHighAccuracy: true, timeout: 6000, maximumAge: 30000 }
       );
     }
-  }, [isBn]);
+  }, []);
 
-  // Calculate live Haversine distance between device GPS and incident pin
-  const proximityDistance = useMemo(() => {
-    if (!deviceGps) return null;
-    return calculateDistanceMeters(deviceGps.lat, deviceGps.lng, latitude, longitude);
-  }, [deviceGps, latitude, longitude]);
-
-  const allowableProximityRadius = useMemo(() => {
-    if (!gpsAccuracy) return 200;
-    // Adapt to desktop browser Wi-Fi/IP accuracy limits (e.g. 500m) while keeping mobile GPS tight
-    return Math.max(200, Math.min(Math.round(gpsAccuracy), 2500));
-  }, [gpsAccuracy]);
-
-  const isWithinProximity = proximityDistance === null || proximityDistance <= allowableProximityRadius;
+  // Evaluate whether unmodified hardware GPS verifies the current pin within 200m & <=250m accuracy
+  const gpsEvaluation = useMemo(
+    () => evaluateHardwareGpsProximity(hardwareGps, latitude, longitude),
+    [hardwareGps, latitude, longitude]
+  );
   const isNightDetected = isCurrentNightBangladesh();
 
   // Location handlers
@@ -419,17 +384,16 @@ export default function ReportPage() {
   }, []);
 
   const handleSnapToDeviceGps = () => {
-    if (deviceGps) {
-      setLatitude(deviceGps.lat);
-      setLongitude(deviceGps.lng);
+    if (hardwareGps && gpsEvaluation.isEligibleHardwareGps) {
+      setLatitude(hardwareGps.lat);
+      setLongitude(hardwareGps.lng);
     }
   };
 
   const handleApplyPreset = (lat: number, lng: number) => {
+    // Only move the incident pin; never fabricate hardwareGps for preset cities
     setLatitude(lat);
     setLongitude(lng);
-    // Align simulated device GPS to preset so distance passes 200m rule
-    setDeviceGps({ lat, lng });
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -463,19 +427,11 @@ export default function ReportPage() {
     setErrorMessage(null);
 
     try {
-      // 1. Proximity gate check
-      if (proximityDistance !== null && proximityDistance > allowableProximityRadius) {
-        throw new Error(
-          isBn
-            ? `ভুয়া রিপোর্ট প্রতিরোধ ব্যবস্থা: আপনি পিন করা স্থান থেকে ${proximityDistance} মিটার দূরে আছেন। রিপোর্ট প্রকাশের জন্য বর্তমান জিপিএস স্থানের ${allowableProximityRadius} মিটারের মধ্যে হতে হবে অথবা "পিনে অবস্থান সেট করুন" চাপুন। "আমার জিপিএস-এ বসান" বোতামে চাপুন।`
-            : `Anti-Spoofing Proximity Error: Your pinned location is ${proximityDistance}m away from your device GPS. Reports must be within ${allowableProximityRadius}m. Click "Calibrate GPS to Pin" or "Snap to Me" to align.`
-        );
-      }
+      // Only attach hardware GPS headers when unmodified browser geolocation (<= 250m accuracy)
+      // matches the pin within 200m; manual pins omit these headers so backend records isGpsVerified=false.
+      const gpsHeaders = buildHardwareGpsHeaders(hardwareGps, gpsEvaluation);
 
-      const effectiveDeviceLat = deviceGps ? deviceGps.lat.toString() : latitude.toString();
-      const effectiveDeviceLng = deviceGps ? deviceGps.lng.toString() : longitude.toString();
-
-      // 2. Submit report to backend
+      // Submit report to backend
       const reportPayload = {
         category: resolvedCategory,
         severity,
@@ -486,10 +442,7 @@ export default function ReportPage() {
 
       const result = await apiFetch<any>("/reports", {
         method: "POST",
-        headers: {
-          "x-device-lat": effectiveDeviceLat,
-          "x-device-lng": effectiveDeviceLng,
-        },
+        headers: gpsHeaders,
         body: JSON.stringify(reportPayload),
       });
 
@@ -680,9 +633,27 @@ export default function ReportPage() {
                   <Lock className="w-3.5 h-3.5 text-blue-600" />
                   <span>{isBn ? "১৫০মি গোপনীয়তা সুরক্ষা" : "150m Privacy Fuzzed"}</span>
                 </div>
-                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 border border-slate-200 text-[11px] font-semibold text-slate-700">
-                  <Navigation className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>{isBn ? "২০০মি জিপিএস গেট" : "≤ 200m GPS Verified"}</span>
+                <div
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-[11px] font-semibold ${
+                    gpsEvaluation.isVerified
+                      ? "bg-emerald-50 border-emerald-200 text-emerald-800"
+                      : "bg-amber-50 border-amber-200 text-amber-800"
+                  }`}
+                >
+                  <Navigation
+                    className={`w-3.5 h-3.5 ${
+                      gpsEvaluation.isVerified ? "text-emerald-600" : "text-amber-600"
+                    }`}
+                  />
+                  <span>
+                    {gpsEvaluation.isVerified
+                      ? isBn
+                        ? "হার্ডওয়্যার জিপিএস যাচাইকৃত"
+                        : "Hardware GPS Verified"
+                      : isBn
+                        ? "ম্যানুয়াল পিন / অযাচাইকৃত"
+                        : "Manual Pin / Unverified GPS"}
+                  </span>
                 </div>
               </div>
             </div>
@@ -979,29 +950,15 @@ export default function ReportPage() {
                       <span>{isBn ? "ঘটনাস্থল ও জিপিএস রাডার" : "Incident Location & GPS"}</span>
                     </label>
 
-                    {deviceGps && (
-                      <div className="flex items-center gap-3">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setDeviceGps({ lat: latitude, lng: longitude });
-                            setGpsAccuracy(15);
-                          }}
-                          className="text-[11px] font-bold text-slate-500 hover:text-blue-600 flex items-center gap-1 transition-colors cursor-pointer"
-                          title={isBn ? "আমার আসল অবস্থান বর্তমান পিনে সমন্বয় করুন" : "Calibrate GPS to current pin"}
-                        >
-                          <Navigation className="w-3.5 h-3.5 text-blue-500" />
-                          <span>{isBn ? "পিনে অবস্থান সেট করুন" : "Set GPS to Pin"}</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={handleSnapToDeviceGps}
-                          className="text-[11px] font-bold text-blue-600 hover:text-blue-800 flex items-center gap-1 transition-colors cursor-pointer"
-                        >
-                          <Crosshair className="w-3.5 h-3.5" />
-                          <span>{isBn ? "আমার অবস্থানে বসান" : "Snap to Me"}</span>
-                        </button>
-                      </div>
+                    {gpsEvaluation.isEligibleHardwareGps && (
+                      <button
+                        type="button"
+                        onClick={handleSnapToDeviceGps}
+                        className="text-[11px] font-bold text-blue-600 hover:text-blue-800 flex items-center gap-1 transition-colors cursor-pointer"
+                      >
+                        <Crosshair className="w-3.5 h-3.5" />
+                        <span>{isBn ? "আমার অবস্থানে বসান" : "Snap to Me"}</span>
+                      </button>
                     )}
                   </div>
 
@@ -1017,54 +974,70 @@ export default function ReportPage() {
                   <ReportPinMap
                     incidentLat={latitude}
                     incidentLng={longitude}
-                    deviceLat={deviceGps?.lat}
-                    deviceLng={deviceGps?.lng}
-                    proximityDistance={proximityDistance}
-                    proximityRadius={allowableProximityRadius}
+                    deviceLat={gpsEvaluation.isEligibleHardwareGps ? hardwareGps?.lat : undefined}
+                    deviceLng={gpsEvaluation.isEligibleHardwareGps ? hardwareGps?.lng : undefined}
+                    proximityDistance={gpsEvaluation.isEligibleHardwareGps ? gpsEvaluation.distanceMeters : null}
+                    proximityRadius={MAX_GPS_PROXIMITY_METERS}
                     onLocationChange={handleMapLocationChange}
-                    onSnapToDevice={handleSnapToDeviceGps}
+                    onSnapToDevice={gpsEvaluation.isEligibleHardwareGps ? handleSnapToDeviceGps : undefined}
                     severity={severity}
                     language={language}
                   />
 
-                  {/* Anti-Spoofing Proximity Status Pill */}
+                  {/* Honest GPS Verification Status Pill */}
                   <div
                     className={`p-3.5 rounded-xl border flex items-start gap-3 transition-colors ${
-                      isWithinProximity
+                      gpsEvaluation.isVerified
                         ? "bg-emerald-50/80 border-emerald-200 text-emerald-900"
-                        : "bg-red-50/80 border-red-200 text-red-900"
+                        : "bg-amber-50/80 border-amber-200 text-amber-900"
                     }`}
                   >
                     <div className="p-1.5 rounded-lg bg-white shrink-0 shadow-2xs">
-                      {isWithinProximity ? (
+                      {gpsEvaluation.isVerified ? (
                         <CheckCircle2 className="w-4 h-4 text-emerald-600" />
                       ) : (
-                        <AlertTriangle className="w-4 h-4 text-red-600" />
+                        <AlertTriangle className="w-4 h-4 text-amber-600" />
                       )}
                     </div>
                     <div className="flex-1 text-xs">
                       <div className="flex items-center justify-between gap-1">
                         <span className="font-bold">
-                          {isWithinProximity
+                          {gpsEvaluation.isVerified
                             ? isBn
-                              ? `জিপিএস অবস্থান অনুমোদিত (≤ ${allowableProximityRadius} মি)`
-                              : `Anti-Spoofing GPS Check: PASSED (≤ ${allowableProximityRadius}m)`
-                            : isBn
-                              ? `দূরত্ব ত্রুটি: ${allowableProximityRadius} মিটারের বেশি`
-                              : `GPS Proximity Gate Warning (> ${allowableProximityRadius}m)`}
+                              ? `হার্ডওয়্যার জিপিএস যাচাইকৃত (≤ ${MAX_GPS_PROXIMITY_METERS} মি)`
+                              : `Hardware GPS Verified (≤ ${MAX_GPS_PROXIMITY_METERS}m)`
+                            : gpsEvaluation.status === "OUT_OF_RANGE"
+                              ? isBn
+                                ? `ম্যানুয়াল পিন: জিপিএস থেকে ${gpsEvaluation.distanceMeters} মি দূরে`
+                                : "Manual Pin / Outside 200m GPS (Unverified)"
+                              : gpsEvaluation.status === "LOW_ACCURACY"
+                                ? isBn
+                                  ? "ম্যানুয়াল পিন: দুর্বল জিপিএস সিগন্যাল (অযাচাইকৃত)"
+                                  : "Manual Pin / Coarse GPS Accuracy (Unverified)"
+                                : isBn
+                                  ? "ম্যানুয়াল পিন / অযাচাইকৃত জিপিএস"
+                                  : "Manual Pin / Unverified GPS"}
                         </span>
-                        {proximityDistance !== null && (
-                          <span className="font-mono font-bold">{proximityDistance}m</span>
+                        {gpsEvaluation.distanceMeters !== null && (
+                          <span className="font-mono font-bold">{gpsEvaluation.distanceMeters}m</span>
                         )}
                       </div>
                       <p className="text-[11px] text-slate-600 mt-0.5 leading-snug">
-                        {isWithinProximity
+                        {gpsEvaluation.isVerified
                           ? isBn
-                            ? "আপনার ডিভাইসের বর্তমান অবস্থান ও পিন করা স্থানের দূরত্ব ২০০ মিটারের মধ্যে রয়েছে।"
-                            : "Haversine distance between device and report pin is within the 200m civic validation radius."
-                          : isBn
-                            ? "আপনি নির্বাচিত স্থান থেকে দূরে আছেন। ভুয়া রিপোর্ট রোধে ঘটনাটি আপনার ২০০ মিটারের মধ্যে হতে হবে।"
-                            : "Your device is too far from the incident pin. Align coordinates to your physical location."}
+                            ? "আপনার হার্ডওয়্যার জিপিএস এবং পিন করা স্থানের দূরত্ব ২০০ মিটারের মধ্যে রয়েছে।"
+                            : "Unmodified hardware GPS (accuracy ≤ 250m) confirms pin proximity within 200m."
+                          : gpsEvaluation.status === "OUT_OF_RANGE"
+                            ? isBn
+                              ? "পিনটি আপনার বর্তমান জিপিএস থেকে ২০০ মিটারের বেশি দূরে। এটি অযাচাইকৃত ম্যানুয়াল পিন হিসেবে প্রকাশিত হবে অথবা 'আমার অবস্থানে বসান' চাপুন।"
+                              : "Pin is more than 200m from your GPS. Submitting now tags this report as Manual Pin / Unverified GPS, or click Snap to Me."
+                            : gpsEvaluation.status === "LOW_ACCURACY"
+                              ? isBn
+                                ? "ব্রাউজার অবস্থানের নির্ভুলতা ২৫০ মিটারের বেশি হওয়ায় রিপোর্টটি ম্যানুয়াল পিন হিসেবে প্রকাশিত হবে।"
+                                : "Device location accuracy exceeds 250m; report will be marked Manual Pin / Unverified GPS."
+                              : isBn
+                                ? "হার্ডওয়্যার জিপিএস পাওয়া যায়নি। রিপোর্টটি ম্যানুয়াল পিন / অযাচাইকৃত জিপিএস হিসেবে প্রকাশিত হবে।"
+                                : "No hardware GPS fix acquired. Report will be published as Manual Pin / Unverified GPS."}
                       </p>
                     </div>
                   </div>
@@ -1100,7 +1073,7 @@ export default function ReportPage() {
                   {/* Preset Locations */}
                   <div className="space-y-1.5 pt-1">
                     <span className="text-[11px] font-semibold text-slate-500">
-                      {isBn ? "দ্রুত এলাকা নির্বাচন:" : "Quick verified city presets:"}
+                      {isBn ? "দ্রুত এলাকা নির্বাচন (ম্যানুয়াল পিন):" : "Quick city presets (Manual Pin):"}
                     </span>
                     <div className="flex flex-wrap gap-1.5">
                       {PRESETS.map((p, idx) => (
@@ -1176,7 +1149,7 @@ export default function ReportPage() {
                   {isSubmitting ? (
                     <>
                       <RefreshCw className="w-5 h-5 animate-spin" />
-                      <span>{isBn ? "জিপিএস যাচাই ও রিপোর্ট পাঠানো হচ্ছে..." : "Validating GPS & Submitting..."}</span>
+                      <span>{isBn ? "রিপোর্ট প্রকাশ হচ্ছে..." : "Submitting Incident..."}</span>
                     </>
                   ) : (
                     <>

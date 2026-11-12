@@ -68,6 +68,7 @@ interface Incident {
   sourceName?: string | null;
   media?: ReportMedia[];
   fuzzedRadiusMeters?: number;
+  isGpsVerified?: boolean;
 }
 
 interface IncidentComment {

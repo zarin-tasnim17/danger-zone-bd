@@ -52,6 +52,7 @@ const mapBackendToFrontendIncident = (r: any): DangerIncident => {
     sourceUrl: r.sourceUrl,
     sourceName: r.sourceName,
     fuzzedRadiusMeters: r.fuzzedRadiusMeters || 150,
+    isGpsVerified: Boolean(r.isGpsVerified),
   };
 };
 

@@ -70,6 +70,7 @@ interface ReportDetails {
   category: ReportCategory;
   severity: "LOW" | "MEDIUM" | "HIGH";
   isNightReport?: boolean;
+  isGpsVerified?: boolean;
   latitude: number;
   longitude: number;
   fuzzedRadiusMeters?: number;
@@ -937,16 +938,40 @@ export default function ReportDetailsPage() {
                       </div>
                     </div>
 
-                    <div className="p-3 bg-slate-50 border border-slate-200/80 rounded-2xl flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 border border-blue-200 flex items-center justify-center shrink-0">
+                    <div
+                      className={`p-3 rounded-2xl border flex items-center gap-3 ${
+                        report.isGpsVerified
+                          ? "bg-emerald-50/70 border-emerald-200/80"
+                          : "bg-amber-50/70 border-amber-200/80"
+                      }`}
+                    >
+                      <div
+                        className={`w-8 h-8 rounded-xl border flex items-center justify-center shrink-0 ${
+                          report.isGpsVerified
+                            ? "bg-emerald-100/80 text-emerald-700 border-emerald-200"
+                            : "bg-amber-100/80 text-amber-700 border-amber-200"
+                        }`}
+                      >
                         <MapPin className="w-4 h-4" />
                       </div>
                       <div>
                         <div className="text-xs font-bold text-slate-800">
-                          {language === "en" ? "GPS Anti-Spoofing: PASSED" : "জিপিএস যাচাইকরণ: সম্পন্ন"}
+                          {report.isGpsVerified
+                            ? language === "en"
+                              ? "Hardware GPS Verified"
+                              : "হার্ডওয়্যার জিপিএস যাচাইকৃত"
+                            : language === "en"
+                              ? "Manual Pin / Unverified GPS"
+                              : "ম্যানুয়াল পিন / অযাচাইকৃত জিপিএস"}
                         </div>
                         <div className="text-[10px] text-slate-500">
-                          {language === "en" ? "150m privacy fuzz applied" : "১৫০মি গোপনীয়তা সুরক্ষিত"}
+                          {report.isGpsVerified
+                            ? language === "en"
+                              ? "≤ 200m proximity • 150m privacy fuzz applied"
+                              : "≤ ২০০মি অবস্থান যাচাইকৃত • ১৫০মি সুরক্ষিত"
+                            : language === "en"
+                              ? "Submitted without hardware GPS proximity proof"
+                              : "হার্ডওয়্যার জিপিএস প্রমাণ ছাড়াই জমা দেওয়া হয়েছে"}
                         </div>
                       </div>
                     </div>
@@ -1358,9 +1383,21 @@ export default function ReportDetailsPage() {
                     </div>
 
                     <div className="flex items-center justify-between pt-2">
-                      <span className="text-slate-500">{language === "en" ? "Device Anti-Spoofing:" : "ডিভাইস জিপিএস:"}</span>
-                      <span className="font-mono text-blue-700 font-bold bg-blue-50 px-2 py-0.5 rounded-md border border-blue-200">
-                        &le; 200m Verified
+                      <span className="text-slate-500">{language === "en" ? "GPS Verification:" : "জিপিএস যাচাইকরণ:"}</span>
+                      <span
+                        className={`font-mono font-bold px-2 py-0.5 rounded-md border ${
+                          report.isGpsVerified
+                            ? "text-emerald-700 bg-emerald-50 border-emerald-200"
+                            : "text-amber-700 bg-amber-50 border-amber-200"
+                        }`}
+                      >
+                        {report.isGpsVerified
+                          ? language === "en"
+                            ? "Hardware GPS Verified"
+                            : "হার্ডওয়্যার জিপিএস যাচাইকৃত"
+                          : language === "en"
+                            ? "Manual Pin / Unverified GPS"
+                            : "ম্যানুয়াল পিন / অযাচাইকৃত"}
                       </span>
                     </div>
                   </div>

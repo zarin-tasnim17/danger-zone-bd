@@ -168,7 +168,7 @@ export default function ReportPinMap({
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold shadow-md backdrop-blur-md border ${
               isWithinProximity
                 ? "bg-emerald-50/95 text-emerald-800 border-emerald-200"
-                : "bg-red-50/95 text-red-800 border-red-200"
+                : "bg-amber-50/95 text-amber-900 border-amber-200"
             }`}
           >
             {isWithinProximity ? (
@@ -176,28 +176,28 @@ export default function ReportPinMap({
                 <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                 <span>
                   {isBn
-                    ? `✓ জিপিএস সঠিক: ${proximityDistance} মি (অনুমোদিত ≤ ২০০ মি)`
-                    : `✓ GPS Verified: ${proximityDistance}m (≤ 200m Pass)`}
+                    ? `✓ হার্ডওয়্যার জিপিএস যাচাইকৃত: ${proximityDistance} মি (≤ ২০০ মি)`
+                    : `✓ Hardware GPS Verified: ${proximityDistance}m (≤ 200m)`}
                 </span>
               </>
             ) : (
               <>
-                <AlertTriangle className="w-3.5 h-3.5 text-red-600 shrink-0" />
+                <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
                 <span>
                   {isBn
-                    ? `⚠️ দূরত্ব বেশি: ${proximityDistance} মি (সর্বোচ্চ ২০০ মি)`
-                    : `⚠️ GPS Mismatch: ${proximityDistance}m away (Max 200m)`}
+                    ? `⚠️ দূরত্ব ${proximityDistance} মি (> ২০০ মি) • ম্যানুয়াল পিন`
+                    : `⚠️ ${proximityDistance}m from GPS (> 200m) • Manual Pin`}
                 </span>
               </>
             )}
           </div>
         ) : (
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-white/95 text-slate-700 shadow-md backdrop-blur-md border border-slate-200">
-            <MapPin className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-amber-50/95 text-amber-900 shadow-md backdrop-blur-md border border-amber-200">
+            <MapPin className="w-3.5 h-3.5 text-amber-600 shrink-0" />
             <span>
               {isBn
-                ? "পিন সরাতে মানচিত্রে যেকোনো স্থানে ক্লিক করুন"
-                : "Click map to set exact incident location"}
+                ? "ম্যানুয়াল পিন / অযাচাইকৃত জিপিএস — স্থান নির্বাচন করুন"
+                : "Manual Pin / Unverified GPS — Click map to place pin"}
             </span>
           </div>
         )}
