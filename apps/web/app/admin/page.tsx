@@ -63,6 +63,9 @@ const CATEGORY_BAR_COLORS: Record<string, string> = {
   TEEN_GANG_ARMED_ASSAULT: "bg-fuchsia-600",
 };
 
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
 export default function AdminPage() {
   const { user, loginAdminWithPassword, logout, initAuth } = useAuthStore();
   const { language } = useLanguageStore();
@@ -85,6 +88,7 @@ export default function AdminPage() {
   const [verifications, setVerifications] = useState<any[]>([]);
   const [trends, setTrends] = useState<any | null>(null);
   const [isLoadingData, setIsLoadingData] = useState(false);
+  const [dataError, setDataError] = useState<string | null>(null);
   const [isLoadingTrends, setIsLoadingTrends] = useState(false);
 
   // Action Inputs
@@ -121,6 +125,7 @@ export default function AdminPage() {
 
   const fetchAdminData = useCallback(async () => {
     setIsLoadingData(true);
+    setDataError(null);
     try {
       // 1. Fetch live reports
       const reportsData = await apiFetch<any[]>(
@@ -140,11 +145,15 @@ export default function AdminPage() {
       const trendsData = await apiFetch<any>("/admin/analytics/trends");
       setTrends(trendsData || null);
     } catch (err: any) {
-      console.warn("[Admin Data Fetch] Notice:", err.message);
+      const msg =
+        err?.message ||
+        (isBn ? "অ্যাডমিন ড্যাশবোর্ড ডেটা লোড করতে ব্যর্থ হয়েছে।" : "Failed to load admin dashboard data.");
+      setDataError(msg);
+      showToast(msg, "error");
     } finally {
       setIsLoadingData(false);
     }
-  }, []);
+  }, [isBn]);
 
   // Load Dashboard Data once authenticated as ADMIN
   useEffect(() => {
@@ -156,7 +165,16 @@ export default function AdminPage() {
   // Purge Report Execution
   const executePurge = async () => {
     if (!purgeTarget) return;
-    const reason = purgeReason.trim() || (isBn ? "ভুয়া বা ক্ষতিকর রিপোর্ট" : "False hazard submission");
+    if (purgeReason.trim().length < 3) {
+      showToast(
+        isBn
+          ? "রিপোর্ট মুছে ফেলার কারণ কমপক্ষে ৩ অক্ষরের হতে হবে।"
+          : "Purge reason must be at least 3 characters.",
+        "warning"
+      );
+      return;
+    }
+    const reason = purgeReason.trim();
     setIsPurging(true);
     try {
       await apiFetch(`/admin/reports/${purgeTarget.id}/purge`, {
@@ -176,7 +194,16 @@ export default function AdminPage() {
   // Reject Verification Execution
   const executeReject = async () => {
     if (!rejectTarget) return;
-    const reason = rejectReason.trim() || (isBn ? "নথিপত্র অসম্পূর্ণ বা অস্পষ্ট" : "Incomplete or unverifiable documents");
+    if (rejectReason.trim().length < 3) {
+      showToast(
+        isBn
+          ? "প্রত্যাখ্যানের কারণ কমপক্ষে ৩ অক্ষরের হতে হবে।"
+          : "Rejection reason must be at least 3 characters.",
+        "warning"
+      );
+      return;
+    }
+    const reason = rejectReason.trim();
     setIsRejecting(true);
     try {
       await apiFetch(`/admin/verifications/${rejectTarget.id}/reject`, {
@@ -270,21 +297,30 @@ export default function AdminPage() {
   };
 
   const handleBanUser = async (action: "ban" | "unban") => {
-    if (!banUserId.trim()) {
+    const trimmedUserId = banUserId.trim();
+    if (!UUID_PATTERN.test(trimmedUserId)) {
       showToast(
-        isBn ? "অনুগ্রহ করে টার্গেট ইউজার আইডি প্রদান করুন।" : "Please provide target user ID.",
+        isBn
+          ? "অনুগ্রহ করে একটি বৈধ ইউজার UUID প্রদান করুন।"
+          : "Please enter a valid target user UUID.",
         "warning"
       );
       return;
     }
-    const reason =
-      banReason.trim() ||
-      (action === "ban"
-        ? isBn ? "ভুয়া বা ক্ষতিকর রিপোর্ট দাখিল" : "Abusive spam reports"
-        : isBn ? "অ্যাকাউন্ট পুনরুদ্ধার" : "Restored account");
+
+    if (banReason.trim().length < 3) {
+      showToast(
+        isBn
+          ? "মডারেশনের কারণ কমপক্ষে ৩ অক্ষরের হতে হবে।"
+          : "Moderation reason must be at least 3 characters.",
+        "warning"
+      );
+      return;
+    }
+    const reason = banReason.trim();
 
     try {
-      await apiFetch(`/admin/users/${banUserId.trim()}/${action}`, {
+      await apiFetch(`/admin/users/${trimmedUserId}/${action}`, {
         method: "POST",
         body: JSON.stringify({ reason }),
       });
@@ -537,6 +573,18 @@ export default function AdminPage() {
         </div>
 
         {/* Tactical Cheatsheet & News Crawler Banner */}
+        {dataError && (
+          <div className="bg-red-50 border border-red-200 text-red-800 rounded-2xl p-3.5 text-xs font-semibold flex items-center justify-between gap-3">
+            <span>{dataError}</span>
+            <button
+              type="button"
+              onClick={fetchAdminData}
+              className="px-3 py-1 rounded-lg bg-red-600 text-white font-bold hover:bg-red-700 transition-colors shrink-0 cursor-pointer"
+            >
+              {isBn ? "আবার চেষ্টা করুন" : "Retry"}
+            </button>
+          </div>
+        )}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
           {/* Tactical Keyboard Shortcuts HUD (5 cols on lg) */}
           <div className="lg:col-span-5 bg-white border border-slate-200/90 rounded-2xl p-4 shadow-xs flex items-center gap-3">
