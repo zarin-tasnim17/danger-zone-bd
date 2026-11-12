@@ -119,17 +119,40 @@ async function runVerification() {
     console.log(`     isNightReport: ${report.isNightReport}`);
     console.log(`     expiresAt: ${report.expiresAt}`);
 
-    // 5. Single Report Lookup (GET /api/v1/reports/:id)
+    // 5. Single Report Lookup (GET /api/v1/reports/:id) & Viewer-Scoped isOwner ([SEC-005])
     console.log('\n🧪 [Test 5] Fetching single report by ID (GET /api/v1/reports/:id)...');
-    const lookupRes = await request(`/api/v1/reports/${report.id}`);
-    if (lookupRes.status !== 200) {
-      throw new Error(`Single report lookup failed: ${JSON.stringify(lookupRes.data)}`);
+    const lookupChecks = [
+      { label: 'unauthenticated viewer', headers: undefined, expectedIsOwner: false },
+      {
+        label: 'invalid token viewer',
+        headers: { Authorization: 'Bearer invalid.jwt.token' },
+        expectedIsOwner: false,
+      },
+      { label: 'authenticated non-owner', headers: { Cookie: cookieB }, expectedIsOwner: false },
+      { label: 'authenticated author', headers: { Cookie: cookieA }, expectedIsOwner: true },
+    ] as const;
+
+    for (const check of lookupChecks) {
+      const lookupRes = await request(
+        `/api/v1/reports/${report.id}`,
+        check.headers ? { headers: check.headers } : undefined
+      );
+      if (lookupRes.status !== 200) {
+        throw new Error(`Single report lookup (${check.label}) failed: ${JSON.stringify(lookupRes.data)}`);
+      }
+      const lookupData = lookupRes.data.data;
+      if (
+        lookupData.id !== report.id ||
+        'userId' in lookupData ||
+        'user' in lookupData ||
+        lookupData.isOwner !== check.expectedIsOwner
+      ) {
+        throw new Error(
+          `PII leak or isOwner mismatch for ${check.label}: expected isOwner=${check.expectedIsOwner}, got ${JSON.stringify(lookupData)}`
+        );
+      }
     }
-    const lookupData = lookupRes.data.data;
-    if (lookupData.id !== report.id || lookupData.userId) {
-      throw new Error('Report lookup returned incorrect ID or leaked userId!');
-    }
-    console.log(`  ✅ Single report retrieved successfully with PII stripped: ${lookupData.id}`);
+    console.log(`  ✅ Single report retrieved with userId stripped and viewer-scoped isOwner verified: ${report.id}`);
 
     // 6. Spatial Query Filtering (Category, Severity, Night)
     console.log('\n🧪 [Test 6] Testing viewport query filtering with category and severity...');
@@ -201,7 +224,10 @@ async function runVerification() {
     if (resolveRes.status !== 200) {
       throw new Error(`Resolution failed: ${JSON.stringify(resolveRes.data)}`);
     }
-    console.log(`  ✅ Author successfully marked report as RESOLVED: status = ${resolveRes.data.data.status}`);
+    if ('userId' in (resolveRes.data?.data || {}) || resolveRes.data?.data?.isOwner !== true) {
+      throw new Error(`Resolve response leaked userId or omitted isOwner: ${JSON.stringify(resolveRes.data)}`);
+    }
+    console.log(`  ✅ Author successfully marked report as RESOLVED without exposing userId: status = ${resolveRes.data.data.status}`);
 
     // 9. Low Trust Score Restriction
     console.log('\n🧪 [Test 9] Testing low trust score submission restriction...');
