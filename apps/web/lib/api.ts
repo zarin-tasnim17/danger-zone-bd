@@ -1,3 +1,5 @@
+import { setSocketAuthToken } from './socket';
+
 export interface ApiFetchOptions extends RequestInit {
   skipAuthRefresh?: boolean;
 }
@@ -95,6 +97,10 @@ export async function apiFetch<T = any>(
       });
 
       if (refreshRes.ok) {
+        const refreshJson = await refreshRes.json().catch(() => null);
+        if (typeof window !== 'undefined' && refreshJson?.data?.socketToken) {
+          setSocketAuthToken(refreshJson.data.socketToken);
+        }
         // Retry original request once
         return apiFetch<T>(endpoint, { ...options, skipAuthRefresh: true });
       }

@@ -2,12 +2,30 @@ import { io, Socket } from "socket.io-client";
 import { SOCKET_EVENTS } from "@repo/shared";
 
 let socketInstance: Socket | null = null;
+let currentSocketToken: string | null = null;
 
 const SOCKET_URL =
   process.env.NEXT_PUBLIC_SOCKET_URL ||
   (typeof window !== "undefined" && window.location.hostname !== "localhost"
     ? "https://danger-zone-bd.onrender.com"
     : "http://127.0.0.1:5000");
+
+/**
+ * Updates the in-memory Socket.IO handshake token for cross-origin auth
+ * and reconnects an active socket cleanly while preserving registered listeners.
+ */
+export const setSocketAuthToken = (token: string | null) => {
+  const normalized = token && token.trim().length > 0 ? token : null;
+  const tokenChanged = normalized !== currentSocketToken;
+  currentSocketToken = normalized;
+
+  if (socketInstance) {
+    socketInstance.auth = normalized ? { token: normalized } : {};
+    if (tokenChanged) {
+      socketInstance.disconnect().connect();
+    }
+  }
+};
 
 /**
  * Access or create the singleton Socket.IO instance.
@@ -22,6 +40,7 @@ export const getSocket = (): Socket | null => {
 
   if (!socketInstance) {
     socketInstance = io(SOCKET_URL, {
+      auth: currentSocketToken ? { token: currentSocketToken } : undefined,
       withCredentials: true,
       transports: ["websocket", "polling"],
       reconnection: true,
@@ -32,6 +51,22 @@ export const getSocket = (): Socket | null => {
 
     socketInstance.on(SOCKET_EVENTS.CONNECT, () => {
       console.log("[Socket.IO] Connected to live safety server:", socketInstance?.id);
+    });
+
+    socketInstance.on("connect_error", (err) => {
+      console.warn("[Socket.IO] Connection error:", err.message);
+      // If an authenticated handshake fails (e.g., expired 15m token), fall back to guest
+      // read-only live_reports until apiFetch silent refresh provides a new socketToken.
+      const msg = (err?.message || "").toLowerCase();
+      if (
+        currentSocketToken &&
+        (msg.includes("token") || msg.includes("unauthorized") || msg.includes("expired") || msg.includes("authentication"))
+      ) {
+        currentSocketToken = null;
+        if (socketInstance) {
+          socketInstance.auth = {};
+        }
+      }
     });
 
     socketInstance.on(SOCKET_EVENTS.DISCONNECT, (reason) => {

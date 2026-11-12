@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { apiFetch } from "@/lib/api";
-import { getSocket } from "@/lib/socket";
+import { getSocket, setSocketAuthToken } from "@/lib/socket";
 
 export interface AuthUser {
   id: string;
@@ -59,17 +59,24 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       set({ deviceId });
 
       // Silent device authentication
-      await apiFetch("/auth/device", {
+      const deviceAuth = await apiFetch<{
+        user?: { id: string; role: string };
+        socketToken?: string;
+      }>("/auth/device", {
         method: "POST",
         body: JSON.stringify({ anonymousId: deviceId }),
       });
+
+      if (deviceAuth?.socketToken) {
+        setSocketAuthToken(deviceAuth.socketToken);
+      }
 
       // Retrieve full user profile
       const profile = await apiFetch<AuthUser>("/users/me");
 
       set({ user: profile, isLoading: false });
 
-      // Initialize Socket connection now that HttpOnly cookies are set
+      // Initialize Socket connection now that cookies & scoped socketToken are set
       getSocket();
 
       return profile;
@@ -83,7 +90,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   loginAdminWithPassword: async (email: string, password: string) => {
     set({ isLoading: true, error: null });
     try {
-      await apiFetch("/auth/login", {
+      const loginData = await apiFetch<{ socketToken?: string }>("/auth/login", {
         method: "POST",
         body: JSON.stringify({ email, password }),
       });
@@ -97,11 +104,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       set({ user: profile, isLoading: false });
 
       // Refresh socket connection with admin authorization
-      const socket = getSocket();
-      if (socket) {
-        socket.disconnect();
-        socket.connect();
-      }
+      setSocketAuthToken(loginData?.socketToken ?? null);
+      getSocket();
 
       return profile;
     } catch (err: any) {
@@ -127,6 +131,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
 
     set({ user: null });
+    setSocketAuthToken(null);
 
     // Re-initialize as new anonymous citizen
     localStorage.removeItem(DEVICE_ID_KEY);
