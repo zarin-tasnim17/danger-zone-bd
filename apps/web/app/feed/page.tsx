@@ -8,7 +8,16 @@ import { useAuthStore } from "@/store/useAuthStore";
 import { useLanguageStore } from "@/store/useLanguageStore";
 import { useStatsStore } from "@/store/useStatsStore";
 import { getSocket } from "@/lib/socket";
-import { SOCKET_EVENTS, ReportCategory } from "@repo/shared";
+import {
+  SOCKET_EVENTS,
+  getSocketReportId,
+  ReportCategory,
+  type ReportVotedPayload,
+  type ReportResolvedPayload,
+  type ReportPurgedPayload,
+  type ReportExpiredPayload,
+  type ReportVerifiedPayload,
+} from "@repo/shared";
 import {
   Search,
   ThumbsUp,
@@ -207,29 +216,80 @@ export default function FeedPage() {
       fetchStats();
     };
 
-    const handleReportVoted = (data: { id: string; upvotes: number; downvotes: number }) => {
+    const handleReportVoted = (data: ReportVotedPayload) => {
+      const targetId = getSocketReportId(data);
+      if (!targetId) return;
       setIncidents((prev) =>
         prev.map((item) =>
-          item.id === data.id
-            ? { ...item, upvotes: data.upvotes, downvotes: data.downvotes }
+          item.id === targetId
+            ? {
+                ...item,
+                upvotes: data.upvotes,
+                downvotes: data.downvotes,
+                status: data.status || item.status,
+              }
             : item
         )
       );
     };
 
-    const handleReportResolved = (data: { id: string }) => {
-      setIncidents((prev) => prev.filter((item) => item.id !== data.id));
+    const handleReportResolved = (data: ReportResolvedPayload) => {
+      const targetId = getSocketReportId(data);
+      if (!targetId) return;
+      setIncidents((prev) => prev.filter((item) => item.id !== targetId));
       fetchStats();
+    };
+
+    const handleReportPurged = (data: ReportPurgedPayload) => {
+      const targetId = getSocketReportId(data);
+      if (!targetId) return;
+      setIncidents((prev) => prev.filter((item) => item.id !== targetId));
+      fetchStats();
+    };
+
+    const handleReportExpired = (data: ReportExpiredPayload) => {
+      if (!data.reportIds?.length) return;
+      setIncidents((prev) => prev.filter((item) => !data.reportIds.includes(item.id)));
+      fetchStats();
+    };
+
+    const handleReportVerified = (data: ReportVerifiedPayload) => {
+      const targetId = getSocketReportId(data);
+      if (!targetId) return;
+      const pressTag = `[Verified by Press: ${data.verifiedBy}]`;
+      setIncidents((prev) =>
+        prev.map((item) => {
+          if (item.id !== targetId) return item;
+          const currentDesc = item.description || "";
+          const nextDesc = currentDesc.includes(pressTag)
+            ? currentDesc
+            : currentDesc
+              ? `${currentDesc}\n\n${pressTag}`
+              : pressTag;
+          return {
+            ...item,
+            sourceName: data.verifiedBy,
+            sourceUrl: data.sourceUrl ?? item.sourceUrl,
+            description: nextDesc,
+          };
+        })
+      );
     };
 
     socket.on(SOCKET_EVENTS.NEW_REPORT, handleNewReport);
     socket.on(SOCKET_EVENTS.REPORT_VOTED, handleReportVoted);
     socket.on(SOCKET_EVENTS.REPORT_RESOLVED, handleReportResolved);
+    socket.on(SOCKET_EVENTS.REPORT_PURGED, handleReportPurged);
+    socket.on(SOCKET_EVENTS.REPORT_EXPIRED, handleReportExpired);
+    socket.on(SOCKET_EVENTS.REPORT_VERIFIED, handleReportVerified);
 
     return () => {
       socket.off(SOCKET_EVENTS.NEW_REPORT, handleNewReport);
       socket.off(SOCKET_EVENTS.REPORT_VOTED, handleReportVoted);
       socket.off(SOCKET_EVENTS.REPORT_RESOLVED, handleReportResolved);
+      socket.off(SOCKET_EVENTS.REPORT_PURGED, handleReportPurged);
+      socket.off(SOCKET_EVENTS.REPORT_EXPIRED, handleReportExpired);
+      socket.off(SOCKET_EVENTS.REPORT_VERIFIED, handleReportVerified);
     };
   }, [fetchStats]);
 
