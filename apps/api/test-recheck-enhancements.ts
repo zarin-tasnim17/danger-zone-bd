@@ -214,6 +214,52 @@ async function runRecheckVerification() {
       throw new Error(`Failed to reject verification: ${rejectVerif.status}`);
     }
 
+    // Approving a standard USER verification upgrades role to VERIFIED_RESPONDER
+    const userApproveVerif = await prisma.userVerification.create({
+      data: {
+        userId: testApplicant.id,
+        type: 'NID_DOCUMENT',
+        documentUrl: 'https://storage.safety.bd/documents/valid-user-nid.pdf',
+        status: 'PENDING'
+      }
+    });
+    const approveUserRes = await request(`/api/v1/admin/verifications/${userApproveVerif.id}/approve`, {
+      method: 'POST',
+      headers: { Cookie: adminCookie }
+    });
+    if (
+      approveUserRes.status !== 200 ||
+      approveUserRes.data?.data?.isVerified !== true ||
+      approveUserRes.data?.data?.role !== 'VERIFIED_RESPONDER' ||
+      approveUserRes.data?.data?.passwordHash !== undefined
+    ) {
+      throw new Error(`Expected USER upgrade to VERIFIED_RESPONDER without passwordHash: ${JSON.stringify(approveUserRes)}`);
+    }
+    console.log('  ✅ Approving standard USER KYC upgraded role to VERIFIED_RESPONDER');
+
+    // Approving an ADMIN verification sets isVerified=true while preserving ADMIN role
+    const adminApproveVerif = await prisma.userVerification.create({
+      data: {
+        userId: adminUser.id,
+        type: 'NID_DOCUMENT',
+        documentUrl: 'https://storage.safety.bd/documents/admin-kyc-nid.pdf',
+        status: 'PENDING'
+      }
+    });
+    const approveAdminRes = await request(`/api/v1/admin/verifications/${adminApproveVerif.id}/approve`, {
+      method: 'POST',
+      headers: { Cookie: adminCookie }
+    });
+    if (
+      approveAdminRes.status !== 200 ||
+      approveAdminRes.data?.data?.isVerified !== true ||
+      approveAdminRes.data?.data?.role !== 'ADMIN' ||
+      approveAdminRes.data?.data?.passwordHash !== undefined
+    ) {
+      throw new Error(`Expected ADMIN role preservation on KYC approval: ${JSON.stringify(approveAdminRes)}`);
+    }
+    console.log('  ✅ Approving ADMIN KYC preserved ADMIN role and set isVerified=true');
+
     // 5. Admin Safe Zone Deletion
     console.log('\n🧪 [Test 5] Testing Admin Safe Zone Deletion (DELETE /api/v1/safe-zones/:id)...');
     const createdZone = await prisma.safeZone.create({
