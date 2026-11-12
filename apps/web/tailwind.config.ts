@@ -45,15 +45,15 @@ const config: Config = {
       },
       fontFamily: {
         sans: [
-          "Inter",
-          "Noto Sans Bengali",
+          "var(--font-inter)",
+          "var(--font-noto-bengali)",
           "-apple-system",
           "BlinkMacSystemFont",
           "Segoe UI",
           "Roboto",
           "sans-serif",
         ],
-        bengali: ["Noto Sans Bengali", "sans-serif"],
+        bengali: ["var(--font-noto-bengali)", "sans-serif"],
       },
       boxShadow: {
         card: "0 1px 3px 0 rgba(15, 23, 42, 0.08), 0 1px 2px -1px rgba(15, 23, 42, 0.08)",
