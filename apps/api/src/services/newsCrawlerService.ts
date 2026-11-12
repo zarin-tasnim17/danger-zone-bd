@@ -8,6 +8,7 @@ import { crossVerifyCitizenReports } from './newsVerificationService';
 import { findDuplicateActiveReport } from './incidentDeduplicationService';
 import { emitNewReport } from '../sockets';
 import { broadcastPlatformStats } from './statsService';
+import { setReportLocation } from '../db/spatialUtils';
 
 const parser = new Parser({
   headers: {
@@ -279,40 +280,40 @@ export const processAndIngestNewsItems = async (
       continue;
     }
 
-    const report = await prisma.report.create({
-      data: {
-        userId: botUserId,
-        category: classification.category,
-        severity: classification.severity,
-        latitude: geocode.latitude,
-        longitude: geocode.longitude,
-        description: cleanDesc,
-        sourceUrl: item.link,
-        sourceName: item.sourceName,
-        expiresAt,
-      },
-    });
+    // Atomically create report, populate PostGIS location, and persist news article metadata
+    const report = await prisma.$transaction(async (tx) => {
+      const createdReport = await tx.report.create({
+        data: {
+          userId: botUserId,
+          category: classification.category,
+          severity: classification.severity,
+          latitude: geocode.latitude,
+          longitude: geocode.longitude,
+          description: cleanDesc,
+          sourceUrl: item.link,
+          sourceName: item.sourceName,
+          expiresAt,
+        },
+      });
 
-    // Populate PostGIS geography point for spatial GIST indexing
-    await prisma.$executeRaw`
-      UPDATE "Report"
-      SET location = ST_SetSRID(ST_MakePoint(${geocode.longitude}, ${geocode.latitude}), 4326)::geography
-      WHERE id = ${report.id}
-    `;
+      await setReportLocation(tx, createdReport.id, geocode.latitude, geocode.longitude);
 
-    await prisma.newsArticle.create({
-      data: {
-        guid,
-        title: item.title,
-        sourceUrl: item.link,
-        sourceName: item.sourceName,
-        publishedAt,
-        category: classification.category,
-        severity: classification.severity,
-        latitude: geocode.latitude,
-        longitude: geocode.longitude,
-        reportId: report.id,
-      },
+      await tx.newsArticle.create({
+        data: {
+          guid,
+          title: item.title,
+          sourceUrl: item.link,
+          sourceName: item.sourceName,
+          publishedAt,
+          category: classification.category,
+          severity: classification.severity,
+          latitude: geocode.latitude,
+          longitude: geocode.longitude,
+          reportId: createdReport.id,
+        },
+      });
+
+      return createdReport;
     });
 
     existingGuidSet.add(guid);
