@@ -1,5 +1,5 @@
 import { prisma } from '../db/prisma';
-import { VerificationType } from '@prisma/client';
+import { Role, VerificationType } from '@prisma/client';
 
 export const getUserProfile = async (userId: string) => {
   const user = await prisma.user.findUnique({
@@ -104,7 +104,15 @@ export const getPendingVerifications = async () => {
 
 export const approveVerification = async (adminId: string, verificationId: string) => {
   const verification = await prisma.userVerification.findUnique({
-    where: { id: verificationId }
+    where: { id: verificationId },
+    include: {
+      user: {
+        select: {
+          id: true,
+          role: true,
+        }
+      }
+    }
   });
 
   if (!verification) {
@@ -119,13 +127,28 @@ export const approveVerification = async (adminId: string, verificationId: strin
     throw error;
   }
 
+  // Never downgrade an existing ADMIN account to VERIFIED_RESPONDER on KYC approval
+  const nextRole =
+    verification.user.role === Role.ADMIN ? Role.ADMIN : Role.VERIFIED_RESPONDER;
+
   // Use a transaction to approve verification, update user role, and log the action
   const [updatedUser] = await prisma.$transaction([
     prisma.user.update({
       where: { id: verification.userId },
       data: {
         isVerified: true,
-        role: 'VERIFIED_RESPONDER',
+        role: nextRole,
+      },
+      select: {
+        id: true,
+        anonymousId: true,
+        email: true,
+        role: true,
+        isVerified: true,
+        trustScore: true,
+        isBanned: true,
+        createdAt: true,
+        updatedAt: true,
       }
     }),
     prisma.userVerification.update({
