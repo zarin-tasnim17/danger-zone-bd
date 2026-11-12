@@ -138,11 +138,11 @@ export default function ProfilePage() {
         method: "POST",
         body: JSON.stringify({ anonymousId: anonId }),
       });
-      await initAuth();
+      const switchedUser = await initAuth();
       alert(
         isBn
-          ? `সেশন সফলভাবে পরিবর্তন করা হয়েছে: ${email || anonId}`
-          : `Switched session to: ${email || anonId}`
+          ? `সেশন সফলভাবে পরিবর্তন করা হয়েছে: ${switchedUser?.email || anonId}`
+          : `Switched session to: ${switchedUser?.email || anonId}`
       );
     } catch (err: any) {
       alert(`Identity switch failed: ${err.message}`);
