@@ -544,25 +544,33 @@ Authentication uses short-lived JWT access tokens and persistent refresh tokens 
 ```
 
 #### `POST /api/v1/media/confirm`
-- **Description**: Confirms the upload and queues an asynchronous background task to run the Privacy Blurring Pipeline (automatic blurring of human faces and vehicle license plates).
+- **Description**: Confirms an uploaded report image, validates that `fileKey` and/or `originalUrl` belong to the deployment's trusted storage bucket (`S3_PUBLIC_DOMAIN`, `STORAGE_CDN_URL`, `S3_ENDPOINT`, or default `S3_BUCKET`) under `reports/<reportId>/`, persists the `ReportMedia` record idempotently, and triggers privacy processing.
 - **Auth**: Protected (`requireAuth` - Only report creator, `VERIFIED_RESPONDER`, or `ADMIN`)
-- **Request Body**:
+- **Request Body** *(provide `fileKey`, `originalUrl`, or both referring to the same object)*:
 ```json
 {
   "reportId": "9a1b8c7d-...",
   "fileKey": "reports/9a1b8c7d-uuid/evidence.jpg",
-  "originalUrl": "https://storage.supabase.co/storage/v1/object/public/reports/..." // Optional
+  "originalUrl": "https://cdn.example.com/reports/9a1b8c7d-uuid/evidence.jpg"
 }
 ```
-- **Response `200 OK`**:
+- **Response `201 Created` (or `200 OK` if already confirmed)** *(`originalUrl` is stripped from responses)*:
 ```json
 {
   "success": true,
   "data": {
     "id": "media-record-uuid",
-    "status": "PROCESSING",
-    "message": "Media upload confirmed. Privacy auto-blur pipeline triggered."
+    "reportId": "9a1b8c7d-...",
+    "blurredUrl": "https://cdn.example.com/reports/9a1b8c7d-uuid/evidence.jpg",
+    "createdAt": "2026-11-12T07:00:00.000Z"
   }
+}
+```
+- **Response `400 Bad Request`** *(untrusted host, query/hash params, path traversal, or mismatched `reportId`)*:
+```json
+{
+  "success": false,
+  "error": { "message": "Validation failed: body.originalUrl: originalUrl must start with a trusted storage prefix under reports/<reportId>/" }
 }
 ```
 
