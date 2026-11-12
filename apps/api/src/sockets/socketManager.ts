@@ -119,6 +119,11 @@ export const initSocketServer = (httpServer: HttpServer): SocketIOServer => {
 /**
  * Access the initialized Socket.IO instance
  */
+/**
+ * Returns true when Socket.IO has been initialized on an HTTP server
+ */
+export const hasInitializedIO = (): boolean => io !== null;
+
 export const getIO = (): SocketIOServer => {
   if (!io) {
     throw new Error('Socket.IO has not been initialized. Call initSocketServer first.');
