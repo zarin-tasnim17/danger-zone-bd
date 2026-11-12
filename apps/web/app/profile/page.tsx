@@ -6,6 +6,7 @@ import Navbar from "@/components/layout/Navbar";
 import { apiFetch } from "@/lib/api";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useLanguageStore } from "@/store/useLanguageStore";
+import { BD_MOBILE_REGEX } from "@repo/shared";
 import {
   UserCheck,
   Shield,
@@ -71,19 +72,51 @@ export default function ProfilePage() {
 
   const handleSubmitVerification = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsSubmittingVerify(true);
     setVerifySuccess(null);
     setVerifyError(null);
+
+    const trimmedPhone = phoneNumber.trim();
+    const trimmedDocUrl = documentUrl.trim();
+
+    if (verifyType === "PHONE_OTP") {
+      if (!BD_MOBILE_REGEX.test(trimmedPhone)) {
+        setVerifyError(
+          isBn
+            ? "অনুগ্রহ করে একটি সঠিক বাংলাদেশি মোবাইল নম্বর দিন (+8801XXXXXXXXX বা 01XXXXXXXXX)।"
+            : "Please enter a valid Bangladeshi mobile number (+8801XXXXXXXXX or 01XXXXXXXXX)."
+        );
+        return;
+      }
+    } else {
+      try {
+        const parsed = new URL(trimmedDocUrl);
+        if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+          throw new Error("Invalid protocol");
+        }
+      } catch {
+        setVerifyError(
+          isBn
+            ? "অনুগ্রহ করে একটি বৈধ নথির লিংক (URL) প্রদান করুন।"
+            : "Please provide a valid document evidence URL (https://...)."
+        );
+        return;
+      }
+    }
+
+    setIsSubmittingVerify(true);
 
     try {
       const res = await apiFetch<any>("/users/verify", {
         method: "POST",
         body: JSON.stringify({
           type: verifyType,
-          documentUrl: verifyType === "NID_DOCUMENT" ? documentUrl : undefined,
+          phoneNumber: verifyType === "PHONE_OTP" ? trimmedPhone : undefined,
+          documentUrl: verifyType === "NID_DOCUMENT" ? trimmedDocUrl : undefined,
         }),
       });
 
+      setPhoneNumber("");
+      setDocumentUrl("");
       setVerifySuccess(
         isBn
           ? `ভেরিফিকেশন অনুরোধ (${res.type}) জমা হয়েছে! অবস্থা: ${res.status}। একজন অ্যাডমিনিস্ট্রেটর অ্যাডমিন প্যানেল থেকে এটি অনুমোদন করতে পারবেন।`
@@ -593,7 +626,9 @@ export default function ProfilePage() {
                         {isBn ? "বাংলাদেশি মোবাইল নম্বর" : "Bangladeshi Mobile Number"}
                       </label>
                       <input
-                        type="text"
+                        type="tel"
+                        required
+                        maxLength={14}
                         value={phoneNumber}
                         onChange={(e) => setPhoneNumber(e.target.value)}
                         placeholder="+8801XXXXXXXXX"
@@ -611,7 +646,8 @@ export default function ProfilePage() {
                         {isBn ? "স্মার্ট এনআইডি কার্ড বা প্রামাণ্য নথির লিংক" : "Smart NID Card or Document Evidence URL"}
                       </label>
                       <input
-                        type="text"
+                        type="url"
+                        required
                         value={documentUrl}
                         onChange={(e) => setDocumentUrl(e.target.value)}
                         placeholder="https://storage.supabase.co/..."

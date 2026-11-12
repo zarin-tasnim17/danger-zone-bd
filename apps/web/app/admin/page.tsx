@@ -841,7 +841,9 @@ export default function AdminPage() {
                         </td>
                         <td className="p-3.5 font-bold text-slate-900">{v.type || "NID / Phone"}</td>
                         <td className="p-3.5 font-mono text-slate-600 truncate max-w-xs">
-                          {v.documentUrl ? (
+                          {v.type === "PHONE_OTP" || !v.documentUrl ? (
+                            <span>{v.phoneNumber || v.user?.phoneNumber || "—"}</span>
+                          ) : (
                             <a
                               href={v.documentUrl}
                               target="_blank"
@@ -851,8 +853,6 @@ export default function AdminPage() {
                               <span>{v.documentUrl.slice(0, 30)}...</span>
                               <ExternalLink className="w-3 h-3" />
                             </a>
-                          ) : (
-                            v.phoneNumber || "—"
                           )}
                         </td>
                         <td className="p-3.5 text-slate-500 font-mono text-[11px]">
