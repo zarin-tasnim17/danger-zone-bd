@@ -1,32 +1,66 @@
 {
-  "generatedAt": "2026-11-12T16:22:56.515Z",
+  "generatedAt": "2026-11-12T16:39:51.453Z",
   "auditScope": {
     "frontendWorkspace": "apps/web",
-    "backendBaseline": "apps/api (BACKEND-001..BACKEND-014 verified fixed; 47 endpoints EP-001..EP-047)",
-    "applicationSourceModified": true,
-    "specificationFile": "dontADDgit/frontend_api_test.md"
+    "backendBaseline": "apps/api (BACKEND-001..BACKEND-014 verified fixed; 47 endpoints EP-001..EP-047; zero backend changes in post-fix cycle)",
+    "applicationSourceModified": false,
+    "postFixVerificationOnly": true,
+    "specificationFiles": [
+      "dontADDgit/frontend_api_test.md",
+      "dontADDgit/post_verification_frontend.md"
+    ],
+    "originalFixCommitsInspected": [
+      "be1aaff",
+      "e11b652",
+      "74a5fc8",
+      "f0eaa1a",
+      "710f5bf",
+      "9c0dac2",
+      "56d9b55"
+    ],
+    "canonicalFilenameNote": "Project maintains machine findings at apps/web/docs/testing/Frontend_Findings.json (equivalent to Frontend_API_Findings.json in post_verification_frontend.md)."
+  },
+  "originalAuditBaseline": {
+    "phase": "Initial Pre-Fix Frontend API Integration Audit",
+    "endpointClassification": {
+      "correctlyIntegrated": 19,
+      "partiallyIntegrated": 18,
+      "incorrectlyIntegrated": 4,
+      "backendOnly": 6
+    },
+    "verificationTests": { "total": 42, "passed": 42, "failed": 0, "skipped": 0 },
+    "defectRegressionTests": { "total": 11, "passed": 0, "failed": 11, "skipped": 0 },
+    "overall": { "total": 53, "passed": 42, "failed": 11, "skipped": 0 },
+    "durationMs": 75802,
+    "verdict": "CONDITIONAL / HOLD RELEASE ON AUTH & REAL-TIME FIXES (P1)"
   },
   "executionBaseline": {
+    "generatedAt": "2026-11-12T16:39:51.453Z",
     "typecheck": "PASS (tsc --noEmit exit 0)",
-    "nextBuild": "PASS (next build exit 0, 13/13 App Router routes)",
+    "totalDurationMs": 73537,
+    "overall": { "total": 62, "passed": 59, "failed": 3, "skipped": 0 },
     "verificationTests": {
-      "total": 43,
-      "passed": 43,
+      "total": 48,
+      "passed": 48,
       "failed": 0,
       "skipped": 0,
       "layers": {
-        "mocked": { "total": 33, "passed": 33, "failed": 0, "skipped": 0 },
+        "mocked": { "total": 38, "passed": 38, "failed": 0, "skipped": 0 },
         "contract": { "total": 4, "passed": 4, "failed": 0, "skipped": 0 },
         "liveBackend": { "total": 3, "passed": 3, "failed": 0, "skipped": 0 },
         "browserE2E": { "total": 3, "passed": 3, "failed": 0, "skipped": 0 }
       }
     },
     "defectRegressionTests": {
-      "total": 11,
+      "total": 14,
       "passed": 11,
-      "failed": 0,
+      "failed": 3,
       "skipped": 0,
-      "note": "All 11/11 defect regression tests (FRONTEND-001..FRONTEND-011) PASS; 54/54 total tests pass in --profile=report with 0 DB orphans."
+      "originalDefectsPassed": 11,
+      "originalDefectsTotal": 11,
+      "newlyDiscoveredFailed": 3,
+      "newlyDiscoveredTotal": 3,
+      "note": "All 11/11 original defects (FRONTEND-001..FRONTEND-011) PASS and all 48/48 verification suites PASS (0 DB orphans). 3 new post-fix regression/discovery tests (FRONTEND-REG-001, FRONTEND-NEW-001, FRONTEND-NEW-002) deterministically FAIL as expected while app source remains frozen."
     }
   },
   "findings": [
@@ -180,7 +214,58 @@
     {
       "subject": "EP-002 / EP-003 /health & /health/db direct client probe URL in app/health/page.tsx",
       "verdict": "FIXED AND VERIFIED (LOW / ENVIRONMENTAL QUIRK RESOLVED)",
-      "evidence": "Normalized targetUrl in apps/web/app/health/page.tsx by stripping trailing slashes and /api/v1 (consistent with apps/web/app/api/health/route.ts) before probing /health and /health/db; verified live in Chromium E2E (GET /health 200, GET /health/db 200)."
+      "evidence": "Normalized targetUrl in apps/web/app/health/page.tsx by stripping trailing slashes and /api/v1 (consistent with apps/web/app/api/health/route.ts) before probing /health and /health/db; verified live in Chromium E2E (GET /health 200, GET /health/db 200) and static parity test in api/04."
+    }
+  ],
+  "newlyIntroducedRegressions": [
+    {
+      "id": "FRONTEND-REG-001",
+      "introducedByCommit": "be1aaff",
+      "relatedOriginalFinding": "FRONTEND-004",
+      "title": "/profile handleSwitchIdentity leaves stale in-memory Socket.IO handshake token from previous session after initAuth() short-circuits on GET /users/me",
+      "category": "Authentication & Real-Time Session Sync (Regression)",
+      "severity": "High",
+      "priority": "P1",
+      "status": "REGRESSION INTRODUCED",
+      "affectedEndpoints": ["EP-006 POST /api/v1/auth/device", "EP-010 GET /api/v1/users/me", "EP-047 WS /socket.io"],
+      "locations": [
+        "apps/web/app/profile/page.tsx:134-154",
+        "apps/web/store/useAuthStore.ts:70-78"
+      ],
+      "regressionTest": "apps/web/tests/regression/02-post-fix-newly-discovered-defects.test.ts ([FRONTEND-REG-001])",
+      "observedEvidence": "Post-fix verification failure: handleSwitchIdentity posts /auth/device and discards its { user, socketToken } response before calling initAuth(). Because initAuth() now checks GET /users/me first (FRONTEND-004) and returns early on HTTP 200 without calling setSocketAuthToken, lib/socket.ts retains the previous session's token ('stale-admin-socket-token' !== 'fresh-switched-socket-token' in [FRONTEND-REG-001]).",
+      "recommendedFix": "Capture the POST /auth/device response in handleSwitchIdentity (or move identity switching into a useAuthStore helper) and pass deviceAuth.socketToken to setSocketAuthToken() before hydrating /users/me."
+    }
+  ],
+  "newlyDiscoveredFindings": [
+    {
+      "id": "FRONTEND-NEW-001",
+      "title": "Existing HttpOnly cookie reload via initAuth() GET /users/me hydrates REST auth without supplying a Socket.IO auth token for cross-origin user:<id> room joins",
+      "category": "Real-Time WebSocket & Cross-Origin Authentication",
+      "severity": "Medium",
+      "priority": "P2",
+      "status": "UNRESOLVED",
+      "affectedEndpoints": ["EP-010 GET /api/v1/users/me", "EP-047 WS /socket.io"],
+      "locations": [
+        "apps/web/store/useAuthStore.ts:70-78",
+        "apps/web/lib/socket.ts:48-57"
+      ],
+      "regressionTest": "apps/web/tests/regression/02-post-fix-newly-discovered-defects.test.ts ([FRONTEND-NEW-001])",
+      "observedEvidence": "Post-fix verification failure: when reloading with an existing HttpOnly cookie session, initAuth() gets 200 from GET /users/me (which does not return a socketToken) and invokes getSocket() while currentSocketToken is null. In same-origin rewrites it works only if SameSite cookies traverse domains, but on split Vercel -> Render WebSocket handshakes socket.auth.token is missing, preventing private user:<id> GEOFENCE_ALERT room attachment until a 401 refresh occurs. [FRONTEND-NEW-001] deterministically FAIL.",
+      "recommendedFix": "Either have /users/me (or a dedicated lightweight socket token refresh/issue call when currentSocketToken is null) supply a short-lived socketToken during initAuth() hydration."
+    },
+    {
+      "id": "FRONTEND-NEW-002",
+      "title": "lib/socket.ts SOCKET_URL fallback checks hostname !== 'localhost', routing 127.0.0.1 local environments to production Render URL when NEXT_PUBLIC_SOCKET_URL is unset",
+      "category": "Environment & Transport Configuration",
+      "severity": "Low",
+      "priority": "P3",
+      "status": "UNRESOLVED",
+      "affectedEndpoints": ["EP-047 WS /socket.io"],
+      "locations": ["apps/web/lib/socket.ts:7-11"],
+      "regressionTest": "apps/web/tests/regression/02-post-fix-newly-discovered-defects.test.ts ([FRONTEND-NEW-002])",
+      "observedEvidence": "Running on http://127.0.0.1:3000 without NEXT_PUBLIC_SOCKET_URL evaluates window.location.hostname !== 'localhost' as true and resolves SOCKET_URL to 'https://danger-zone-bd.onrender.com' instead of 'http://127.0.0.1:5000' ([FRONTEND-NEW-002] FAIL).",
+      "recommendedFix": "Check window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1' (and derive from NEXT_PUBLIC_API_URL when absolute) before defaulting to Render."
     }
   ]
 }

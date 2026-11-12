@@ -1,18 +1,19 @@
 # Frontend API Integration & Functional Audit Test Report — DangerZoneBD (`apps/web`)
 
-**Generated:** `2026-11-12T16:22:56.515Z` (Synchronized with `results.json` & `coverage-summary.json`)  
+**Generated:** `2026-11-12T16:39:51.453Z` (Synchronized with `results.json`, `coverage-summary.json` & `Frontend_Findings.json`)  
 **Audited Application:** `apps/web` (Next.js 14.2.3 App Router, React 18, TypeScript, Zustand 4.5.2, Socket.IO Client 4.7.5)  
 **Verified Backend Baseline:** `apps/api` ([`API_Test_Report.md`](../../../api/docs/testing/API_Test_Report.md), [`API_Endpoint_Inventory.md`](../../../api/docs/testing/API_Endpoint_Inventory.md) `EP-001`–`EP-047`, [`API_Findings.json`](../../../api/docs/testing/API_Findings.json) `BACKEND-001`–`BACKEND-014` all `FIXED AND VERIFIED`)  
-**Companion Inventory & Machine Findings:** [`Frontend_API_Integration_Inventory.md`](./Frontend_API_Integration_Inventory.md) | [`Frontend_Findings.json`](./Frontend_Findings.json)  
-**Application Source Integrity:** All `FRONTEND-001`–`FRONTEND-011` defects and `/health` probe normalization fixed & verified in `apps/web`; **`apps/api/**` 100% PRESERVED** (`0` backend edits).
+**Companion Inventory & Machine Findings:** [`Frontend_API_Integration_Inventory.md`](./Frontend_API_Integration_Inventory.md) | [`Frontend_Findings.json`](./Frontend_Findings.json) *(canonical project equivalent of `Frontend_API_Findings.json`)*  
+**Post-Fix Verification Scope:** Independent read-only post-fix audit of commits `be1aaff`, `e11b652`, `74a5fc8`, `f0eaa1a`, `710f5bf`, `9c0dac2`, `56d9b55` under `dontADDgit/post_verification_frontend.md`. **Zero application source edits made to `apps/web/{app,components,lib,store,public,next.config.mjs}` or `apps/api/**` during post-fix verification.**
 
 ---
 
 ## Section A — Executive Summary & Production-Readiness Verdict
 
-### Verdict: **READY FOR PRODUCTION RELEASE (`54/54` PASS — ALL 11 DEFECTS FIXED & VERIFIED)**
+### Verdict: **CONDITIONAL — ALL 11 ORIGINAL DEFECTS FIXED & VERIFIED; 1 P1 REGRESSION (`FRONTEND-REG-001`) + 2 NEW ISSUES (`FRONTEND-NEW-001`, `FRONTEND-NEW-002`) OPEN**
 
-- All **54/54 automated tests across all 12 suites passed (`0 failed`, `0 skipped`, `0 cancelled`)** covering Mocked Unit/API/Auth/RBAC/Forms/Components (`33/33`), Contract Schema Parity (`4/4` covering `47/47` endpoints), Live Ephemeral Express + PostgreSQL/PostGIS + Socket.IO Workflows (`3/3`, `0` database orphans across all 6 tables), Real Headless Chromium + Next.js E2E (`3/3`, all 10 App Router routes & interactive `/report` -> PostgreSQL -> `/reports/[id]` roundtrip), and the **11-case Defect Regression Suite (`11/11` passing)** for `FRONTEND-001`–`FRONTEND-011`.
+- All **48/48 verification tests (`0 failed`, `0 skipped`, `0 cancelled`)** and all **11/11 original defect regression tests (`FRONTEND-001`–`FRONTEND-011`)** pass cleanly across Mocked Unit/API/Auth/RBAC/Forms/Components (`38/38`), Contract Schema Parity (`4/4` covering `47/47` endpoints), Live Ephemeral Express + PostgreSQL/PostGIS + Socket.IO Workflows (`3/3`, `0` database orphans across all 6 tables), and Real Headless Chromium + Next.js E2E (`3/3`, all 10 App Router routes & interactive `/report` -> PostgreSQL -> `/reports/[id]` roundtrip).
+- **Newly Discovered Gaps (`0/3 PASS`, `3 FAIL` in `tests/regression/02-post-fix-newly-discovered-defects.test.ts`):** Independent full-scope verification identified **1 P1 regression (`FRONTEND-REG-001`)** introduced alongside `FRONTEND-004`, plus **2 pre-existing Socket.IO auth/environment issues (`FRONTEND-NEW-001` P2, `FRONTEND-NEW-002` P3)**. Core citizen/admin workflows and all verification suites (`test:web:all`, `test:web:ci`, `test:web:report`) exit `0`, while `test:web:regression` exits `1` (`11/14 PASS`) until those 3 newly documented Socket.IO defects are resolved.
 
 ### Mandatory Audit Statistics
 
@@ -23,17 +24,17 @@
 | Consumed by frontend UI / Client stores (`coverage-summary.json`) | **37** |
 | Next.js App Router Proxy / Cron handlers | **4** (`EP-043`, `EP-044`, `EP-045`, `EP-046`) |
 | Intentionally Backend Only (`BACKEND ONLY`) | **6** (`EP-001`, `EP-004`, `EP-005`, `EP-012`, `EP-031`, `EP-042`) |
-| **Correctly Integrated** (`EP-*`) | **36** |
-| **Partially Integrated** (`EP-*`) | **5** (`EP-030`, `EP-040`, `EP-043`, `EP-045`, `EP-046` — mocked/contract verified cleanly; live RSS & mock-storage excluded from offline CI) |
+| **Correctly Integrated** (`EP-*`) | **34** |
+| **Partially Integrated** (`EP-*`) | **7** (`EP-006`, `EP-047` due to open socket token sync gaps; plus `EP-030`, `EP-040`, `EP-043`, `EP-045`, `EP-046` excluded from offline CI live triggers) |
 | **Incorrectly Integrated** (`EP-*`) | **0** |
 | **Missing Integration / Intentionally Unused / Blocked** | **0 / 0 / 0** |
-| **Total Automated Tests Executed (`--profile=report`)** | **54** (`43` Verification + `11` Defect Regression) |
-| **Verification Suites Passed / Failed / Skipped** | **43 / 0 / 0** (`100%` verified) |
-| **Defect Regression Cases Executed** | **11 / 11 PASS (`11 pass, 0 fail` — `FRONTEND-001`..`011` FIXED AND VERIFIED)** |
+| **Total Automated Tests Executed (`--profile=report`)** | **62** (`48` Verification + `14` Defect Regression) |
+| **Verification Suites Passed / Failed / Skipped** | **48 / 0 / 0** (`100%` verified) |
+| **Defect Regression Cases Executed (`regression/01` + `regression/02`)** | **11 / 14 PASS** (`11/11` original `FRONTEND-001`..`011` PASS; `0/3` new `FRONTEND-REG-001`/`NEW-001`/`NEW-002` FAIL as expected) |
 | **Endpoint Verification Breakdown (`coverage-summary.json`)** | Contract: **47/47** \| Mocked: **41/47** \| Live Backend: **38/47** \| Chromium E2E: **13/47** |
 | Next.js TypeScript Check (`tsc --noEmit`) | **PASS (exit code 0)** |
-| Next.js Production Build (`next build`) | **PASS (exit code 0, `13/13` App Router routes)** |
-| Total Suite Execution Duration (`--profile=report`) | **69.53s** (`69,526 ms`) |
+| PostgreSQL Post-Run Orphan Count (all 6 tables) | **0 orphans** (`u=0, r=0, s=0, a=0, t=0, m=0`) |
+| Total Suite Execution Duration (`--profile=report`) | **73.54s** (`73,537 ms`) |
 
 ---
 
@@ -72,11 +73,122 @@ Complete 20-attribute mapping and traceability tables for `EP-001`–`EP-047` an
 
 | Execution Layer | Test Files | Executed | Passed | Failed | Skipped | Duration / Notes |
 | --- | --- | ---: | ---: | ---: | ---: | --- |
-| **1. Mocked (Unit / API / Stores / Route Handlers / Auth / RBAC / Forms / SSR Components)** | `unit/01`, `api/01`, `api/02`, `api/03`, `authentication/01`, `authorization/01`, `forms/01`, `components/01` | **33** | **33** | **0** | **0** | Offline deterministic `fetch` stubbing (`installFetchMock`) + isolated DOM storage (`installBrowserGlobals`). Covers single-flight 401 refresh mechanics, 502 HTML errors, AbortController timeouts, Zustand store rollback & `resetAnonymousIdentity()`, `/api/health`, `/api/cron/news-crawl`, RBAC, validation & SSR hydration. |
+| **1. Mocked (Unit / API / Stores / Route Handlers / Auth / RBAC / Forms / SSR Components)** | `unit/01`, `api/01`–`api/04`, `authentication/01`, `authorization/01`, `forms/01`, `components/01` | **38** | **38** | **0** | **0** | Offline deterministic `fetch` stubbing (`installFetchMock`) + isolated DOM storage (`installBrowserGlobals`). Covers single-flight 401 refresh, HTTP 400/401/403/404/409/422/429/500/502/503/504 extraction, `204` empty bodies, S3 PUT + `/media/confirm` + failure abort, `/health` URL normalization, Zustand rollback & `resetAnonymousIdentity()`, `/api/health`, `/api/cron/news-crawl`, RBAC & SSR hydration. |
 | **2. Contract Verification (Backend Schema Parity)** | `contracts/01-backend-contract-alignment.test.ts` | **4** | **4** | **0** | **0** | Validates 100% `EP-001`–`EP-047` manifest alignment, strict outgoing Zod payload parity, `EP-018`/`EP-019` `author.role` alignment, and `/dev-test` route alignment. |
-| **3. Live Backend Integration (Express + PostgreSQL/PostGIS + Socket.IO)** | `workflows/01-live-backend-integration.test.ts` | **3** | **3** | **0** | **0** | Boots real ephemeral Express + Socket.IO server against PostgreSQL + PostGIS with in-memory `TestCookieJar` (`30,238ms`). Executes `/api/health` (`274.59ms`), full citizen -> KYC -> responder -> admin lifecycle (`27,245.21ms`), and real Socket.IO `UPDATE_BOUNDS` (`126.39ms`). PostgreSQL verification confirmed `0` leaked records across all 6 DB tables. |
-| **4. Real Browser E2E (Headless Chromium + Live Next.js + Live Backend)** | `e2e/01-browser-playwright-e2e.test.ts` | **3** | **3** | **0** | **0** | Boots Next.js `127.0.0.1` dev server (`NEXT_PUBLIC_API_URL` pointed to ephemeral Express) + headless Chrome/Edge via `puppeteer-core` (`34,750ms`). Verifies `/` real browser auth/feed/safe-zones/stats, interactive `/report` submit (`POST /api/v1/reports 201`) -> PostgreSQL persistence -> `/reports/[id]` dossier (`6,077.09ms`), and zero uncaught errors/5xx across `/feed`, `/routes`, `/safe-zones`, `/alerts`, `/profile`, `/health`, `/dev-test`, `/admin` (`16,179.98ms`). |
-| **5. Defect Regression Suite (Asserts Expected Fixed State)** | `regression/01-confirmed-frontend-defects.test.ts` | **11** | **11** | **0** | **0** | Every test encodes the target fixed behavior for `FRONTEND-001` through `FRONTEND-011`. All `11/11` PASS (`74.96ms`). |
+| **3. Live Backend Integration (Express + PostgreSQL/PostGIS + Socket.IO)** | `workflows/01-live-backend-integration.test.ts` | **3** | **3** | **0** | **0** | Boots real ephemeral Express + Socket.IO server against PostgreSQL + PostGIS with in-memory `TestCookieJar`. Executes `/api/health`, full citizen -> KYC -> responder -> admin lifecycle, and real Socket.IO `UPDATE_BOUNDS`. PostgreSQL verification confirmed `0` leaked records across all 6 DB tables. |
+| **4. Real Browser E2E (Headless Chromium + Live Next.js + Live Backend)** | `e2e/01-browser-playwright-e2e.test.ts` | **3** | **3** | **0** | **0** | Boots Next.js `127.0.0.1` dev server (`NEXT_PUBLIC_API_URL` pointed to ephemeral Express) + headless Chrome/Edge via `puppeteer-core`. Verifies `/` real browser auth/feed/safe-zones/stats, interactive `/report` submit (`POST /api/v1/reports 201`) -> PostgreSQL persistence -> `/reports/[id]` dossier, and zero uncaught errors/5xx across `/feed`, `/routes`, `/safe-zones`, `/alerts`, `/profile`, `/health`, `/dev-test`, `/admin`. |
+| **5. Defect Regression Suite (Original + Newly Discovered)** | `regression/01`, `regression/02` | **14** | **11** | **3** | **0** | `regression/01` (`FRONTEND-001`..`011`, with strengthened runtime/AST guards on `007`–`010`) passes **11/11 (`100%`)**. `regression/02` (`FRONTEND-REG-001`, `FRONTEND-NEW-001`, `FRONTEND-NEW-002`) deterministically fails **0/3**, proving open post-fix Socket.IO token & URL gaps. |
+
+---
+
+## Post-Fix Verification & Regression Testing Results
+
+This section documents the independent post-fix verification sweep executed after fix commits `be1aaff`–`56d9b55` without modifying any production application source files in `apps/web/{app,components,lib,store,public,next.config.mjs}` or `apps/api/**`.
+
+### 1. Original Audit Baseline (Historical Record Preserved)
+- **Original Baseline Phase:** Initial pre-fix frontend API audit (`apps/api` baseline `BACKEND-001`–`BACKEND-014` verified fixed).
+- **Original Endpoint Counts (`47` total backend/proxy interfaces):** `19` Correctly Integrated, `18` Partially Integrated, `4` Incorrectly Integrated (`EP-006`, `EP-007`, `EP-008`, `EP-021`), `6` Backend Only, `0` Missing / Intentionally Unused / Blocked.
+- **Original Test Statistics:** `53` total tests executed in `75.80s` (`75,802ms`) — `42/42` Verification (`100%` PASS) + `0/11` Defect Regression (`11 FAIL` proving `FRONTEND-001`–`FRONTEND-011` + low-priority `/health` probe normalization quirk).
+- **Original Production-Readiness Assessment:** `CONDITIONAL / HOLD RELEASE ON AUTH & REAL-TIME FIXES (P1)`.
+
+### 2. Post-Fix Verification Summary (Current Snapshot)
+- **Total Original Findings:** `11` (`FRONTEND-001`–`FRONTEND-011`) + `1` Low-Priority `/health` URL quirk
+- **Fixed and Verified:** **11 / 11** original findings + **1 / 1** `/health` URL normalization polish
+- **Fixed but Not Verified:** `0`
+- **Partially Fixed:** `0` *(note: `FRONTEND-004` itself is fixed, while its early return exposed `FRONTEND-REG-001` / `FRONTEND-NEW-001` tracked separately below)*
+- **Unresolved (Original):** `0`
+- **Newly Introduced Regressions:** **1** (`FRONTEND-REG-001` — High / P1)
+- **Newly Discovered Issues:** **2** (`FRONTEND-NEW-001` Medium / P2, `FRONTEND-NEW-002` Low / P3)
+- **Blocked Findings:** `0`
+
+### 3. Finding-by-Finding Verification Matrix (`FRONTEND-001` – `FRONTEND-011` + New Findings)
+
+| Finding ID | Priority | Title (Short) | Target Location(s) | Fix Commit(s) | Automated Proof | Post-Fix Status |
+| --- | --- | --- | --- | --- | --- | --- |
+| `FRONTEND-001` | P1 | Single-flight `/auth/refresh` Promise mutex | `lib/api.ts:62-113` | `be1aaff` | `api/01`, `regression/01 [FRONTEND-001]` PASS | **FIXED AND VERIFIED** |
+| `FRONTEND-002` | P1 | Skip silent refresh on `/auth/login` & `/auth/logout` 401 | `lib/api.ts:11-23,115-128` | `be1aaff` | `api/01`, `regression/01 [FRONTEND-002]` PASS | **FIXED AND VERIFIED** |
+| `FRONTEND-003` | P1 | Revoke non-ADMIN cookies via `/auth/logout` on admin reject | `store/useAuthStore.ts:103-140` | `be1aaff` | `api/02`, `regression/01 [FRONTEND-003]` PASS | **FIXED AND VERIFIED** |
+| `FRONTEND-004` | P1 | Check `/users/me` before `/auth/device`; clean `logout()` | `store/useAuthStore.ts:39-101,148-189` | `be1aaff` | `auth/01`, `workflows/01`, `regression/01 [FRONTEND-004]` PASS | **FIXED AND VERIFIED** *(exposed `FRONTEND-REG-001`)* |
+| `FRONTEND-005` | P1 | `/alerts` awaits `initAuth()` before `getSocket()` + reconnect | `app/alerts/page.tsx:207-244`, `lib/socket.ts:13-36` | `e11b652` | `workflows/01`, `e2e/01`, `regression/01 [FRONTEND-005]` PASS | **FIXED AND VERIFIED** |
+| `FRONTEND-006` | P2 | Real VAPID Web Push subscription + SW push handlers | `app/alerts/page.tsx:457-553`, `public/sw.js:70-124` | `e11b652` | `forms/01`, `regression/01 [FRONTEND-006]` PASS | **FIXED AND VERIFIED** |
+| `FRONTEND-007` | P2 | `ReportIncidentModal` trimmed fields & `<=1000` char cap | `components/incidents/ReportIncidentModal.tsx:258-295` | `74a5fc8` | `forms/01`, `regression/01 [FRONTEND-007]` PASS | **FIXED AND VERIFIED** |
+| `FRONTEND-008` | P2 | `/safe-zones` fix `selectedZone` fetch loop & coords/name validation | `app/safe-zones/page.tsx:150-169,235-270` | `74a5fc8` | `forms/01`, `e2e/01`, `regression/01 [FRONTEND-008]` PASS | **FIXED AND VERIFIED** |
+| `FRONTEND-009` | P2 | `/admin` surface fetch errors + `>=3`-char reason & UUID validation | `app/admin/page.tsx:126-220,299-330` | `74a5fc8` | `forms/01`, `authz/01`, `regression/01 [FRONTEND-009]` PASS | **FIXED AND VERIFIED** |
+| `FRONTEND-010` | P2 | `apiFetch` 25s timeout + `/report` prompt `500` cap & coord draft | `lib/api.ts:35-85`, `app/report/page.tsx:973-988,1173-1205` | `74a5fc8` | `api/01`, `e2e/01`, `regression/01 [FRONTEND-010]` PASS | **FIXED AND VERIFIED** |
+| `FRONTEND-011` | P1 | Single-flight `initAuthPromise` mutex against double mounts | `store/useAuthStore.ts:39-101` | `be1aaff` | `e2e/01`, `regression/01 [FRONTEND-011]` PASS | **FIXED AND VERIFIED** |
+| `/health` URL quirk | P3 | Normalize trailing slashes & `/api/v1` on direct `/health` probes | `app/health/page.tsx:84-87` | `74a5fc8` | `api/04`, `e2e/01` (`GET /health 200`, `/health/db 200`) PASS | **FIXED AND VERIFIED** |
+| **`FRONTEND-REG-001`** | **P1** | `/profile` `handleSwitchIdentity` retains stale previous `socketToken` | `app/profile/page.tsx:134-154`, `store/useAuthStore.ts:70-78` | *Introduced in `be1aaff`* | `regression/02 [FRONTEND-REG-001]` **FAIL** | **REGRESSION INTRODUCED** |
+| **`FRONTEND-NEW-001`** | **P2** | Reload via `GET /users/me 200` leaves cross-origin `socket.auth.token` unset | `store/useAuthStore.ts:70-78`, `lib/socket.ts:48-57` | *Pre-existing / exposed* | `regression/02 [FRONTEND-NEW-001]` **FAIL** | **UNRESOLVED (NEW)** |
+| **`FRONTEND-NEW-002`** | **P3** | `SOCKET_URL` fallback routes `127.0.0.1` to Render production URL | `lib/socket.ts:7-11` | *Pre-existing* | `regression/02 [FRONTEND-NEW-002]` **FAIL** | **UNRESOLVED (NEW)** |
+
+### 4. Full Regression & API Verification Results (Separated by Layer)
+- **TypeScript (`tsc --noEmit`):** Exit code `0` (`0` errors).
+- **Mocked Layers (`38/38 PASS` across 9 files):**
+  - `unit/01`: `5/5 PASS` (`resolveApiUrl`, `evaluateHardwareGpsProximity`, `validateEvidenceFile`, `filterUtils`, `incidentUtils`, `safeZoneMeta`, `@repo/shared`).
+  - `api/01`, `api/02`, `api/03`: `13/13 PASS` (single-flight refresh, non-refresh `/auth/login`, `FormData`, 502 HTML, AbortController, Zustand optimistic vote rollback, `/api/health`, `/api/cron/news-crawl`).
+  - `api/04` *(new post-fix suite)*: `5/5 PASS` (explicit HTTP `400`, `401` single retry fail-closed without loop, `403`, `404`, `409`, `422`, `429`, `500`, `503`, `504` error extraction; `204 No Content` empty body; S3 direct `PUT -> POST /media/confirm` + PUT abort guard; `/health` URL normalization parity).
+  - `authentication/01`, `authorization/01`, `forms/01`, `components/01`: `15/15 PASS` (auth cookies/reset, RBAC guards, form schemas & Bangladesh boundaries, React 18 SSR snapshot safety).
+- **Contract Parity (`4/4 PASS`):** `47/47` `EP-001`–`EP-047` Zod schema alignment confirmed; backend `apps/api/**` untouched since fix baseline (`backends` verified `0` diffs).
+- **Live Backend Integration (`3/3 PASS`, `0` DB orphans):** Full citizen -> KYC -> responder -> admin lifecycle + `/api/health` + live Socket.IO `UPDATE_BOUNDS` against Express + PostgreSQL/PostGIS (`u=0, r=0, s=0, a=0, t=0, m=0`).
+- **Real Chromium Browser E2E (`3/3 PASS`, `0` console/page errors, `0` 5xx):** Interactive `/report` submission -> PostgreSQL persistence -> `/reports/[id]` + navigation across all 10 routes (`/`, `/feed`, `/routes`, `/safe-zones`, `/alerts`, `/profile`, `/health`, `/dev-test`, `/admin`).
+- **Defect Regression (`11/14 PASS`, `3 FAIL` expected for open newly discovered issues):** `regression/01` **11/11 PASS** (even after strengthening `[FRONTEND-007]`–`[FRONTEND-010]` with runtime `timeoutMs` execution and strict AST checks); `regression/02` **0/3 PASS** (`FRONTEND-REG-001`, `FRONTEND-NEW-001`, `FRONTEND-NEW-002` fail deterministically).
+
+### 5. Post-Fix Verification Addendum for Original Findings (`FRONTEND-001` – `FRONTEND-011`)
+- **`FRONTEND-001` (`FIXED AND VERIFIED`):** Inspected `lib/api.ts:62-113`; single-flight `refreshInFlightPromise` serializes concurrent 401 refreshes, updates `setSocketToken`, and retries with `skipAuthRefresh: true`. Verified live & mocked (`api/01`, `[FRONTEND-001]`).
+- **`FRONTEND-002` (`FIXED AND VERIFIED`):** Inspected `lib/api.ts:11-23,115-128`; `shouldAttemptSilentRefresh` excludes `/auth/login`, `/auth/logout`, `/auth/refresh`, `/auth/device`. Verified in `api/01`, `api/04`, `[FRONTEND-002]`.
+- **`FRONTEND-003` (`FIXED AND VERIFIED`):** Inspected `store/useAuthStore.ts:103-140`; non-`ADMIN` sessions call `POST /auth/logout` (`skipAuthRefresh: true`), disconnect socket, and reset state before throwing. Verified in `api/02`, `[FRONTEND-003]`.
+- **`FRONTEND-004` (`FIXED AND VERIFIED`):** Inspected `store/useAuthStore.ts:39-101,148-189`; `initAuth()` checks `GET /users/me` first, preserving `ADMIN`/`VERIFIED_RESPONDER` sessions; `logout()` avoids minting orphan anonymous DB rows; `resetAnonymousIdentity()` serves `/profile` reset. *(Side-effect regression on `/profile` identity switcher is tracked as `FRONTEND-REG-001`.)*
+- **`FRONTEND-005` (`FIXED AND VERIFIED`):** Inspected `app/alerts/page.tsx:207-244` and `lib/socket.ts:13-36`; `/alerts` awaits `initAuth()` before `getSocket()` + cancellation guard; `setSocketAuthToken` reconnects on token upgrade and disconnects on `null`.
+- **`FRONTEND-006` (`FIXED AND VERIFIED`):** Inspected `app/alerts/page.tsx:457-553` and `public/sw.js:70-124`; synthetic `push.safetymap.bd` fallback removed; genuine VAPID `PushManager.subscribe` + honest error feedback implemented; SW `push` & `notificationclick` listeners active.
+- **`FRONTEND-007` (`FIXED AND VERIFIED`):** Inspected `components/incidents/ReportIncidentModal.tsx:258-295`; rejects `!title.trim() || !description.trim()` and `fullDescription.length > 1000`. Strengthened `[FRONTEND-007]` PASS.
+- **`FRONTEND-008` (`FIXED AND VERIFIED`):** Inspected `app/safe-zones/page.tsx:150-169,235-270`; functional `setSelectedZone((prev) => prev ?? data[0])` without `selectedZone` in `useCallback` deps, plus `trimmedName.length < 2`, `Number.isFinite`, and Bangladesh coordinate bounds (`20.0..27.5`, `88.0..93.5`). Strengthened `[FRONTEND-008]` PASS.
+- **`FRONTEND-009` (`FIXED AND VERIFIED`):** Inspected `app/admin/page.tsx:126-220,299-330`; surfaces `fetchAdminData` errors via `setDataError` banner + `showToast(..., "error")`, enforces `.trim().length >= 3` and `UUID_PATTERN`. Strengthened `[FRONTEND-009]` PASS.
+- **`FRONTEND-010` (`FIXED AND VERIFIED`):** Inspected `lib/api.ts:35-85` and `app/report/page.tsx:973-988,1173-1205`; runtime `apiFetch` `timeoutMs` `AbortController` test + `.slice(0, 500)` + `latInput`/`lngInput` preservation all PASS in `[FRONTEND-010]`.
+- **`FRONTEND-011` (`FIXED AND VERIFIED`):** Inspected `store/useAuthStore.ts:39-101`; module-scoped `initAuthPromise` mutex coalesces StrictMode/concurrent mounts into 1 sequence. Verified in `[FRONTEND-011]` & Chromium E2E.
+
+### 6. Newly Introduced Regressions & Newly Discovered Issues
+
+#### Issue N1 (`FRONTEND-REG-001`) — Stale `socketToken` After `/profile` Identity Switch (**P1 — REGRESSION INTRODUCED**)
+1. **Unique ID:** `FRONTEND-REG-001` (introduced in commit `be1aaff` alongside `FRONTEND-004`).
+2. **Location:** `apps/web/app/profile/page.tsx:134-154` (`handleSwitchIdentity`) and `apps/web/store/useAuthStore.ts:70-78` (`initAuth`).
+3. **Endpoints Affected:** `EP-006` (`POST /api/v1/auth/device`), `EP-010` (`GET /api/v1/users/me`), `EP-047` (`WS /socket.io`).
+4. **Root Cause:** Previously `initAuth()` always called `POST /auth/device` and updated `setSocketAuthToken(deviceAuth.socketToken)`. After `FRONTEND-004`, `initAuth()` calls `GET /users/me` first and returns immediately on `200 OK` without updating `currentSocketToken`. Meanwhile `handleSwitchIdentity` in `app/profile/page.tsx:138-141` awaits `apiFetch("/auth/device", ...)` and discards its `{ user, socketToken }` response before calling `await initAuth()`.
+5. **Impact:** Switching users/identities on `/profile` leaves the previous user's JWT (potentially a higher-privileged or different citizen token) in `lib/socket.ts:currentSocketToken`, attaching subsequent `/alerts` WebSocket connections to the wrong `user:<id>` room until page reload or token expiry.
+6. **Reproduction Evidence:** `[FRONTEND-REG-001]` in `apps/web/tests/regression/02-post-fix-newly-discovered-defects.test.ts` fails cleanly (`actual: 'stale-admin-socket-token'`, `expected: 'fresh-switched-socket-token'`).
+7. **Recommended Fix:** Capture `const deviceAuth = await apiFetch<{ user: AuthUser; socketToken?: string }>("/auth/device", ...)` in `handleSwitchIdentity` and invoke `setSocketAuthToken(deviceAuth?.socketToken ?? null)` (or add `switchAnonymousIdentity(anonId)` directly to `useAuthStore`).
+
+#### Issue N2 (`FRONTEND-NEW-001`) — Reloading With Existing `HttpOnly` Cookie Leaves `socket.auth.token` Unset (**P2 — UNRESOLVED**)
+1. **Unique ID:** `FRONTEND-NEW-001`.
+2. **Location:** `apps/web/store/useAuthStore.ts:70-78` & `apps/web/lib/socket.ts:48-57`.
+3. **Endpoints Affected:** `EP-010` (`GET /api/v1/users/me`), `EP-047` (`WS /socket.io`).
+4. **Root Cause & Impact:** When a user reloads on Vercel while already holding a valid `HttpOnly` cookie session, `initAuth()` succeeds on `GET /users/me` (`200 OK`), which returns profile metadata without a `socketToken`, and immediately calls `getSocket()`. Because Vercel rewrites HTTP `/api/v1/*` same-origin while Socket.IO connects directly to Render (`https://danger-zone-bd.onrender.com`), third-party `SameSite` cookies may be absent on the cross-origin WebSocket upgrade, leaving the socket unauthenticated for `user:<id>` `GEOFENCE_ALERT` notifications until a 15-minute `/auth/refresh` occurs.
+5. **Reproduction Evidence:** `[FRONTEND-NEW-001]` in `apps/web/tests/regression/02-post-fix-newly-discovered-defects.test.ts` deterministically FAIL (`socket.auth?.token` undefined).
+6. **Recommended Fix:** Add a silent `POST /auth/refresh` fallback inside `initAuth()` (or expose `socketToken` via a safe session endpoint when `currentSocketToken` is unset) if WebSocket cross-origin auth requires an in-memory bearer token on page reload.
+
+#### Issue N3 (`FRONTEND-NEW-002`) — `SOCKET_URL` Fallback Sends `127.0.0.1` Traffic to Production Render URL (**P3 — UNRESOLVED**)
+1. **Unique ID:** `FRONTEND-NEW-002`.
+2. **Location:** `apps/web/lib/socket.ts:7-11`.
+3. **Root Cause & Impact:** `window.location.hostname !== "localhost"` evaluates `true` on `http://127.0.0.1:3000` (which is even the repository's default `"dev": "next dev -H 127.0.0.1 -p 3000"` host in `apps/web/package.json:6`), silently routing local WebSocket connections to `https://danger-zone-bd.onrender.com` whenever `NEXT_PUBLIC_SOCKET_URL` is unset.
+4. **Reproduction Evidence:** `[FRONTEND-NEW-002]` in `apps/web/tests/regression/02-post-fix-newly-discovered-defects.test.ts` evaluates `lib/socket.ts`'s `SOCKET_URL` expression on `127.0.0.1` and receives `https://danger-zone-bd.onrender.com` instead of `http://127.0.0.1:5000`.
+5. **Recommended Fix:** Update condition to check `hostname !== "localhost" && hostname !== "127.0.0.1" && !hostname.startsWith("[::1]")` (or derive origin from `NEXT_PUBLIC_API_URL` if absolute).
+
+### 7. Remaining Coverage Gaps & Blocked Scenarios
+- External live triggers `EP-030` (`/media/mock-upload`), `EP-040` (`/admin/news/crawl`), and `EP-043`/`EP-045`/`EP-046` (Vercel Cron RSS crawl) remain contract-validated and mocked (`api/03`, `contracts/01`); live production RSS scraping was intentionally excluded from offline test runs.
+- Third-party geocoders Photon (`EXT-001`) and Nominatim (`EXT-002`) remain verified by code inspection without asserting external third-party uptime in CI.
+
+### 8. Final Production Readiness Assessment & Handoff Summary
+- **Human Summary:** Every original bug from the first audit (`FRONTEND-001`–`FRONTEND-011` and the `/health` URL probe normalization) is genuinely fixed and passing across mocked, contract, live PostgreSQL/Express, and headless Chromium E2E suites (`48/48` verification + `11/11` original regression = `59` passing tests, `0` DB orphans, `tsc --noEmit` exit `0`). However, our full post-fix sweep caught **1 P1 regression** (`FRONTEND-REG-001`: `/profile` identity switching retains the prior session's `socketToken`) and **2 Socket.IO auth/environment gaps** (`FRONTEND-NEW-001` cross-origin reload token missing after `GET /users/me`, `FRONTEND-NEW-002` `127.0.0.1` pointing to production Render Socket.IO). Resolve those 3 small fixes before production release.
+- **AI Coding-Agent Handoff Summary:**
+  1. First fix **`FRONTEND-REG-001`** (`apps/web/app/profile/page.tsx:134-154` & `apps/web/store/useAuthStore.ts`): capture `socketToken` returned by `POST /api/v1/auth/device` inside `handleSwitchIdentity` (or add `useAuthStore.switchAnonymousIdentity`) and call `setSocketAuthToken(res.socketToken ?? null)` so `regression/02 [FRONTEND-REG-001]` passes.
+  2. Fix **`FRONTEND-NEW-001`** (`apps/web/store/useAuthStore.ts:70-78`): ensure existing-cookie reload hydration obtains/populates `currentSocketToken` for cross-origin WebSocket rooms (`regression/02 [FRONTEND-NEW-001]`).
+  3. Fix **`FRONTEND-NEW-002`** (`apps/web/lib/socket.ts:7-11`): treat `127.0.0.1` as local alongside `localhost` (`regression/02 [FRONTEND-NEW-002]`).
+  4. Verification command after edits: `npm --prefix apps/web run typecheck && npm --prefix apps/web run test:web:regression && npm --prefix apps/web run test:web:report`.
+
+### 9. Test & Audit Asset Updates Performed (Zero App Source Edits)
+- Strengthened assertions in `apps/web/tests/regression/01-confirmed-frontend-defects.test.ts` (`[FRONTEND-007]`–`[FRONTEND-010]`, including runtime `apiFetch` timeout verification).
+- Added `apps/web/tests/api/04-http-error-matrix-and-media-upload.test.ts` (HTTP `400`–`504` status matrix, `401` single-refresh fail-closed loop guard, `204` empty response, S3 PUT + `/media/confirm`, `/health` normalization).
+- Added `apps/web/tests/regression/02-post-fix-newly-discovered-defects.test.ts` (`[FRONTEND-REG-001]`, `[FRONTEND-NEW-001]`, `[FRONTEND-NEW-002]`).
+- Synchronized `apps/web/docs/testing/Frontend_API_Test_Report.md`, `Frontend_API_Integration_Inventory.md`, and `Frontend_Findings.json`.
 
 ---
 
@@ -290,9 +402,9 @@ Every confirmed finding below contains all 12 Handoff elements required by `dont
 
 ## Sections F–I — Security, UI State, Performance & Coverage Gap Summary
 
-- **Section F (Authentication & Security):** `HttpOnly` JWT cookies (`credentials: "include"`), timing-safe SHA-256 `CRON_SECRET` validation on `/api/cron/news-crawl`, strict RBAC UI hiding verified on `/safe-zones`, `/admin`, and `/reports/[id]`, and PII minimization on `/reports/[id]/updates` all passed cleanly. Fix `FRONTEND-001`..`004` to eliminate token rotation race and non-admin cookie lingering.
-- **Section G (UI States & UX):** Loading spinners, empty banners, optimistic voting + API rollback, and error states pass across citizen feeds, route planner, profile KYC, and interactive `/report` submission; `/admin` initial load failures and `/alerts` push failures currently misreport state (`FRONTEND-006`, `FRONTEND-009`).
-- **Section H (Performance & Environment Matrix):** Tested against Node.js `v20+`, Next.js `14.2.3`, PostgreSQL + PostGIS, Headless Chrome/Edge (`puppeteer-core`). Zero uncaught `pageerror`s and zero HTTP `5xx` responses across all 10 routes in Chromium E2E (`34.75s` standalone E2E / `69.53s` full `--profile=report`), with single-flight `initAuth()` & single-mount `/safe-zones` fetch eliminating duplicate route transition requests.
+- **Section F (Authentication & Security):** `HttpOnly` JWT cookies (`credentials: "include"`), timing-safe SHA-256 `CRON_SECRET` validation on `/api/cron/news-crawl`, strict RBAC UI hiding verified on `/safe-zones`, `/admin`, and `/reports/[id]`, non-ADMIN cookie revocation (`FRONTEND-003`), `/auth/login` 401 non-refresh (`FRONTEND-002`), and single-flight refresh (`FRONTEND-001`) all pass cleanly. Remaining Socket.IO token handoff gaps on `/profile` identity switch (`FRONTEND-REG-001`) and `GET /users/me` reload (`FRONTEND-NEW-001`) are documented for fix.
+- **Section G (UI States & UX):** Loading spinners, empty banners, optimistic voting + API rollback, `/admin` dashboard error alerts + validation (`FRONTEND-009`), `/alerts` honest VAPID Web Push feedback (`FRONTEND-006`), `/safe-zones` deduplicated load + coordinate bounds (`FRONTEND-008`), and interactive `/report` submission pass cleanly.
+- **Section H (Performance & Environment Matrix):** Tested against Node.js `v20+`, Next.js `14.2.3`, PostgreSQL + PostGIS, Headless Chrome/Edge (`puppeteer-core`). Zero uncaught `pageerror`s and zero HTTP `5xx` responses across all 10 routes in Chromium E2E (`73.54s` full `--profile=report`), with single-flight `initAuth()` & single-mount `/safe-zones` fetch eliminating duplicate route transition requests (`FRONTEND-NEW-002` notes `127.0.0.1` fallback for `SOCKET_URL` when `NEXT_PUBLIC_SOCKET_URL` is unset).
 - **Section I (Coverage Gaps & Exclusions):**
   - `EP-030` (`/media/mock-upload`), `EP-040` (`/admin/news/crawl`), `EP-043`/`EP-045`/`EP-046` (Vercel Cron RSS news crawl) were validated via Zod contract schemas & local HTTP mocks rather than triggering live Google News / Daily Star RSS scraping against production sites.
   - External third-party geocoders Photon (`EXT-001`) and Nominatim (`EXT-002`) were inspected via code review; external third-party uptime was not asserted in CI.
@@ -306,13 +418,14 @@ Every confirmed finding below contains all 12 Handoff elements required by `dont
 - **Fixtures & Docs:** `apps/web/tests/fixtures/mockData.ts`, [`apps/web/tests/README.md`](../../tests/README.md)
 - **Test Suites (`apps/web/tests/`):**
   - `unit/01-lib-utilities.test.ts`
-  - `api/01-mocked-api-and-resilience.test.ts`, `api/02-stores-and-sockets-mocked.test.ts`, `api/03-next-route-handlers.test.ts`
+  - `api/01-mocked-api-and-resilience.test.ts`, `api/02-stores-and-sockets-mocked.test.ts`, `api/03-next-route-handlers.test.ts`, `api/04-http-error-matrix-and-media-upload.test.ts`
   - `contracts/01-backend-contract-alignment.test.ts`
   - `authentication/01-auth-session-lifecycle.test.ts`, `authorization/01-rbac-guard-matrix.test.ts`
   - `forms/01-forms-media-geofence-validation.test.ts`, `components/01-ui-rendering-and-props.test.ts`
   - `workflows/01-live-backend-integration.test.ts` *(Live Express + PostGIS + Socket.IO)*
   - `e2e/01-browser-playwright-e2e.test.ts` *(Real Chromium + Next.js Dev + Live API)*
-  - `regression/01-confirmed-frontend-defects.test.ts` *(Defect Reproduction Gate)*
+  - `regression/01-confirmed-frontend-defects.test.ts` *(`11/11` original defects verified fixed)*
+  - `regression/02-post-fix-newly-discovered-defects.test.ts` *(`3` open post-fix reproduction tests: `FRONTEND-REG-001`, `FRONTEND-NEW-001`, `FRONTEND-NEW-002`)*
 - **Machine-Readable Reports (`apps/web/tests/reports/`):** `results.json`, `coverage-summary.json`, `junit.xml`, `report.html`
 
 ### Commands to Run Suites
@@ -323,22 +436,22 @@ npm --prefix apps/web run typecheck
 
 # Individual test profiles
 npm --prefix apps/web run test:web:unit         # Pure helpers & @repo/shared
-npm --prefix apps/web run test:web:mocked       # Unit + mocked API + Zustand + Route Handlers
-npm --prefix apps/web run test:web:contracts    # 47-endpoint contract schema parity
+npm --prefix apps/web run test:web:mocked       # 23/23 PASS: Unit + mocked API + Zustand + Route Handlers + Error Matrix/Media
+npm --prefix apps/web run test:web:contracts    # 4/4 PASS: 47-endpoint contract schema parity
 npm --prefix apps/web run test:web:auth         # Auth lifecycle + RBAC matrix
 npm --prefix apps/web run test:web:forms        # Validation, media & geofence constraints
 npm --prefix apps/web run test:web:components   # SSR component rendering snapshots
-npm --prefix apps/web run test:web:live         # Live Express + PostgreSQL/PostGIS + Socket.IO
-npm --prefix apps/web run test:web:e2e          # Real Chromium + Next.js + Live Backend
-npm --prefix apps/web run test:web:regression   # 11 defect regression cases (all 11/11 PASS)
+npm --prefix apps/web run test:web:live         # 3/3 PASS: Live Express + PostgreSQL/PostGIS + Socket.IO
+npm --prefix apps/web run test:web:e2e          # 3/3 PASS: Real Chromium + Next.js + Live Backend
+npm --prefix apps/web run test:web:regression   # 11/14 PASS (exit 1): 11/11 original PASS; 0/3 new post-fix defects fail deterministically
 
 # CI verification profile (all non-browser verification suites + live workflows)
 npm --prefix apps/web run test:web:ci
 
-# Full master audit report (runs all 54 tests and regenerates results.json/junit.xml/report.html)
-npm --prefix apps/web run test:web:report
+# Full master audit report (runs all 62 tests and regenerates results.json/junit.xml/report.html)
+npm --prefix apps/web run test:web:report       # 59/62 PASS (exit 0): 48/48 verification + 11/11 original regression + 0/3 open new regressions
 ```
 
 ### Troubleshooting & Environment Requirements
 - **Live & E2E Requirements:** Local/Docker PostgreSQL + PostGIS reachable via `apps/api/.env` (`DATABASE_URL`), Node.js `>= 20`, and local Google Chrome or Microsoft Edge for `test:web:e2e` (auto-discovered in `tests/framework/config.ts`, overrideable with `CHROME_PATH`). Offline CI can disable live/browser layers with `RUN_LIVE_BACKEND_TESTS=false` and `RUN_BROWSER_E2E_TESTS=false`.
-- **Verification Status:** `npm --prefix apps/web run test:web:regression` passes `11/11` (`0 FAIL`) and `npm --prefix apps/web run test:web:report` passes `54/54` (`0 FAIL`, `0 SKIPPED`) with `0` DB orphans.
+- **Verification Status:** `npm --prefix apps/web run test:web:mocked` (`23/23 PASS`), `npm --prefix apps/web run typecheck` (`exit 0`), and `npm --prefix apps/web run test:web:report` (`48/48` verification PASS, `11/14` regression PASS with `3` failing new findings `FRONTEND-REG-001`/`NEW-001`/`NEW-002`, `0` DB orphans).

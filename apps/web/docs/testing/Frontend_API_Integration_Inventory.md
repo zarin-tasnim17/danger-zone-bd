@@ -13,9 +13,9 @@ Every documented backend and Next.js proxy endpoint (`EP-001` through `EP-047`, 
 
 | Classification Category | Count (of 47 `EP-*`) | Endpoint IDs |
 | --- | ---: | --- |
-| **CORRECTLY INTEGRATED** | **36** | `EP-002`, `EP-003`, `EP-006`, `EP-007`, `EP-008`, `EP-009`, `EP-010`, `EP-011`, `EP-013`, `EP-014`, `EP-015`, `EP-016`, `EP-017`, `EP-018`, `EP-019`, `EP-020`, `EP-021`, `EP-022`, `EP-023`, `EP-024`, `EP-025`, `EP-026`, `EP-027`, `EP-028`, `EP-029`, `EP-032`, `EP-033`, `EP-034`, `EP-035`, `EP-036`, `EP-037`, `EP-038`, `EP-039`, `EP-041`, `EP-044`, `EP-047` |
-| **PARTIALLY INTEGRATED** | **5** | `EP-030`, `EP-040`, `EP-043`, `EP-045`, `EP-046` *(mocked/contract verified cleanly; live mock-storage branch & external RSS news crawl excluded from offline CI)* |
-| **INCORRECTLY INTEGRATED** | **0** | None *(all 11 confirmed defects `FRONTEND-001`–`FRONTEND-011` and `/health` probe URL normalization fixed & verified)* |
+| **CORRECTLY INTEGRATED** | **34** | `EP-002`, `EP-003`, `EP-007`, `EP-008`, `EP-009`, `EP-010`, `EP-011`, `EP-013`, `EP-014`, `EP-015`, `EP-016`, `EP-017`, `EP-018`, `EP-019`, `EP-020`, `EP-021`, `EP-022`, `EP-023`, `EP-024`, `EP-025`, `EP-026`, `EP-027`, `EP-028`, `EP-029`, `EP-032`, `EP-033`, `EP-034`, `EP-035`, `EP-036`, `EP-037`, `EP-038`, `EP-039`, `EP-041`, `EP-044` |
+| **PARTIALLY INTEGRATED** | **7** | `EP-006` (`FRONTEND-REG-001` identity switch leaves stale `socketToken`), `EP-047` (`FRONTEND-REG-001`, `FRONTEND-NEW-001` reload cross-origin socket token gap, `FRONTEND-NEW-002` `127.0.0.1` URL fallback), `EP-030`, `EP-040`, `EP-043`, `EP-045`, `EP-046` *(mocked/contract verified; live mock-storage branch & external RSS news crawl excluded from offline CI)* |
+| **INCORRECTLY INTEGRATED** | **0** | None *(all 11 original defects `FRONTEND-001`–`FRONTEND-011` and `/health` probe normalization verified fixed)* |
 | **MISSING INTEGRATION** | **0** | None (`apps/web` covers every consumer & admin endpoint intended for UI usage) |
 | **INTENTIONALLY UNUSED** | **0** | Covered explicitly under `BACKEND ONLY` per backend architectural boundary |
 | **BACKEND ONLY** | **6** | `EP-001`, `EP-004`, `EP-005`, `EP-012`, `EP-031`, `EP-042` |
@@ -36,7 +36,7 @@ Every documented backend and Next.js proxy endpoint (`EP-001` through `EP-047`, 
 | `EP-003` | `/health/db` | `GET` | `fetch(${targetUrl}/health/db)` (`app/health/page.tsx`), Next `/api/health` (`app/api/health/route.ts:34`) | `/health`, `/api/health` | Mocked+Live | Mocked+Live | `api/03`, `contracts/01`, `workflows/01`, `e2e/01` | **CORRECTLY INTEGRATED** (`health/page.tsx` normalizes base URL by stripping trailing slashes & `/api/v1`) |
 | `EP-004` | `/api/v1/health` | `GET` | `apiFetch("/health")` (`app/dev-test/page.tsx:375`, `RouteTestNav.tsx:51`) resolves here via `/api/v1` prefix | `/dev-test`, `RouteTestNav` | Contract+Live | Contract+Live | `contracts/01`, `workflows/01` | **BACKEND ONLY** (API alias of `EP-002`) |
 | `EP-005` | `/api/v1/health/db` | `GET` | `next.config.mjs:19-21` rewrite `/health/db` -> `${targetUrl}/api/v1/health/db` | Vercel/Next rewrite proxy | Contract+Live | Contract+Live | `contracts/01`, `workflows/01` | **BACKEND ONLY** (API alias of `EP-003`) |
-| `EP-006` | `/api/v1/auth/device` | `POST` | `useAuthStore.initAuth()` / `resetAnonymousIdentity()` (`store/useAuthStore.ts`), `handleSwitchIdentity()` (`app/profile/page.tsx`) | `/`, `/feed`, `/report`, `/safe-zones`, `/alerts`, `/profile`, `/routes`, `/reports/[id]` | Mocked+Live+E2E | Mocked+Live+E2E | `api/02`, `auth/01`, `contracts/01`, `workflows/01`, `e2e/01`, `regression/01` | **CORRECTLY INTEGRATED** (`FRONTEND-004`, `FRONTEND-011` fixed: checks `/users/me` first & single-flight mutex deduplicates calls) |
+| `EP-006` | `/api/v1/auth/device` | `POST` | `useAuthStore.initAuth()` / `resetAnonymousIdentity()` (`store/useAuthStore.ts`), `handleSwitchIdentity()` (`app/profile/page.tsx`) | `/`, `/feed`, `/report`, `/safe-zones`, `/alerts`, `/profile`, `/routes`, `/reports/[id]` | Mocked+Live+E2E | Mocked+Live+E2E | `api/02`, `auth/01`, `contracts/01`, `workflows/01`, `e2e/01`, `regression/01`, `regression/02` | **PARTIALLY INTEGRATED** (`FRONTEND-004`/`011` fixed; **`FRONTEND-REG-001`**: `/profile` `handleSwitchIdentity` discards `socketToken` so `initAuth` leaves stale socket token) |
 | `EP-007` | `/api/v1/auth/login` | `POST` | `useAuthStore.loginAdminWithPassword()` (`store/useAuthStore.ts`) | `/admin` (Admin gate form) | Mocked+Live | Mocked+Live | `api/01`, `api/02`, `auth/01`, `contracts/01`, `workflows/01`, `regression/01` | **CORRECTLY INTEGRATED** (`FRONTEND-002`, `FRONTEND-003` fixed: skips silent refresh on 401 & revokes non-ADMIN cookies via `/auth/logout`) |
 | `EP-008` | `/api/v1/auth/refresh` | `POST` | `apiFetch()` single-flight silent refresh (`lib/api.ts`), `app/dev-test/page.tsx` (`auth-refresh` test) | Global `apiFetch` interceptor, `/dev-test` | Mocked | Mocked | `api/01`, `contracts/01`, `regression/01` | **CORRECTLY INTEGRATED** (`FRONTEND-001`, `FRONTEND-002` fixed: module-scoped mutex & excluded `/auth/login` & `/auth/logout`) |
 | `EP-009` | `/api/v1/auth/logout` | `POST` | `useAuthStore.logout()` & non-ADMIN cleanup (`store/useAuthStore.ts`) | `/profile` (`handleResetDevice`), `/admin` sign-out & non-admin guard | Mocked+Live | Mocked+Live | `auth/01`, `contracts/01`, `workflows/01`, `regression/01` | **CORRECTLY INTEGRATED** (`FRONTEND-003`, `FRONTEND-004` fixed: revokes non-ADMIN cookies & avoids minting DB row on logout) |
@@ -77,7 +77,7 @@ Every documented backend and Next.js proxy endpoint (`EP-001` through `EP-047`, 
 | `EP-044` | `/api/health` | `GET` | `app/api/health/route.ts:1-79` -> consumed by `app/health/page.tsx:130` & `browserHelper.ts` | `/health` edge card | Mocked+Live+E2E | Mocked+Live+E2E | `api/03`, `workflows/01`, `e2e/01` | **CORRECTLY INTEGRATED** |
 | `EP-045` | `/api/cron/news-crawl` | `GET` | `app/api/cron/news-crawl/route.ts:17` (`GET`) | Vercel Cron Scheduler (`vercel.json:6-11`) | Mocked+Contract | Mocked+Contract | `api/03`, `contracts/01` | **PARTIALLY INTEGRATED** (Auth & forwarding verified via handler unit test) |
 | `EP-046` | `/api/cron/news-crawl` | `POST` | `app/api/cron/news-crawl/route.ts:99` (`export const POST = GET`) | Manual/webhook cron trigger | Mocked+Contract | Mocked+Contract | `api/03`, `contracts/01` | **PARTIALLY INTEGRATED** (Auth & forwarding verified via handler unit test) |
-| `EP-047` | `WS /socket.io` | `WS` | `lib/socket.ts:getSocket()` + `useIncidentStore` + `useStatsStore` + `feed`, `reports/[id]`, `alerts` | Global real-time feeds & geofence alerts | Mocked+Live+E2E | Mocked+Live+E2E | `workflows/01`, `e2e/01`, `regression/01` | **CORRECTLY INTEGRATED** (`FRONTEND-005` fixed: `/alerts` binds `getSocket()` after `await initAuth()` + token reconnect/logout fix in `lib/socket.ts`) |
+| `EP-047` | `WS /socket.io` | `WS` | `lib/socket.ts:getSocket()` + `useIncidentStore` + `useStatsStore` + `feed`, `reports/[id]`, `alerts` | Global real-time feeds & geofence alerts | Mocked+Live+E2E | Mocked+Live+E2E | `workflows/01`, `e2e/01`, `regression/01`, `regression/02` | **PARTIALLY INTEGRATED** (`FRONTEND-005` fixed; open **`FRONTEND-REG-001`**, **`FRONTEND-NEW-001`** cross-origin reload token gap, **`FRONTEND-NEW-002`** `127.0.0.1` fallback URL) |
 
 ---
 
@@ -183,10 +183,10 @@ Every documented backend and Next.js proxy endpoint (`EP-001` through `EP-047`, 
   - 13. State: Zustand `useAuthStore` (`user`, `deviceId`, `isLoading`, `error`) + `localStorage.bd_safety_device_id`.
   - 14. UI States: `isLoading` spinner / profile hydration; catches errors into `useAuthStore.error` (`profile/page.tsx:150` shows toast).
   - 15. AuthZ: Public | 16. Trigger: App page mount & `/profile` dev identity switcher.
-  - 17. Tests: `api/02`, `auth/01`, `contracts/01`, `workflows/01`, `e2e/01`, `regression/01`.
-  - 18. Status: **CORRECTLY INTEGRATED**.
-  - 19. Identified Issues: None (`FRONTEND-004` & `FRONTEND-011` fixed & verified: `initAuth()` checks `/users/me` first to preserve active Admin/Responder sessions, uses a module-scoped single-flight Promise lock to eliminate StrictMode duplicates, and `resetAnonymousIdentity()` serves `/profile` explicit identity resets).
-  - 20. Evidence: Live Chromium E2E shows single `GET /users/me` per navigation and `[FRONTEND-004]` / `[FRONTEND-011]` PASS.
+  - 17. Tests: `api/02`, `auth/01`, `contracts/01`, `workflows/01`, `e2e/01`, `regression/01`, `regression/02`.
+  - 18. Status: **PARTIALLY INTEGRATED** (`FRONTEND-004` & `FRONTEND-011` fixed; **`FRONTEND-REG-001`** regression introduced in `app/profile/page.tsx:138-142`).
+  - 19. Identified Issues: `FRONTEND-004` & `FRONTEND-011` remain fixed (`initAuth()` checks `/users/me` first with single-flight Promise lock; `resetAnonymousIdentity()` serves `/profile` reset). However, **`FRONTEND-REG-001`**: `/profile` `handleSwitchIdentity` discards `POST /auth/device` `socketToken` and calls `initAuth()`, which returns early on `GET /users/me 200` without updating `lib/socket.ts` `currentSocketToken`, leaving stale prior-session socket credentials.
+  - 20. Evidence: `[FRONTEND-004]` & `[FRONTEND-011]` PASS; `[FRONTEND-REG-001]` in `regression/02` deterministically reproduces stale `'stale-admin-socket-token'` retention.
 
 - **`EP-007` — `POST /api/v1/auth/login`**
   - 1. ID: `EP-007` | 2. Method & URL: `POST /api/v1/auth/login` | 3. Purpose: Email/password authentication for Admin & seeded accounts.
@@ -408,9 +408,9 @@ Every documented backend and Next.js proxy endpoint (`EP-001` through `EP-047`, 
   - 9. Query (`EP-028`): `reportId`, `fileType`, `fileSize` (strict Zod `.strict()`). | 10. Body (`EP-029`/`EP-030`): `{ reportId, fileKey, originalUrl }` / `{ reportId, imageDataUrl }`.
   - 11. Expected Response: `200`/`201 { success: true, data }`.
   - 12-16: Pre-validated via `validateEvidenceFile()` (JPEG/PNG/WebP, `<= 5 MB`), retries safely on `/report`.
-  - 17. Tests: `unit/01`, `contracts/01`, `workflows/01` (`EP-028`, `EP-029`).
+  - 17. Tests: `unit/01`, `api/04`, `contracts/01`, `workflows/01` (`EP-028`, `EP-029`).
   - 18. Status: `EP-028`, `EP-029`: **CORRECTLY INTEGRATED**; `EP-030`: **PARTIALLY INTEGRATED** (schema & mocked branch verified; live `mock-upload` path depends on `STORAGE_MODE=mock`).
-  - 19. Issues: None | 20. Evidence: Live `EP-028` + `EP-029` executed against Express in `workflows/01`.
+  - 19. Issues: None | 20. Evidence: Live `EP-028` + `EP-029` executed against Express in `workflows/01`; `api/04` verifies direct S3 `PUT` -> `/media/confirm` and abort on failed `PUT`.
 
 - **`EP-031` — `POST /api/v1/media/webhook`**
   - 1. ID: `EP-031` | 2. Method & URL: `POST /api/v1/media/webhook` | 3. Purpose: Server-to-server cloud storage upload webhook authenticated by `x-webhook-secret`.
@@ -458,9 +458,9 @@ Every documented backend and Next.js proxy endpoint (`EP-001` through `EP-047`, 
   - 6. Consumers: `store/useIncidentStore.ts`, `store/useStatsStore.ts`, `app/feed/page.tsx`, `app/reports/[id]/page.tsx`, `app/alerts/page.tsx:207-244`.
   - 8. Auth: Optional `auth: { token: currentSocketToken }` handshake (authenticated sockets join `user:${userId}` room for `GEOFENCE_ALERT`).
   - 9-10: Viewport room emission `UPDATE_BOUNDS` (`{ minLng, minLat, maxLng, maxLat }`). | 11-16: Live UI updates across stores & feeds.
-  - 17. Tests: `workflows/01`, `e2e/01`, `regression/01`. | 18. Status: **CORRECTLY INTEGRATED** (`FRONTEND-005 FIXED AND VERIFIED`).
-  - 19. Identified Issues: Resolved — `app/alerts/page.tsx:207-244` now awaits `initAuth()` before invoking `getSocket()` and attaching `GEOFENCE_ALERT` (with cleanup cancellation); `lib/socket.ts:13-36` reconnects existing/stale sockets on non-null token upgrade and disconnects cleanly without reconnecting when cleared to `null`.
-  - 20. Evidence: `[FRONTEND-005]` PASS, live Socket.IO `workflows/01` `3/3` PASS, and Chromium `e2e/01` `3/3` PASS connecting `/alerts` cleanly as `[Socket.IO] Authenticated client connected`.
+  - 17. Tests: `workflows/01`, `e2e/01`, `regression/01`, `regression/02`. | 18. Status: **PARTIALLY INTEGRATED** (`FRONTEND-005` fixed & verified; open **`FRONTEND-REG-001`**, **`FRONTEND-NEW-001`**, **`FRONTEND-NEW-002`**).
+  - 19. Identified Issues: `FRONTEND-005` resolved (`app/alerts/page.tsx:207-244` awaits `initAuth()` before `getSocket()`, and `lib/socket.ts:13-36` handles token upgrade reconnect/logout disconnect). Remaining post-fix findings: (a) **`FRONTEND-REG-001`** (`app/profile/page.tsx:138-142`): identity switch keeps stale prior `socketToken`; (b) **`FRONTEND-NEW-001`** (`store/useAuthStore.ts:70-78`): page reload with existing `HttpOnly` cookie hydrates `GET /users/me` without acquiring a `socketToken` for cross-origin WebSocket auth; (c) **`FRONTEND-NEW-002`** (`lib/socket.ts:7-11`): default `SOCKET_URL` treats `127.0.0.1` as non-local and routes to production Render URL when `NEXT_PUBLIC_SOCKET_URL` is unset.
+  - 20. Evidence: `[FRONTEND-005]` PASS, `workflows/01` `3/3` PASS, `e2e/01` `3/3` PASS; `[FRONTEND-REG-001]`, `[FRONTEND-NEW-001]`, `[FRONTEND-NEW-002]` in `regression/02` deterministically FAIL proving all three gaps.
 
 ---
 
