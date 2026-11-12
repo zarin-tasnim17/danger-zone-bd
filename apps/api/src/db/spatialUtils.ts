@@ -86,6 +86,20 @@ export const getReportsInBounds = async (bounds: BoundingBox, filters?: ReportFi
   });
 };
 
+// Populate the PostGIS geography point on a Report row (safe inside Prisma interactive transactions)
+export const setReportLocation = async (
+  db: Prisma.TransactionClient | typeof prisma,
+  reportId: string,
+  latitude: number,
+  longitude: number
+): Promise<void> => {
+  await db.$executeRaw`
+    UPDATE "Report"
+    SET location = ST_SetSRID(ST_MakePoint(${longitude}, ${latitude}), 4326)::geography
+    WHERE id = ${reportId}
+  `;
+};
+
 // Check if a point is within X meters of another point
 export const isWithinDistance = async (
   lat1: number, lng1: number,
