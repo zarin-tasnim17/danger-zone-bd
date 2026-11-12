@@ -550,8 +550,21 @@ Authentication uses short-lived JWT access tokens and persistent refresh tokens 
   "data": {
     "uploadUrl": "https://storage.supabase.co/storage/v1/object/upload/sign/reports/...",
     "fileKey": "reports/9a1b8c7d-uuid/evidence.jpg",
-    "expiresInSeconds": 300
+    "publicUrl": "https://cdn.example.com/reports/9a1b8c7d-uuid/evidence.jpg",
+    "expiresInSeconds": 600,
+    "isMock": false
   }
+}
+```
+
+#### `POST /api/v1/media/mock-upload`
+- **Description**: Development/S3-less fallback endpoint active only when cloud S3 storage is not configured (`isMock: true`). Accepts a compressed base64 data URI (`image/jpeg`, `image/png`, `image/webp` up to 512KB), verifies binary magic bytes, and stores sanitized `ReportMedia`. Returns `409 Conflict` when S3 is configured.
+- **Auth**: Protected (`requireAuth` - Only report creator, `VERIFIED_RESPONDER`, or `ADMIN`)
+- **Request Body**:
+```json
+{
+  "reportId": "9a1b8c7d-...",
+  "imageDataUrl": "data:image/jpeg;base64,/9j/4AAQ..."
 }
 ```
 

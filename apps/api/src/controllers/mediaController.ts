@@ -4,12 +4,72 @@ import { env } from '../config/env';
 import {
   generatePresignedUploadUrl,
   AllowedMimeType,
-  getPublicUrl,
+  isS3Configured,
   parseReportMediaKey,
   resolveTrustedReportMedia,
+  validateCompressedInlineImage,
 } from '../services/storageService';
 import { processPrivacyBlur } from '../services/privacyBlurService';
 import { successResponse, errorResponse } from '../utils/responseFormatter';
+
+const findAuthorizedReportForMedia = async (
+  reportId: string,
+  user: { id: string; role: string },
+  forbiddenMessage: string
+) => {
+  const report = await prisma.report.findUnique({
+    where: { id: reportId },
+  });
+
+  if (!report) {
+    throw Object.assign(new Error('Report not found'), { statusCode: 404 });
+  }
+
+  if (report.userId !== user.id && user.role !== 'ADMIN' && user.role !== 'VERIFIED_RESPONDER') {
+    throw Object.assign(new Error(forbiddenMessage), { statusCode: 403 });
+  }
+
+  return report;
+};
+
+const persistConfirmedReportMedia = async (reportId: string, resolvedUrl: string) => {
+  const existingMedia = await prisma.reportMedia.findFirst({
+    where: { reportId, originalUrl: resolvedUrl },
+  });
+
+  let mediaId: string;
+  let statusCode = 201;
+
+  if (existingMedia) {
+    mediaId = existingMedia.id;
+    statusCode = 200;
+    if (!existingMedia.blurredUrl) {
+      await processPrivacyBlur(existingMedia.id, resolvedUrl);
+    }
+  } else {
+    const media = await prisma.reportMedia.create({
+      data: {
+        reportId,
+        originalUrl: resolvedUrl,
+      },
+    });
+    mediaId = media.id;
+    await processPrivacyBlur(media.id, resolvedUrl);
+  }
+
+  // Return sanitized media metadata without exposing originalUrl
+  const updatedMedia = await prisma.reportMedia.findUnique({
+    where: { id: mediaId },
+    select: {
+      id: true,
+      reportId: true,
+      blurredUrl: true,
+      createdAt: true,
+    },
+  });
+
+  return { updatedMedia, statusCode };
+};
 
 export const getPresignedUrlHandler = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -20,18 +80,14 @@ export const getPresignedUrlHandler = async (req: Request, res: Response, next: 
 
     const { reportId, fileType, fileSize } = req.query;
 
-    // Check report existence
-    const report = await prisma.report.findUnique({
-      where: { id: String(reportId) },
-    });
-
-    if (!report) {
-      return errorResponse(res, 'Report not found', 404);
-    }
-
-    // Ownership check: reporter, VERIFIED_RESPONDER, or ADMIN
-    if (report.userId !== user.id && user.role !== 'ADMIN' && user.role !== 'VERIFIED_RESPONDER') {
-      return errorResponse(res, 'You are not authorized to attach media to this report', 403);
+    try {
+      await findAuthorizedReportForMedia(
+        String(reportId),
+        user,
+        'You are not authorized to attach media to this report'
+      );
+    } catch (authError: any) {
+      return errorResponse(res, authError.message, authError.statusCode || 403);
     }
 
     const presignedData = await generatePresignedUploadUrl(
@@ -55,17 +111,14 @@ export const confirmMediaUploadHandler = async (req: Request, res: Response, nex
 
     const { reportId, originalUrl, fileKey } = req.body;
 
-    // Verify report exists
-    const report = await prisma.report.findUnique({
-      where: { id: reportId },
-    });
-
-    if (!report) {
-      return errorResponse(res, 'Report not found', 404);
-    }
-
-    if (report.userId !== user.id && user.role !== 'ADMIN' && user.role !== 'VERIFIED_RESPONDER') {
-      return errorResponse(res, 'You are not authorized to confirm media for this report', 403);
+    try {
+      await findAuthorizedReportForMedia(
+        reportId,
+        user,
+        'You are not authorized to confirm media for this report'
+      );
+    } catch (authError: any) {
+      return errorResponse(res, authError.message, authError.statusCode || 403);
     }
 
     let resolvedUrl: string;
@@ -75,40 +128,54 @@ export const confirmMediaUploadHandler = async (req: Request, res: Response, nex
       return errorResponse(res, validationError.message, validationError.statusCode || 400);
     }
 
-    const existingMedia = await prisma.reportMedia.findFirst({
-      where: { reportId, originalUrl: resolvedUrl },
-    });
+    const { updatedMedia, statusCode } = await persistConfirmedReportMedia(reportId, resolvedUrl);
 
-    let mediaId: string;
-    let statusCode = 201;
+    return successResponse(res, updatedMedia, statusCode);
+  } catch (error: any) {
+    next(error);
+  }
+};
 
-    if (existingMedia) {
-      mediaId = existingMedia.id;
-      statusCode = 200;
-      if (!existingMedia.blurredUrl) {
-        await processPrivacyBlur(existingMedia.id, resolvedUrl);
-      }
-    } else {
-      const media = await prisma.reportMedia.create({
-        data: {
-          reportId,
-          originalUrl: resolvedUrl,
-        },
-      });
-      mediaId = media.id;
-      await processPrivacyBlur(media.id, resolvedUrl);
+/**
+ * Authenticated fallback for environments where cloud S3 credentials are not configured (`isMock: true`).
+ * Accepts a client-compressed JPEG/PNG/WebP base64 data URI (<= 512KB), verifies binary magic bytes,
+ * and stores sanitized ReportMedia so evidence previews remain viewable in S3-less deployments.
+ */
+export const mockUploadMediaHandler = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const user = (req as any).user;
+    if (!user) {
+      return errorResponse(res, 'Unauthorized', 401);
     }
 
-    // Return sanitized media metadata without exposing originalUrl
-    const updatedMedia = await prisma.reportMedia.findUnique({
-      where: { id: mediaId },
-      select: {
-        id: true,
-        reportId: true,
-        blurredUrl: true,
-        createdAt: true,
-      },
-    });
+    if (isS3Configured()) {
+      return errorResponse(
+        res,
+        'Mock media upload is disabled when cloud S3 storage is configured. Upload directly via presigned URL.',
+        409
+      );
+    }
+
+    const { reportId, imageDataUrl } = req.body;
+
+    try {
+      await findAuthorizedReportForMedia(
+        reportId,
+        user,
+        'You are not authorized to attach media to this report'
+      );
+    } catch (authError: any) {
+      return errorResponse(res, authError.message, authError.statusCode || 403);
+    }
+
+    let normalizedDataUrl: string;
+    try {
+      normalizedDataUrl = validateCompressedInlineImage(imageDataUrl).normalizedDataUrl;
+    } catch (validationError: any) {
+      return errorResponse(res, validationError.message, validationError.statusCode || 400);
+    }
+
+    const { updatedMedia, statusCode } = await persistConfirmedReportMedia(reportId, normalizedDataUrl);
 
     return successResponse(res, updatedMedia, statusCode);
   } catch (error: any) {

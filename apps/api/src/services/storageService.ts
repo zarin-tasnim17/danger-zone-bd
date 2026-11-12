@@ -6,15 +6,18 @@ import { env } from '../config/env';
 export const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const;
 export type AllowedMimeType = (typeof ALLOWED_MIME_TYPES)[number];
 export const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024; // 5MB
+export const MAX_INLINE_MOCK_IMAGE_BYTES = 512 * 1024; // 512KB max decoded inline mock evidence
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const SAFE_MEDIA_FILENAME_REGEX = /^[a-zA-Z0-9._-]+\.(jpg|jpeg|png|webp)$/i;
+const INLINE_IMAGE_DATA_URL_REGEX = /^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/i;
 
 export interface PresignedUploadResult {
   uploadUrl: string;
   fileKey: string;
   publicUrl: string;
   expiresInSeconds: number;
+  isMock: boolean;
 }
 
 export interface ResolveConfirmedMediaInput {
@@ -298,6 +301,7 @@ export const generatePresignedUploadUrl = async (
       fileKey,
       publicUrl,
       expiresInSeconds,
+      isMock: false,
     };
   }
 
@@ -309,5 +313,69 @@ export const generatePresignedUploadUrl = async (
     fileKey,
     publicUrl,
     expiresInSeconds,
+    isMock: true,
+  };
+};
+
+export const isS3Configured = (): boolean => Boolean(s3Client);
+
+/**
+ * Validates and normalizes compressed base64 image data URLs for S3-less mock fallback mode.
+ * Verifies exact MIME header, base64 integrity, decoded byte limit (<= 512KB), and binary magic bytes.
+ */
+export const validateCompressedInlineImage = (
+  rawDataUrl: string
+): { mimeType: AllowedMimeType; normalizedDataUrl: string } => {
+  const trimmed = rawDataUrl.trim();
+  const match = trimmed.match(INLINE_IMAGE_DATA_URL_REGEX);
+  if (!match) {
+    throw Object.assign(
+      new Error('Invalid imageDataUrl: must be a base64 data URI for image/jpeg, image/png, or image/webp'),
+      { statusCode: 400 }
+    );
+  }
+
+  const mimeType = match[1].toLowerCase() as AllowedMimeType;
+  const base64Payload = match[2];
+  const buffer = Buffer.from(base64Payload, 'base64');
+
+  if (buffer.length === 0 || buffer.length > MAX_INLINE_MOCK_IMAGE_BYTES) {
+    throw Object.assign(
+      new Error(`Compressed mock image must be between 1 byte and ${MAX_INLINE_MOCK_IMAGE_BYTES} bytes (512KB)`),
+      { statusCode: 400 }
+    );
+  }
+
+  const hasValidMagicBytes =
+    (mimeType === 'image/jpeg' &&
+      buffer.length >= 3 &&
+      buffer[0] === 0xff &&
+      buffer[1] === 0xd8 &&
+      buffer[2] === 0xff) ||
+    (mimeType === 'image/png' &&
+      buffer.length >= 8 &&
+      buffer[0] === 0x89 &&
+      buffer[1] === 0x50 &&
+      buffer[2] === 0x4e &&
+      buffer[3] === 0x47 &&
+      buffer[4] === 0x0d &&
+      buffer[5] === 0x0a &&
+      buffer[6] === 0x1a &&
+      buffer[7] === 0x0a) ||
+    (mimeType === 'image/webp' &&
+      buffer.length >= 12 &&
+      buffer.subarray(0, 4).toString('ascii') === 'RIFF' &&
+      buffer.subarray(8, 12).toString('ascii') === 'WEBP');
+
+  if (!hasValidMagicBytes) {
+    throw Object.assign(
+      new Error(`Invalid image signature: payload bytes do not match declared ${mimeType}`),
+      { statusCode: 400 }
+    );
+  }
+
+  return {
+    mimeType,
+    normalizedDataUrl: `data:${mimeType};base64,${buffer.toString('base64')}`,
   };
 };

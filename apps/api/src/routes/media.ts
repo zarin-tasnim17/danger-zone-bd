@@ -6,6 +6,7 @@ import { verifyStorageWebhookSecret } from '../middleware/verifyWebhookSecret';
 import {
   getPresignedUrlHandler,
   confirmMediaUploadHandler,
+  mockUploadMediaHandler,
   handleStorageWebhook,
 } from '../controllers/mediaController';
 import {
@@ -103,9 +104,19 @@ const storageWebhookSchema = z.object({
   ),
 });
 
+const mockUploadSchema = z.object({
+  body: z
+    .object({
+      reportId: z.string().uuid(),
+      imageDataUrl: z.string().min(1),
+    })
+    .strict(),
+});
+
 // Endpoints
 router.get('/presigned-url', requireAuth, validateRequest(presignedUrlSchema), getPresignedUrlHandler);
 router.post('/confirm', requireAuth, validateRequest(confirmMediaSchema), confirmMediaUploadHandler);
+router.post('/mock-upload', requireAuth, validateRequest(mockUploadSchema), mockUploadMediaHandler);
 router.post('/webhook', verifyStorageWebhookSecret, validateRequest(storageWebhookSchema), handleStorageWebhook);
 
 export default router;
