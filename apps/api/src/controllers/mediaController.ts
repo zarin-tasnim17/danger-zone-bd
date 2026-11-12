@@ -196,10 +196,16 @@ export const handleStorageWebhook = async (req: Request, res: Response, next: Ne
     // Handle standard S3 ObjectCreated arrays or Supabase Storage webhook INSERT payloads
     const isS3Batch = Array.isArray(payload?.Records);
     if (!isS3Batch && typeof payload?.type === 'string' && payload.type.toUpperCase() !== 'INSERT') {
-      return res.status(200).json({ received: true });
+      return successResponse(res, { received: true }, 200);
     }
 
-    const records = isS3Batch ? payload.Records : payload?.record ? [payload.record] : [];
+    const records = isS3Batch
+      ? payload.Records
+      : payload?.record
+        ? [payload.record]
+        : typeof payload?.key === 'string'
+          ? [{ name: payload.key }]
+          : [];
 
     for (const record of records) {
       if (
@@ -245,7 +251,7 @@ export const handleStorageWebhook = async (req: Request, res: Response, next: Ne
       await processPrivacyBlur(media.id, publicUrl);
     }
 
-    return res.status(200).json({ received: true });
+    return successResponse(res, { received: true }, 200);
   } catch (error: any) {
     next(error);
   }

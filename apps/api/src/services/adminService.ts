@@ -1,3 +1,4 @@
+import { ModerationAction } from '@prisma/client';
 import { prisma } from '../db/prisma';
 import { emitReportPurged } from '../sockets';
 import { broadcastPlatformStats } from './statsService';
@@ -7,7 +8,7 @@ export interface ModerationLogOutput {
   adminId: string;
   targetUserId?: string | null;
   targetReportId?: string | null;
-  action: 'BAN_USER' | 'UNBAN_USER' | 'PURGE_REPORT' | 'VERIFY_USER';
+  action: ModerationAction;
   reason: string;
   createdAt: Date;
 }
@@ -186,16 +187,31 @@ export const purgeReport = async (
  * Retrieves paginated audit logs of all administrative actions.
  * Strictly read-only; no endpoints exist to update or delete moderation logs.
  */
-export const getModerationLogs = async (page: number = 1, limit: number = 20) => {
-  const safePage = Math.max(1, page);
-  const safeLimit = Math.min(100, Math.max(1, limit));
-  const skip = (safePage - 1) * safeLimit;
+export const getModerationLogs = async (
+  page: number = 1,
+  limit: number = 20,
+  action?: ModerationAction
+) => {
+  if (!Number.isInteger(page) || page < 1) {
+    const error: any = new Error('page must be a positive integer');
+    error.statusCode = 400;
+    throw error;
+  }
+  if (!Number.isInteger(limit) || limit < 1 || limit > 100) {
+    const error: any = new Error('limit must be an integer between 1 and 100');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const skip = (page - 1) * limit;
+  const where = action ? { action } : undefined;
 
   const [total, logs] = await prisma.$transaction([
-    prisma.moderationLog.count(),
+    prisma.moderationLog.count({ where }),
     prisma.moderationLog.findMany({
+      where,
       skip,
-      take: safeLimit,
+      take: limit,
       orderBy: { createdAt: 'desc' },
       include: {
         admin: {
@@ -215,9 +231,9 @@ export const getModerationLogs = async (page: number = 1, limit: number = 20) =>
     logs,
     pagination: {
       total,
-      page: safePage,
-      limit: safeLimit,
-      totalPages: Math.ceil(total / safeLimit),
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
     },
   };
 };

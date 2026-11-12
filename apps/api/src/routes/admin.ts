@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { ModerationAction } from '@prisma/client';
 import { z } from 'zod';
 import { requireAuth } from '../middleware/requireAuth';
 import { requireRole } from '../middleware/requireRole';
@@ -38,9 +39,23 @@ const approveSchema = z.object({
 
 const logsQuerySchema = z.object({
   query: z.object({
-    page: z.string().optional(),
-    limit: z.string().optional(),
-  }).passthrough(),
+    page: z
+      .string()
+      .trim()
+      .regex(/^[1-9]\d*$/, 'page must be a positive integer')
+      .optional(),
+    limit: z
+      .string()
+      .trim()
+      .regex(/^[1-9]\d*$/, 'limit must be a positive integer between 1 and 100')
+      .refine((val) => Number(val) >= 1 && Number(val) <= 100, 'limit must be between 1 and 100')
+      .optional(),
+    action: z.nativeEnum(ModerationAction).optional(),
+  }).strict(),
+});
+
+const trendsQuerySchema = z.object({
+  query: z.object({}).strict(),
 });
 
 // All routes require authentication and ADMIN role
@@ -50,7 +65,7 @@ router.post('/users/:id/ban', validateRequest(reasonSchema), banUserHandler);
 router.post('/users/:id/unban', validateRequest(reasonSchema), unbanUserHandler);
 router.post('/reports/:id/purge', validateRequest(reasonSchema), purgeReportHandler);
 router.get('/logs', validateRequest(logsQuerySchema), getLogsHandler);
-router.get('/analytics/trends', getTrendsHandler);
+router.get('/analytics/trends', validateRequest(trendsQuerySchema), getTrendsHandler);
 router.get('/verifications', getVerificationsHandler);
 router.post('/verifications/:id/approve', validateRequest(approveSchema), approveVerificationHandler);
 router.post('/verifications/:id/reject', validateRequest(reasonSchema), rejectVerificationHandler);

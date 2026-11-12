@@ -4,6 +4,7 @@ import helmet from 'helmet';
 import morgan from 'morgan';
 import cookieParser from 'cookie-parser';
 import { errorHandler } from './middleware/errorHandler';
+import { successResponse } from './utils/responseFormatter';
 import { env } from './config/env';
 import healthRouter from './routes/health';
 
@@ -47,24 +48,28 @@ app.use('/api/v1/stats', statsRouter);
 app.use('/api/v1/cron', cronRouter);
 
 app.get('/', (req, res) => {
-  res.json({
-    name: 'BD Safety Map API',
-    status: 'online',
-    version: '1.0.0',
-    endpoints: {
-      health: '/health',
-      dbHealth: '/health/db',
-      stats: '/api/v1/stats',
-      reports: '/api/v1/reports',
-      safeZones: '/api/v1/safe-zones',
-      safeRouting: '/api/v1/routes/safe-path',
-      auth: '/api/v1/auth',
-      media: '/api/v1/media',
-      alerts: '/api/v1/alerts',
-      admin: '/api/v1/admin',
-      cron: '/api/v1/cron/news-crawl'
-    }
-  });
+  return successResponse(
+    res,
+    {
+      name: 'BD Safety Map API',
+      status: 'online',
+      version: '1.0.0',
+      endpoints: {
+        health: '/health',
+        dbHealth: '/health/db',
+        stats: '/api/v1/stats',
+        reports: '/api/v1/reports',
+        safeZones: '/api/v1/safe-zones',
+        safeRouting: '/api/v1/routes/safe-path',
+        auth: '/api/v1/auth',
+        media: '/api/v1/media',
+        alerts: '/api/v1/alerts',
+        admin: '/api/v1/admin',
+        cron: '/api/v1/cron/news-crawl'
+      }
+    },
+    200
+  );
 });
 
 app.use('/health', healthRouter);

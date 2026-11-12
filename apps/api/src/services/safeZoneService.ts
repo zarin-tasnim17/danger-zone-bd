@@ -198,20 +198,26 @@ export const fetchNearbySafeZones = async (
 
   const whereClause = Prisma.join(whereConditions, ' AND ');
 
-  const safeZones: any = await prisma.$queryRaw`
+  const safeZones: any[] = await prisma.$queryRaw`
     SELECT 
       id, type, name, latitude, longitude,
       ROUND(ST_Distance(
         location,
         ST_SetSRID(ST_MakePoint(${lng}, ${lat}), 4326)::geography
-      )::numeric, 1) as "distanceMeters"
+      )::numeric, 1)::double precision as "distanceMeters"
     FROM "SafeZone"
     WHERE ${whereClause}
     ORDER BY "distanceMeters" ASC
     LIMIT 20
   `;
 
-  return safeZones;
+  return safeZones.map((zone) => ({
+    ...zone,
+    distanceMeters:
+      zone.distanceMeters !== null && zone.distanceMeters !== undefined
+        ? Number(zone.distanceMeters)
+        : zone.distanceMeters,
+  }));
 };
 
 /**

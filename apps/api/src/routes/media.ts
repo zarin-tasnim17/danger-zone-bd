@@ -96,11 +96,12 @@ const webhookRecordSchema = z.object({
 const storageWebhookSchema = z.object({
   body: z.object({
     type: z.string().optional(),
+    key: z.string().min(1).optional(),
     Records: z.array(webhookRecordSchema).optional(),
     record: webhookRecordSchema.optional(),
   }).passthrough().refine(
-    (data) => Array.isArray(data.Records) || Boolean(data.record),
-    { message: 'Webhook payload must include either Records or record' }
+    (data) => Array.isArray(data.Records) || Boolean(data.record) || typeof data.key === 'string',
+    { message: 'Webhook payload must include Records, record, or key' }
   ),
 });
 

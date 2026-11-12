@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
+import { ModerationAction } from '@prisma/client';
 import {
   banUser,
   unbanUser,
@@ -54,10 +55,14 @@ export const purgeReportHandler = async (req: Request, res: Response, next: Next
 
 export const getLogsHandler = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const page = parseInt(req.query.page as string, 10) || 1;
-    const limit = parseInt(req.query.limit as string, 10) || 20;
+    const rawPage = req.query.page as string | undefined;
+    const rawLimit = req.query.limit as string | undefined;
+    const action = req.query.action as ModerationAction | undefined;
 
-    const result = await getModerationLogs(page, limit);
+    const page = rawPage !== undefined ? Number(rawPage) : 1;
+    const limit = rawLimit !== undefined ? Number(rawLimit) : 20;
+
+    const result = await getModerationLogs(page, limit, action);
     return successResponse(res, result, 200);
   } catch (error: any) {
     const statusCode = error.statusCode || 400;

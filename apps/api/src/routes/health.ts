@@ -7,7 +7,11 @@ const router = Router();
 router.get('/', (req, res) => {
   const response: ApiResponse = {
     success: true,
-    message: 'API is running'
+    message: 'API is running',
+    data: {
+      status: 'UP',
+      message: 'API is running'
+    }
   };
   res.json(response);
 });
@@ -18,7 +22,12 @@ router.get('/db', async (req, res) => {
     await prisma.$queryRaw`SELECT 1`;
     const response: ApiResponse = {
       success: true,
-      message: 'Database connection successful'
+      message: 'Database connection successful',
+      data: {
+        status: 'UP',
+        database: 'connected',
+        message: 'Database connection successful'
+      }
     };
     res.json(response);
   } catch (error) {
