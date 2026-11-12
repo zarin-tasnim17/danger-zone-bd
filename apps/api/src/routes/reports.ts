@@ -98,7 +98,7 @@ const voteSchema = z.object({
 
 const addUpdateSchema = z.object({
   body: z.object({
-    content: z.string().min(2, 'Update must be at least 2 characters').max(500, 'Update cannot exceed 500 characters')
+    content: z.string().trim().min(2, 'Update must be at least 2 characters').max(500, 'Update cannot exceed 500 characters')
   }).strict(),
   params: z.object({
     id: z.string().uuid({ message: 'Valid report UUID is required' })

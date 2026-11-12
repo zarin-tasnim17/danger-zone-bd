@@ -30,11 +30,18 @@ export const addReportUpdate = async (userId: string, reportId: string, content:
     throw error;
   }
 
+  const trimmedContent = content?.trim() || '';
+  if (trimmedContent.length < 2) {
+    const error: any = new Error('Update content must be at least 2 characters');
+    error.statusCode = 400;
+    throw error;
+  }
+
   const update = await prisma.reportUpdate.create({
     data: {
       userId,
       reportId,
-      content: content.trim(),
+      content: trimmedContent,
     }
   });
 
