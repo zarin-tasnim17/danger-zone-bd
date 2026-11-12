@@ -3,6 +3,7 @@ import { prisma } from '../db/prisma';
 import { env } from '../config/env';
 import {
   generatePresignedUploadUrl,
+  getPublicUrl,
   AllowedMimeType,
   isS3Configured,
   parseReportMediaKey,
