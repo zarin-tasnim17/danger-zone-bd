@@ -12,17 +12,53 @@ import { validateRequest } from '../middleware/validateRequest';
 
 const router = Router();
 
+const coordParam = (min: number, max: number, label: string) =>
+  z.string().trim().refine((val) => {
+    if (!/^-?\d+(?:\.\d+)?$/.test(val)) return false;
+    const num = Number(val);
+    return Number.isFinite(num) && num >= min && num <= max;
+  }, `${label} must be a valid number between ${min} and ${max}`);
+
+const radiusParam = z.string().trim().refine((val) => {
+  if (!/^\d+(?:\.\d+)?$/.test(val)) return false;
+  const num = Number(val);
+  return Number.isFinite(num) && num > 0 && num <= 500000;
+}, 'radius must be a positive number up to 500000 meters');
+
 const safeZoneQuerySchema = z.object({
   query: z.object({
-    minLng: z.string().optional(),
-    minLat: z.string().optional(),
-    maxLng: z.string().optional(),
-    maxLat: z.string().optional(),
-    lat: z.string().optional(),
-    lng: z.string().optional(),
-    radius: z.string().optional(),
+    minLng: coordParam(-180, 180, 'minLng').optional(),
+    minLat: coordParam(-90, 90, 'minLat').optional(),
+    maxLng: coordParam(-180, 180, 'maxLng').optional(),
+    maxLat: coordParam(-90, 90, 'maxLat').optional(),
+    lat: coordParam(-90, 90, 'lat').optional(),
+    lng: coordParam(-180, 180, 'lng').optional(),
+    radius: radiusParam.optional(),
     type: z.enum(SAFE_ZONE_TYPES).optional(),
-  }).passthrough(),
+  }).passthrough().superRefine((q, ctx) => {
+    const hasBboxAny = q.minLng !== undefined || q.minLat !== undefined || q.maxLng !== undefined || q.maxLat !== undefined;
+    const hasBboxAll = q.minLng !== undefined && q.minLat !== undefined && q.maxLng !== undefined && q.maxLat !== undefined;
+    if (hasBboxAny && !hasBboxAll) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'All bounding box coordinates (minLng, minLat, maxLng, maxLat) must be provided together',
+      });
+    }
+    if (hasBboxAll && (Number(q.minLng) >= Number(q.maxLng) || Number(q.minLat) >= Number(q.maxLat))) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Inverted bounding box: minLng must be less than maxLng and minLat must be less than maxLat',
+      });
+    }
+    const hasPointAny = q.lat !== undefined || q.lng !== undefined;
+    const hasPointAll = q.lat !== undefined && q.lng !== undefined;
+    if (hasPointAny && !hasPointAll) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Both lat and lng must be provided together for proximity queries',
+      });
+    }
+  }),
 });
 
 const createSafeZoneSchema = z.object({

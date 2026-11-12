@@ -11,21 +11,45 @@ export const getSafeZonesHandler = async (req: Request, res: Response) => {
 
     // Viewport Bounding Box query
     if (minLng && minLat && maxLng && maxLat) {
+      const minLngNum = parseFloat(minLng as string);
+      const minLatNum = parseFloat(minLat as string);
+      const maxLngNum = parseFloat(maxLng as string);
+      const maxLatNum = parseFloat(maxLat as string);
+      if (
+        !Number.isFinite(minLngNum) ||
+        !Number.isFinite(minLatNum) ||
+        !Number.isFinite(maxLngNum) ||
+        !Number.isFinite(maxLatNum)
+      ) {
+        const error: any = new Error('Invalid bounding box coordinates');
+        error.statusCode = 400;
+        throw error;
+      }
       const bounds = {
-        minLng: parseFloat(minLng as string),
-        minLat: parseFloat(minLat as string),
-        maxLng: parseFloat(maxLng as string),
-        maxLat: parseFloat(maxLat as string),
+        minLng: minLngNum,
+        minLat: minLatNum,
+        maxLng: maxLngNum,
+        maxLat: maxLatNum,
       };
       const zones = await safeZoneService.fetchSafeZonesInBounds(bounds, safeZoneType);
       return successResponse(res, zones, 200);
     }
 
     // Nearby Radius Proximity query
-    if (lat && lng) {
+    if (lat || lng) {
+      if (!lat || !lng) {
+        const error: any = new Error('Both lat and lng must be provided together for proximity queries');
+        error.statusCode = 400;
+        throw error;
+      }
       const latitude = parseFloat(lat as string);
       const longitude = parseFloat(lng as string);
       const radiusMeters = radius ? parseFloat(radius as string) : 5000;
+      if (!Number.isFinite(latitude) || !Number.isFinite(longitude) || !Number.isFinite(radiusMeters)) {
+        const error: any = new Error('Invalid latitude, longitude, or radius');
+        error.statusCode = 400;
+        throw error;
+      }
 
       const zones = await safeZoneService.fetchNearbySafeZones(latitude, longitude, radiusMeters, safeZoneType);
       return successResponse(res, zones, 200);
