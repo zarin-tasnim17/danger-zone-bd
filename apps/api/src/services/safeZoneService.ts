@@ -84,37 +84,59 @@ const DEFAULT_BANGLADESH_SAFE_ZONES: SafeZoneInput[] = [
   },
 ];
 
+let hasSeededSafeZones = false;
+let seedSafeZonesPromise: Promise<number> | null = null;
+
 /**
- * Automatically seeds prominent safe zones if the SafeZone table is empty.
+ * Automatically seeds prominent safe zones at most once per server process
+ * lifecycle if the SafeZone table is empty.
  */
 export const seedDefaultSafeZones = async (): Promise<number> => {
-  const count = await prisma.safeZone.count();
-  if (count > 0) {
-    return 0; // Already seeded
+  if (hasSeededSafeZones) {
+    return 0;
   }
 
-  console.log('[SafeZoneService] Seeding default Bangladesh safe havens (hospitals, police boxes, pharmacies)...');
-  let inserted = 0;
-
-  for (const zone of DEFAULT_BANGLADESH_SAFE_ZONES) {
-    await prisma.$executeRaw`
-      INSERT INTO "SafeZone" (id, type, name, latitude, longitude, location, "createdAt", "updatedAt")
-      VALUES (
-        gen_random_uuid(),
-        ${zone.type}::"SafeZoneType",
-        ${zone.name},
-        ${zone.latitude},
-        ${zone.longitude},
-        ST_SetSRID(ST_MakePoint(${zone.longitude}, ${zone.latitude}), 4326)::geography,
-        NOW(),
-        NOW()
-      )
-    `;
-    inserted++;
+  if (seedSafeZonesPromise) {
+    return seedSafeZonesPromise;
   }
 
-  console.log(`[SafeZoneService] Successfully seeded ${inserted} safe zones.`);
-  return inserted;
+  seedSafeZonesPromise = (async () => {
+    const count = await prisma.safeZone.count();
+    if (count > 0) {
+      hasSeededSafeZones = true;
+      return 0; // Already seeded
+    }
+
+    console.log('[SafeZoneService] Seeding default Bangladesh safe havens (hospitals, police boxes, pharmacies)...');
+    let inserted = 0;
+
+    for (const zone of DEFAULT_BANGLADESH_SAFE_ZONES) {
+      await prisma.$executeRaw`
+        INSERT INTO "SafeZone" (id, type, name, latitude, longitude, location, "createdAt", "updatedAt")
+        VALUES (
+          gen_random_uuid(),
+          ${zone.type}::"SafeZoneType",
+          ${zone.name},
+          ${zone.latitude},
+          ${zone.longitude},
+          ST_SetSRID(ST_MakePoint(${zone.longitude}, ${zone.latitude}), 4326)::geography,
+          NOW(),
+          NOW()
+        )
+      `;
+      inserted++;
+    }
+
+    hasSeededSafeZones = true;
+    console.log(`[SafeZoneService] Successfully seeded ${inserted} safe zones.`);
+    return inserted;
+  })();
+
+  try {
+    return await seedSafeZonesPromise;
+  } finally {
+    seedSafeZonesPromise = null;
+  }
 };
 
 /**
