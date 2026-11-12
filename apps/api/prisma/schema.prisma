@@ -70,6 +70,7 @@ enum ModerationAction {
   UNBAN_USER
   PURGE_REPORT
   VERIFY_USER
+  REJECT_VERIFICATION
 }
 
 model User {

@@ -208,7 +208,7 @@ export const rejectVerification = async (adminId: string, verificationId: string
       data: {
         adminId,
         targetUserId: verification.userId,
-        action: 'VERIFY_USER',
+        action: 'REJECT_VERIFICATION',
         reason: reason || 'Rejected KYC verification request',
       }
     })

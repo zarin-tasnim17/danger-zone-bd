@@ -39,8 +39,21 @@ const verifySchema = z.object({
   })
 });
 
+const verifyIdParamSchema = z.object({
+  params: z.object({
+    id: z.string().uuid('Invalid verification ID format'),
+  }),
+});
+
 router.get('/me', requireAuth, getMe);
 router.post('/verify', requireAuth, userVerifyRateLimiter, validateRequest(verifySchema), submitVerify);
-router.post('/verify/:id/approve', requireAuth, requireRole(['ADMIN']), approveVerify);
+// Legacy alias for POST /api/v1/admin/verifications/:id/approve (kept for backwards compatibility)
+router.post(
+  '/verify/:id/approve',
+  requireAuth,
+  requireRole(['ADMIN']),
+  validateRequest(verifyIdParamSchema),
+  approveVerify
+);
 
 export default router;
