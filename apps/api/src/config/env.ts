@@ -20,6 +20,8 @@ const envSchema = z.object({
   AWS_ACCESS_KEY_ID: z.string().optional(),
   AWS_SECRET_ACCESS_KEY: z.string().optional(),
   STORAGE_CDN_URL: z.string().optional(),
+  STORAGE_WEBHOOK_SECRET: z.string().optional(),
+  STORAGE_WEBHOOK_BUCKET: z.string().optional(),
 });
 
 const _env = envSchema.safeParse(process.env);
