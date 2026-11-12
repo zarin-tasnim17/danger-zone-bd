@@ -258,11 +258,30 @@ export default function ReportIncidentModal({ isOpen, onClose }: ReportModalProp
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
+
+    if (!title.trim() || !description.trim()) {
+      setErrorMessage(
+        language === "en"
+          ? "Please enter both an incident title and description."
+          : "অনুগ্রহ করে ঘটনার শিরোনাম এবং বিস্তারিত বিবরণ উভয়ই লিখুন।"
+      );
+      return;
+    }
+
+    const fullDescription = `${title.trim()}${locationName.trim() ? ` [${locationName.trim()}]` : ""}: ${description.trim()}`;
+    if (fullDescription.length > 1000) {
+      setErrorMessage(
+        language === "en"
+          ? "Combined report details cannot exceed 1000 characters."
+          : "মোট রিপোর্টের বিবরণ ১০০০ অক্ষরের বেশি হতে পারবে না।"
+      );
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
       const gpsHeaders = buildHardwareGpsHeaders(hardwareGps, gpsEvaluation);
-      const fullDescription = `${title.trim()}${locationName.trim() ? ` [${locationName.trim()}]` : ""}: ${description.trim()}`;
 
       await apiFetch("/reports", {
         method: "POST",
