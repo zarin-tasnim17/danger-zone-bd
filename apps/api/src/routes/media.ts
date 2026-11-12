@@ -2,6 +2,7 @@ import { Router, Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import { requireAuth } from '../middleware/requireAuth';
 import { validateRequest } from '../middleware/validateRequest';
+import { verifyStorageWebhookSecret } from '../middleware/verifyWebhookSecret';
 import {
   getPresignedUrlHandler,
   confirmMediaUploadHandler,
@@ -51,9 +52,34 @@ const confirmMediaSchema = z.object({
   }),
 });
 
+const webhookRecordSchema = z.object({
+  eventName: z.string().optional(),
+  bucket_id: z.string().optional(),
+  name: z.string().optional(),
+  s3: z.object({
+    bucket: z.object({
+      name: z.string().optional(),
+    }).passthrough().optional(),
+    object: z.object({
+      key: z.string().optional(),
+    }).passthrough().optional(),
+  }).passthrough().optional(),
+}).passthrough();
+
+const storageWebhookSchema = z.object({
+  body: z.object({
+    type: z.string().optional(),
+    Records: z.array(webhookRecordSchema).optional(),
+    record: webhookRecordSchema.optional(),
+  }).passthrough().refine(
+    (data) => Array.isArray(data.Records) || Boolean(data.record),
+    { message: 'Webhook payload must include either Records or record' }
+  ),
+});
+
 // Endpoints
 router.get('/presigned-url', requireAuth, validateRequest(presignedUrlSchema), getPresignedUrlHandler);
 router.post('/confirm', requireAuth, validateRequest(confirmMediaSchema), confirmMediaUploadHandler);
-router.post('/webhook', handleStorageWebhook);
+router.post('/webhook', verifyStorageWebhookSecret, validateRequest(storageWebhookSchema), handleStorageWebhook);
 
 export default router;

@@ -1,8 +1,45 @@
 import { Request, Response, NextFunction } from 'express';
 import { prisma } from '../db/prisma';
+import { env } from '../config/env';
 import { generatePresignedUploadUrl, AllowedMimeType, getPublicUrl } from '../services/storageService';
 import { processPrivacyBlur } from '../services/privacyBlurService';
 import { successResponse, errorResponse } from '../utils/responseFormatter';
+
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const SAFE_MEDIA_FILENAME_REGEX = /^[a-zA-Z0-9._-]+\.(jpg|jpeg|png|webp)$/i;
+
+const decodeStorageKey = (rawKey: string): string | null => {
+  try {
+    return decodeURIComponent(rawKey.replace(/\+/g, ' '));
+  } catch {
+    return null;
+  }
+};
+
+const parseReportMediaKey = (rawKey: string): { reportId: string; fileKey: string } | null => {
+  const decoded = decodeStorageKey(rawKey.trim());
+  if (!decoded || decoded.startsWith('/') || decoded.includes('\\') || decoded.includes('..')) {
+    return null;
+  }
+
+  // Expect exact key format: reports/{reportId}/{filename}
+  const parts = decoded.split('/');
+  if (parts.length !== 3 || parts[0] !== 'reports') {
+    return null;
+  }
+
+  const [, reportId, filename] = parts;
+  if (!UUID_REGEX.test(reportId)) {
+    return null;
+  }
+
+  // Skip derivative blurred assets to prevent recursive webhook processing loops
+  if (filename.startsWith('blurred-') || !SAFE_MEDIA_FILENAME_REGEX.test(filename)) {
+    return null;
+  }
+
+  return { reportId, fileKey: decoded };
+};
 
 export const getPresignedUrlHandler = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -91,35 +128,62 @@ export const confirmMediaUploadHandler = async (req: Request, res: Response, nex
 export const handleStorageWebhook = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const payload = req.body;
+    const expectedBucket = (
+      'STORAGE_WEBHOOK_BUCKET' in process.env
+        ? process.env.STORAGE_WEBHOOK_BUCKET
+        : env.STORAGE_WEBHOOK_BUCKET
+    )?.trim();
 
-    // Handle standard S3 ObjectCreated or Supabase Storage webhook payloads
-    const records = payload?.Records || (payload?.record ? [payload.record] : []);
+    // Handle standard S3 ObjectCreated arrays or Supabase Storage webhook INSERT payloads
+    const isS3Batch = Array.isArray(payload?.Records);
+    if (!isS3Batch && typeof payload?.type === 'string' && payload.type.toUpperCase() !== 'INSERT') {
+      return res.status(200).json({ received: true });
+    }
+
+    const records = isS3Batch ? payload.Records : payload?.record ? [payload.record] : [];
 
     for (const record of records) {
-      const key = record?.s3?.object?.key || record?.name;
-      if (!key) continue;
+      if (
+        isS3Batch &&
+        typeof record?.eventName === 'string' &&
+        !record.eventName.toLowerCase().includes('objectcreated')
+      ) {
+        continue;
+      }
 
-      // Key format: reports/{reportId}/{uuid}.{ext}
-      const parts = key.split('/');
-      if (parts.length >= 3 && parts[0] === 'reports') {
-        const reportId = parts[1];
-        const publicUrl = getPublicUrl(key);
-
-        const report = await prisma.report.findUnique({
-          where: { id: reportId },
-        });
-
-        if (report) {
-          const media = await prisma.reportMedia.create({
-            data: {
-              reportId,
-              originalUrl: publicUrl,
-            },
-          });
-
-          await processPrivacyBlur(media.id, publicUrl);
+      if (expectedBucket) {
+        const eventBucket = record?.s3?.bucket?.name || record?.bucket_id;
+        if (eventBucket !== expectedBucket) {
+          continue;
         }
       }
+
+      const rawKey = record?.s3?.object?.key || record?.name;
+      if (typeof rawKey !== 'string') continue;
+
+      const parsed = parseReportMediaKey(rawKey);
+      if (!parsed) continue;
+
+      const { reportId, fileKey } = parsed;
+      const report = await prisma.report.findUnique({
+        where: { id: reportId },
+      });
+      if (!report) continue;
+
+      const publicUrl = getPublicUrl(fileKey);
+      const existingMedia = await prisma.reportMedia.findFirst({
+        where: { reportId, originalUrl: publicUrl },
+      });
+      if (existingMedia) continue;
+
+      const media = await prisma.reportMedia.create({
+        data: {
+          reportId,
+          originalUrl: publicUrl,
+        },
+      });
+
+      await processPrivacyBlur(media.id, publicUrl);
     }
 
     return res.status(200).json({ received: true });
