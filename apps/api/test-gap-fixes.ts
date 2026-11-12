@@ -1,4 +1,6 @@
 import http from 'http';
+import crypto from 'crypto';
+import bcrypt from 'bcrypt';
 import { app } from './src/app';
 import { initSocketServer } from './src/sockets';
 import { prisma } from './src/db/prisma';
@@ -232,21 +234,47 @@ async function runVerification() {
 
     // 10. Admin Trends Analytics & Session Invalidation
     console.log('\n🧪 [Test 10] Testing Admin 30-Day Trends Analytics & Session Invalidation...');
-    // Create admin user
+    // Create admin user with password credentials
+    const adminPassword = `TestAdmin_${crypto.randomBytes(12).toString('hex')}`;
+    const passwordHash = await bcrypt.hash(adminPassword, 4);
     const adminUser = await prisma.user.create({
       data: {
         anonymousId: `admin-${Date.now()}`,
         email: `admin-${Date.now()}@safety.gov.bd`,
+        passwordHash,
         role: 'ADMIN'
       }
     });
 
-    // Login admin
-    const adminAuth = await request('/api/v1/auth/device', {
+    // Regression: device auth must reject ADMIN accounts and privileged email collisions
+    const blockedDeviceAuth = await request('/api/v1/auth/device', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ anonymousId: adminUser.anonymousId })
     });
+    if (blockedDeviceAuth.status !== 403) {
+      throw new Error(`Expected 403 for passwordless admin device login, got ${blockedDeviceAuth.status}`);
+    }
+
+    const blockedEmailCollision = await request('/api/v1/auth/device', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ anonymousId: `escalate-${Date.now()}`, email: adminUser.email })
+    });
+    if (blockedEmailCollision.status !== 403) {
+      throw new Error(`Expected 403 for privileged email collision on device login, got ${blockedEmailCollision.status}`);
+    }
+    console.log('  ✅ Device login strictly blocked (403) for ADMIN accounts');
+
+    // Login admin via password authentication
+    const adminAuth = await request('/api/v1/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: adminUser.email, password: adminPassword })
+    });
+    if (adminAuth.status !== 200) {
+      throw new Error(`Admin password login failed: ${JSON.stringify(adminAuth.data)}`);
+    }
     const adminCookie = `accessToken=${extractCookie(adminAuth.cookies, 'accessToken')}`;
 
     // Query 30-day hazard trends

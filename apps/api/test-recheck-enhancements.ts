@@ -1,4 +1,6 @@
 import http from 'http';
+import crypto from 'crypto';
+import bcrypt from 'bcrypt';
 import { app } from './src/app';
 import { initSocketServer } from './src/sockets';
 import { prisma } from './src/db/prisma';
@@ -107,18 +109,24 @@ async function runRecheckVerification() {
 
     // 4. Admin KYC Verification Listing and Rejection
     console.log('\n🧪 [Test 4] Testing Admin KYC Verification Listing & Rejection...');
+    const adminPassword = `TestAdmin_${crypto.randomBytes(12).toString('hex')}`;
+    const passwordHash = await bcrypt.hash(adminPassword, 4);
     const adminUser = await prisma.user.create({
       data: {
         anonymousId: `admin-kyc-${Date.now()}`,
         email: `admin-kyc-${Date.now()}@safety.gov.bd`,
+        passwordHash,
         role: 'ADMIN'
       }
     });
-    const adminAuth = await request('/api/v1/auth/device', {
+    const adminAuth = await request('/api/v1/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ anonymousId: adminUser.anonymousId })
+      body: JSON.stringify({ email: adminUser.email, password: adminPassword })
     });
+    if (adminAuth.status !== 200) {
+      throw new Error(`Admin password login failed: ${JSON.stringify(adminAuth.data)}`);
+    }
     const adminCookie = `accessToken=${extractCookie(adminAuth.cookies, 'accessToken')}`;
 
     // Create a pending verification

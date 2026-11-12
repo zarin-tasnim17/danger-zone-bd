@@ -1,7 +1,13 @@
 import http from 'http';
+import crypto from 'crypto';
+import path from 'path';
+import { createRequire } from 'module';
 import { app } from '../api/src/app';
 import { initSocketServer } from '../api/src/sockets';
 import { prisma } from '../api/src/db/prisma';
+
+const apiRequire = createRequire(path.resolve(__dirname, '../api/package.json'));
+const bcrypt = apiRequire('bcrypt') as { hash: (password: string, saltOrRounds: number) => Promise<string> };
 
 const TEST_PORT = 5125;
 const SERVER_URL = `http://127.0.0.1:${TEST_PORT}`;
@@ -214,21 +220,36 @@ async function runFrontendIntegrationSuite() {
       throw new Error(`Expected 403 for citizen on admin route, got ${citizenAdminRes.status}`);
     }
 
-    // 7b. Admin account authentication
+    // 7b. Admin account authentication (password-only; device endpoint must reject ADMIN)
+    const adminPassword = `TestAdmin_${crypto.randomBytes(12).toString('hex')}`;
+    const passwordHash = await bcrypt.hash(adminPassword, 4);
     const adminUser = await prisma.user.create({
       data: {
         anonymousId: `admin-test-${Date.now()}`,
         email: `admin-e2e-${Date.now()}@safety.bd`,
+        passwordHash,
         role: 'ADMIN',
       },
     });
     adminUserId = adminUser.id;
 
-    const adminAuthRes = await request('/api/v1/auth/device', {
+    const blockedDeviceRes = await request('/api/v1/auth/device', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ anonymousId: adminUser.anonymousId }),
     });
+    if (blockedDeviceRes.status !== 403) {
+      throw new Error(`Expected 403 when calling /auth/device for ADMIN user, got ${blockedDeviceRes.status}`);
+    }
+
+    const adminAuthRes = await request('/api/v1/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: adminUser.email, password: adminPassword }),
+    });
+    if (adminAuthRes.status !== 200) {
+      throw new Error(`Admin password login failed: ${JSON.stringify(adminAuthRes.data)}`);
+    }
     const adminCookie = extractCookie(adminAuthRes.cookies, 'accessToken');
 
     // 7c. Admin views audit logs

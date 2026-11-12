@@ -1,4 +1,6 @@
 import http from 'http';
+import crypto from 'crypto';
+import bcrypt from 'bcrypt';
 import { app } from './src/app';
 import { initSocketServer } from './src/sockets';
 import { prisma } from './src/db/prisma';
@@ -262,20 +264,26 @@ async function runNewsCrawlerVerificationSuite() {
     }
 
     // 5b. Admin authenticated crawl trigger
+    const adminPassword = `TestAdmin_${crypto.randomBytes(12).toString('hex')}`;
+    const passwordHash = await bcrypt.hash(adminPassword, 4);
     const adminUser = await prisma.user.create({
       data: {
         anonymousId: `admin-crawler-${Date.now()}`,
         email: `admin-crawler-${Date.now()}@test.safety`,
+        passwordHash,
         role: 'ADMIN',
       },
     });
     testUserIds.push(adminUser.id);
 
-    const adminAuth = await request('/api/v1/auth/device', {
+    const adminAuth = await request('/api/v1/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ anonymousId: adminUser.anonymousId }),
+      body: JSON.stringify({ email: adminUser.email, password: adminPassword }),
     });
+    if (adminAuth.status !== 200) {
+      throw new Error(`Admin password login failed: ${JSON.stringify(adminAuth.data)}`);
+    }
     const adminCookie = extractCookie(adminAuth.cookies, 'accessToken');
 
     const crawlRes = await request('/api/v1/admin/news/crawl', {
