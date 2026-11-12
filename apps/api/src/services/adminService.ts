@@ -12,6 +12,16 @@ export interface ModerationLogOutput {
   createdAt: Date;
 }
 
+const SAFE_ADMIN_USER_SELECT = {
+  id: true,
+  email: true,
+  role: true,
+  isVerified: true,
+  trustScore: true,
+  isBanned: true,
+  createdAt: true,
+} as const;
+
 /**
  * Bans a user account, revokes all active refresh tokens, and records an immutable entry in ModerationLog.
  */
@@ -41,6 +51,7 @@ export const banUser = async (
     prisma.user.update({
       where: { id: targetUserId },
       data: { isBanned: true },
+      select: SAFE_ADMIN_USER_SELECT,
     }),
     prisma.refreshToken.updateMany({
       where: { userId: targetUserId, isRevoked: false },
@@ -79,7 +90,7 @@ export const unbanUser = async (
     throw error;
   }
 
-  if (targetUser.isBanned) {
+  if (!targetUser.isBanned) {
     const error: any = new Error('User is not banned');
     error.statusCode = 400;
     throw error;
@@ -90,6 +101,7 @@ export const unbanUser = async (
     prisma.user.update({
       where: { id: targetUserId },
       data: { isBanned: false },
+      select: SAFE_ADMIN_USER_SELECT,
     }),
     prisma.moderationLog.create({
       data: {
