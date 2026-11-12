@@ -22,35 +22,30 @@ export const getPlatformStats = async (): Promise<PlatformStats> => {
   const now = new Date();
 
   const [
-    totalReports,
-    activeReports,
-    resolvedReports,
-    criticalThreats,
+    reportStatsRows,
     totalCitizens,
     verifiedCitizens,
     safeHavens,
     totalVotes,
-    latestReport,
   ] = await prisma.$transaction([
-    prisma.report.count(),
-    prisma.report.count({
-      where: {
-        status: 'ACTIVE',
-        expiresAt: { gt: now },
-      },
-    }),
-    prisma.report.count({
-      where: {
-        status: 'RESOLVED',
-      },
-    }),
-    prisma.report.count({
-      where: {
-        status: 'ACTIVE',
-        severity: 'HIGH',
-        expiresAt: { gt: now },
-      },
-    }),
+    prisma.$queryRaw<
+      Array<{
+        totalReports: number;
+        activeReports: number;
+        resolvedReports: number;
+        criticalThreats: number;
+        latestCreatedAt: Date | null;
+      }>
+    >`
+      SELECT
+        COUNT(*)::int AS "totalReports",
+        COUNT(*) FILTER (WHERE status = 'ACTIVE' AND "expiresAt" > NOW())::int AS "activeReports",
+        COUNT(*) FILTER (WHERE status = 'RESOLVED')::int AS "resolvedReports",
+        COUNT(*) FILTER (WHERE status = 'ACTIVE' AND severity = 'HIGH' AND "expiresAt" > NOW())::int AS "criticalThreats",
+        MAX("createdAt") AS "latestCreatedAt"
+      FROM "Report"
+      WHERE location IS NOT NULL
+    `,
     prisma.user.count({
       where: {
         isBanned: false,
@@ -64,22 +59,28 @@ export const getPlatformStats = async (): Promise<PlatformStats> => {
     }),
     prisma.safeZone.count(),
     prisma.vote.count(),
-    prisma.report.findFirst({
-      orderBy: { createdAt: 'desc' },
-      select: { createdAt: true },
-    }),
   ]);
 
+  const reportStats = reportStatsRows[0] ?? {
+    totalReports: 0,
+    activeReports: 0,
+    resolvedReports: 0,
+    criticalThreats: 0,
+    latestCreatedAt: null,
+  };
+
   return {
-    totalReports,
-    activeReports,
-    resolvedReports,
-    criticalThreats,
+    totalReports: reportStats.totalReports,
+    activeReports: reportStats.activeReports,
+    resolvedReports: reportStats.resolvedReports,
+    criticalThreats: reportStats.criticalThreats,
     totalCitizens,
     verifiedCitizens,
     safeHavens,
     totalVotes,
-    lastActiveAt: latestReport?.createdAt ? latestReport.createdAt.toISOString() : now.toISOString(),
+    lastActiveAt: reportStats.latestCreatedAt
+      ? new Date(reportStats.latestCreatedAt).toISOString()
+      : now.toISOString(),
     timestamp: now.toISOString(),
   };
 };
