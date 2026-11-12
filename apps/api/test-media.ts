@@ -152,7 +152,7 @@ async function runTests() {
     }
 
     const presignedData = presignedRes.data.data;
-    if (!presignedData.uploadUrl || !presignedData.fileKey || !presignedData.publicUrl) {
+    if (!presignedData.uploadUrl || !presignedData.fileKey || !presignedData.publicUrl || typeof presignedData.isMock !== 'boolean') {
       throw new Error(`Malformed presigned response: ${JSON.stringify(presignedData)}`);
     }
     if (!presignedData.fileKey.startsWith(`reports/${testReportId}/`)) {
@@ -174,6 +174,7 @@ async function runTests() {
       body: JSON.stringify({
         reportId: testReportId,
         fileKey: presignedData.fileKey,
+        originalUrl: presignedData.publicUrl,
       }),
     });
 
@@ -432,6 +433,99 @@ async function runTests() {
       throw new Error(`Expected 201 sanitized response for S3_ENDPOINT URL, got ${JSON.stringify(endpointConfirm)}`);
     }
     console.log('✅ /media/confirm trusted origin/key enforcement, idempotency, and response sanitization verified.');
+
+    // 13. Test /media/mock-upload compressed fallback & magic-byte validation
+    console.log('\n🧪 [Test 12] Verifying /media/mock-upload S3-less fallback & validation...');
+    const tinyJpegDataUrl = `data:image/jpeg;base64,${Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10]).toString('base64')}`;
+
+    if (presignedData.isMock) {
+      // 12a. Reject forged SVG/HTML payloads
+      const forgedSvgRes = await request('/api/v1/media/mock-upload', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          cookie: `accessToken=${user1Token}`,
+        },
+        body: JSON.stringify({
+          reportId: testReportId,
+          imageDataUrl: 'data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=',
+        }),
+      });
+      if (forgedSvgRes.status !== 400) {
+        throw new Error(`Expected 400 for SVG mock upload, got ${forgedSvgRes.status}`);
+      }
+
+      const spoofedBytesRes = await request('/api/v1/media/mock-upload', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          cookie: `accessToken=${user1Token}`,
+        },
+        body: JSON.stringify({
+          reportId: testReportId,
+          imageDataUrl: `data:image/jpeg;base64,${Buffer.from('<html>evil</html>').toString('base64')}`,
+        }),
+      });
+      if (spoofedBytesRes.status !== 400) {
+        throw new Error(`Expected 400 for magic-byte mismatch, got ${spoofedBytesRes.status}`);
+      }
+
+      const oversizedPayload = `data:image/png;base64,${Buffer.concat([
+        Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+        Buffer.alloc(520 * 1024, 0),
+      ]).toString('base64')}`;
+      const oversizedRes = await request('/api/v1/media/mock-upload', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          cookie: `accessToken=${user1Token}`,
+        },
+        body: JSON.stringify({
+          reportId: testReportId,
+          imageDataUrl: oversizedPayload,
+        }),
+      });
+      if (oversizedRes.status !== 400 && oversizedRes.status !== 413) {
+        throw new Error(`Expected 400/413 for oversized mock upload, got ${oversizedRes.status}`);
+      }
+
+      // 12b. Accept valid compressed JPEG data URI and omit originalUrl
+      const validMockRes = await request('/api/v1/media/mock-upload', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          cookie: `accessToken=${user1Token}`,
+        },
+        body: JSON.stringify({
+          reportId: testReportId,
+          imageDataUrl: tinyJpegDataUrl,
+        }),
+      });
+      if (
+        validMockRes.status !== 201 ||
+        validMockRes.data?.data?.blurredUrl !== tinyJpegDataUrl ||
+        ('originalUrl' in (validMockRes.data?.data || {}) && validMockRes.data?.data?.originalUrl !== undefined)
+      ) {
+        throw new Error(`Expected 201 sanitized mock-upload response, got ${JSON.stringify(validMockRes)}`);
+      }
+      console.log('✅ /media/mock-upload verified for magic bytes, size limit, and sanitized response.');
+    } else {
+      const disabledMockRes = await request('/api/v1/media/mock-upload', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          cookie: `accessToken=${user1Token}`,
+        },
+        body: JSON.stringify({
+          reportId: testReportId,
+          imageDataUrl: tinyJpegDataUrl,
+        }),
+      });
+      if (disabledMockRes.status !== 409) {
+        throw new Error(`Expected 409 Conflict for /media/mock-upload when S3 is configured, got ${disabledMockRes.status}`);
+      }
+      console.log('✅ /media/mock-upload properly disabled (409) when S3 credentials are active.');
+    }
 
     console.log('\n🎉 ========================================================');
     console.log('🎉 ALL PHASE 10 FILE & MEDIA HANDLING TESTS PASSED (100%)!');
