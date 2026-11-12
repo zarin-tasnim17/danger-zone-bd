@@ -12,7 +12,8 @@ const SOCKET_URL =
 
 /**
  * Updates the in-memory Socket.IO handshake token for cross-origin auth
- * and reconnects an active socket cleanly while preserving registered listeners.
+ * and reconnects an active or stale socket cleanly while preserving registered listeners.
+ * Passing null clears credentials and disconnects without reconnecting as a guest.
  */
 export const setSocketAuthToken = (token: string | null) => {
   const normalized = token && token.trim().length > 0 ? token : null;
@@ -21,11 +22,17 @@ export const setSocketAuthToken = (token: string | null) => {
 
   if (socketInstance) {
     socketInstance.auth = normalized ? { token: normalized } : {};
-    if (tokenChanged) {
-      socketInstance.disconnect().connect();
+    if (normalized) {
+      if (tokenChanged || !socketInstance.connected) {
+        socketInstance.disconnect().connect();
+      }
+    } else if (socketInstance.connected) {
+      socketInstance.disconnect();
     }
   }
 };
+
+export const setSocketToken = setSocketAuthToken;
 
 /**
  * Access or create the singleton Socket.IO instance.

@@ -66,3 +66,60 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 });
+
+self.addEventListener("push", (event) => {
+  let payload = {};
+  if (event.data) {
+    try {
+      payload = event.data.json();
+    } catch {
+      payload = { body: event.data.text() };
+    }
+  }
+
+  const title = payload.title || "DangerZoneBD Safety Alert";
+  const body =
+    payload.body ||
+    payload.description ||
+    "A new incident was reported inside one of your geofenced safety zones.";
+  const targetUrl =
+    typeof payload.url === "string" && payload.url.startsWith("/")
+      ? payload.url
+      : "/alerts";
+
+  event.waitUntil(
+    self.registration.showNotification(title, {
+      body,
+      tag: payload.reportId ? `geofence-${payload.reportId}` : "geofence-alert",
+      data: { url: targetUrl },
+    })
+  );
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const targetUrl =
+    typeof event.notification?.data?.url === "string"
+      ? event.notification.data.url
+      : "/alerts";
+
+  event.waitUntil(
+    self.clients
+      .matchAll({ type: "window", includeUncontrolled: true })
+      .then((clientList) => {
+        for (const client of clientList) {
+          if ("focus" in client) {
+            return client.focus().then((focused) => {
+              if (focused && "navigate" in focused && targetUrl) {
+                return focused.navigate(targetUrl);
+              }
+              return focused;
+            });
+          }
+        }
+        if (self.clients.openWindow) {
+          return self.clients.openWindow(targetUrl);
+        }
+      })
+  );
+});

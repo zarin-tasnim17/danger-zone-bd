@@ -205,30 +205,41 @@ export default function AlertsPage() {
   }, []);
 
   useEffect(() => {
+    let isCancelled = false;
+    let boundSocket: ReturnType<typeof getSocket> = null;
+
+    const handleGeofenceAlert = (data: any) => {
+      setLiveAlerts((prev) => [
+        {
+          ...data,
+          receivedAt: new Date().toLocaleTimeString(),
+        },
+        ...prev,
+      ]);
+    };
+
     const bootstrap = async () => {
       await initAuth();
+      if (isCancelled) return;
+
       await fetchZones();
+      if (isCancelled) return;
+
+      // Connect Socket.IO only after initAuth() finishes so the handshake carries socketToken
+      const socket = getSocket();
+      if (socket && !isCancelled) {
+        boundSocket = socket;
+        socket.on("GEOFENCE_ALERT", handleGeofenceAlert);
+      }
     };
     bootstrap();
 
-    // Listen to real-time GEOFENCE_ALERT socket event
-    const socket = getSocket();
-    if (socket) {
-      const handleGeofenceAlert = (data: any) => {
-        setLiveAlerts((prev) => [
-          {
-            ...data,
-            receivedAt: new Date().toLocaleTimeString(),
-          },
-          ...prev,
-        ]);
-      };
-
-      socket.on("GEOFENCE_ALERT", handleGeofenceAlert);
-      return () => {
-        socket.off("GEOFENCE_ALERT", handleGeofenceAlert);
-      };
-    }
+    return () => {
+      isCancelled = true;
+      if (boundSocket) {
+        boundSocket.off("GEOFENCE_ALERT", handleGeofenceAlert);
+      }
+    };
   }, [initAuth, fetchZones]);
 
   // Compute live area
@@ -442,11 +453,27 @@ export default function AlertsPage() {
     }
   };
 
+  // Convert URL-safe base64 VAPID key into bytes for PushManager.subscribe
+  const urlBase64ToUint8Array = (base64String: string): Uint8Array<ArrayBuffer> => {
+    const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+    const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+    const rawData = window.atob(base64);
+    const output = new Uint8Array(new ArrayBuffer(rawData.length));
+    for (let i = 0; i < rawData.length; ++i) {
+      output[i] = rawData.charCodeAt(i);
+    }
+    return output;
+  };
+
   // Web Push Subscription
   const handleSubscribePush = async () => {
     setIsSubscribingPush(true);
     try {
-      if (!("serviceWorker" in navigator) || !("Notification" in window)) {
+      if (
+        !("serviceWorker" in navigator) ||
+        !("Notification" in window) ||
+        !("PushManager" in window)
+      ) {
         throw new Error(
           isBn
             ? "আপনার ব্রাউজার পুশ নোটিফিকেশন সমর্থন করে না।"
@@ -465,42 +492,43 @@ export default function AlertsPage() {
         );
       }
 
-      let pushPayload = {
-        endpoint: "",
-        keys: {
-          p256dh: "",
-          auth: "",
-        },
-      };
+      const reg = await navigator.serviceWorker.ready;
+      let sub = await reg.pushManager.getSubscription();
 
-      if (typeof window !== "undefined" && "serviceWorker" in navigator) {
-        try {
-          const reg = await navigator.serviceWorker.ready;
-          const sub = await reg.pushManager.getSubscription();
-          if (sub) {
-            const subJson = sub.toJSON();
-            pushPayload = {
-              endpoint: sub.endpoint,
-              keys: {
-                p256dh: subJson.keys?.p256dh || "",
-                auth: subJson.keys?.auth || "",
-              },
-            };
-          }
-        } catch (e) {
-          console.warn("[WebPush] Native push subscription unavailable:", e);
+      if (!sub) {
+        const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY?.trim();
+        if (!vapidPublicKey) {
+          throw new Error(
+            isBn
+              ? "পুশ নোটিফিকেশন সার্ভার কনফিগারেশন অনুপলব্ধ। দয়া করে পরে আবার চেষ্টা করুন।"
+              : "Web Push notifications are not configured on this server yet."
+          );
         }
+
+        sub = await reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(vapidPublicKey),
+        });
       }
 
-      if (!pushPayload.endpoint) {
-        pushPayload = {
-          endpoint: `https://push.safetymap.bd/device/${user?.id || Date.now()}`,
-          keys: {
-            p256dh: "standard-browser-client",
-            auth: "session-verified-auth",
-          },
-        };
+      if (!sub?.endpoint) {
+        throw new Error(
+          isBn
+            ? "ব্রাউজার থেকে বৈধ পুশ সাবস্ক্রিপশন পাওয়া যায়নি।"
+            : "Unable to obtain a valid browser push subscription."
+        );
       }
+
+      const subJson = sub.toJSON();
+      const p256dh = subJson.keys?.p256dh;
+      const auth = subJson.keys?.auth;
+      const pushPayload: {
+        endpoint: string;
+        keys?: { p256dh: string; auth: string };
+      } = {
+        endpoint: sub.endpoint,
+        ...(p256dh && auth ? { keys: { p256dh, auth } } : {}),
+      };
 
       await apiFetch("/alerts/subscribe", {
         method: "POST",
@@ -515,7 +543,13 @@ export default function AlertsPage() {
         "success"
       );
     } catch (err: any) {
-      showToast(err.message, "error");
+      showToast(
+        err?.message ||
+          (isBn
+            ? "ব্রাউজার ওয়েব পুশ নিবন্ধন ব্যর্থ হয়েছে।"
+            : "Failed to register browser push alerts."),
+        "error"
+      );
     } finally {
       setIsSubscribingPush(false);
     }
