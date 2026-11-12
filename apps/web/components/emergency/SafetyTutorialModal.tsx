@@ -126,20 +126,30 @@ export function SafetyTutorialModal() {
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    const accepted = localStorage.getItem(SAFETY_TERMS_ACCEPTED_KEY);
-    const savedConsents = localStorage.getItem(SAFETY_TERMS_CONSENTS_KEY);
+    try {
+      const accepted = localStorage.getItem(SAFETY_TERMS_ACCEPTED_KEY);
+      const savedConsents = localStorage.getItem(SAFETY_TERMS_CONSENTS_KEY);
+      const legacyConsent = localStorage.getItem("danger_zone_terms_consent_v1");
 
-    if (savedConsents) {
-      try {
-        const parsed = JSON.parse(savedConsents);
-        setSelectedTerms((prev) => ({ ...prev, ...parsed }));
-      } catch {
-        // Fallback to defaults
+      if (savedConsents) {
+        try {
+          const parsed = JSON.parse(savedConsents);
+          setSelectedTerms((prev) => ({ ...prev, ...parsed }));
+        } catch {
+          // Fallback to defaults
+        }
       }
-    }
 
-    if (accepted !== "true") {
-      setIsOpen(true);
+      if (accepted !== "true") {
+        if (legacyConsent) {
+          // Preserve prior consent from legacy TermsConsentModal key without re-prompting
+          localStorage.setItem(SAFETY_TERMS_ACCEPTED_KEY, "true");
+        } else {
+          setIsOpen(true);
+        }
+      }
+    } catch {
+      // localStorage disabled or restricted in private browsing
     }
 
     // Listener to re-open modal on demand from anywhere (e.g. Profile or Help)
@@ -195,20 +205,24 @@ export function SafetyTutorialModal() {
     if (!allMandatoryAccepted) return;
 
     if (typeof window !== "undefined") {
-      // 1. Mark agreement accepted
-      localStorage.setItem(SAFETY_TERMS_ACCEPTED_KEY, "true");
+      try {
+        // 1. Mark agreement accepted
+        localStorage.setItem(SAFETY_TERMS_ACCEPTED_KEY, "true");
 
-      // 2. Persist chosen terms and conditions
-      const payload = {
-        ...selectedTerms,
-        updatedAt: new Date().toISOString(),
-      };
-      localStorage.setItem(SAFETY_TERMS_CONSENTS_KEY, JSON.stringify(payload));
+        // 2. Persist chosen terms and conditions
+        const payload = {
+          ...selectedTerms,
+          updatedAt: new Date().toISOString(),
+        };
+        localStorage.setItem(SAFETY_TERMS_CONSENTS_KEY, JSON.stringify(payload));
 
-      // 3. Dispatch event for real-time reactivity
-      window.dispatchEvent(
-        new CustomEvent("safety_terms_updated", { detail: payload })
-      );
+        // 3. Dispatch event for real-time reactivity
+        window.dispatchEvent(
+          new CustomEvent("safety_terms_updated", { detail: payload })
+        );
+      } catch (err) {
+        console.warn("[SafetyTutorial] Failed to persist consent:", err);
+      }
     }
 
     setIsOpen(false);
@@ -217,7 +231,7 @@ export function SafetyTutorialModal() {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[2000] flex items-center justify-center p-3 sm:p-4 bg-slate-950/60 backdrop-blur-md animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-[99999] flex items-center justify-center p-3 sm:p-4 bg-slate-950/60 backdrop-blur-md animate-in fade-in duration-200">
       <div className="bg-white border border-slate-200/90 rounded-3xl max-w-xl w-full text-slate-900 shadow-2xl animate-in zoom-in-95 duration-200 max-h-[92vh] flex flex-col overflow-hidden">
         {/* Modal Top Header (Sticky) */}
         <div className="p-4 sm:p-5 border-b border-slate-100 bg-gradient-to-b from-slate-50/80 to-white flex items-start justify-between gap-3 shrink-0">

@@ -3,7 +3,6 @@ import "./globals.css";
 import "leaflet/dist/leaflet.css";
 import EmergencySosPill from "@/components/emergency/EmergencySosPill";
 import SafetyTutorialModal from "@/components/emergency/SafetyTutorialModal";
-import TermsConsentModal from "@/components/onboarding/TermsConsentModal";
 import ServiceWorkerRegister from "@/components/pwa/ServiceWorkerRegister";
 import ToastContainer from "@/components/ui/ToastContainer";
 
@@ -34,7 +33,6 @@ export default function RootLayout({
         {children}
         <EmergencySosPill />
         <SafetyTutorialModal />
-        <TermsConsentModal />
         <ServiceWorkerRegister />
         <ToastContainer />
       </body>

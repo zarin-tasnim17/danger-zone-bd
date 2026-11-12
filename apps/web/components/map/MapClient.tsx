@@ -321,7 +321,7 @@ export default function MapClient() {
     }
 
     // 2. Track live browser geolocation permission state without popping an unprompted dialog
-    // over TermsConsentModal (which causes modern Android 12-16 Chrome to suppress/block prompts)
+    // over SafetyTutorialModal (which causes modern Android 12-16 Chrome to suppress/block prompts)
     let permStatus: PermissionStatus | null = null;
     const handlePermChange = () => {
       if (permStatus) {
