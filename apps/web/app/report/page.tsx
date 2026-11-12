@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Navbar from "@/components/layout/Navbar";
 import { apiFetch } from "@/lib/api";
+import { uploadReportEvidence, validateEvidenceFile } from "@/lib/mediaUpload";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useLanguageStore } from "@/store/useLanguageStore";
 import { useMapStore } from "@/store/useMapStore";
@@ -324,6 +325,9 @@ export default function ReportPage() {
   // File Upload State
   const [file, setFile] = useState<File | null>(null);
   const [filePreview, setFilePreview] = useState<string | null>(null);
+  const [mediaUploadStatus, setMediaUploadStatus] = useState<"none" | "uploading" | "uploaded" | "failed">("none");
+  const [mediaUploadError, setMediaUploadError] = useState<string | null>(null);
+  const [isRetryingMedia, setIsRetryingMedia] = useState(false);
 
   // Submission State
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -400,18 +404,32 @@ export default function ReportPage() {
     const selected = e.target.files?.[0];
     if (!selected) return;
 
-    if (selected.size > 5 * 1024 * 1024) {
-      setErrorMessage(
-        isBn
-          ? "ফাইলের সাইজ ৫ মেগাবাইটের বেশি হতে পারবে না।"
-          : "File size exceeds the 5MB maximum limit."
-      );
+    const validation = validateEvidenceFile(selected);
+    if (!validation.valid) {
+      e.target.value = "";
+      handleRemoveFile();
+      const localizedMsg =
+        validation.code === "FILE_TOO_LARGE"
+          ? isBn
+            ? "ফাইলের সাইজ ৫ মেগাবাইটের বেশি হতে পারবে না।"
+            : validation.message
+          : validation.code === "UNSUPPORTED_TYPE"
+            ? isBn
+              ? "শুধুমাত্র JPEG, PNG বা WebP ছবি সমর্থিত।"
+              : validation.message
+            : isBn
+              ? "নির্বাচিত ছবি ফাইলটি খালি।"
+              : validation.message;
+      setErrorMessage(localizedMsg);
       return;
     }
 
+    if (filePreview) URL.revokeObjectURL(filePreview);
     setFile(selected);
     const url = URL.createObjectURL(selected);
     setFilePreview(url);
+    setMediaUploadStatus("none");
+    setMediaUploadError(null);
     setErrorMessage(null);
   };
 
@@ -419,12 +437,16 @@ export default function ReportPage() {
     if (filePreview) URL.revokeObjectURL(filePreview);
     setFile(null);
     setFilePreview(null);
+    setMediaUploadStatus("none");
+    setMediaUploadError(null);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
     setErrorMessage(null);
+    setMediaUploadError(null);
+    setMediaUploadStatus(file ? "uploading" : "none");
 
     try {
       // Only attach hardware GPS headers when unmodified browser geolocation (<= 250m accuracy)
@@ -449,31 +471,49 @@ export default function ReportPage() {
       // 3. Optional media upload if an image was attached
       if (file && result?.id) {
         try {
-          const presignedRes = await apiFetch<any>(
-            `/media/presigned-url?reportId=${result.id}&fileType=${file.type}&fileSize=${file.size}`
-          );
-
-          await apiFetch<any>("/media/confirm", {
-            method: "POST",
-            body: JSON.stringify({
-              reportId: result.id,
-              fileKey: presignedRes.fileKey || `reports/${result.id}/${file.name}`,
-            }),
-          });
+          await uploadReportEvidence(result.id, file);
+          setMediaUploadStatus("uploaded");
         } catch (mediaErr: any) {
-          console.warn("[Media Attachment Notice]", mediaErr.message);
+          console.warn("[Media Attachment Notice]", mediaErr?.message);
+          setMediaUploadStatus("failed");
+          setMediaUploadError(
+            mediaErr?.message ||
+              (isBn
+                ? "ছবি প্রমাণ আপলোড ব্যর্থ হয়েছে।"
+                : "Photo evidence upload failed.")
+          );
         }
       }
 
       setCreatedReport(result);
     } catch (err: any) {
       console.error("[Report Submission Error]", err);
+      setMediaUploadStatus("none");
       setErrorMessage(
         err.message ||
           (isBn ? "রিপোর্ট জমা দিতে ব্যর্থ হয়েছে।" : "Failed to submit report.")
       );
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleRetryMediaUpload = async () => {
+    if (!createdReport?.id || !file || isRetryingMedia) return;
+    setIsRetryingMedia(true);
+    setMediaUploadStatus("uploading");
+    setMediaUploadError(null);
+    try {
+      await uploadReportEvidence(createdReport.id, file);
+      setMediaUploadStatus("uploaded");
+    } catch (mediaErr: any) {
+      setMediaUploadStatus("failed");
+      setMediaUploadError(
+        mediaErr?.message ||
+          (isBn ? "ছবি পুনরায় আপলোড ব্যর্থ হয়েছে।" : "Photo retry upload failed.")
+      );
+    } finally {
+      setIsRetryingMedia(false);
     }
   };
 
@@ -489,6 +529,9 @@ export default function ReportPage() {
     setCreatedReport(null);
     setDescription("");
     handleRemoveFile();
+    setMediaUploadStatus("none");
+    setMediaUploadError(null);
+    setIsRetryingMedia(false);
     setErrorMessage(null);
   };
 
@@ -577,6 +620,57 @@ export default function ReportPage() {
                 <span className="font-bold text-slate-900">{selectedCategoryDef.expiryHintEn}</span>
               </div>
             </div>
+
+            {mediaUploadStatus === "uploaded" && (
+              <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs flex items-center gap-2.5">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span className="font-semibold">
+                  {isBn
+                    ? "সংযুক্ত ছবির প্রমাণ সফলভাবে আপলোড এবং গোপনীয়তা প্রক্রিয়াকরণ সম্পন্ন হয়েছে।"
+                    : "Attached photo evidence was uploaded and processed through the privacy pipeline."}
+                </span>
+              </div>
+            )}
+
+            {(mediaUploadStatus === "failed" || (mediaUploadStatus === "uploading" && isRetryingMedia)) && (
+              <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-start gap-2.5">
+                  <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                  <div className="space-y-0.5">
+                    <p className="font-bold">
+                      {isBn
+                        ? "রিপোর্টটি ছবি ছাড়াই প্রকাশিত হয়েছে"
+                        : "Incident published without photo evidence"}
+                    </p>
+                    <p className="text-amber-800">
+                      {mediaUploadError ||
+                        (isBn
+                          ? "ছবি আপলোডের সময় একটি ত্রুটি ঘটেছে।"
+                          : "Photo upload encountered an error.")}
+                    </p>
+                  </div>
+                </div>
+                {file && (
+                  <button
+                    type="button"
+                    onClick={handleRetryMediaUpload}
+                    disabled={isRetryingMedia}
+                    className="shrink-0 py-2 px-3.5 rounded-xl bg-amber-600 hover:bg-amber-700 disabled:opacity-60 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${isRetryingMedia ? "animate-spin" : ""}`} />
+                    <span>
+                      {isRetryingMedia
+                        ? isBn
+                          ? "আপলোড হচ্ছে..."
+                          : "Retrying..."
+                        : isBn
+                          ? "ছবি পুনরায় আপলোড করুন"
+                          : "Retry Photo Upload"}
+                    </span>
+                  </button>
+                )}
+              </div>
+            )}
 
             {/* Actions */}
             <div className="flex flex-col sm:flex-row items-center gap-3 pt-2">
