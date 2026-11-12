@@ -6,6 +6,7 @@ import Navbar from "@/components/layout/Navbar";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useLanguageStore } from "@/store/useLanguageStore";
 import { apiFetch } from "@/lib/api";
+import { translations } from "@/lib/translations";
 import {
   ShieldAlert,
   ArrowLeft,
@@ -37,6 +38,29 @@ import {
   EyeOff,
   Mail,
 } from "lucide-react";
+
+const CATEGORY_ALIAS_MAP: Record<string, string> = {
+  MUGGING: "SNATCHING",
+  DACOITY: "ROBBERY",
+  THEFT_DACOITY: "THEFT_ROBBERY",
+  TEEN_GANG: "YOUTH_GANG_ACTIVITY",
+  DRUG_ACTIVITY: "DRUG_RELATED_CRIME",
+};
+
+const CATEGORY_BAR_COLORS: Record<string, string> = {
+  SNATCHING: "bg-orange-500",
+  ARMED_ASSAULT: "bg-rose-600",
+  SNATCHING_ARMED_ASSAULT: "bg-red-600",
+  ROBBERY: "bg-red-500",
+  THEFT: "bg-amber-500",
+  THEFT_ROBBERY: "bg-red-700",
+  EXTORTION: "bg-purple-500",
+  YOUTH_GANG_ACTIVITY: "bg-violet-500",
+  DRUG_RELATED_CRIME: "bg-blue-500",
+  UNLIT_ROAD: "bg-yellow-500",
+  ROAD_ACCIDENT: "bg-emerald-500",
+  TEEN_GANG_ARMED_ASSAULT: "bg-fuchsia-600",
+};
 
 export default function AdminPage() {
   const { user, loginAdminWithPassword, logout, initAuth } = useAuthStore();
@@ -1038,33 +1062,52 @@ export default function AdminPage() {
                 </div>
 
                 <div className="space-y-3.5">
-                  {[
-                    { key: "MUGGING", label: isBn ? "ছিনতাই ও ডাকাতি" : "Mugging & Robbery", color: "bg-red-500" },
-                    { key: "THEFT", label: isBn ? "চুরি ও সিঁধেল চুরি" : "Theft & Burglary", color: "bg-amber-500" },
-                    { key: "UNLIT_ROAD", label: isBn ? "অন্ধকার বা ঝুঁকিপূর্ণ সড়ক" : "Unlit / Broken Road", color: "bg-yellow-500" },
-                    { key: "EXTORTION", label: isBn ? "চাঁদাবাজি ও গ্যাং তৎপরতা" : "Extortion & Gangs", color: "bg-purple-500" },
-                    { key: "DRUG_ACTIVITY", label: isBn ? "মাদক কেনাবেচা" : "Narcotics Activity", color: "bg-rose-500" },
-                  ].map((cat) => {
-                    const count = trends?.breakdown?.byCategory?.[cat.key] ?? 0;
-                    const total = trends?.totalReports || 1;
-                    const pct = Math.round((count / total) * 100);
-                    return (
-                      <div key={cat.key} className="space-y-1">
-                        <div className="flex justify-between text-xs font-semibold text-slate-700">
-                          <span>{cat.label}</span>
-                          <span className="font-mono text-slate-900 font-bold">
-                            {count} ({pct}%)
-                          </span>
+                  {(() => {
+                    const rawCategories = (trends?.breakdown?.byCategory ?? {}) as Record<string, number>;
+                    const aggregated = new Map<string, number>();
+
+                    for (const [rawKey, rawCount] of Object.entries(rawCategories)) {
+                      const count = Number(rawCount) || 0;
+                      if (count <= 0) continue;
+                      const canonicalKey = CATEGORY_ALIAS_MAP[rawKey] ?? rawKey;
+                      aggregated.set(canonicalKey, (aggregated.get(canonicalKey) ?? 0) + count);
+                    }
+
+                    const entries = Array.from(aggregated.entries()).sort((a, b) => b[1] - a[1]);
+
+                    if (entries.length === 0) {
+                      return (
+                        <p className="text-xs text-slate-500 py-4 text-center">
+                          {isBn ? "বিগত ৩০ দিনে কোনো শ্রেণিবদ্ধ রিপোর্ট পাওয়া যায়নি।" : "No categorized reports recorded in the last 30 days."}
+                        </p>
+                      );
+                    }
+
+                    const total = trends?.totalReports || entries.reduce((sum, [, c]) => sum + c, 0) || 1;
+                    const categoryLabels = translations[isBn ? "bn" : "en"].categories as Record<string, string>;
+
+                    return entries.map(([key, count]) => {
+                      const pct = Math.min(100, Math.round((count / total) * 100));
+                      const label = categoryLabels[key] || key.replace(/_/g, " ");
+                      const color = CATEGORY_BAR_COLORS[key] || "bg-slate-500";
+                      return (
+                        <div key={key} className="space-y-1">
+                          <div className="flex justify-between text-xs font-semibold text-slate-700">
+                            <span>{label}</span>
+                            <span className="font-mono text-slate-900 font-bold">
+                              {count} ({pct}%)
+                            </span>
+                          </div>
+                          <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
+                            <div
+                              className={`h-full ${color} rounded-full transition-all duration-500`}
+                              style={{ width: `${pct}%` }}
+                            />
+                          </div>
                         </div>
-                        <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
-                          <div
-                            className={`h-full ${cat.color} rounded-full transition-all duration-500`}
-                            style={{ width: `${pct}%` }}
-                          />
-                        </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    });
+                  })()}
                 </div>
               </div>
 
