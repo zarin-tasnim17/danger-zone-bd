@@ -54,7 +54,7 @@ export const verifyActiveAccessToken = async (
   };
 };
 
-const extractAccessToken = (req: Request): string | undefined =>
+export const extractAccessToken = (req: Request): string | undefined =>
   req.cookies?.accessToken ||
   (req.headers.authorization?.startsWith('Bearer ')
     ? req.headers.authorization.split(' ')[1]

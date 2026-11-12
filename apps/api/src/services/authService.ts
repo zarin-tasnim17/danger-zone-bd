@@ -81,28 +81,60 @@ export const loginOrRegisterDevice = async (anonymousId: string, email?: string)
 };
 
 export const refreshSession = async (token: string, userId: string) => {
-  const existingToken = await prisma.refreshToken.findUnique({
-    where: { token }
+  const now = new Date();
+
+  return prisma.$transaction(async (tx) => {
+    const existingToken = await tx.refreshToken.findUnique({
+      where: { token },
+    });
+
+    if (
+      !existingToken ||
+      existingToken.userId !== userId ||
+      existingToken.isRevoked ||
+      existingToken.expiresAt < now
+    ) {
+      throw Object.assign(new Error('Invalid refresh token'), { statusCode: 401 });
+    }
+
+    // Atomically mark the presented refresh token as revoked to prevent replay under concurrent requests
+    const revoked = await tx.refreshToken.updateMany({
+      where: {
+        id: existingToken.id,
+        isRevoked: false,
+        expiresAt: { gte: now },
+      },
+      data: { isRevoked: true },
+    });
+
+    if (revoked.count === 0) {
+      throw Object.assign(new Error('Refresh token already used or expired'), { statusCode: 401 });
+    }
+
+    const user = await tx.user.findUnique({ where: { id: userId } });
+    if (!user || user.isBanned) {
+      throw Object.assign(new Error('User not found or banned'), { statusCode: 401 });
+    }
+
+    const { accessToken, socketToken } = issueClientTokens(user);
+    const newRefreshToken = generateRefreshToken({ id: user.id });
+
+    await tx.refreshToken.create({
+      data: {
+        userId: user.id,
+        token: newRefreshToken,
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
+      },
+    });
+
+    return { accessToken, refreshToken: newRefreshToken, socketToken };
   });
-
-  if (!existingToken || existingToken.isRevoked || existingToken.expiresAt < new Date()) {
-    throw new Error('Invalid refresh token');
-  }
-
-  const user = await prisma.user.findUnique({ where: { id: userId } });
-  if (!user || user.isBanned) {
-    throw new Error('User not found or banned');
-  }
-
-  return issueClientTokens(user);
 };
 
 export const logout = async (token: string) => {
-  await prisma.refreshToken.update({
-    where: { token },
-    data: { isRevoked: true }
-  }).catch(() => {
-    // Ignore if token doesn't exist
+  await prisma.refreshToken.updateMany({
+    where: { token, isRevoked: false },
+    data: { isRevoked: true },
   });
 };
 
