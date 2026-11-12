@@ -16,6 +16,8 @@ import { cleanIncidentTitle } from "@/lib/incidentUtils";
 
 export type { SafeZoneItem };
 
+const inFlightVotes = new Set<string>();
+
 interface IncidentState {
   incidents: DangerIncident[];
   safeZones: SafeZoneItem[];
@@ -159,6 +161,24 @@ export const useIncidentStore = create<IncidentState>((set, get) => ({
   },
 
   voteIncident: async (reportId: string, voteType: 1 | -1) => {
+    const existing = get().incidents.find((inc) => inc.id === reportId);
+    if (inFlightVotes.has(reportId)) {
+      return {
+        upvotes: existing?.upvotes ?? 0,
+        downvotes: existing?.downvotes ?? 0,
+      };
+    }
+
+    const previousCounts = existing
+      ? {
+          upvotes: existing.upvotes,
+          downvotes: existing.downvotes,
+          verifiedCount: existing.verifiedCount,
+        }
+      : null;
+
+    inFlightVotes.add(reportId);
+
     // Optimistic vote tally update
     set((state) => ({
       incidents: state.incidents.map((inc) => {
@@ -167,6 +187,8 @@ export const useIncidentStore = create<IncidentState>((set, get) => ({
             ...inc,
             upvotes: voteType === 1 ? inc.upvotes + 1 : inc.upvotes,
             downvotes: voteType === -1 ? inc.downvotes + 1 : inc.downvotes,
+            verifiedCount:
+              voteType === 1 ? (inc.verifiedCount ?? inc.upvotes) + 1 : inc.verifiedCount,
           };
         }
         return inc;
@@ -182,19 +204,43 @@ export const useIncidentStore = create<IncidentState>((set, get) => ({
         }
       );
 
-      // Reconcile with exact server vote totals
+      // Reconcile with exact server vote totals (or remove if threshold purge triggered)
       set((state) => ({
-        incidents: state.incidents.map((inc) =>
-          inc.id === reportId
-            ? { ...inc, upvotes: result.upvotes, downvotes: result.downvotes }
-            : inc
-        ),
+        incidents:
+          result.status === "PURGED"
+            ? state.incidents.filter((inc) => inc.id !== reportId)
+            : state.incidents.map((inc) =>
+                inc.id === reportId
+                  ? {
+                      ...inc,
+                      upvotes: result.upvotes,
+                      downvotes: result.downvotes,
+                      verifiedCount: result.upvotes,
+                    }
+                  : inc
+              ),
       }));
 
       return result;
     } catch (err: any) {
+      if (previousCounts) {
+        set((state) => ({
+          incidents: state.incidents.map((inc) =>
+            inc.id === reportId
+              ? {
+                  ...inc,
+                  upvotes: previousCounts.upvotes,
+                  downvotes: previousCounts.downvotes,
+                  verifiedCount: previousCounts.verifiedCount,
+                }
+              : inc
+          ),
+        }));
+      }
       console.error("[Vote] Failed:", err.message);
       throw err;
+    } finally {
+      inFlightVotes.delete(reportId);
     }
   },
 

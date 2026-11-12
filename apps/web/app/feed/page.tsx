@@ -300,6 +300,11 @@ export default function FeedPage() {
     if (votingId) return;
     setVotingId(reportId);
 
+    const targetItem = incidents.find((item) => item.id === reportId);
+    const previousCounts = targetItem
+      ? { upvotes: targetItem.upvotes, downvotes: targetItem.downvotes }
+      : null;
+
     // Optimistic UI update
     setIncidents((prev) =>
       prev.map((item) => {
@@ -320,7 +325,9 @@ export default function FeedPage() {
         body: JSON.stringify({ voteType }),
       });
 
-      if (updated && typeof updated.upvotes === "number") {
+      if (updated?.status === "PURGED") {
+        setIncidents((prev) => prev.filter((item) => item.id !== reportId));
+      } else if (updated && typeof updated.upvotes === "number") {
         setIncidents((prev) =>
           prev.map((item) =>
             item.id === reportId
@@ -330,6 +337,19 @@ export default function FeedPage() {
         );
       }
     } catch (err: any) {
+      if (previousCounts) {
+        setIncidents((prev) =>
+          prev.map((item) =>
+            item.id === reportId
+              ? {
+                  ...item,
+                  upvotes: previousCounts.upvotes,
+                  downvotes: previousCounts.downvotes,
+                }
+              : item
+          )
+        );
+      }
       alert(err.message || (isBn ? "ভোট সম্পন্ন করা যায়নি" : "Failed to record vote."));
       fetchIncidents();
     } finally {
