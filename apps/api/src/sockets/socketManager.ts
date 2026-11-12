@@ -1,6 +1,7 @@
 import { Server as SocketIOServer, Socket } from 'socket.io';
 import { Server as HttpServer } from 'http';
-import { verifyAccessToken, JwtPayload } from '../utils/jwt';
+import { JwtPayload } from '../utils/jwt';
+import { verifyActiveAccessToken } from '../middleware/requireAuth';
 
 let io: SocketIOServer | null = null;
 
@@ -33,7 +34,7 @@ const parseCookies = (cookieHeader?: string): Record<string, string> => {
  * Socket.IO handshake authentication middleware
  * Checks HttpOnly cookie `accessToken` or handshake auth payload `token`
  */
-export const socketAuthMiddleware = (socket: Socket, next: (err?: Error) => void) => {
+export const socketAuthMiddleware = async (socket: Socket, next: (err?: Error) => void) => {
   try {
     const cookies = parseCookies(socket.handshake.headers.cookie);
     const token = cookies.accessToken || socket.handshake.auth?.token;
@@ -42,11 +43,11 @@ export const socketAuthMiddleware = (socket: Socket, next: (err?: Error) => void
       return next(new Error('Authentication error: Missing access token'));
     }
 
-    const decoded = verifyAccessToken(token);
-    socket.data.user = decoded;
+    socket.data.user = await verifyActiveAccessToken(token);
+
     return next();
   } catch (error) {
-    return next(new Error('Authentication error: Invalid or expired token'));
+    return next(new Error(error instanceof Error && error.message ? error.message : 'Authentication error: Invalid or expired token'));
   }
 };
 
