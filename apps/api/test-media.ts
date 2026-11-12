@@ -33,8 +33,16 @@ async function runTests() {
   let user2Token = '';
   let testReportId = '';
   let createdMediaId = '';
-  const originalWebhookSecret = process.env.STORAGE_WEBHOOK_SECRET;
-  const originalWebhookBucket = process.env.STORAGE_WEBHOOK_BUCKET;
+  const trackedEnvKeys = [
+    'STORAGE_WEBHOOK_SECRET',
+    'STORAGE_WEBHOOK_BUCKET',
+    'S3_PUBLIC_DOMAIN',
+    'STORAGE_CDN_URL',
+    'S3_ENDPOINT',
+  ] as const;
+  const originalEnv = Object.fromEntries(
+    trackedEnvKeys.map((key) => [key, process.env[key]])
+  ) as Record<(typeof trackedEnvKeys)[number], string | undefined>;
 
   try {
     // 2. Authenticate User 1
@@ -175,23 +183,25 @@ async function runTests() {
 
     const confirmedMedia = confirmRes.data.data;
     createdMediaId = confirmedMedia.id;
-    if (!confirmedMedia.originalUrl || !confirmedMedia.blurredUrl) {
-      throw new Error(`Expected blurredUrl to be generated: ${JSON.stringify(confirmedMedia)}`);
+    if ('originalUrl' in confirmedMedia && confirmedMedia.originalUrl !== undefined) {
+      throw new Error(`Expected originalUrl to be stripped from confirm response: ${JSON.stringify(confirmedMedia)}`);
     }
-    if (!confirmedMedia.blurredUrl.includes('blurred-')) {
-      throw new Error(`blurredUrl should contain privacy-sanitized prefix 'blurred-': ${confirmedMedia.blurredUrl}`);
+    if (!confirmedMedia.blurredUrl || confirmedMedia.blurredUrl !== presignedData.publicUrl) {
+      throw new Error(
+        `Expected blurredUrl to match verified storage URL (${presignedData.publicUrl}), got: ${JSON.stringify(confirmedMedia)}`
+      );
     }
 
     // Verify record in Prisma database
     const dbMedia = await prisma.reportMedia.findUnique({
       where: { id: createdMediaId },
     });
-    if (!dbMedia || !dbMedia.blurredUrl) {
-      throw new Error('Database record missing or blurredUrl not persisted!');
+    if (!dbMedia || dbMedia.originalUrl !== presignedData.publicUrl || dbMedia.blurredUrl !== presignedData.publicUrl) {
+      throw new Error('Database record missing or verified storage URL not persisted!');
     }
-    console.log('✅ [9/9] Media record stored in DB and sanitized with Privacy Blur Pipeline.');
-    console.log(`       Original URL: ${dbMedia.originalUrl}`);
-    console.log(`       Blurred URL:  ${dbMedia.blurredUrl}`);
+    console.log('✅ [9/9] Media record stored in DB with non-404 URL and sanitized API response.');
+    console.log(`       Original URL (DB): ${dbMedia.originalUrl}`);
+    console.log(`       Blurred URL (API): ${confirmedMedia.blurredUrl}`);
 
     // 10. Test Server RAM Protection (Multipart form rejection)
     console.log('\n🧪 [Test 9] Verifying server RAM protection rejects direct multipart/form-data uploads...');
@@ -311,19 +321,129 @@ async function runTests() {
     }
     console.log('✅ Storage webhook fail-closed auth, idempotency, and key validation verified.');
 
+    // 12. Test /media/confirm Trusted URL & Key Hardening ([SEC-004])
+    console.log('\n🧪 [Test 11] Verifying /media/confirm trusted origin check & originalUrl stripping...');
+    process.env.S3_PUBLIC_DOMAIN = 'https://cdn.safetymap.test';
+    delete process.env.STORAGE_CDN_URL;
+    delete process.env.S3_ENDPOINT;
+
+    const activeBucket = process.env.S3_BUCKET || 'danger-zone-reports';
+    const activeRegion = process.env.S3_REGION || 'ap-south-1';
+    const otherReportId = crypto.randomUUID();
+    const invalidConfirmPayloads = [
+      { reportId: testReportId, originalUrl: 'https://evil.example.com/track.png' },
+      {
+        reportId: testReportId,
+        originalUrl: `https://${activeBucket}.s3.${activeRegion}.amazonaws.com/reports/${testReportId}/${crypto.randomUUID()}.jpg`,
+      },
+      {
+        reportId: testReportId,
+        originalUrl: `https://cdn.safetymap.test.evil.com/reports/${testReportId}/${crypto.randomUUID()}.jpg`,
+      },
+      {
+        reportId: testReportId,
+        originalUrl: `https://cdn.safetymap.test/reports/${testReportId}/${crypto.randomUUID()}.jpg?redirect=https://evil.example.com`,
+      },
+      {
+        reportId: testReportId,
+        originalUrl: `https://cdn.safetymap.test/reports/${otherReportId}/${crypto.randomUUID()}.jpg`,
+      },
+      { reportId: testReportId, fileKey: `reports/${otherReportId}/${crypto.randomUUID()}.jpg` },
+      { reportId: testReportId, fileKey: `reports/${testReportId}/../../etc/passwd.jpg` },
+      { reportId: testReportId, fileKey: `reports/${testReportId}/blurred-spoof.jpg` },
+      { reportId: testReportId, fileKey: `reports/${testReportId}/payload.html` },
+      {
+        reportId: testReportId,
+        fileKey: `reports/${testReportId}/first.jpg`,
+        originalUrl: `https://cdn.safetymap.test/reports/${testReportId}/second.jpg`,
+      },
+    ];
+
+    for (const payload of invalidConfirmPayloads) {
+      const badConfirm = await request('/api/v1/media/confirm', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          cookie: `accessToken=${user1Token}`,
+        },
+        body: JSON.stringify(payload),
+      });
+      if (badConfirm.status !== 400) {
+        throw new Error(
+          `Expected 400 for untrusted/invalid confirm payload ${JSON.stringify(payload)}, got ${badConfirm.status}`
+        );
+      }
+    }
+
+    const trustedCdnUrl = `https://cdn.safetymap.test/reports/${testReportId}/${crypto.randomUUID()}.png`;
+    const validCdnConfirm = await request('/api/v1/media/confirm', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        cookie: `accessToken=${user1Token}`,
+      },
+      body: JSON.stringify({ reportId: testReportId, originalUrl: trustedCdnUrl }),
+    });
+    if (validCdnConfirm.status !== 201) {
+      throw new Error(`Expected 201 for trusted S3_PUBLIC_DOMAIN URL, got ${validCdnConfirm.status}: ${JSON.stringify(validCdnConfirm.data)}`);
+    }
+    const cdnMedia = validCdnConfirm.data.data;
+    if ('originalUrl' in cdnMedia && cdnMedia.originalUrl !== undefined) {
+      throw new Error(`Expected originalUrl stripped on CDN confirm: ${JSON.stringify(cdnMedia)}`);
+    }
+    if (cdnMedia.blurredUrl !== trustedCdnUrl) {
+      throw new Error(`Expected blurredUrl=${trustedCdnUrl}, got ${cdnMedia.blurredUrl}`);
+    }
+
+    // Duplicate confirm must stay idempotent and omit originalUrl
+    const duplicateConfirm = await request('/api/v1/media/confirm', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        cookie: `accessToken=${user1Token}`,
+      },
+      body: JSON.stringify({ reportId: testReportId, originalUrl: trustedCdnUrl }),
+    });
+    if (
+      duplicateConfirm.status !== 200 ||
+      duplicateConfirm.data?.data?.id !== cdnMedia.id ||
+      ('originalUrl' in (duplicateConfirm.data?.data || {}) && duplicateConfirm.data?.data?.originalUrl !== undefined)
+    ) {
+      throw new Error(`Expected idempotent 200 without originalUrl, got ${JSON.stringify(duplicateConfirm)}`);
+    }
+
+    // Verify S3_ENDPOINT path-style trust validation
+    delete process.env.S3_PUBLIC_DOMAIN;
+    process.env.S3_ENDPOINT = 'https://s3.internal.test';
+    const trustedEndpointUrl = `https://s3.internal.test/${activeBucket}/reports/${testReportId}/${crypto.randomUUID()}.webp`;
+    const endpointConfirm = await request('/api/v1/media/confirm', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        cookie: `accessToken=${user1Token}`,
+      },
+      body: JSON.stringify({ reportId: testReportId, originalUrl: trustedEndpointUrl }),
+    });
+    if (
+      endpointConfirm.status !== 201 ||
+      endpointConfirm.data?.data?.blurredUrl !== trustedEndpointUrl ||
+      ('originalUrl' in (endpointConfirm.data?.data || {}) && endpointConfirm.data?.data?.originalUrl !== undefined)
+    ) {
+      throw new Error(`Expected 201 sanitized response for S3_ENDPOINT URL, got ${JSON.stringify(endpointConfirm)}`);
+    }
+    console.log('✅ /media/confirm trusted origin/key enforcement, idempotency, and response sanitization verified.');
+
     console.log('\n🎉 ========================================================');
     console.log('🎉 ALL PHASE 10 FILE & MEDIA HANDLING TESTS PASSED (100%)!');
     console.log('🎉 ========================================================\n');
   } finally {
-    if (originalWebhookSecret === undefined) {
-      delete process.env.STORAGE_WEBHOOK_SECRET;
-    } else {
-      process.env.STORAGE_WEBHOOK_SECRET = originalWebhookSecret;
-    }
-    if (originalWebhookBucket === undefined) {
-      delete process.env.STORAGE_WEBHOOK_BUCKET;
-    } else {
-      process.env.STORAGE_WEBHOOK_BUCKET = originalWebhookBucket;
+    for (const key of trackedEnvKeys) {
+      const prev = originalEnv[key];
+      if (prev === undefined) {
+        delete process.env[key];
+      } else {
+        process.env[key] = prev;
+      }
     }
     // Cleanup fixtures
     console.log('🧹 Cleaning up test database fixtures...');
