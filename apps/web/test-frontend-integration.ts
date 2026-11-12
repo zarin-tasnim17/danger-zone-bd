@@ -132,13 +132,15 @@ async function runFrontendIntegrationSuite() {
       throw new Error(`Proximity validation failed: ${JSON.stringify(fakeRemoteGpsRes)}`);
     }
 
-    // 4b. Accept when GPS is within 200m
+    // 4b. Accept when hardware GPS is within 200m and accuracy <= 250m
     const validReportRes = await request('/api/v1/reports', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'x-device-lat': '23.7466',
         'x-device-lng': '90.3761', // ~15 meters away
+        'x-device-accuracy': '18',
+        'x-gps-source': 'hardware',
         Cookie: `accessToken=${citizenCookie}`,
       },
       body: JSON.stringify({
@@ -150,12 +152,52 @@ async function runFrontendIntegrationSuite() {
       }),
     });
 
-    if (validReportRes.status === 201 && validReportRes.data?.data?.id) {
+    if (
+      validReportRes.status === 201 &&
+      validReportRes.data?.data?.id &&
+      validReportRes.data?.data?.isGpsVerified === true
+    ) {
       testReportId = validReportRes.data.data.id;
-      console.log(`  ✅ Valid report created: ${testReportId} (Fuzzed coords: ${validReportRes.data.data.latitude}, ${validReportRes.data.data.longitude})`);
+      console.log(`  ✅ Hardware GPS verified report created: ${testReportId} (isGpsVerified: true, Fuzzed coords: ${validReportRes.data.data.latitude}, ${validReportRes.data.data.longitude})`);
     } else {
-      throw new Error(`Valid report submission failed: ${JSON.stringify(validReportRes)}`);
+      throw new Error(`Valid report submission failed or isGpsVerified not true: ${JSON.stringify(validReportRes)}`);
     }
+
+    // 4c. Manual Pin submission (without hardware GPS headers) succeeds as unverified GPS
+    const manualCitizenAuth = await request('/api/v1/auth/device', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ anonymousId: `manual-citizen-${Date.now()}` }),
+    });
+    const manualCitizenCookie = extractCookie(manualCitizenAuth.cookies, 'accessToken');
+    const manualPinRes = await request('/api/v1/reports', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-forwarded-for': '10.0.7.1',
+        Cookie: `accessToken=${manualCitizenCookie}`,
+      },
+      body: JSON.stringify({
+        category: 'THEFT',
+        severity: 'MEDIUM',
+        latitude: reportLat,
+        longitude: reportLng,
+        description: 'Manual pin report submitted without hardware GPS',
+      }),
+    });
+
+    if (
+      manualPinRes.status !== 201 ||
+      manualPinRes.data?.data?.isGpsVerified !== false
+    ) {
+      throw new Error(`Manual pin submission expected 201 with isGpsVerified=false: ${JSON.stringify(manualPinRes)}`);
+    }
+
+    const manualLookup = await request(`/api/v1/reports/${manualPinRes.data.data.id}`);
+    if (manualLookup.status !== 200 || manualLookup.data?.data?.isGpsVerified !== false) {
+      throw new Error(`Manual pin lookup expected isGpsVerified=false: ${JSON.stringify(manualLookup)}`);
+    }
+    console.log(`  ✅ Manual pin report created & retrieved as unverified GPS (isGpsVerified: false)`);
 
     // -------------------------------------------------------------
     // Test 5: Community Moderation Voting (voteIncident)

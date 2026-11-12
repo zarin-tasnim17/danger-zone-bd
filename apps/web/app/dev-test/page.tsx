@@ -139,6 +139,8 @@ const INITIAL_TESTS: TestCase[] = [
     headers: {
       "x-device-lat": "23.7925",
       "x-device-lng": "90.4078",
+      "x-device-accuracy": "15",
+      "x-gps-source": "hardware",
     },
     body: {
       category: "MUGGING",

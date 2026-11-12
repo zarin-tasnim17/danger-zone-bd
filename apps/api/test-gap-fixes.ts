@@ -90,8 +90,8 @@ async function runVerification() {
     const cookieB = `accessToken=${extractCookie(authB.cookies, 'accessToken')}`;
     console.log(`  ✅ User A (Author: ${userAId}) and User B (Voter: ${userBId}) authenticated`);
 
-    // 4. Create Incident with GPS Proximity
-    console.log('\n🧪 [Test 4] Submitting report with GPS proximity and dynamic expiry...');
+    // 4. Create Incident with Hardware GPS Proximity & Accuracy Attestation
+    console.log('\n🧪 [Test 4] Submitting report with hardware GPS proximity and dynamic expiry...');
     const reportLat = 23.8103;
     const reportLng = 90.4125;
     const createRes = await request('/api/v1/reports', {
@@ -100,7 +100,9 @@ async function runVerification() {
         'Content-Type': 'application/json',
         'Cookie': cookieA,
         'x-device-lat': reportLat.toString(),
-        'x-device-lng': reportLng.toString()
+        'x-device-lng': reportLng.toString(),
+        'x-device-accuracy': '15',
+        'x-gps-source': 'hardware'
       },
       body: JSON.stringify({
         category: 'MUGGING',
@@ -115,9 +117,131 @@ async function runVerification() {
       throw new Error(`Failed to create report: ${JSON.stringify(createRes.data)}`);
     }
     const report = createRes.data.data;
+    if (report.isGpsVerified !== true) {
+      throw new Error(`Expected isGpsVerified=true for hardware GPS <=200m & accuracy 15m, got ${report.isGpsVerified}`);
+    }
     console.log(`  ✅ Report created: ID ${report.id}`);
+    console.log(`     isGpsVerified: ${report.isGpsVerified}`);
     console.log(`     isNightReport: ${report.isNightReport}`);
     console.log(`     expiresAt: ${report.expiresAt}`);
+
+    // [SEC-006] GPS Verification Matrix (Manual Pin, Coarse Accuracy, Spoofing & Validation)
+    console.log('\n🧪 [Test 4b] Testing [SEC-006] GPS anti-spoofing matrix...');
+    const helperAuth = async (suffix: string) => {
+      const auth = await request('/api/v1/auth/device', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ anonymousId: `sec006-${suffix}-${Date.now()}` })
+      });
+      return `accessToken=${extractCookie(auth.cookies, 'accessToken')}`;
+    };
+
+    const sec4bBasePayload = {
+      category: 'THEFT',
+      severity: 'LOW',
+      latitude: reportLat,
+      longitude: reportLng,
+      description: 'SEC-006 verification test report'
+    };
+
+    // (i) Partial GPS header must return 400
+    const partialHeaderRes = await request('/api/v1/reports', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Cookie': await helperAuth('partial'),
+        'x-forwarded-for': '10.0.6.1',
+        'x-device-lat': reportLat.toString()
+      },
+      body: JSON.stringify(sec4bBasePayload)
+    });
+    if (partialHeaderRes.status !== 400) {
+      throw new Error(`Expected 400 for partial GPS header, got ${partialHeaderRes.status}`);
+    }
+
+    // (ii) Client body cannot spoof isGpsVerified directly (.strict() rejects)
+    const bodySpoofRes = await request('/api/v1/reports', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Cookie': await helperAuth('bodyspoof'),
+        'x-forwarded-for': '10.0.6.2'
+      },
+      body: JSON.stringify({ ...sec4bBasePayload, isGpsVerified: true })
+    });
+    if (bodySpoofRes.status !== 400) {
+      throw new Error(`Expected 400 when attempting to pass isGpsVerified in body, got ${bodySpoofRes.status}`);
+    }
+
+    // (iii) Remote coordinates (> 200m) when device headers provided must return 400
+    const distantGpsRes = await request('/api/v1/reports', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Cookie': await helperAuth('distant'),
+        'x-forwarded-for': '10.0.6.3',
+        'x-device-lat': '22.3569',
+        'x-device-lng': '91.7832',
+        'x-device-accuracy': '15',
+        'x-gps-source': 'hardware'
+      },
+      body: JSON.stringify(sec4bBasePayload)
+    });
+    if (distantGpsRes.status !== 400 || !distantGpsRes.data?.error?.message?.includes('200m')) {
+      throw new Error(`Expected 400 200m error for distant device GPS, got ${JSON.stringify(distantGpsRes)}`);
+    }
+
+    // (iv) Manual pin (no device GPS headers) succeeds with isGpsVerified=false
+    const manualPinRes = await request('/api/v1/reports', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Cookie': await helperAuth('manual'),
+        'x-forwarded-for': '10.0.6.4'
+      },
+      body: JSON.stringify(sec4bBasePayload)
+    });
+    if (manualPinRes.status !== 201 || manualPinRes.data?.data?.isGpsVerified !== false) {
+      throw new Error(`Expected manual pin report 201 with isGpsVerified=false, got ${JSON.stringify(manualPinRes)}`);
+    }
+    const manualReportId = manualPinRes.data.data.id;
+
+    // (v) Coarse GPS accuracy (> 250m) succeeds with isGpsVerified=false
+    const coarseGpsRes = await request('/api/v1/reports', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Cookie': await helperAuth('coarse'),
+        'x-forwarded-for': '10.0.6.5',
+        'x-device-lat': reportLat.toString(),
+        'x-device-lng': reportLng.toString(),
+        'x-device-accuracy': '350',
+        'x-gps-source': 'hardware'
+      },
+      body: JSON.stringify(sec4bBasePayload)
+    });
+    if (coarseGpsRes.status !== 201 || coarseGpsRes.data?.data?.isGpsVerified !== false) {
+      throw new Error(`Expected coarse GPS report 201 with isGpsVerified=false, got ${JSON.stringify(coarseGpsRes)}`);
+    }
+
+    // (vi) Explicit manual source header cannot earn isGpsVerified=true even with low accuracy
+    const manualSourceRes = await request('/api/v1/reports', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Cookie': await helperAuth('manualsrc'),
+        'x-forwarded-for': '10.0.6.6',
+        'x-device-lat': reportLat.toString(),
+        'x-device-lng': reportLng.toString(),
+        'x-device-accuracy': '10',
+        'x-gps-source': 'manual'
+      },
+      body: JSON.stringify(sec4bBasePayload)
+    });
+    if (manualSourceRes.status !== 201 || manualSourceRes.data?.data?.isGpsVerified !== false) {
+      throw new Error(`Expected x-gps-source=manual report to have isGpsVerified=false, got ${JSON.stringify(manualSourceRes)}`);
+    }
+    console.log('  ✅ [SEC-006] Manual pin, coarse GPS, partial headers, body spoof, and >200m gate verified');
 
     // 5. Single Report Lookup (GET /api/v1/reports/:id) & Viewer-Scoped isOwner ([SEC-005])
     console.log('\n🧪 [Test 5] Fetching single report by ID (GET /api/v1/reports/:id)...');
@@ -145,14 +269,20 @@ async function runVerification() {
         lookupData.id !== report.id ||
         'userId' in lookupData ||
         'user' in lookupData ||
-        lookupData.isOwner !== check.expectedIsOwner
+        lookupData.isOwner !== check.expectedIsOwner ||
+        lookupData.isGpsVerified !== true
       ) {
         throw new Error(
-          `PII leak or isOwner mismatch for ${check.label}: expected isOwner=${check.expectedIsOwner}, got ${JSON.stringify(lookupData)}`
+          `PII leak, isGpsVerified, or isOwner mismatch for ${check.label}: expected isOwner=${check.expectedIsOwner}, got ${JSON.stringify(lookupData)}`
         );
       }
     }
-    console.log(`  ✅ Single report retrieved with userId stripped and viewer-scoped isOwner verified: ${report.id}`);
+
+    const manualLookupRes = await request(`/api/v1/reports/${manualReportId}`);
+    if (manualLookupRes.status !== 200 || manualLookupRes.data?.data?.isGpsVerified !== false) {
+      throw new Error(`Expected manual report GET /:id isGpsVerified=false, got ${JSON.stringify(manualLookupRes.data)}`);
+    }
+    console.log(`  ✅ Single report retrieved with userId stripped, isOwner, and isGpsVerified verified: ${report.id}`);
 
     // 6. Spatial Query Filtering (Category, Severity, Night)
     console.log('\n🧪 [Test 6] Testing viewport query filtering with category and severity...');
@@ -163,9 +293,9 @@ async function runVerification() {
       throw new Error(`Spatial query filtering failed: ${JSON.stringify(filterRes.data)}`);
     }
     const matched = filterRes.data.data;
-    const found = matched.some((r: any) => r.id === report.id);
+    const found = matched.some((r: any) => r.id === report.id && r.isGpsVerified === true);
     if (!found) {
-      throw new Error('Created report was not matched in filtered spatial query');
+      throw new Error('Created report was not matched in filtered spatial query with isGpsVerified=true');
     }
     console.log(`  ✅ Spatial filter successfully returned matching report(s): ${matched.length}`);
 
