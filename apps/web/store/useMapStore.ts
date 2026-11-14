@@ -6,10 +6,24 @@ export interface TargetCommand {
 }
 
 import { create } from 'zustand';
-import { MapMode, Coordinates } from '@repo/shared';
+import {
+  MapMode,
+  Coordinates,
+  GeolocationAccuracyTier,
+  classifyGeolocationAccuracy,
+  sanitizeAccuracy,
+  formatCoordinate,
+} from '@repo/shared';
 
 export type MapTileLayer = 'google_streets' | 'google_hybrid' | 'osm';
 export type LocationSource = 'gps' | 'calibrated';
+export type AcquisitionStage =
+  | 'idle'
+  | 'acquiring'
+  | 'refining'
+  | 'success'
+  | 'timeout'
+  | 'error';
 
 export interface SavedUserLocation {
   lat: number;
@@ -66,7 +80,7 @@ const defaultLayerEnv =
   (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_MAP_DEFAULT_LAYER as MapTileLayer) ||
   'google_streets';
 
-interface MapState {
+export interface MapState {
   mode: MapMode;
   center: Coordinates;
   zoom: number;
@@ -81,16 +95,29 @@ interface MapState {
   isSosModalOpen: boolean;
   targetCommand: TargetCommand | null;
 
+  // Progressive Refinement & Accuracy States
+  isLocating: boolean;
+  acquisitionStage: AcquisitionStage;
+  userAccuracyTier: GeolocationAccuracyTier | null;
+  locationTimestamp: number | null;
+  activeRequestId: number;
+  activeWatchId: number | null;
+
   setMode: (mode: MapMode) => void;
   setCenter: (center: Coordinates) => void;
   setZoom: (zoom: number) => void;
   flyTo: (coords: Coordinates, zoom?: number) => void;
   setActiveTileLayer: (layer: MapTileLayer) => void;
+  setIsLocating: (isLocating: boolean) => void;
+  setAcquisitionStage: (stage: AcquisitionStage) => void;
+  setActiveWatchId: (id: number | null) => void;
+  incrementRequestId: () => number;
   setUserLocation: (
     coords: { lat: number; lng: number } | null,
     accuracy?: number | null,
     source?: LocationSource,
-    label?: string
+    label?: string,
+    timestamp?: number | null
   ) => void;
   calibrateUserLocation: (coords: { lat: number; lng: number }, label?: string) => void;
   resetToBrowserGps: () => void;
@@ -103,15 +130,21 @@ interface MapState {
   setDismissedCalibrationBanner: (dismissed: boolean) => void;
 }
 
-export const useMapStore = create<MapState>((set) => ({
+export const useMapStore = create<MapState>((set, get) => ({
   mode: 'basic',
   center: { lat: 23.685, lng: 90.3563 }, // Center of Bangladesh
   zoom: 7,
   activeTileLayer: MAP_LAYERS[defaultLayerEnv] ? defaultLayerEnv : 'google_streets',
   userLocation: null,
   userAccuracy: null,
+  userAccuracyTier: null,
   locationSource: null,
   locationLabel: null,
+  locationTimestamp: null,
+  isLocating: false,
+  acquisitionStage: 'idle',
+  activeRequestId: 0,
+  activeWatchId: null,
   isCalibrationModalOpen: false,
   isLowAccuracy: false,
   dismissedCalibrationBanner: false,
@@ -151,6 +184,17 @@ export const useMapStore = create<MapState>((set) => ({
       },
     })),
   setActiveTileLayer: (activeTileLayer) => set({ activeTileLayer }),
+  setIsLocating: (isLocating) => set({ isLocating }),
+  setAcquisitionStage: (acquisitionStage) => set({ acquisitionStage }),
+  setActiveWatchId: (activeWatchId) => set({ activeWatchId }),
+  incrementRequestId: () => {
+    let nextId = 0;
+    set((state) => {
+      nextId = state.activeRequestId + 1;
+      return { activeRequestId: nextId };
+    });
+    return nextId;
+  },
   openCalibrationModal: () => set({ isCalibrationModalOpen: true }),
   closeCalibrationModal: () => set({ isCalibrationModalOpen: false }),
   openSosModal: () => set({ isSosModalOpen: true }),
@@ -158,19 +202,64 @@ export const useMapStore = create<MapState>((set) => ({
   setIsLowAccuracy: (isLowAccuracy) => set({ isLowAccuracy }),
   setDismissedCalibrationBanner: (dismissedCalibrationBanner) => set({ dismissedCalibrationBanner }),
 
-  setUserLocation: (coords, accuracy = null, source = 'gps', label = undefined) => {
+  setUserLocation: (coords, accuracy = null, source = 'gps', label = undefined, timestamp = null) => {
+    if (!coords) {
+      set({
+        userLocation: null,
+        userAccuracy: null,
+        userAccuracyTier: null,
+        locationSource: null,
+        locationLabel: null,
+        locationTimestamp: null,
+        isLowAccuracy: false,
+      });
+      return;
+    }
+
+    const currentSource = get().locationSource;
+    // If locationSource === 'calibrated' and incoming source === 'gps', DO NOT overwrite unless explicit forced reset
+    if (currentSource === 'calibrated' && source === 'gps') {
+      return;
+    }
+
+    const tier = classifyGeolocationAccuracy(accuracy);
+    const isLow =
+      tier === 'LOW' ||
+      tier === 'VERY_LOW' ||
+      tier === 'EXTREMELY_POOR';
+
     set({
-      userLocation: coords,
-      userAccuracy: accuracy ?? null,
-      locationSource: coords ? source : null,
-      locationLabel: coords ? label || null : null,
+      userLocation: {
+        lat: formatCoordinate(coords.lat),
+        lng: formatCoordinate(coords.lng),
+      },
+      userAccuracy: sanitizeAccuracy(accuracy),
+      userAccuracyTier: tier,
+      locationSource: source,
+      locationLabel: label || null,
+      locationTimestamp: timestamp ?? Date.now(),
+      isLowAccuracy: isLow,
     });
   },
 
   calibrateUserLocation: (coords, label = undefined) => {
+    const currentWatchId = get().activeWatchId;
+    if (typeof navigator !== 'undefined' && navigator.geolocation && currentWatchId !== null) {
+      try {
+        navigator.geolocation.clearWatch(currentWatchId);
+      } catch (err) {
+        console.warn('[useMapStore] Failed to clear geolocation watch upon calibration:', err);
+      }
+    }
+
+    const formattedCoords = {
+      lat: formatCoordinate(coords.lat),
+      lng: formatCoordinate(coords.lng),
+    };
+
     const saved: SavedUserLocation = {
-      lat: Number(coords.lat.toFixed(6)),
-      lng: Number(coords.lng.toFixed(6)),
+      lat: formattedCoords.lat,
+      lng: formattedCoords.lng,
       accuracy: 25, // Calibrated locations are pinpointed by the user
       source: 'calibrated',
       label: label || 'Calibrated Location',
@@ -185,16 +274,33 @@ export const useMapStore = create<MapState>((set) => ({
       }
     }
 
-    set({
-      userLocation: coords,
+    set((state) => ({
+      activeRequestId: state.activeRequestId + 1,
+      activeWatchId: null,
+      isLocating: false,
+      acquisitionStage: 'idle',
+      userLocation: formattedCoords,
       userAccuracy: 25,
+      userAccuracyTier: 'GOOD',
       locationSource: 'calibrated',
       locationLabel: saved.label || null,
-      center: coords,
-    });
+      locationTimestamp: Date.now(),
+      isLowAccuracy: false,
+      dismissedCalibrationBanner: false,
+      center: formattedCoords,
+    }));
   },
 
   resetToBrowserGps: () => {
+    const currentWatchId = get().activeWatchId;
+    if (typeof navigator !== 'undefined' && navigator.geolocation && currentWatchId !== null) {
+      try {
+        navigator.geolocation.clearWatch(currentWatchId);
+      } catch (err) {
+        console.warn('[useMapStore] Failed to clear geolocation watch upon reset:', err);
+      }
+    }
+
     if (typeof window !== 'undefined') {
       try {
         localStorage.removeItem(STORAGE_KEY_USER_LOCATION);
@@ -202,12 +308,20 @@ export const useMapStore = create<MapState>((set) => ({
         console.warn('[useMapStore] Failed to remove saved location from localStorage:', err);
       }
     }
-    set({
+    set((state) => ({
+      activeRequestId: state.activeRequestId + 1,
+      activeWatchId: null,
+      isLocating: false,
+      acquisitionStage: 'idle',
       userLocation: null,
       userAccuracy: null,
+      userAccuracyTier: null,
       locationSource: null,
       locationLabel: null,
-    });
+      locationTimestamp: null,
+      isLowAccuracy: false,
+      dismissedCalibrationBanner: false,
+    }));
   },
 
   loadSavedLocation: () => {

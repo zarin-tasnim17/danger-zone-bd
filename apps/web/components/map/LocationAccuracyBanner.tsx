@@ -3,12 +3,14 @@
 import React from "react";
 import { useMapStore } from "@/store/useMapStore";
 import { useLanguageStore } from "@/store/useLanguageStore";
+import { geoTranslations } from "@/lib/translations";
 import { AlertCircle, Crosshair, X } from "lucide-react";
 
 export default function LocationAccuracyBanner() {
   const {
     userLocation,
     userAccuracy,
+    userAccuracyTier,
     locationSource,
     isLowAccuracy,
     dismissedCalibrationBanner,
@@ -18,17 +20,28 @@ export default function LocationAccuracyBanner() {
   const { language } = useLanguageStore();
   const isBn = language === "bn";
 
-  // Only show if user has live GPS location, is not calibrated, accuracy is low (> 75m), and not dismissed
-  if (
-    !userLocation ||
-    locationSource === "calibrated" ||
-    !isLowAccuracy ||
-    dismissedCalibrationBanner
-  ) {
+  // Only show if user has live GPS location, is not calibrated, accuracy is low (> 100m or tier LOW/VERY_LOW/EXTREMELY_POOR), and not dismissed
+  const shouldShow =
+    userLocation &&
+    locationSource !== "calibrated" &&
+    !dismissedCalibrationBanner &&
+    (isLowAccuracy ||
+      userAccuracyTier === "LOW" ||
+      userAccuracyTier === "VERY_LOW" ||
+      userAccuracyTier === "EXTREMELY_POOR");
+
+  if (!shouldShow) {
     return null;
   }
 
-  const accuracyMeters = userAccuracy ? Math.round(userAccuracy) : 850;
+  const accuracyMeters =
+    typeof userAccuracy === "number" && Number.isFinite(userAccuracy) && userAccuracy >= 0
+      ? Math.round(userAccuracy)
+      : 850;
+  const tGeo = isBn ? geoTranslations.bn : geoTranslations.en;
+  const tierLabel = userAccuracyTier
+    ? tGeo.tiers[userAccuracyTier].replace("{acc}", accuracyMeters.toString())
+    : `±${accuracyMeters}m`;
 
   return (
     <div className="absolute top-20 sm:top-28 left-1/2 -translate-x-1/2 z-[410] w-[calc(100%-1.25rem)] max-w-lg pointer-events-auto animate-in slide-in-from-top-3 duration-200">
@@ -40,13 +53,11 @@ export default function LocationAccuracyBanner() {
           <div className="min-w-0 flex-1">
             <p className="text-xs font-bold text-slate-900 leading-tight">
               {isBn
-                ? `আইএসপি আনুমানিক অবস্থান (±${accuracyMeters}মি)`
-                : `Approximate ISP Location (±${accuracyMeters}m)`}
+                ? `আইএসপি আনুমানিক অবস্থান: ${tierLabel}`
+                : `Approximate ISP Location: ${tierLabel}`}
             </p>
             <p className="text-[11px] text-slate-500 leading-snug mt-0.5 line-clamp-2">
-              {isBn
-                ? "ডেস্কটপে দূরবর্তী টাওয়ার সনাক্ত হতে পারে। সঠিক স্থানে পিন সেট করুন।"
-                : "Desktop browsers locate ISP towers. Click to set your real building spot."}
+              {tGeo.status.weakGps.replace("{acc}", accuracyMeters.toString())}
             </p>
           </div>
         </div>
