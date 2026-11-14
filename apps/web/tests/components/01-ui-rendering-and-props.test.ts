@@ -7,6 +7,11 @@ import { Button } from '@/components/ui/Button';
 import { GlassCard } from '@/components/ui/GlassCard';
 import ToastContainer from '@/components/ui/ToastContainer';
 import IncidentFeed from '@/components/incidents/IncidentFeed';
+import SafetyTutorialModal, {
+  SAFETY_TERMS_LIST,
+  SAFETY_TERMS_ACCEPTED_KEY,
+  SAFETY_TERMS_CONSENTS_KEY,
+} from '@/components/emergency/SafetyTutorialModal';
 import { useIncidentStore } from '@/store/useIncidentStore';
 import { useToastStore } from '@/store/useToastStore';
 import { installBrowserGlobals, type BrowserSandboxHandle } from '../framework/domEnv';
@@ -62,5 +67,26 @@ describe('[Components][Mocked] React UI Rendering, Loading States & SSR Hydratio
     assert.deepEqual(useToastStore.getInitialState().toasts, []);
     const toastSsrHtml = renderToStaticMarkup(React.createElement(ToastContainer));
     assert.equal(toastSsrHtml, '');
+  });
+
+  it('SafetyTutorialModal exports complete legal terms and renders safely', () => {
+    assert.equal(SAFETY_TERMS_LIST.length, 6);
+    const requiredTerms = SAFETY_TERMS_LIST.filter((t) => t.required);
+    assert.equal(requiredTerms.length, 4);
+
+    const ids = SAFETY_TERMS_LIST.map((t) => t.id);
+    assert.ok(ids.includes('emergency_999'));
+    assert.ok(ids.includes('cyber_security_act'));
+    assert.ok(ids.includes('location_privacy_fuzzing'));
+    assert.ok(ids.includes('community_moderation'));
+    assert.ok(ids.includes('proximity_alerts'));
+    assert.ok(ids.includes('safe_route_telemetry'));
+
+    assert.equal(SAFETY_TERMS_ACCEPTED_KEY, 'bd_safety_agreement_accepted');
+    assert.equal(SAFETY_TERMS_CONSENTS_KEY, 'bd_safety_terms_consents');
+
+    // SSR render when closed returns empty string
+    const modalHtml = renderToStaticMarkup(React.createElement(SafetyTutorialModal));
+    assert.equal(modalHtml, '');
   });
 });
