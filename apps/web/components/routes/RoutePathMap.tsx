@@ -17,25 +17,22 @@ import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 import { createDangerMarkerIcon } from "@/lib/mapMarkerUtils";
 import { formatCategoryLabel } from "@/lib/incidentUtils";
-import { MapPin, Navigation, AlertTriangle, ShieldCheck, Flag } from "lucide-react";
+import { MapPin, AlertTriangle, ShieldCheck } from "lucide-react";
+import type { RouteAlternative, LocalizedHazard } from "@repo/shared";
 
-export interface BypassedHazardItem {
-  id: string;
-  category: string;
-  severity: string;
-  latitude: number;
-  longitude: number;
-  distanceFromRouteMeters: number;
-}
+export type BypassedHazardItem = LocalizedHazard;
 
-interface RoutePathMapProps {
+export interface RoutePathMapProps {
   startLat: number;
   startLng: number;
   endLat: number;
   endLng: number;
-  waypoints: [number, number][]; // [lat, lng] array
-  bypassedHazards: BypassedHazardItem[];
-  isDiverted: boolean;
+  waypoints?: [number, number][]; // [lat, lng] array
+  bypassedHazards?: BypassedHazardItem[];
+  isDiverted?: boolean;
+  routes?: RouteAlternative[];
+  selectedRouteId?: string;
+  onSelectRoute?: (routeId: string) => void;
   onMapClick?: (lat: number, lng: number) => void;
   clickMode?: "START" | "END" | "NONE";
   language?: "en" | "bn";
@@ -48,13 +45,13 @@ function BoundsController({
   startLng,
   endLat,
   endLng,
-  waypoints,
+  activeGeometry,
 }: {
   startLat: number;
   startLng: number;
   endLat: number;
   endLng: number;
-  waypoints: [number, number][];
+  activeGeometry: [number, number][];
 }) {
   const map = useMap();
 
@@ -62,17 +59,17 @@ function BoundsController({
     const points: [number, number][] = [];
     if (!isNaN(startLat) && !isNaN(startLng)) points.push([startLat, startLng]);
     if (!isNaN(endLat) && !isNaN(endLng)) points.push([endLat, endLng]);
-    if (waypoints && waypoints.length > 0) {
-      points.push(...waypoints);
+    if (activeGeometry && activeGeometry.length > 0) {
+      points.push(...activeGeometry);
     }
 
     if (points.length >= 2) {
       const bounds = L.latLngBounds(points.map(([lat, lng]) => [lat, lng]));
-      map.fitBounds(bounds, { padding: [40, 40], maxZoom: 16 });
+      map.fitBounds(bounds, { padding: [48, 48], maxZoom: 16 });
     } else if (points.length === 1) {
       map.setView(points[0], 14);
     }
-  }, [startLat, startLng, endLat, endLng, waypoints, map]);
+  }, [startLat, startLng, endLat, endLng, activeGeometry, map]);
 
   return null;
 }
@@ -95,7 +92,7 @@ function MapClickObserver({
   return null;
 }
 
-// Origin Start Pin (Emerald Green Circle with Pin Icon)
+// Origin Start Pin (Emerald Green Badge)
 const startIcon = L.divIcon({
   className: "origin-start-pin",
   html: `
@@ -168,48 +165,6 @@ const destinationIcon = L.divIcon({
   popupAnchor: [0, -18],
 });
 
-// Hazard exclusion pin (Red triangle)
-const hazardIcon = L.divIcon({
-  className: "hazard-bypass-pin",
-  html: `
-    <div style="
-      width: 26px;
-      height: 26px;
-      border-radius: 9999px;
-      background: #EF4444;
-      border: 2px solid #FFFFFF;
-      box-shadow: 0 2px 6px rgba(239, 68, 68, 0.4);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: #FFFFFF;
-    ">
-      <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" x2="12" y1="9" y2="13"/><line x1="12" x2="12.01" y1="17" y2="17"/></svg>
-    </div>
-  `,
-  iconSize: [26, 26],
-  iconAnchor: [13, 13],
-  popupAnchor: [0, -13],
-});
-
-// Safe Detour Waypoint Marker (Small blue diamond)
-const waypointIcon = L.divIcon({
-  className: "detour-node-pin",
-  html: `
-    <div style="
-      width: 14px;
-      height: 14px;
-      border-radius: 4px;
-      background: #2563EB;
-      border: 2px solid #FFFFFF;
-      box-shadow: 0 0 6px rgba(37, 99, 235, 0.5);
-      transform: rotate(45deg);
-    "></div>
-  `,
-  iconSize: [14, 14],
-  iconAnchor: [7, 7],
-});
-
 export default function RoutePathMap({
   startLat,
   startLng,
@@ -218,6 +173,9 @@ export default function RoutePathMap({
   waypoints = [],
   bypassedHazards = [],
   isDiverted = false,
+  routes = [],
+  selectedRouteId,
+  onSelectRoute,
   onMapClick,
   clickMode = "NONE",
   language = "en",
@@ -232,28 +190,62 @@ export default function RoutePathMap({
     return [23.7570, 90.3905]; // Dhaka center
   }, [startLat, startLng]);
 
-  // Direct line segment between origin and destination
-  const directLinePositions: [number, number][] = useMemo(() => {
-    if (isNaN(startLat) || isNaN(startLng) || isNaN(endLat) || isNaN(endLng)) return [];
-    return [
-      [startLat, startLng],
-      [endLat, endLng],
-    ];
-  }, [startLat, startLng, endLat, endLng]);
+  // Determine active route
+  const activeRoute = useMemo(() => {
+    if (routes && routes.length > 0) {
+      if (selectedRouteId) {
+        const found = routes.find((r) => r.id === selectedRouteId);
+        if (found) return found;
+      }
+      const recommended = routes.find((r) => r.isRecommended);
+      if (recommended) return recommended;
+      return routes[0];
+    }
+    return null;
+  }, [routes, selectedRouteId]);
 
-  // Safe calculated polyline path
-  const safePolylinePositions: [number, number][] = useMemo(() => {
+  // Active geometry to frame in bounds
+  const activeGeometry: [number, number][] = useMemo(() => {
+    if (activeRoute && activeRoute.geometry && activeRoute.geometry.length > 0) {
+      return activeRoute.geometry;
+    }
     if (waypoints && waypoints.length > 0) {
       return waypoints;
     }
-    return directLinePositions;
-  }, [waypoints, directLinePositions]);
+    return [];
+  }, [activeRoute, waypoints]);
+
+  // All detected corridor hazards across all alternatives and bypassed list
+  const allCorridorHazards: BypassedHazardItem[] = useMemo(() => {
+    const map = new Map<string, BypassedHazardItem>();
+    if (routes && routes.length > 0) {
+      for (const r of routes) {
+        if (r.hazards) {
+          for (const h of r.hazards) {
+            map.set(h.id, h);
+          }
+        }
+      }
+    }
+    if (bypassedHazards && bypassedHazards.length > 0) {
+      for (const h of bypassedHazards) {
+        map.set(h.id, h);
+      }
+    }
+    return Array.from(map.values());
+  }, [routes, bypassedHazards]);
+
+  // Set of hazard IDs directly intercepted by the currently active route
+  const activeRouteHazardIds = useMemo(() => {
+    return new Set(activeRoute?.hazards?.map((h) => h.id) || []);
+  }, [activeRoute]);
 
   return (
     <div className={`relative rounded-2xl overflow-hidden border border-slate-200 shadow-sm bg-slate-100 z-0 select-none ${className}`}>
       <div className="absolute top-3 right-3 z-[500]">
         <MapLayerSwitcher compact />
       </div>
+
       {/* Click Mode Notification Banner */}
       {clickMode !== "NONE" && (
         <div className="absolute top-3 left-1/2 -translate-x-1/2 z-[1000] bg-slate-900/90 text-white text-xs font-semibold px-4 py-1.5 rounded-full shadow-lg backdrop-blur-md flex items-center gap-2 border border-slate-700 pointer-events-none animate-bounce">
@@ -279,12 +271,12 @@ export default function RoutePathMap({
           startLng={startLng}
           endLat={endLat}
           endLng={endLng}
-          waypoints={waypoints}
+          activeGeometry={activeGeometry}
         />
 
         <MapClickObserver onClick={onMapClick} clickMode={clickMode} />
 
-        {/* Active High-Detail Tile Layer (Google Streets / Satellite Hybrid / OSM) */}
+        {/* Active High-Detail Tile Layer */}
         <TileLayer
           key={activeTileLayer}
           url={currentTileConfig.url}
@@ -293,31 +285,66 @@ export default function RoutePathMap({
           subdomains={currentTileConfig.subdomains || ['0', '1', '2', '3']}
         />
 
-        {/* If route is diverted, show direct red dashed line indicating the risky path */}
-        {isDiverted && directLinePositions.length === 2 && (
-          <Polyline
-            positions={directLinePositions}
-            pathOptions={{
-              color: "#DC2626",
-              weight: 2.5,
-              dashArray: "6, 8",
-              opacity: 0.55,
-            }}
-          />
-        )}
+        {/* Multi-Route Alternatives Rendering */}
+        {routes && routes.length > 0 ? (
+          <>
+            {/* 1. Unselected routes rendered first (below selected route) */}
+            {routes
+              .filter((r) => r.id !== activeRoute?.id)
+              .map((route, idx) => (
+                <Polyline
+                  key={`alt-route-${route.id}-${idx}`}
+                  positions={route.geometry}
+                  pathOptions={{
+                    color: "#64748B",
+                    weight: 4,
+                    opacity: 0.6,
+                    lineCap: "round",
+                    lineJoin: "round",
+                    dashArray: "6 6",
+                  }}
+                  eventHandlers={{
+                    click: () => {
+                      if (onSelectRoute) onSelectRoute(route.id);
+                    },
+                  }}
+                />
+              ))}
 
-        {/* Safe Calculated Polyline Path (Green/Emerald if clear or diverted) */}
-        {safePolylinePositions.length > 1 && (
-          <Polyline
-            positions={safePolylinePositions}
-            pathOptions={{
-              color: isDiverted ? "#2563EB" : "#10B981",
-              weight: 5,
-              opacity: 0.9,
-              lineCap: "round",
-              lineJoin: "round",
-            }}
-          />
+            {/* 2. Active Selected Route rendered on top */}
+            {activeRoute && activeRoute.geometry.length > 1 && (
+              <Polyline
+                key={`active-route-${activeRoute.id}`}
+                positions={activeRoute.geometry}
+                pathOptions={{
+                  color:
+                    activeRoute.safetyRating === "LOW_HAZARD_EXPOSURE"
+                      ? "#10B981" // Emerald green for safest/clean
+                      : activeRoute.safetyRating === "MODERATE_HAZARD_EXPOSURE"
+                      ? "#2563EB" // Vibrant blue
+                      : "#F59E0B", // Amber warning
+                  weight: 6,
+                  opacity: 0.95,
+                  lineCap: "round",
+                  lineJoin: "round",
+                }}
+              />
+            )}
+          </>
+        ) : (
+          /* Legacy single waypoints path */
+          waypoints.length > 1 && (
+            <Polyline
+              positions={waypoints}
+              pathOptions={{
+                color: isDiverted ? "#2563EB" : "#10B981",
+                weight: 6,
+                opacity: 0.9,
+                lineCap: "round",
+                lineJoin: "round",
+              }}
+            />
+          )
         )}
 
         {/* Origin Pin */}
@@ -352,61 +379,92 @@ export default function RoutePathMap({
           </Marker>
         )}
 
-        {/* Intermediate Detour Waypoint Nodes */}
-        {waypoints.length > 2 &&
-          waypoints.slice(1, -1).map((wp, idx) => (
-            <Marker key={idx} position={wp} icon={waypointIcon}>
-              <Popup className="clean-white-popup">
-                <div className="p-1 font-sans text-center">
-                  <span className="text-[10px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded">
-                    {isBn ? `নিরাপদ নোড #${idx + 1}` : `Safe Node #${idx + 1}`}
-                  </span>
-                  <p className="text-[10px] text-slate-500 font-mono mt-1">
-                    {wp[0].toFixed(5)}, {wp[1].toFixed(5)}
-                  </p>
-                </div>
-              </Popup>
-            </Marker>
-          ))}
-
-        {/* Bypassed Hazard Red Buffer Circles & Markers */}
-        {bypassedHazards.map((hazard) => (
-          <React.Fragment key={hazard.id}>
-            {/* Exclusion perimeter buffer zone (250m) */}
-            <Circle
-              center={[hazard.latitude, hazard.longitude]}
-              radius={250}
-              pathOptions={{
-                color: "#DC2626",
-                fillColor: "#EF4444",
-                fillOpacity: 0.18,
-                weight: 1.5,
-                dashArray: "4 4",
-              }}
-            />
-            <Marker
-              position={[hazard.latitude, hazard.longitude]}
-              icon={createDangerMarkerIcon(hazard.category || "GENERAL", (hazard.severity as any) || "HIGH", 14)}
-            >
-              <Popup className="clean-white-popup">
-                <div className="p-1.5 font-sans min-w-[180px]">
-                  <div className="flex items-center gap-1.5 text-red-700 font-bold text-xs mb-1">
-                    <AlertTriangle className="w-3.5 h-3.5" />
-                    <span>{isBn ? "বাইপাসকৃত বিপদ" : "Avoided Hazard"}</span>
+        {/* Active Hazard Markers & Proximity Perimeter Exclusion Buffers */}
+        {allCorridorHazards.map((hazard) => {
+          const isInterceptedByActive = activeRouteHazardIds.has(hazard.id);
+          const bufferRadius =
+            hazard.severity === "HIGH" ? 250 : hazard.severity === "MEDIUM" ? 150 : 80;
+          return (
+            <React.Fragment key={hazard.id}>
+              {/* PostGIS Street-Level Proximity Buffer Zone */}
+              <Circle
+                center={[hazard.latitude, hazard.longitude]}
+                radius={bufferRadius}
+                pathOptions={{
+                  color: isInterceptedByActive
+                    ? hazard.severity === "HIGH"
+                      ? "#DC2626"
+                      : hazard.severity === "MEDIUM"
+                      ? "#EA580C"
+                      : "#EAB308"
+                    : "#94A3B8",
+                  fillColor: isInterceptedByActive
+                    ? hazard.severity === "HIGH"
+                      ? "#EF4444"
+                      : hazard.severity === "MEDIUM"
+                      ? "#F97316"
+                      : "#FACC15"
+                    : "#CBD5E1",
+                  fillOpacity: isInterceptedByActive ? 0.2 : 0.08,
+                  weight: isInterceptedByActive ? 2 : 1,
+                  dashArray: isInterceptedByActive ? "4 4" : "6 6",
+                }}
+              />
+              <Marker
+                position={[hazard.latitude, hazard.longitude]}
+                icon={createDangerMarkerIcon(
+                  hazard.category || "GENERAL",
+                  (hazard.severity as any) || "HIGH",
+                  14
+                )}
+              >
+                <Popup className="clean-white-popup">
+                  <div className="p-1.5 font-sans min-w-[200px]">
+                    <div className="flex items-center gap-1.5 font-bold text-xs mb-1">
+                      <AlertTriangle
+                        className={`w-3.5 h-3.5 ${
+                          isInterceptedByActive ? "text-red-600" : "text-slate-500"
+                        }`}
+                      />
+                      <span className={isInterceptedByActive ? "text-red-700" : "text-slate-700"}>
+                        {isInterceptedByActive
+                          ? isBn
+                            ? "সক্রিয় বিপদ (রুটের মধ্যে)"
+                            : "Active Street Hazard (On Route)"
+                          : isBn
+                          ? "বাইপাসকৃত বিপদ (এড়িয়ে যাওয়া হয়েছে)"
+                          : "Bypassed Hazard (Safely Avoided)"}
+                      </span>
+                    </div>
+                    <p className="text-[11px] font-bold text-slate-800 uppercase">
+                      {formatCategoryLabel(hazard.category, language)}
+                    </p>
+                    <p className="text-[10px] text-slate-500 mt-0.5">
+                      {isInterceptedByActive
+                        ? isBn
+                          ? `যাত্রাপথ থেকে দূরত্ব: ${hazard.distanceFromRouteMeters} মিটার`
+                          : `Distance from route: ${hazard.distanceFromRouteMeters}m`
+                        : isBn
+                        ? "নির্বাচিত রুট এই বিপদ সফলভাবে এড়িয়ে চলছে"
+                        : "Selected route safely avoids this hazard zone"}
+                    </p>
+                    <div className="mt-1.5 flex items-center justify-between text-[9px] font-bold">
+                      <span
+                        className={`px-1.5 py-0.5 rounded uppercase ${
+                          isInterceptedByActive
+                            ? "bg-red-100 text-red-800"
+                            : "bg-slate-100 text-slate-600"
+                        }`}
+                      >
+                        {hazard.severity} Severity ({bufferRadius}m Buffer)
+                      </span>
+                    </div>
                   </div>
-                  <p className="text-[11px] font-bold text-slate-800 uppercase">
-                    {formatCategoryLabel(hazard.category, language)}
-                  </p>
-                  <p className="text-[10px] text-slate-500">
-                    {isBn
-                      ? `যাত্রাপথ থেকে দূরত্ব: ${hazard.distanceFromRouteMeters} মিটার`
-                      : `Distance from direct trajectory: ${hazard.distanceFromRouteMeters}m`}
-                  </p>
-                </div>
-              </Popup>
-            </Marker>
-          </React.Fragment>
-        ))}
+                </Popup>
+              </Marker>
+            </React.Fragment>
+          );
+        })}
       </MapContainer>
 
       {/* Floating Map Legend */}
@@ -420,15 +478,19 @@ export default function RoutePathMap({
           <span>{isBn ? "গন্তব্য" : "Destination"}</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <span className="w-3.5 h-1 rounded-full bg-blue-600"></span>
-          <span>{isBn ? "নিরাপদ পথ" : "Safe Path"}</span>
+          <span className="w-3.5 h-1.5 rounded-full bg-emerald-500"></span>
+          <span>{isBn ? "নির্বাচিত রুট (সড়ক পথ)" : "Active Road Route"}</span>
         </div>
-        {isDiverted && (
+        {routes && routes.length > 1 && (
           <div className="flex items-center gap-1.5">
-            <span className="w-3.5 h-1 border-b-2 border-dashed border-red-500"></span>
-            <span>{isBn ? "বিপজ্জনক সরলরেখা" : "Direct Trajectory (Risky)"}</span>
+            <span className="w-3.5 h-1 border-b-2 border-dashed border-slate-400"></span>
+            <span>{isBn ? "বিকল্প রুট" : "Alternative Route"}</span>
           </div>
         )}
+        <div className="flex items-center gap-1.5">
+          <span className="w-2.5 h-2.5 rounded-full border border-red-500 bg-red-500/20"></span>
+          <span>{isBn ? "বিপদ অঞ্চল (৮০-২৫০মি)" : "Hazard Buffer (80-250m)"}</span>
+        </div>
       </div>
     </div>
   );

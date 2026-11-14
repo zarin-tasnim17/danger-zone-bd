@@ -4,6 +4,16 @@ import dotenv from 'dotenv';
 const apiRoot = path.resolve(__dirname, '../..');
 dotenv.config({ path: path.join(apiRoot, '.env'), override: false });
 
+// Ensure fallback test configuration exists for hermetic test execution
+process.env.DATABASE_URL =
+  process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/dangerzone_test';
+process.env.JWT_SECRET =
+  process.env.JWT_SECRET || 'test-jwt-secret-key-min-32-chars-long-123456';
+process.env.JWT_REFRESH_SECRET =
+  process.env.JWT_REFRESH_SECRET || 'test-jwt-refresh-secret-key-min-32-chars-long-123456';
+process.env.OSRM_BASE_URL =
+  process.env.OSRM_BASE_URL || 'https://router.project-osrm.org';
+
 export const TEST_CONFIG = {
   apiRoot,
   repoRoot: path.resolve(apiRoot, '../..'),

@@ -24,6 +24,7 @@ const envSchema = z.object({
   STORAGE_WEBHOOK_SECRET: z.string().optional(),
   STORAGE_WEBHOOK_BUCKET: z.string().optional(),
   CRON_SECRET: z.string().optional(),
+  OSRM_BASE_URL: z.string().default('https://router.project-osrm.org'),
 });
 
 const _env = envSchema.safeParse(process.env);

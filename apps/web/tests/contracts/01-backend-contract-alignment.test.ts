@@ -83,6 +83,7 @@ describe('[Contracts][Schema Parity] Frontend Payloads vs 47 Backend Endpoints (
       }).success,
       true
     );
+    // EP-023 Safe Routes: default mode (omitted)
     assert.equal(
       safePathRequestSchema.safeParse({
         startLat: 23.738,
@@ -91,6 +92,39 @@ describe('[Contracts][Schema Parity] Frontend Payloads vs 47 Backend Endpoints (
         endLng: 90.39,
       }).success,
       true
+    );
+    // EP-023 Safe Routes: walking mode
+    assert.equal(
+      safePathRequestSchema.safeParse({
+        startLat: 23.738,
+        startLng: 90.37,
+        endLat: 23.758,
+        endLng: 90.39,
+        mode: 'walking',
+      }).success,
+      true
+    );
+    // EP-023 Safe Routes: driving mode
+    assert.equal(
+      safePathRequestSchema.safeParse({
+        startLat: 23.738,
+        startLng: 90.37,
+        endLat: 23.758,
+        endLng: 90.39,
+        mode: 'driving',
+      }).success,
+      true
+    );
+    // EP-023 Safe Routes: reject invalid transport mode enum
+    assert.equal(
+      safePathRequestSchema.safeParse({
+        startLat: 23.738,
+        startLng: 90.37,
+        endLat: 23.758,
+        endLng: 90.39,
+        mode: 'transit',
+      }).success,
+      false
     );
     assert.equal(
       kycVerifyRequestSchema.safeParse({

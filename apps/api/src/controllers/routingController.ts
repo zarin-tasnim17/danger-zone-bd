@@ -4,11 +4,12 @@ import { successResponse, errorResponse } from '../utils/responseFormatter';
 
 export const calculateSafeRouteHandler = async (req: Request, res: Response) => {
   try {
-    const { startLat, startLng, endLat, endLng } = req.body;
+    const { startLat, startLng, endLat, endLng, mode = 'driving' } = req.body;
 
     const route = await safeRouteService.calculateSafeRoute(
       { latitude: startLat, longitude: startLng },
-      { latitude: endLat, longitude: endLng }
+      { latitude: endLat, longitude: endLng },
+      mode
     );
 
     return successResponse(res, route, 200);
