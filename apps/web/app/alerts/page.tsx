@@ -8,6 +8,7 @@ import { useAuthStore } from "@/store/useAuthStore";
 import { useLanguageStore } from "@/store/useLanguageStore";
 import { showToast } from "@/store/useToastStore";
 import { getSocket } from "@/lib/socket";
+import { getVapidPublicKey, urlBase64ToUint8Array } from "@/lib/webPush";
 import {
   Bell,
   MapPin,
@@ -175,18 +176,40 @@ export default function AlertsPage() {
   const [liveAlerts, setLiveAlerts] = useState<any[]>([]);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
-  // Check notification permission on mount
+  // Check notification permission and active push subscription on mount
   useEffect(() => {
+    let isCancelled = false;
     if (typeof window !== "undefined") {
-      if (!("Notification" in window)) {
+      if (
+        !("serviceWorker" in navigator) ||
+        !("Notification" in window) ||
+        !("PushManager" in window)
+      ) {
         setPushPermission("unsupported");
+        setPushSubscribed(false);
       } else {
         setPushPermission(Notification.permission);
         if (Notification.permission === "granted") {
-          setPushSubscribed(true);
+          navigator.serviceWorker.ready
+            .then((reg) => reg.pushManager.getSubscription())
+            .then((sub) => {
+              if (!isCancelled) {
+                setPushSubscribed(!!sub);
+              }
+            })
+            .catch(() => {
+              if (!isCancelled) {
+                setPushSubscribed(false);
+              }
+            });
+        } else {
+          setPushSubscribed(false);
         }
       }
     }
+    return () => {
+      isCancelled = true;
+    };
   }, []);
 
   // Fetch zones on mount after auth
@@ -453,18 +476,6 @@ export default function AlertsPage() {
     }
   };
 
-  // Convert URL-safe base64 VAPID key into bytes for PushManager.subscribe
-  const urlBase64ToUint8Array = (base64String: string): Uint8Array<ArrayBuffer> => {
-    const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
-    const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
-    const rawData = window.atob(base64);
-    const output = new Uint8Array(new ArrayBuffer(rawData.length));
-    for (let i = 0; i < rawData.length; ++i) {
-      output[i] = rawData.charCodeAt(i);
-    }
-    return output;
-  };
-
   // Web Push Subscription
   const handleSubscribePush = async () => {
     setIsSubscribingPush(true);
@@ -492,23 +503,55 @@ export default function AlertsPage() {
         );
       }
 
+      // Ensure service worker is registered and ready
+      const existingReg = await navigator.serviceWorker.getRegistration();
+      if (!existingReg) {
+        await navigator.serviceWorker.register("/sw.js");
+      }
       const reg = await navigator.serviceWorker.ready;
       let sub = await reg.pushManager.getSubscription();
 
-      if (!sub) {
-        const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY?.trim();
-        if (!vapidPublicKey) {
-          throw new Error(
-            isBn
-              ? "পুশ নোটিফিকেশন সার্ভার কনফিগারেশন অনুপলব্ধ। দয়া করে পরে আবার চেষ্টা করুন।"
-              : "Web Push notifications are not configured on this server yet."
-          );
-        }
+      const vapidPublicKey = getVapidPublicKey();
+      if (!vapidPublicKey) {
+        throw new Error(
+          isBn
+            ? "পুশ নোটিফিকেশন সার্ভার কনফিগারেশন অনুপলব্ধ। দয়া করে পরে আবার চেষ্টা করুন।"
+            : "Web Push notifications are not configured on this server yet."
+        );
+      }
+      const appServerKey = urlBase64ToUint8Array(vapidPublicKey);
 
-        sub = await reg.pushManager.subscribe({
-          userVisibleOnly: true,
-          applicationServerKey: urlBase64ToUint8Array(vapidPublicKey),
-        });
+      // If existing subscription was created with a different key, unsubscribe it
+      if (sub && sub.options?.applicationServerKey) {
+        const existingKeyBytes = new Uint8Array(sub.options.applicationServerKey);
+        const keysMatch =
+          existingKeyBytes.length === appServerKey.length &&
+          existingKeyBytes.every((val, idx) => val === appServerKey[idx]);
+        if (!keysMatch) {
+          await sub.unsubscribe();
+          sub = null;
+        }
+      }
+
+      if (!sub) {
+        try {
+          sub = await reg.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: appServerKey,
+          });
+        } catch (subErr: any) {
+          // If browser throws due to key conflict or stale state, attempt unsubscribe and retry once
+          const staleSub = await reg.pushManager.getSubscription();
+          if (staleSub) {
+            await staleSub.unsubscribe();
+            sub = await reg.pushManager.subscribe({
+              userVisibleOnly: true,
+              applicationServerKey: appServerKey,
+            });
+          } else {
+            throw subErr;
+          }
+        }
       }
 
       if (!sub?.endpoint) {
@@ -517,6 +560,11 @@ export default function AlertsPage() {
             ? "ব্রাউজার থেকে বৈধ পুশ সাবস্ক্রিপশন পাওয়া যায়নি।"
             : "Unable to obtain a valid browser push subscription."
         );
+      }
+
+      // Ensure user session exists before posting subscription
+      if (!useAuthStore.getState().user) {
+        await initAuth();
       }
 
       const subJson = sub.toJSON();

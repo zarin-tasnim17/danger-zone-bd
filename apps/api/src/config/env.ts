@@ -24,6 +24,9 @@ const envSchema = z.object({
   STORAGE_WEBHOOK_SECRET: z.string().optional(),
   STORAGE_WEBHOOK_BUCKET: z.string().optional(),
   CRON_SECRET: z.string().optional(),
+  VAPID_PUBLIC_KEY: z.string().optional(),
+  VAPID_PRIVATE_KEY: z.string().optional(),
+  VAPID_SUBJECT: z.string().optional(),
 });
 
 const _env = envSchema.safeParse(process.env);
