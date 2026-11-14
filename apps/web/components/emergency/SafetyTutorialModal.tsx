@@ -11,7 +11,6 @@ import {
   Shield,
   Check,
   ChevronRight,
-  Sparkles,
   Lock,
   RotateCcw,
   CheckCheck,
@@ -23,6 +22,7 @@ export const SAFETY_TERMS_CONSENTS_KEY = "bd_safety_terms_consents";
 
 export interface TermConditionItem {
   id: string;
+  article: string;
   titleEn: string;
   titleBn: string;
   descEn: string;
@@ -30,14 +30,19 @@ export interface TermConditionItem {
   icon: React.ComponentType<{ className?: string }>;
   required: boolean;
   category: "legal" | "privacy" | "community" | "alerts" | "navigation";
+  badgeEn?: string;
+  badgeBn?: string;
 }
 
 export const SAFETY_TERMS_LIST: TermConditionItem[] = [
   {
     id: "emergency_999",
+    article: "ART. 01",
     category: "legal",
     required: true,
     icon: AlertOctagon,
+    badgeEn: "Statutory Notice",
+    badgeBn: "সংবিধিবদ্ধ সতর্কতা",
     titleEn: "Emergency 999 Service Disclaimer",
     titleBn: "জরুরি সেবা (৯৯৯) সম্পর্কিত নীতি",
     descEn:
@@ -47,9 +52,12 @@ export const SAFETY_TERMS_LIST: TermConditionItem[] = [
   },
   {
     id: "cyber_security_act",
+    article: "ART. 02",
     category: "legal",
     required: true,
     icon: Scale,
+    badgeEn: "Legal Compliance",
+    badgeBn: "আইনি বাধ্যবাধকতা",
     titleEn: "Cyber Security & Truthful Reporting",
     titleBn: "সত্যনিষ্ঠ তথ্য ও সাইবার নিরাপত্তা আইন",
     descEn:
@@ -59,9 +67,12 @@ export const SAFETY_TERMS_LIST: TermConditionItem[] = [
   },
   {
     id: "location_privacy_fuzzing",
+    article: "ART. 03",
     category: "privacy",
     required: true,
     icon: MapPin,
+    badgeEn: "Zero-Knowledge",
+    badgeBn: "গোপনীয়তা নিশ্চিতকরণ",
     titleEn: "Location Privacy & Pin Fuzzing",
     titleBn: "অবস্থান গোপনীয়তা ও ফাজিং সুরক্ষা",
     descEn:
@@ -71,9 +82,12 @@ export const SAFETY_TERMS_LIST: TermConditionItem[] = [
   },
   {
     id: "community_moderation",
+    article: "ART. 04",
     category: "community",
     required: true,
     icon: ThumbsUp,
+    badgeEn: "Consensus Model",
+    badgeBn: "কমিউনিটি যাচাই",
     titleEn: "Community Trust & Proximity Verification",
     titleBn: "কমিউনিটি ট্রাস্ট ও জিপিএস নীতি",
     descEn:
@@ -83,9 +97,12 @@ export const SAFETY_TERMS_LIST: TermConditionItem[] = [
   },
   {
     id: "proximity_alerts",
+    article: "ART. 05",
     category: "alerts",
     required: false,
     icon: Bell,
+    badgeEn: "User Controlled",
+    badgeBn: "ব্যবহারকারী নিয়ন্ত্রিত",
     titleEn: "Real-Time Proximity Danger Alerts",
     titleBn: "নিকটবর্তী রিয়েল-টাইম বিপদ সতর্কতা",
     descEn:
@@ -95,9 +112,12 @@ export const SAFETY_TERMS_LIST: TermConditionItem[] = [
   },
   {
     id: "safe_route_telemetry",
+    article: "ART. 06",
     category: "navigation",
     required: false,
     icon: Shield,
+    badgeEn: "Privacy-Preserving",
+    badgeBn: "এনক্রিপ্ট করা বিশ্লেষণ",
     titleEn: "Anonymous Safe Route Telemetry",
     titleBn: "বেনামী নিরাপদ পথ বিশ্লেষণ সম্মতি",
     descEn:
@@ -114,7 +134,6 @@ export function SafetyTutorialModal() {
 
   // State mapping of termId -> boolean
   const [selectedTerms, setSelectedTerms] = useState<Record<string, boolean>>(() => {
-    // Default: All checked so user can review and uncheck optional ones, or click to choose
     const defaults: Record<string, boolean> = {};
     SAFETY_TERMS_LIST.forEach((term) => {
       defaults[term.id] = true;
@@ -142,7 +161,6 @@ export function SafetyTutorialModal() {
 
       if (accepted !== "true") {
         if (legacyConsent) {
-          // Preserve prior consent from legacy TermsConsentModal key without re-prompting
           localStorage.setItem(SAFETY_TERMS_ACCEPTED_KEY, "true");
         } else {
           setIsOpen(true);
@@ -152,7 +170,6 @@ export function SafetyTutorialModal() {
       // localStorage disabled or restricted in private browsing
     }
 
-    // Listener to re-open modal on demand from anywhere (e.g. Profile or Help)
     const handleOpenEvent = () => setIsOpen(true);
     window.addEventListener("open-safety-terms-modal", handleOpenEvent);
 
@@ -162,16 +179,20 @@ export function SafetyTutorialModal() {
   }, []);
 
   // Toggle individual term
-  const handleToggleTerm = (termId: string) => {
+  const handleToggleTerm = useCallback((termId: string) => {
     setSelectedTerms((prev) => ({
       ...prev,
       [termId]: !prev[termId],
     }));
-  };
+  }, []);
 
-  // Check if all mandatory terms are accepted
   const mandatoryTerms = useMemo(
     () => SAFETY_TERMS_LIST.filter((term) => term.required),
+    []
+  );
+
+  const optionalTerms = useMemo(
+    () => SAFETY_TERMS_LIST.filter((term) => !term.required),
     []
   );
 
@@ -183,22 +204,21 @@ export function SafetyTutorialModal() {
     return Object.values(selectedTerms).filter(Boolean).length;
   }, [selectedTerms]);
 
-  // Select All vs Required Only quick toggles
-  const handleSelectAll = () => {
+  const handleSelectAll = useCallback(() => {
     const updated: Record<string, boolean> = {};
     SAFETY_TERMS_LIST.forEach((term) => {
       updated[term.id] = true;
     });
     setSelectedTerms(updated);
-  };
+  }, []);
 
-  const handleResetToRequiredOnly = () => {
+  const handleResetToRequiredOnly = useCallback(() => {
     const updated: Record<string, boolean> = {};
     SAFETY_TERMS_LIST.forEach((term) => {
       updated[term.id] = term.required;
     });
     setSelectedTerms(updated);
-  };
+  }, []);
 
   // Next / Save Action
   const handleNext = () => {
@@ -206,17 +226,12 @@ export function SafetyTutorialModal() {
 
     if (typeof window !== "undefined") {
       try {
-        // 1. Mark agreement accepted
         localStorage.setItem(SAFETY_TERMS_ACCEPTED_KEY, "true");
-
-        // 2. Persist chosen terms and conditions
         const payload = {
           ...selectedTerms,
           updatedAt: new Date().toISOString(),
         };
         localStorage.setItem(SAFETY_TERMS_CONSENTS_KEY, JSON.stringify(payload));
-
-        // 3. Dispatch event for real-time reactivity
         window.dispatchEvent(
           new CustomEvent("safety_terms_updated", { detail: payload })
         );
@@ -231,200 +246,310 @@ export function SafetyTutorialModal() {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[99999] flex items-center justify-center p-3 sm:p-4 bg-slate-950/60 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="bg-white border border-slate-200/90 rounded-3xl max-w-xl w-full text-slate-900 shadow-2xl animate-in zoom-in-95 duration-200 max-h-[92vh] flex flex-col overflow-hidden">
-        {/* Modal Top Header (Sticky) */}
-        <div className="p-4 sm:p-5 border-b border-slate-100 bg-gradient-to-b from-slate-50/80 to-white flex items-start justify-between gap-3 shrink-0">
-          <div className="flex items-start gap-3">
-            <div className="p-2.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-600 shadow-2xs shrink-0 mt-0.5">
-              <ShieldAlert className="w-5 h-5 sm:w-6 sm:h-6" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h3 className="font-extrabold text-sm sm:text-base text-slate-900 leading-tight">
-                  {isBn
-                    ? "শর্তাবলী ও জননিরাপত্তা নীতিমালা"
-                    : "Terms & Safety Conditions"}
-                </h3>
-                <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
-                  {selectedCount} / {SAFETY_TERMS_LIST.length}{" "}
-                  {isBn ? "নির্বাচিত" : "Selected"}
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="terms-dialog-title"
+      className="fixed inset-0 z-[99999] flex items-center justify-center p-3 sm:p-5 md:p-6 bg-slate-950/50 backdrop-blur-sm animate-in fade-in duration-200"
+    >
+      <div className="relative bg-white border border-slate-200/90 rounded-2xl sm:rounded-3xl max-w-2xl w-full text-slate-900 shadow-[0_24px_56px_-12px_rgba(15,23,42,0.18),0_4px_16px_rgba(15,23,42,0.06)] flex flex-col max-h-[92vh] sm:max-h-[88vh] overflow-hidden">
+        {/* Top Header Bar */}
+        <header className="px-5 sm:px-7 pt-5 sm:pt-6 pb-4 border-b border-slate-100 bg-white shrink-0">
+          <div className="flex items-start justify-between gap-4">
+            <div className="space-y-1.5 flex-1 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-slate-100 border border-slate-200 text-[10px] font-mono tracking-wider font-semibold text-slate-700 uppercase">
+                  <ShieldAlert className="w-3 h-3 text-slate-600" />
+                  <span>{isBn ? "আইনি ও জননিরাপত্তা চুক্তি" : "Public Safety Charter"}</span>
+                </span>
+                <span className="text-[11px] font-mono text-slate-600 font-medium">
+                  {selectedCount} of {SAFETY_TERMS_LIST.length}{" "}
+                  {isBn ? "স্বীকৃত" : "Accepted"}
                 </span>
               </div>
-              <p className="text-xs text-slate-500 font-medium leading-relaxed mt-1">
+
+              <h2
+                id="terms-dialog-title"
+                className="text-base sm:text-xl font-semibold text-slate-900 tracking-tight leading-snug"
+              >
+                {isBn
+                  ? "শর্তাবলী ও জননিরাপত্তা নীতিমালা"
+                  : "Terms of Service & Safety Conditions"}
+              </h2>
+
+              <p className="text-xs sm:text-[13px] text-slate-600 leading-relaxed max-w-xl">
                 {isBn
                   ? "ড্যাঞ্জার জোন বিডি ব্যবহারের পূর্বে শর্তাবলী পর্যালোচনা করুন। আপনি যেসব শর্তে সম্মত তা বেছে নিয়ে 'পরবর্তী' বাটনে চাপুন।"
-                  : "Review our public safety terms below. Tap to choose the terms and conditions you accept, then click 'Next' to set your preferences."}
+                  : "Review the civic public safety charter below. You must accept statutory terms to access live reporting; optional intelligence telemetry may be toggled at any time."}
               </p>
             </div>
           </div>
-        </div>
 
-        {/* Quick Bulk Action Bar */}
-        <div className="px-4 sm:px-5 py-2 bg-slate-50/90 border-b border-slate-100 flex items-center justify-between text-xs shrink-0">
-          <span className="text-[11px] font-bold text-slate-600 flex items-center gap-1.5">
-            <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-            <span>
-              {isBn
-                ? "শর্তাবলী বেছে নিয়ে সম্মতি দিন:"
-                : "Select your agreed terms:"}
-            </span>
-          </span>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={handleSelectAll}
-              className="text-[11px] font-bold text-blue-600 hover:text-blue-800 hover:underline flex items-center gap-1 cursor-pointer transition-colors"
-            >
-              <CheckCheck className="w-3 h-3" />
-              <span>{isBn ? "সবগুলো নির্বাচন" : "Select All"}</span>
-            </button>
-            <span className="text-slate-300">|</span>
-            <button
-              type="button"
-              onClick={handleResetToRequiredOnly}
-              className="text-[11px] font-medium text-slate-500 hover:text-slate-800 hover:underline cursor-pointer transition-colors"
-            >
-              <span>{isBn ? "শুধু বাধ্যতামূলক" : "Required Only"}</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Scrollable Single Pop-up Terms List */}
-        <div className="p-4 sm:p-5 overflow-y-auto space-y-2.5 flex-1 pr-2 sm:pr-3">
-          {SAFETY_TERMS_LIST.map((term) => {
-            const Icon = term.icon;
-            const isChecked = !!selectedTerms[term.id];
-
-            return (
-              <div
-                key={term.id}
-                role="checkbox"
-                aria-checked={isChecked}
-                tabIndex={0}
-                onClick={() => handleToggleTerm(term.id)}
-                onKeyDown={(e) => {
-                  if (e.key === " " || e.key === "Enter") {
-                    e.preventDefault();
-                    handleToggleTerm(term.id);
-                  }
-                }}
-                className={`w-full p-3.5 rounded-2xl border text-left flex items-start gap-3 transition-all cursor-pointer select-none group ${
-                  isChecked
-                    ? "bg-blue-50/50 border-blue-400/80 shadow-xs ring-1 ring-blue-500/20"
-                    : "bg-white border-slate-200 hover:bg-slate-50/90 hover:border-slate-300"
-                }`}
+          {/* Quick Selection Filter Controls */}
+          <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between gap-3 text-xs">
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] font-medium text-slate-600">
+                {isBn ? "দ্রুত বাছাই:" : "Quick actions:"}
+              </span>
+              <button
+                type="button"
+                onClick={handleSelectAll}
+                className="text-[11px] font-semibold text-slate-700 hover:text-slate-950 px-2 py-0.5 rounded border border-slate-200 hover:bg-slate-50 transition-colors inline-flex items-center gap-1 cursor-pointer"
               >
-                {/* Interactive Checkbox Indicator */}
-                <div className="pt-0.5 shrink-0">
+                <CheckCheck className="w-3 h-3 text-emerald-600" />
+                <span>{isBn ? "সবগুলো নির্বাচন" : "Select All"}</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleResetToRequiredOnly}
+                className="text-[11px] font-medium text-slate-600 hover:text-slate-900 px-2 py-0.5 rounded border border-slate-200 hover:bg-slate-50 transition-colors inline-flex items-center gap-1 cursor-pointer"
+              >
+                <RotateCcw className="w-2.5 h-2.5 text-slate-400" />
+                <span>{isBn ? "শুধু বাধ্যতামূলক" : "Mandatory Only"}</span>
+              </button>
+            </div>
+
+            <div className="hidden sm:flex items-center gap-1.5 text-[11px] text-slate-600">
+              <Lock className="w-3 h-3 text-slate-600" />
+              <span>{isBn ? "৪টি সংবিধিবদ্ধ শর্ত আবশ্যক" : "4 statutory terms required"}</span>
+            </div>
+          </div>
+        </header>
+
+        {/* Scrollable Terms Content */}
+        <div className="p-4 sm:p-6 overflow-y-auto space-y-5 flex-1 divide-y divide-slate-100">
+          {/* SECTION 1: Mandatory Legal & Civic Terms */}
+          <section className="space-y-3">
+            <div className="flex items-center justify-between gap-2 pb-1">
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-mono font-bold tracking-wider uppercase text-slate-600">
+                  SECTION A
+                </span>
+                <span className="text-xs font-semibold text-slate-900">
+                  {isBn ? "বাধ্যতামূলক আইনি ও নাগরিক সুরক্ষা নীতি" : "Statutory & Community Obligations"}
+                </span>
+              </div>
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200 font-semibold">
+                {isBn ? "৪টি আবশ্যক" : "4 Required"}
+              </span>
+            </div>
+
+            <div className="space-y-2.5">
+              {mandatoryTerms.map((term) => {
+                const Icon = term.icon;
+                const isChecked = !!selectedTerms[term.id];
+
+                return (
                   <div
-                    className={`w-5 h-5 rounded-lg border flex items-center justify-center transition-all ${
+                    key={term.id}
+                    role="checkbox"
+                    aria-checked={isChecked}
+                    tabIndex={0}
+                    onClick={() => handleToggleTerm(term.id)}
+                    onKeyDown={(e) => {
+                      if (e.key === " " || e.key === "Enter") {
+                        e.preventDefault();
+                        handleToggleTerm(term.id);
+                      }
+                    }}
+                    className={`w-full p-3.5 sm:p-4 rounded-xl border text-left flex items-start gap-3.5 transition-all cursor-pointer select-none group ${
                       isChecked
-                        ? "bg-blue-600 border-blue-600 text-white shadow-xs"
-                        : "bg-white border-slate-300 group-hover:border-slate-400"
+                        ? "bg-slate-50/80 border-slate-300 shadow-[0_1px_2px_rgba(15,23,42,0.04)]"
+                        : "bg-white border-dashed border-rose-300 hover:border-rose-400 hover:bg-rose-50/30"
                     }`}
                   >
-                    {isChecked && <Check className="w-3.5 h-3.5 stroke-[3]" />}
-                  </div>
-                </div>
-
-                {/* Term Details */}
-                <div className="space-y-1 min-w-0 flex-1">
-                  <div className="flex items-center justify-between gap-2 flex-wrap">
-                    <div className="flex items-center gap-1.5 min-w-0">
-                      <Icon
-                        className={`w-4 h-4 shrink-0 ${
-                          isChecked ? "text-blue-600" : "text-slate-400"
-                        }`}
-                      />
-                      <h4
-                        className={`text-xs sm:text-[13px] font-bold leading-tight ${
-                          isChecked ? "text-slate-900" : "text-slate-700"
+                    {/* Custom Precision Indicator */}
+                    <div className="pt-0.5 shrink-0">
+                      <div
+                        className={`w-5 h-5 rounded-md border flex items-center justify-center transition-all ${
+                          isChecked
+                            ? "bg-slate-900 border-slate-900 text-white shadow-xs"
+                            : "bg-white border-rose-400 group-hover:border-rose-500"
                         }`}
                       >
-                        {isBn ? term.titleBn : term.titleEn}
-                      </h4>
+                        {isChecked && <Check className="w-3.5 h-3.5 stroke-[2.5]" />}
+                      </div>
                     </div>
 
-                    {/* Status Badge */}
-                    {term.required ? (
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200 shrink-0">
-                        {isBn ? "বাধ্যতামূলক" : "Required"}
-                      </span>
-                    ) : (
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200 shrink-0">
-                        {isBn ? "ঐচ্ছিক" : "Optional"}
-                      </span>
-                    )}
+                    {/* Content Details */}
+                    <div className="space-y-1 min-w-0 flex-1">
+                      <div className="flex items-baseline justify-between gap-2 flex-wrap">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="text-[10px] font-mono text-slate-600 font-medium">
+                            {term.article}
+                          </span>
+                          <h3
+                            className={`text-xs sm:text-sm font-semibold leading-tight ${
+                              isChecked ? "text-slate-900" : "text-rose-950"
+                            }`}
+                          >
+                            {isBn ? term.titleBn : term.titleEn}
+                          </h3>
+                        </div>
+
+                        <span className="text-[10px] font-mono font-medium px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200 shrink-0">
+                          {isBn ? (term.badgeBn || "বাধ্যতামূলক") : (term.badgeEn || "Required")}
+                        </span>
+                      </div>
+
+                      <p className="text-xs text-slate-600 leading-relaxed font-normal">
+                        {isBn ? term.descBn : term.descEn}
+                      </p>
+                    </div>
                   </div>
+                );
+              })}
+            </div>
+          </section>
 
-                  <p className="text-[11px] sm:text-xs text-slate-600 leading-relaxed">
-                    {isBn ? term.descBn : term.descEn}
-                  </p>
-                </div>
+          {/* SECTION 2: Optional Enhanced Intelligence & Telemetry */}
+          <section className="space-y-3 pt-5">
+            <div className="flex items-center justify-between gap-2 pb-1">
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-mono font-bold tracking-wider uppercase text-slate-600">
+                  SECTION B
+                </span>
+                <span className="text-xs font-semibold text-slate-900">
+                  {isBn ? "ঐচ্ছিক বুদ্ধিমত্তা ও প্রক্সিমিটি সেবা" : "Optional Intelligence & Safe Route Services"}
+                </span>
               </div>
-            );
-          })}
-
-          {/* Validation Notice if required terms are missing */}
-          {!allMandatoryAccepted && (
-            <div className="p-3 rounded-2xl bg-amber-50 border border-amber-200 flex items-center gap-2 text-amber-800 text-xs font-semibold animate-in fade-in">
-              <AlertOctagon className="w-4 h-4 text-amber-600 shrink-0" />
-              <span>
-                {isBn
-                  ? "সামনে এগিয়ে যেতে অনুগ্রহ করে ৪টি বাধ্যতামূলক শর্তে (Required) টিক চিহ্ন দিয়ে সম্মতি দিন।"
-                  : "Please check all 4 mandatory terms marked 'Required' to continue."}
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200">
+                {isBn ? "ব্যবহারকারী নিয়ন্ত্রিত" : "User Configurable"}
               </span>
+            </div>
+
+            <div className="space-y-2.5">
+              {optionalTerms.map((term) => {
+                const Icon = term.icon;
+                const isChecked = !!selectedTerms[term.id];
+
+                return (
+                  <div
+                    key={term.id}
+                    role="checkbox"
+                    aria-checked={isChecked}
+                    tabIndex={0}
+                    onClick={() => handleToggleTerm(term.id)}
+                    onKeyDown={(e) => {
+                      if (e.key === " " || e.key === "Enter") {
+                        e.preventDefault();
+                        handleToggleTerm(term.id);
+                      }
+                    }}
+                    className={`w-full p-3.5 sm:p-4 rounded-xl border text-left flex items-start gap-3.5 transition-all cursor-pointer select-none group ${
+                      isChecked
+                        ? "bg-slate-50/70 border-slate-300 shadow-[0_1px_2px_rgba(15,23,42,0.04)]"
+                        : "bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50/50"
+                    }`}
+                  >
+                    {/* Toggle Switch styling */}
+                    <div className="pt-0.5 shrink-0">
+                      <div
+                        className={`w-9 h-5 rounded-full p-0.5 transition-colors duration-200 ease-out flex items-center ${
+                          isChecked ? "bg-slate-900" : "bg-slate-200"
+                        }`}
+                      >
+                        <div
+                          className={`w-4 h-4 rounded-full bg-white shadow-xs transform transition-transform duration-200 ease-out ${
+                            isChecked ? "translate-x-4" : "translate-x-0"
+                          }`}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Content Details */}
+                    <div className="space-y-1 min-w-0 flex-1">
+                      <div className="flex items-baseline justify-between gap-2 flex-wrap">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="text-[10px] font-mono text-slate-600 font-medium">
+                            {term.article}
+                          </span>
+                          <h3
+                            className={`text-xs sm:text-sm font-semibold leading-tight ${
+                              isChecked ? "text-slate-900" : "text-slate-700"
+                            }`}
+                          >
+                            {isBn ? term.titleBn : term.titleEn}
+                          </h3>
+                        </div>
+
+                        <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200 shrink-0">
+                          {isBn ? "ঐচ্ছিক" : "Optional"}
+                        </span>
+                      </div>
+
+                      <p className="text-xs text-slate-600 leading-relaxed font-normal">
+                        {isBn ? term.descBn : term.descEn}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+
+          {/* Validation Banner if missing mandatory items */}
+          {!allMandatoryAccepted && (
+            <div className="p-3.5 rounded-xl bg-rose-50/80 border border-rose-200 flex items-start gap-3 text-rose-900 text-xs font-medium">
+              <AlertOctagon className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+              <div className="space-y-0.5">
+                <span className="font-semibold block">
+                  {isBn ? "বাধ্যতামূলক শর্তাবলী অনুপস্থিত" : "Mandatory Terms Required"}
+                </span>
+                <p className="text-rose-700 leading-relaxed">
+                  {isBn
+                    ? "জননিরাপত্তা ও আইনি কারণে চিহ্নিত ৪টি সংবিধিবদ্ধ নীতিতে সম্মতি দেওয়া আবশ্যক।"
+                    : "To access real-time civic hazard data, you must acknowledge all 4 statutory obligations under Section A."}
+                </p>
+              </div>
             </div>
           )}
         </div>
 
-        {/* Modal Bottom Footer (Sticky) */}
-        <div className="p-4 sm:p-5 border-t border-slate-100 bg-slate-50/90 flex flex-col sm:flex-row items-center justify-between gap-3 shrink-0">
-          <div className="text-center sm:text-left">
-            <span className="text-xs font-bold text-slate-800 block">
-              {allMandatoryAccepted ? (
-                <span className="text-emerald-700 flex items-center gap-1.5 justify-center sm:justify-start">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                  {isBn
-                    ? "সকল প্রয়োজনীয় শর্তাবলী নির্বাচিত হয়েছে"
-                    : "All required safety conditions satisfied"}
-                </span>
-              ) : (
-                <span className="text-rose-600 flex items-center gap-1.5 justify-center sm:justify-start">
-                  <span className="w-2 h-2 rounded-full bg-rose-500" />
-                  {isBn
-                    ? "বাধ্যতামূলক শর্তগুলোতে সম্মতি দেওয়া প্রয়োজন"
-                    : "Mandatory conditions awaiting approval"}
-                </span>
-              )}
-            </span>
-            <span className="text-[10px] text-slate-500 block mt-0.5">
-              {isBn
-                ? "পরবর্তী বাটনে চাপলে আপনার নির্বাচিত শর্তাবলী ডিভাইসে সক্রিয় হবে।"
-                : "Tapping Next will apply and save your chosen terms to this device."}
-            </span>
+        {/* Modal Bottom Sticky Footer */}
+        <footer className="px-5 sm:px-7 py-4 border-t border-slate-200 bg-slate-50/80 flex flex-col sm:flex-row items-center justify-between gap-3.5 shrink-0">
+          <div className="flex items-center gap-2.5 text-center sm:text-left">
+            <div
+              className={`w-2 h-2 rounded-full shrink-0 ${
+                allMandatoryAccepted
+                  ? "bg-emerald-500 ring-2 ring-emerald-200"
+                  : "bg-rose-500 ring-2 ring-rose-200"
+              }`}
+            />
+            <div className="text-left">
+              <span className="text-xs font-semibold text-slate-900 block leading-tight">
+                {allMandatoryAccepted
+                  ? (isBn ? "সকল সংবিধিবদ্ধ শর্ত পূরণ হয়েছে" : "All statutory requirements satisfied")
+                  : (isBn ? "বাধ্যতামূলক নীতিসমূহে সম্মতি প্রয়োজন" : "Mandatory protocols pending agreement")}
+              </span>
+              <span className="text-[11px] text-slate-600 block mt-0.5">
+                {isBn
+                  ? "সম্মতি ডিভাইসে এনক্রিপ্ট করে সংরক্ষিত হয় এবং প্রোফাইল থেকে পরিবর্তনযোগ্য।"
+                  : "Consents are cryptographically stored locally and can be revised anytime in Profile."}
+              </span>
+            </div>
           </div>
 
-          {/* Primary Action Button: "Next" */}
-          <button
-            type="button"
-            disabled={!allMandatoryAccepted}
-            onClick={handleNext}
-            className={`w-full sm:w-auto px-6 py-2.5 rounded-xl text-xs font-extrabold flex items-center justify-center gap-2 transition-all cursor-pointer shadow-md ${
-              allMandatoryAccepted
-                ? "bg-blue-600 hover:bg-blue-700 active:scale-95 text-white shadow-blue-600/25"
-                : "bg-slate-200 text-slate-400 cursor-not-allowed shadow-none"
-            }`}
-          >
-            <span>
-              {isBn
-                ? "পরবর্তী (শর্তাবলী সংরক্ষণ করুন)"
-                : "Next (Save Terms & Continue)"}
-            </span>
-            <ChevronRight className="w-4 h-4" />
-          </button>
-        </div>
+          <div className="flex items-center gap-2.5 w-full sm:w-auto justify-end">
+            <button
+              type="button"
+              disabled={!allMandatoryAccepted}
+              onClick={handleNext}
+              className={`w-full sm:w-auto px-6 py-2.5 rounded-xl text-xs sm:text-sm font-semibold inline-flex items-center justify-center gap-2 transition-all cursor-pointer shadow-sm ${
+                allMandatoryAccepted
+                  ? "bg-slate-900 hover:bg-slate-800 active:scale-[0.98] text-white shadow-slate-900/10"
+                  : "bg-slate-200 text-slate-400 cursor-not-allowed shadow-none"
+              }`}
+            >
+              <span>
+                {isBn
+                  ? "সম্মত হয়ে এগিয়ে যান"
+                  : "Accept & Enter Map"}
+              </span>
+              <ChevronRight className="w-4 h-4 stroke-[2.5]" />
+            </button>
+          </div>
+        </footer>
       </div>
     </div>
   );
