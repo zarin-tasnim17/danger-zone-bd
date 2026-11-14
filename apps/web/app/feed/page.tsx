@@ -50,6 +50,8 @@ import {
   Radio,
   SlidersHorizontal,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   Sparkles,
   CheckCircle2,
   X,
@@ -170,6 +172,51 @@ export default function FeedPage() {
   const [nightFilter, setNightFilter] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState<SortOption>("NEWEST");
+
+  // Category horizontal scroll state
+  const categoryScrollRef = React.useRef<HTMLDivElement>(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
+
+  const checkCategoryScroll = useCallback(() => {
+    const el = categoryScrollRef.current;
+    if (!el) return;
+    const { scrollLeft, scrollWidth, clientWidth } = el;
+    setCanScrollLeft(scrollLeft > 4);
+    setCanScrollRight(scrollLeft < scrollWidth - clientWidth - 4);
+  }, []);
+
+  const handleScrollCategories = (direction: "left" | "right") => {
+    const el = categoryScrollRef.current;
+    if (!el) return;
+    const offset = direction === "left" ? -280 : 280;
+    el.scrollBy({ left: offset, behavior: "smooth" });
+    setTimeout(checkCategoryScroll, 320);
+  };
+
+  const hasActiveFilters =
+    categoryFilter !== "ALL" ||
+    severityFilter !== "ALL" ||
+    nightFilter ||
+    searchQuery.trim().length > 0;
+
+  const handleResetFilters = () => {
+    setCategoryFilter("ALL");
+    setSeverityFilter("ALL");
+    setNightFilter(false);
+    setSearchQuery("");
+  };
+
+  useEffect(() => {
+    checkCategoryScroll();
+    const handleResize = () => checkCategoryScroll();
+    window.addEventListener("resize", handleResize);
+    const timer = setTimeout(checkCategoryScroll, 350);
+    return () => {
+      window.removeEventListener("resize", handleResize);
+      clearTimeout(timer);
+    };
+  }, [checkCategoryScroll]);
 
   // Interaction States
   const [votingId, setVotingId] = useState<string | null>(null);
@@ -471,6 +518,37 @@ export default function FeedPage() {
     { id: "UNLIT_ROAD", labelEn: "Unlit Road", labelBn: "অন্ধকার রাস্তা", icon: LightbulbOff },
   ];
 
+  const SEVERITY_OPTIONS = [
+    {
+      id: "ALL",
+      labelEn: "All",
+      labelBn: "সকল",
+      activeClass: "bg-white text-slate-900 shadow-2xs ring-1 ring-slate-900/5",
+      dotClass: null,
+    },
+    {
+      id: "HIGH",
+      labelEn: "High",
+      labelBn: "উচ্চ",
+      activeClass: "bg-red-600 text-white shadow-2xs",
+      dotClass: "bg-red-500",
+    },
+    {
+      id: "MEDIUM",
+      labelEn: "Medium",
+      labelBn: "মাঝারি",
+      activeClass: "bg-amber-500 text-white shadow-2xs",
+      dotClass: "bg-amber-500",
+    },
+    {
+      id: "LOW",
+      labelEn: "Low",
+      labelBn: "স্বল্প",
+      activeClass: "bg-emerald-600 text-white shadow-2xs",
+      dotClass: "bg-emerald-500",
+    },
+  ];
+
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 text-slate-900 font-sans selection:bg-red-500 selection:text-white">
       {/* World-Class Single Daylight Navbar (No auxiliary route test strip, integrated language switch) */}
@@ -600,11 +678,11 @@ export default function FeedPage() {
         </section>
 
         {/* Tactical Search & Filter Command Console */}
-        <section className="bg-white border border-slate-200/90 rounded-3xl p-4 sm:p-5 mb-6 shadow-xs space-y-4">
-          {/* Top Row: Search input + Night Toggle + Sorting */}
-          <div className="flex flex-col md:flex-row items-stretch md:items-center gap-3">
+        <section className="bg-white border border-slate-200/90 rounded-3xl p-4 sm:p-5 mb-6 shadow-xs space-y-3.5">
+          {/* Tier 1: Search & Tactical Refinement Bar (Severity, Night, Sort, Reset) */}
+          <div className="flex flex-col xl:flex-row items-stretch xl:items-center gap-3">
             {/* Search Input */}
-            <div className="relative flex-1">
+            <div className="relative flex-1 min-w-[220px]">
               <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
               <input
                 type="text"
@@ -615,100 +693,141 @@ export default function FeedPage() {
                 }
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-9 py-2.5 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 focus:bg-white transition"
+                className="w-full pl-10 pr-9 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 focus:bg-white transition placeholder:text-slate-400"
               />
               {searchQuery && (
                 <button
                   onClick={() => setSearchQuery("")}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 text-xs p-1"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 text-xs p-1 rounded-md"
+                  aria-label={isBn ? "অনুসন্ধান মুছুন" : "Clear search"}
                 >
                   <X className="w-3.5 h-3.5" />
                 </button>
               )}
             </div>
 
-            {/* Night Filter Button */}
-            <button
-              onClick={() => setNightFilter(!nightFilter)}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-bold border transition-all active:scale-95 shrink-0 ${
-                nightFilter
-                  ? "bg-indigo-900 text-white border-indigo-900 shadow-md shadow-indigo-950/20"
-                  : "bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200"
-              }`}
-            >
-              <Moon className={`w-4 h-4 ${nightFilter ? "text-amber-300" : "text-indigo-600"}`} />
-              <span>{isBn ? "রাতের ঘটনা (৬টা - ৬টা)" : "Night Incidents (6PM - 6AM)"}</span>
-            </button>
+            {/* Refinement Controls Cluster */}
+            <div className="flex flex-wrap items-center gap-2 sm:gap-2.5 shrink-0">
+              {/* Severity Segmented Switch */}
+              <div className="inline-flex items-center gap-0.5 bg-slate-100 p-1 rounded-xl border border-slate-200">
+                <span className="text-[10px] font-bold text-slate-500 pl-2 pr-1 uppercase tracking-wider select-none">
+                  {isBn ? "তীব্রতা:" : "Severity:"}
+                </span>
+                {SEVERITY_OPTIONS.map((opt) => {
+                  const isSelected = severityFilter === opt.id;
+                  return (
+                    <button
+                      key={opt.id}
+                      onClick={() => setSeverityFilter(opt.id)}
+                      className={`text-xs px-2.5 py-1 rounded-lg font-semibold transition-all inline-flex items-center gap-1.5 ${
+                        isSelected
+                          ? opt.activeClass
+                          : "text-slate-600 hover:text-slate-900 hover:bg-slate-200/50"
+                      }`}
+                    >
+                      {opt.dotClass && <span className={`w-1.5 h-1.5 rounded-full ${opt.dotClass}`} />}
+                      <span>{isBn ? opt.labelBn : opt.labelEn}</span>
+                    </button>
+                  );
+                })}
+              </div>
 
-            {/* Sorting Dropdown */}
-            <div className="flex items-center gap-1.5 shrink-0 bg-slate-50 border border-slate-200 rounded-2xl px-3 py-1.5">
-              <SlidersHorizontal className="w-3.5 h-3.5 text-slate-500" />
-              <span className="text-[11px] font-semibold text-slate-500 hidden sm:inline">
-                {isBn ? "ক্রমবিন্যাস:" : "Sort:"}
-              </span>
-              <select
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value as SortOption)}
-                className="bg-transparent text-xs font-bold text-slate-800 focus:outline-none cursor-pointer"
+              {/* Night Filter Button */}
+              <button
+                onClick={() => setNightFilter(!nightFilter)}
+                className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold border transition-all active:scale-95 shrink-0 ${
+                  nightFilter
+                    ? "bg-indigo-900 text-white border-indigo-900 shadow-2xs ring-1 ring-indigo-950/20"
+                    : "bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200"
+                }`}
               >
-                <option value="NEWEST">{isBn ? "সর্বশেষ প্রকাশিত" : "Newest First"}</option>
-                <option value="MOST_UPVOTED">{isBn ? "সর্বাধিক সমর্থিত" : "Most Upvoted"}</option>
-                <option value="SEVERITY_HIGH">{isBn ? "উচ্চ বিপদ আগে" : "High Severity"}</option>
-              </select>
+                <Moon className={`w-3.5 h-3.5 ${nightFilter ? "text-amber-300 fill-amber-300/30" : "text-indigo-600"}`} />
+                <span>{isBn ? "রাতের ঘটনা (৬টা - ৬টা)" : "Night Incidents (6PM - 6AM)"}</span>
+              </button>
+
+              {/* Sorting Dropdown */}
+              <div className="inline-flex items-center gap-1.5 shrink-0 bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5">
+                <SlidersHorizontal className="w-3.5 h-3.5 text-slate-500" />
+                <span className="text-[11px] font-semibold text-slate-500 hidden sm:inline">
+                  {isBn ? "ক্রমবিন্যাস:" : "Sort:"}
+                </span>
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value as SortOption)}
+                  className="bg-transparent text-xs font-semibold text-slate-800 focus:outline-none cursor-pointer"
+                >
+                  <option value="NEWEST">{isBn ? "সর্বশেষ প্রকাশিত" : "Newest First"}</option>
+                  <option value="MOST_UPVOTED">{isBn ? "সর্বাধিক সমর্থিত" : "Most Upvoted"}</option>
+                  <option value="SEVERITY_HIGH">{isBn ? "উচ্চ বিপদ আগে" : "High Severity"}</option>
+                </select>
+              </div>
+
+              {/* Reset Filters Chip (Visible when active) */}
+              {hasActiveFilters && (
+                <button
+                  onClick={handleResetFilters}
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-semibold text-slate-500 hover:text-red-600 hover:bg-red-50 border border-transparent hover:border-red-200 transition-all"
+                  title={isBn ? "সকল ফিল্টার মুছুন" : "Reset all filters"}
+                >
+                  <X className="w-3.5 h-3.5" />
+                  <span>{isBn ? "মুছুন" : "Reset"}</span>
+                </button>
+              )}
             </div>
           </div>
 
-          {/* Bottom Row: Category Chips & Severity Switch */}
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pt-3 border-t border-slate-100">
-            {/* Category Pills */}
-            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 lg:pb-0 scrollbar-none">
-              {CATEGORY_TABS.map((tab) => {
-                const isSelected = categoryFilter === tab.id;
-                const Icon = tab.icon;
-                return (
-                  <button
-                    key={tab.id}
-                    onClick={() => setCategoryFilter(tab.id)}
-                    className={`text-xs px-3 py-1.5 rounded-xl font-bold border flex items-center gap-1.5 transition-all shrink-0 ${
-                      isSelected
-                        ? "bg-slate-900 text-white border-slate-900 shadow-2xs"
-                        : "bg-white text-slate-600 border-slate-200 hover:text-slate-900 hover:bg-slate-50"
-                    }`}
-                  >
-                    <Icon className={`w-3.5 h-3.5 ${isSelected ? "text-white" : "text-slate-500"}`} />
-                    <span>{isBn ? tab.labelBn : tab.labelEn}</span>
-                  </button>
-                );
-              })}
-            </div>
+          {/* Tier 2: Dedicated Full-Width Category Navigation Rail */}
+          <div className="pt-3 border-t border-slate-100 relative">
+            <div className="flex items-center gap-1.5">
+              {/* Left scroll chevron */}
+              {canScrollLeft && (
+                <button
+                  type="button"
+                  onClick={() => handleScrollCategories("left")}
+                  className="hidden md:inline-flex items-center justify-center w-7 h-7 rounded-lg bg-white border border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-50 shadow-2xs transition shrink-0 z-10"
+                  aria-label={isBn ? "বামে স্ক্রোল করুন" : "Scroll categories left"}
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+              )}
 
-            {/* Severity Segmented Switch */}
-            <div className="flex items-center gap-1 self-start lg:self-auto bg-slate-100 p-1 rounded-2xl border border-slate-200">
-              <span className="text-[10px] font-bold text-slate-500 px-2 uppercase">
-                {isBn ? "তীব্রতা:" : "Severity:"}
-              </span>
-              {["ALL", "HIGH", "MEDIUM", "LOW"].map((sev) => {
-                const isSelected = severityFilter === sev;
-                return (
-                  <button
-                    key={sev}
-                    onClick={() => setSeverityFilter(sev)}
-                    className={`text-[11px] px-2.5 py-1 rounded-xl font-bold transition-all ${
-                      isSelected
-                        ? sev === "HIGH"
-                          ? "bg-red-600 text-white shadow-2xs"
-                          : sev === "MEDIUM"
-                          ? "bg-amber-600 text-white shadow-2xs"
-                          : sev === "LOW"
-                          ? "bg-emerald-600 text-white shadow-2xs"
-                          : "bg-white text-slate-900 shadow-2xs"
-                        : "text-slate-600 hover:text-slate-900"
-                    }`}
-                  >
-                    {sev === "ALL" ? (isBn ? "সকল" : "All") : sev}
-                  </button>
-                );
-              })}
+              {/* Horizontal Scrollable Categories */}
+              <div
+                ref={categoryScrollRef}
+                onScroll={checkCategoryScroll}
+                className="flex items-center gap-1.5 overflow-x-auto scrollbar-none scroll-smooth py-0.5 flex-1 min-w-0"
+              >
+                {CATEGORY_TABS.map((tab) => {
+                  const isSelected = categoryFilter === tab.id;
+                  const Icon = tab.icon;
+                  return (
+                    <button
+                      key={tab.id}
+                      onClick={() => setCategoryFilter(tab.id)}
+                      className={`text-xs px-3 py-1.5 rounded-xl font-semibold border flex items-center gap-1.5 transition-all shrink-0 select-none ${
+                        isSelected
+                          ? "bg-slate-900 text-white border-slate-900 shadow-2xs ring-1 ring-slate-900/10"
+                          : "bg-white text-slate-600 border-slate-200 hover:text-slate-900 hover:bg-slate-50 hover:border-slate-300"
+                      }`}
+                    >
+                      <Icon className={`w-3.5 h-3.5 ${isSelected ? "text-white" : "text-slate-500"}`} />
+                      <span className="whitespace-nowrap">{isBn ? tab.labelBn : tab.labelEn}</span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Right scroll chevron */}
+              {canScrollRight && (
+                <button
+                  type="button"
+                  onClick={() => handleScrollCategories("right")}
+                  className="hidden md:inline-flex items-center justify-center w-7 h-7 rounded-lg bg-white border border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-50 shadow-2xs transition shrink-0 z-10"
+                  aria-label={isBn ? "ডানে স্ক্রোল করুন" : "Scroll categories right"}
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              )}
             </div>
           </div>
         </section>
