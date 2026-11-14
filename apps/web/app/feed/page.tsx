@@ -693,12 +693,12 @@ export default function FeedPage() {
                 }
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-9 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 focus:bg-white transition placeholder:text-slate-400"
+                className="w-full h-9 pl-9 pr-8 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 focus:bg-white transition placeholder:text-slate-400"
               />
               {searchQuery && (
                 <button
                   onClick={() => setSearchQuery("")}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 text-xs p-1 rounded-md"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 text-xs p-1 rounded-md"
                   aria-label={isBn ? "অনুসন্ধান মুছুন" : "Clear search"}
                 >
                   <X className="w-3.5 h-3.5" />
@@ -709,7 +709,7 @@ export default function FeedPage() {
             {/* Refinement Controls Cluster */}
             <div className="flex flex-wrap items-center gap-2 sm:gap-2.5 shrink-0">
               {/* Severity Segmented Switch */}
-              <div className="inline-flex items-center gap-0.5 bg-slate-100 p-1 rounded-xl border border-slate-200">
+              <div className="h-9 inline-flex items-center gap-0.5 bg-slate-100/90 p-1 rounded-xl border border-slate-200/90">
                 <span className="text-[10px] font-bold text-slate-500 pl-2 pr-1 uppercase tracking-wider select-none">
                   {isBn ? "তীব্রতা:" : "Severity:"}
                 </span>
@@ -719,7 +719,7 @@ export default function FeedPage() {
                     <button
                       key={opt.id}
                       onClick={() => setSeverityFilter(opt.id)}
-                      className={`text-xs px-2.5 py-1 rounded-lg font-semibold transition-all inline-flex items-center gap-1.5 ${
+                      className={`h-7 text-xs px-2.5 rounded-lg font-semibold transition-all inline-flex items-center gap-1.5 ${
                         isSelected
                           ? opt.activeClass
                           : "text-slate-600 hover:text-slate-900 hover:bg-slate-200/50"
@@ -735,26 +735,26 @@ export default function FeedPage() {
               {/* Night Filter Button */}
               <button
                 onClick={() => setNightFilter(!nightFilter)}
-                className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold border transition-all active:scale-95 shrink-0 ${
+                className={`h-9 inline-flex items-center gap-2 px-3.5 rounded-xl text-xs font-semibold border transition-all active:scale-95 shrink-0 ${
                   nightFilter
                     ? "bg-indigo-900 text-white border-indigo-900 shadow-2xs ring-1 ring-indigo-950/20"
                     : "bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200"
                 }`}
               >
                 <Moon className={`w-3.5 h-3.5 ${nightFilter ? "text-amber-300 fill-amber-300/30" : "text-indigo-600"}`} />
-                <span>{isBn ? "রাতের ঘটনা (৬টা - ৬টা)" : "Night Incidents (6PM - 6AM)"}</span>
+                <span className="whitespace-nowrap">{isBn ? "রাতের ঘটনা (৬টা - ৬টা)" : "Night Incidents (6PM - 6AM)"}</span>
               </button>
 
               {/* Sorting Dropdown */}
-              <div className="inline-flex items-center gap-1.5 shrink-0 bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5">
-                <SlidersHorizontal className="w-3.5 h-3.5 text-slate-500" />
-                <span className="text-[11px] font-semibold text-slate-500 hidden sm:inline">
+              <div className="h-9 inline-flex items-center gap-1.5 shrink-0 bg-slate-50 border border-slate-200 rounded-xl px-3 transition-colors hover:bg-slate-100/60 focus-within:ring-2 focus-within:ring-slate-900/10 focus-within:border-slate-400">
+                <SlidersHorizontal className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                <span className="text-xs font-semibold text-slate-500 hidden sm:inline select-none whitespace-nowrap">
                   {isBn ? "ক্রমবিন্যাস:" : "Sort:"}
                 </span>
                 <select
                   value={sortBy}
                   onChange={(e) => setSortBy(e.target.value as SortOption)}
-                  className="bg-transparent text-xs font-semibold text-slate-800 focus:outline-none cursor-pointer"
+                  className="h-full bg-transparent text-xs font-semibold text-slate-800 focus:outline-none cursor-pointer pr-1"
                 >
                   <option value="NEWEST">{isBn ? "সর্বশেষ প্রকাশিত" : "Newest First"}</option>
                   <option value="MOST_UPVOTED">{isBn ? "সর্বাধিক সমর্থিত" : "Most Upvoted"}</option>
@@ -766,7 +766,7 @@ export default function FeedPage() {
               {hasActiveFilters && (
                 <button
                   onClick={handleResetFilters}
-                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-semibold text-slate-500 hover:text-red-600 hover:bg-red-50 border border-transparent hover:border-red-200 transition-all"
+                  className="h-9 inline-flex items-center gap-1.5 px-3 rounded-xl text-xs font-semibold text-slate-500 hover:text-red-600 hover:bg-red-50 border border-slate-200 hover:border-red-200 transition-all shrink-0"
                   title={isBn ? "সকল ফিল্টার মুছুন" : "Reset all filters"}
                 >
                   <X className="w-3.5 h-3.5" />
@@ -784,7 +784,7 @@ export default function FeedPage() {
                 <button
                   type="button"
                   onClick={() => handleScrollCategories("left")}
-                  className="hidden md:inline-flex items-center justify-center w-7 h-7 rounded-lg bg-white border border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-50 shadow-2xs transition shrink-0 z-10"
+                  className="hidden md:inline-flex items-center justify-center w-8 h-8 rounded-xl bg-white border border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-50 shadow-2xs transition shrink-0 z-10"
                   aria-label={isBn ? "বামে স্ক্রোল করুন" : "Scroll categories left"}
                 >
                   <ChevronLeft className="w-4 h-4" />
@@ -804,7 +804,7 @@ export default function FeedPage() {
                     <button
                       key={tab.id}
                       onClick={() => setCategoryFilter(tab.id)}
-                      className={`text-xs px-3 py-1.5 rounded-xl font-semibold border flex items-center gap-1.5 transition-all shrink-0 select-none ${
+                      className={`h-8 text-xs px-3 rounded-xl font-semibold border inline-flex items-center gap-1.5 transition-all shrink-0 select-none ${
                         isSelected
                           ? "bg-slate-900 text-white border-slate-900 shadow-2xs ring-1 ring-slate-900/10"
                           : "bg-white text-slate-600 border-slate-200 hover:text-slate-900 hover:bg-slate-50 hover:border-slate-300"
@@ -822,7 +822,7 @@ export default function FeedPage() {
                 <button
                   type="button"
                   onClick={() => handleScrollCategories("right")}
-                  className="hidden md:inline-flex items-center justify-center w-7 h-7 rounded-lg bg-white border border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-50 shadow-2xs transition shrink-0 z-10"
+                  className="hidden md:inline-flex items-center justify-center w-8 h-8 rounded-xl bg-white border border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-50 shadow-2xs transition shrink-0 z-10"
                   aria-label={isBn ? "ডানে স্ক্রোল করুন" : "Scroll categories right"}
                 >
                   <ChevronRight className="w-4 h-4" />
