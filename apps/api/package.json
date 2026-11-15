@@ -10,6 +10,7 @@
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:seed:admin": "tsx src/scripts/seedAdmin.ts",
+    "db:seed:safezones": "tsx src/scripts/seedSafeZones.ts",
     "test:api": "tsx tests/framework/runner.ts --profile=all",
     "test:api:functional": "tsx tests/framework/runner.ts --profile=functional",
     "test:api:auth": "tsx tests/framework/runner.ts --profile=auth",

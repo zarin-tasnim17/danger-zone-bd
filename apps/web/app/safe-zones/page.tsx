@@ -156,6 +156,9 @@ export default function SafeZonesPage() {
 
       if (data && data.length > 0) {
         setSelectedZone((prev) => prev ?? data[0]);
+        setSelectedZone((prev) => (prev && data.some((z) => z.id === prev.id) ? prev : data[0]));
+      } else {
+        setSelectedZone(null);
       }
     } catch (err: any) {
       setError(err.message || "Failed to load verified safe shelters");
@@ -313,7 +316,7 @@ export default function SafeZonesPage() {
     const startLng = userLocation?.lng || 90.3905;
     router.push(
       `/routes?startLat=${startLat}&startLng=${startLng}&endLat=${zone.latitude}&endLng=${zone.longitude}&destName=${encodeURIComponent(
-        zone.name
+        isBn && zone.nameBn ? zone.nameBn : zone.name
       )}`
     );
   };
@@ -329,12 +332,13 @@ export default function SafeZonesPage() {
   const filteredSafeZones = useMemo(() => {
     return safeZones.filter((sz) => {
       // Type filter
-      if (typeFilter !== "ALL" && sz.type !== typeFilter) return false;
+      if (typeFilter !== "ALL" && normalizeSafeZoneType(sz.type) !== typeFilter) return false;
       // Search query
       if (!searchQuery.trim()) return true;
       const q = searchQuery.toLowerCase();
       return (
         sz.name.toLowerCase().includes(q) ||
+        (sz.nameBn ? sz.nameBn.toLowerCase().includes(q) : false) ||
         sz.type.toLowerCase().includes(q)
       );
     });
@@ -353,7 +357,7 @@ export default function SafeZonesPage() {
   // Helper styles by Safe Zone Type
   const iconMap = {
     hospital: Hospital,
-    police: Building2,
+    police: Shield,
     pharmacy: Pill,
   } as const;
 
@@ -564,8 +568,8 @@ export default function SafeZonesPage() {
                     : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100"
                 }`}
               >
-                <Building2 className="w-3.5 h-3.5 text-indigo-600" />
-                <span>{isBn ? "পুলিশ ফাঁড়ি / বক্স" : "Police Stations"}</span>
+                <Shield className="w-3.5 h-3.5 text-indigo-600" />
+                <span>{isBn ? "পুলিশ স্টেশন / বক্স" : "Police Stations"}</span>
                 <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${typeFilter === "POLICE_BOX" ? "bg-white/20 text-white" : "bg-indigo-100 text-indigo-700"}`}>
                   {counts.police}
                 </span>
@@ -859,7 +863,7 @@ export default function SafeZonesPage() {
 
                         {/* Title */}
                         <h3 className="text-sm font-bold text-slate-900 leading-snug mb-1">
-                          {sz.name}
+                          {isBn && sz.nameBn ? sz.nameBn : sz.name}
                         </h3>
 
                         {/* Coordinates & Copy */}
@@ -972,7 +976,7 @@ export default function SafeZonesPage() {
                         </div>
 
                         <h3 className="text-base font-bold text-slate-900 leading-snug mb-2">
-                          {sz.name}
+                          {isBn && sz.nameBn ? sz.nameBn : sz.name}
                         </h3>
 
                         <div className="flex items-center justify-between text-xs text-slate-500 font-mono mb-4">

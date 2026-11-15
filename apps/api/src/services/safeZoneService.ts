@@ -1,6 +1,7 @@
 import { prisma } from '../db/prisma';
 import { SafeZoneType, Prisma } from '@prisma/client';
 import { BoundingBox } from '../db/spatialUtils';
+import verifiedPoliceData from '../data/verifiedPoliceStations.json';
 
 export interface SafeZoneInput {
   name: string;
@@ -10,10 +11,10 @@ export interface SafeZoneInput {
 }
 
 /**
- * Default prominent safe havens across Bangladesh for immediate public safety utility
+ * Base prominent hospitals, pharmacies, and unique outpost boxes across Bangladesh
  */
-const DEFAULT_BANGLADESH_SAFE_ZONES: SafeZoneInput[] = [
-  // Hospitals
+const BASE_PROMINENT_SAFE_ZONES: SafeZoneInput[] = [
+  // 5 Hospitals
   {
     name: 'Khulna Medical College Hospital',
     type: 'HOSPITAL',
@@ -44,7 +45,7 @@ const DEFAULT_BANGLADESH_SAFE_ZONES: SafeZoneInput[] = [
     latitude: 24.8998,
     longitude: 91.8541,
   },
-  // Police Stations & Police Boxes
+  // 2 Unique Police Outposts (retained)
   {
     name: 'Shib Bari Police Box, Khulna',
     type: 'POLICE_BOX',
@@ -52,24 +53,12 @@ const DEFAULT_BANGLADESH_SAFE_ZONES: SafeZoneInput[] = [
     longitude: 89.5539,
   },
   {
-    name: 'Shahbagh Police Station, Dhaka',
-    type: 'POLICE_BOX',
-    latitude: 23.7381,
-    longitude: 90.3957,
-  },
-  {
     name: 'Farmgate Police Box, Dhaka',
     type: 'POLICE_BOX',
     latitude: 23.7565,
     longitude: 90.3888,
   },
-  {
-    name: 'Kotwali Police Station, Chittagong',
-    type: 'POLICE_BOX',
-    latitude: 22.3354,
-    longitude: 91.8325,
-  },
-  // 24/7 Pharmacies
+  // 2 24/7 Pharmacies
   {
     name: 'Labaid 24/7 Pharmacy, Dhanmondi',
     type: 'PHARMACY',
@@ -84,12 +73,54 @@ const DEFAULT_BANGLADESH_SAFE_ZONES: SafeZoneInput[] = [
   },
 ];
 
+/**
+ * 94 physically verified police stations across all divisions of Bangladesh.
+ * Formatted cleanly as "${station_name_en}, ${district}".
+ */
+const VERIFIED_POLICE_SAFE_ZONES: SafeZoneInput[] = (
+  (verifiedPoliceData as any).stations as Array<{
+    station_name_en: string;
+    district: string;
+    location: { latitude: number; longitude: number };
+  }>
+).map((s) => ({
+  name: `${s.station_name_en}, ${s.district}`,
+  type: 'POLICE_BOX' as SafeZoneType,
+  latitude: s.location.latitude,
+  longitude: s.location.longitude,
+}));
+
+/**
+ * Reconciled 103 prominent safe havens across Bangladesh:
+ * 5 hospitals + 2 pharmacies + 2 outposts + 94 verified police stations = 103 points
+ * Note: Duplicate approximate police stations (Shahbagh & Kotwali Chittagong) are superseded
+ * by their physically verified premises.
+ */
+export const DEFAULT_BANGLADESH_SAFE_ZONES: SafeZoneInput[] = [
+  ...BASE_PROMINENT_SAFE_ZONES,
+  ...VERIFIED_POLICE_SAFE_ZONES,
+];
+
+/**
+ * Bengali name lookup map for verified police stations
+ */
+const POLICE_STATION_BN_LOOKUP = new Map<string, string>();
+for (const s of ((verifiedPoliceData as any).stations || []) as Array<{
+  station_name_en: string;
+  station_name_bn: string;
+  district: string;
+}>) {
+  POLICE_STATION_BN_LOOKUP.set(`${s.station_name_en}, ${s.district}`, s.station_name_bn);
+  POLICE_STATION_BN_LOOKUP.set(s.station_name_en, s.station_name_bn);
+}
+
 let hasSeededSafeZones = false;
 let seedSafeZonesPromise: Promise<number> | null = null;
 
 /**
  * Automatically seeds prominent safe zones at most once per server process
- * lifecycle if the SafeZone table is empty.
+ * lifecycle if missing. Uses idempotent checks so pre-existing databases receive
+ * all 94 verified police stations without duplicating records.
  */
 export const seedDefaultSafeZones = async (): Promise<number> => {
   if (hasSeededSafeZones) {
@@ -102,18 +133,34 @@ export const seedDefaultSafeZones = async (): Promise<number> => {
 
   seedSafeZonesPromise = (async () => {
     const count = await prisma.safeZone.count();
-    if (count > 0) {
+    if (count >= DEFAULT_BANGLADESH_SAFE_ZONES.length) {
       hasSeededSafeZones = true;
-      return 0; // Already seeded
+      return 0; // Already fully seeded
     }
 
-    console.log('[SafeZoneService] Seeding default Bangladesh safe havens (hospitals, police boxes, pharmacies)...');
+    // Remove legacy approximate duplicate police stations if present
+    await prisma.$executeRaw`
+      DELETE FROM "SafeZone"
+      WHERE name IN ('Shahbagh Police Station, Dhaka', 'Kotwali Police Station, Chittagong')
+    `;
+
+    // Deduplicate any exact-name duplicate rows if present
+    await prisma.$executeRaw`
+      DELETE FROM "SafeZone"
+      WHERE id NOT IN (
+        SELECT DISTINCT ON (name) id
+        FROM "SafeZone"
+        ORDER BY name, "createdAt" ASC
+      )
+    `;
+
+    console.log('[SafeZoneService] Seeding reconciled Bangladesh safe havens (103 verified shelters)...');
     let inserted = 0;
 
     for (const zone of DEFAULT_BANGLADESH_SAFE_ZONES) {
-      await prisma.$executeRaw`
+      const res = await prisma.$executeRaw`
         INSERT INTO "SafeZone" (id, type, name, latitude, longitude, location, "createdAt", "updatedAt")
-        VALUES (
+        SELECT
           gen_random_uuid(),
           ${zone.type}::"SafeZoneType",
           ${zone.name},
@@ -122,9 +169,12 @@ export const seedDefaultSafeZones = async (): Promise<number> => {
           ST_SetSRID(ST_MakePoint(${zone.longitude}, ${zone.latitude}), 4326)::geography,
           NOW(),
           NOW()
+        WHERE NOT EXISTS (
+          SELECT 1 FROM "SafeZone"
+          WHERE name = ${zone.name}
         )
       `;
-      inserted++;
+      inserted += res;
     }
 
     hasSeededSafeZones = true;
@@ -170,7 +220,13 @@ export const fetchSafeZonesInBounds = async (
     ORDER BY name ASC
   `;
 
-  return safeZones;
+  return safeZones.map((zone: any) => {
+    const nameBn = POLICE_STATION_BN_LOOKUP.get(zone.name);
+    return {
+      ...zone,
+      ...(nameBn ? { nameBn } : {}),
+    };
+  });
 };
 
 /**
@@ -211,13 +267,17 @@ export const fetchNearbySafeZones = async (
     LIMIT 20
   `;
 
-  return safeZones.map((zone) => ({
-    ...zone,
-    distanceMeters:
-      zone.distanceMeters !== null && zone.distanceMeters !== undefined
-        ? Number(zone.distanceMeters)
-        : zone.distanceMeters,
-  }));
+  return safeZones.map((zone) => {
+    const nameBn = POLICE_STATION_BN_LOOKUP.get(zone.name);
+    return {
+      ...zone,
+      ...(nameBn ? { nameBn } : {}),
+      distanceMeters:
+        zone.distanceMeters !== null && zone.distanceMeters !== undefined
+          ? Number(zone.distanceMeters)
+          : zone.distanceMeters,
+    };
+  });
 };
 
 /**
