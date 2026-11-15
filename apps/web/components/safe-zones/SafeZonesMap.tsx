@@ -273,7 +273,7 @@ export default function SafeZonesMap({
 
                   {/* Title */}
                   <h4 className="text-xs font-bold text-slate-900 leading-snug mb-1">
-                    {zone.name}
+                    {isBn && zone.nameBn ? zone.nameBn : zone.name}
                   </h4>
 
                   <p className="text-[10px] text-slate-500 font-mono mb-3">
@@ -329,7 +329,7 @@ export default function SafeZonesMap({
         </div>
         <div className="flex items-center gap-1.5">
           <span className="w-2.5 h-2.5 rounded-full bg-indigo-600"></span>
-          <span>{isBn ? "পুলিশ বক্স" : "Police Box"}</span>
+          <span>{isBn ? "পুলিশ স্টেশন / বক্স" : "Police Station / Box"}</span>
         </div>
         <div className="flex items-center gap-1.5">
           <span className="w-2.5 h-2.5 rounded-full bg-emerald-600"></span>

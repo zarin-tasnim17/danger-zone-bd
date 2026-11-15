@@ -43,8 +43,8 @@ export function getSafeZonePresentation(
     case "POLICE_BOX":
       return {
         type: "POLICE_BOX",
-        label: isBn ? "পুলিশ বক্স / ফাঁড়ি" : "Police Outpost / Box",
-        shortLabel: isBn ? "পুলিশ বক্স" : "Police Box",
+        label: isBn ? "পুলিশ স্টেশন / বক্স" : "Police Station / Box",
+        shortLabel: isBn ? "পুলিশ স্টেশন" : "Police Station",
         iconKey: "police",
         badgeClass: "bg-indigo-50 text-indigo-700 border-indigo-200",
         boxClass: "bg-indigo-50 text-indigo-600 border-indigo-200",
