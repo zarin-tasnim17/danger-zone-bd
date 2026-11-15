@@ -13,6 +13,7 @@ import {
   classifyGeolocationAccuracy,
   sanitizeAccuracy,
   formatCoordinate,
+  isWithinBangladesh,
 } from '@repo/shared';
 
 export type MapTileLayer = 'google_streets' | 'google_hybrid' | 'osm';
@@ -102,6 +103,7 @@ export interface MapState {
   locationTimestamp: number | null;
   activeRequestId: number;
   activeWatchId: number | null;
+  hasAutoLocated: boolean;
 
   setMode: (mode: MapMode) => void;
   setCenter: (center: Coordinates, zoom?: number) => void;
@@ -111,6 +113,7 @@ export interface MapState {
   setIsLocating: (isLocating: boolean) => void;
   setAcquisitionStage: (stage: AcquisitionStage) => void;
   setActiveWatchId: (id: number | null) => void;
+  setHasAutoLocated: (hasAutoLocated: boolean) => void;
   incrementRequestId: () => number;
   setUserLocation: (
     coords: { lat: number; lng: number } | null,
@@ -120,6 +123,7 @@ export interface MapState {
     timestamp?: number | null
   ) => void;
   calibrateUserLocation: (coords: { lat: number; lng: number }, label?: string) => void;
+  centerOnUserLocation: (zoom?: number) => boolean;
   resetToBrowserGps: () => void;
   loadSavedLocation: () => SavedUserLocation | null;
   openCalibrationModal: () => void;
@@ -145,6 +149,7 @@ export const useMapStore = create<MapState>((set, get) => ({
   acquisitionStage: 'idle',
   activeRequestId: 0,
   activeWatchId: null,
+  hasAutoLocated: false,
   isCalibrationModalOpen: false,
   isLowAccuracy: false,
   dismissedCalibrationBanner: false,
@@ -194,6 +199,7 @@ export const useMapStore = create<MapState>((set, get) => ({
   setIsLocating: (isLocating) => set({ isLocating }),
   setAcquisitionStage: (acquisitionStage) => set({ acquisitionStage }),
   setActiveWatchId: (activeWatchId) => set({ activeWatchId }),
+  setHasAutoLocated: (hasAutoLocated) => set({ hasAutoLocated }),
   incrementRequestId: () => {
     let nextId = 0;
     set((state) => {
@@ -304,6 +310,24 @@ export const useMapStore = create<MapState>((set, get) => ({
     }));
   },
 
+  centerOnUserLocation: (zoom?: number) => {
+    const state = get();
+    const loc = state.userLocation;
+    if (!loc || !isWithinBangladesh(loc.lat, loc.lng)) {
+      return false;
+    }
+    const acc = state.userAccuracy;
+    const targetZoom =
+      zoom ??
+      (state.locationSource === 'calibrated' || (acc !== null && acc <= 30)
+        ? 17
+        : acc !== null && acc <= 100
+        ? 16
+        : 15);
+    state.flyTo(loc, targetZoom);
+    return true;
+  },
+
   resetToBrowserGps: () => {
     const currentWatchId = get().activeWatchId;
     if (typeof navigator !== 'undefined' && navigator.geolocation && currentWatchId !== null) {
@@ -334,6 +358,7 @@ export const useMapStore = create<MapState>((set, get) => ({
       locationTimestamp: null,
       isLowAccuracy: false,
       dismissedCalibrationBanner: false,
+      hasAutoLocated: false,
     }));
   },
 
