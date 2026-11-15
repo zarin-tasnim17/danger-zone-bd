@@ -1,5 +1,54 @@
 import { Language } from '@repo/shared';
 
+export const geoTranslations = {
+  en: {
+    status: {
+      acquiring: 'Acquiring initial location...',
+      refining: 'Refining GPS accuracy (current: ±{acc}m)...',
+      highAccuracy: 'High accuracy position locked (±{acc}m)',
+      goodAccuracy: 'Good location acquired (±{acc}m)',
+      moderateAccuracy: 'Moderate accuracy (±{acc}m). Refining...',
+      weakGps: 'Weak GPS signal (±{acc}m). Consider manual calibration.',
+      timeout: 'GPS refinement timed out. Displaying best available location.',
+      denied: 'Location permission denied. Please allow location access in your browser settings.',
+      insecureContext: 'Mobile GPS hardware requires a Secure Context (HTTPS or localhost).',
+      calibrated: 'Using saved calibrated location.',
+      resetGps: 'Reset to live browser GPS.',
+    },
+    tiers: {
+      HIGH: 'High Accuracy (±{acc}m)',
+      GOOD: 'Good (±{acc}m)',
+      MODERATE: 'Moderate (±{acc}m)',
+      LOW: 'Low Accuracy (±{acc}m)',
+      VERY_LOW: 'Very Low (±{acc}m)',
+      EXTREMELY_POOR: 'Extremely Poor (±{acc}m)',
+    },
+  },
+  bn: {
+    status: {
+      acquiring: 'অবস্থান সনাক্ত করা হচ্ছে...',
+      refining: 'জিপিএস নির্ভুলতা বৃদ্ধি করা হচ্ছে (বর্তমান: ±{acc}মি)...',
+      highAccuracy: 'উচ্চ নির্ভুলতার অবস্থান পাওয়া গেছে (±{acc}মি)',
+      goodAccuracy: 'ভাল অবস্থান পাওয়া গেছে (±{acc}মি)',
+      moderateAccuracy: 'মধ্যম মানের অবস্থান (±{acc}মি)। নির্ভুল করা হচ্ছে...',
+      weakGps: 'দুর্বল জিপিএস সংকেত (±{acc}মি)। সঠিক স্থান নির্বাচনে পিন সেট করুন।',
+      timeout: 'জিপিএস সনাক্তকরণের সময় শেষ। প্রাপ্ত সেরা অবস্থান দেখানো হচ্ছে।',
+      denied: 'লোকেশন পারমিশন পাওয়া যায়নি। ব্রাউজার সেটিংসে Location চালু করুন।',
+      insecureContext: 'মোবাইলে জিপিএস ব্যবহারের জন্য সুরক্ষিত (HTTPS) সংযোগ আবশ্যক।',
+      calibrated: 'সংরক্ষিত সঠিক অবস্থান ব্যবহৃত হচ্ছে।',
+      resetGps: 'ব্রাউজার লাইভ জিপিএসে ফিরুন।',
+    },
+    tiers: {
+      HIGH: 'উচ্চ নির্ভুলতা (±{acc}মি)',
+      GOOD: 'ভাল (±{acc}মি)',
+      MODERATE: 'মধ্যম (±{acc}মি)',
+      LOW: 'কম নির্ভুলতা (±{acc}মি)',
+      VERY_LOW: 'খুব দুর্বল (±{acc}মি)',
+      EXTREMELY_POOR: 'অত্যন্ত দুর্বল (±{acc}মি)',
+    },
+  },
+};
+
 export const translations = {
   en: {
     appName: 'Danger Zone ⚡',
@@ -12,6 +61,7 @@ export const translations = {
     reportIncident: 'Report Incident',
     searchPlaceholder: 'Search area, city or district...',
     activeAlerts: 'Active Incidents',
+    geo: geoTranslations.en,
     severity: {
       HIGH: 'High Alert',
       MEDIUM: 'Medium Caution',
@@ -65,6 +115,7 @@ export const translations = {
     reportIncident: 'রিপোর্ট করুন',
     searchPlaceholder: 'এলাকা বা জেলা খুঁজুন...',
     activeAlerts: 'সক্রিয় ঘটনা',
+    geo: geoTranslations.bn,
     severity: {
       HIGH: 'উচ্চ ঝুঁকি (High)',
       MEDIUM: 'মধ্যম সতর্কতা (Medium)',
