@@ -271,3 +271,81 @@ export function getSocketReportId(
 ): string | undefined {
   return payload?.reportId ?? payload?.id;
 }
+
+// ==========================================
+// Safe Routes Engine Types and Interfaces
+// ==========================================
+
+export const TRANSPORT_MODES = ['walking', 'driving'] as const;
+export type TransportMode = (typeof TRANSPORT_MODES)[number];
+
+export interface LocalizedHazard {
+  id: string;
+  category: string;
+  severity: ReportSeverity;
+  distanceFromRouteMeters: number;
+  latitude: number;
+  longitude: number;
+  description?: string | null;
+  approxStreetName?: string;
+}
+
+// Backward compatibility alias for legacy BypassedHazard
+export type BypassedHazard = LocalizedHazard;
+
+export interface NavigationStep {
+  instruction: string;
+  distanceMeters: number;
+  durationSeconds: number;
+  maneuverType: string;
+  location: [number, number]; // [latitude, longitude]
+  hazardWarning?: string;
+}
+
+export type RouteAlternativeId = 'safest' | 'fastest' | 'alternative';
+
+export type RouteSafetyRating =
+  | 'LOW_HAZARD_EXPOSURE'
+  | 'MODERATE_HAZARD_EXPOSURE'
+  | 'HIGH_HAZARD_EXPOSURE';
+
+export type LegacyRouteSafetyRating =
+  | 'CLEAR'
+  | 'HIGH_SAFETY'
+  | 'MODERATE_RISK';
+
+export type OverallRouteSafetyRating =
+  | RouteSafetyRating
+  | LegacyRouteSafetyRating;
+
+export interface RouteAlternative {
+  id: RouteAlternativeId;
+  title: string;
+  isRecommended: boolean;
+  distanceMeters: number;
+  durationSeconds: number;
+  safetyScore: number; // 15 - 95 (explainable, capped)
+  safetyRating: RouteSafetyRating;
+  hazardCount: number;
+  hazards: LocalizedHazard[];
+  geometry: [number, number][]; // Street-following [latitude, longitude]
+  steps: NavigationStep[];
+}
+
+export interface SafeRouteOutput {
+  // Legacy backward-compatible fields
+  origin: [number, number]; // [latitude, longitude]
+  destination: [number, number]; // [latitude, longitude]
+  directDistanceMeters: number;
+  safeDistanceMeters: number;
+  safetyRating: OverallRouteSafetyRating;
+  bypassedHazardsCount: number;
+  bypassedHazards: LocalizedHazard[];
+  waypoints: [number, number][]; // [latitude, longitude][]
+  // Enhanced multi-route fields
+  mode: TransportMode;
+  routes: RouteAlternative[];
+  tradeOffSummary?: string;
+}
+
+export type EnhancedSafeRouteResponse = SafeRouteOutput;
