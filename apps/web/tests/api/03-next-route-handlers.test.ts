@@ -88,8 +88,17 @@ describe('[Next Route Handlers][Mocked] /api/health & /api/cron/news-crawl', () 
     assert.equal(body.success, true);
     assert.equal(body.backendStatus, 200);
 
+    // Also verify query parameter authentication (?key=...)
+    const queryOkRes = await cronGet(
+      new Request('http://localhost/api/cron/news-crawl?key=super-secret-cron-token-123456')
+    );
+    assert.equal(queryOkRes.status, 200);
+    const queryBody = await queryOkRes.json();
+    assert.equal(queryBody.success, true);
+
     const forwarded = fetchMock.getCallsFor('/api/v1/cron/news-crawl', 'POST');
-    assert.equal(forwarded.length, 1);
+    assert.equal(forwarded.length, 2);
     assert.equal(forwarded[0].headers['authorization'], 'Bearer super-secret-cron-token-123456');
+    assert.equal(forwarded[1].headers['authorization'], 'Bearer super-secret-cron-token-123456');
   });
 });

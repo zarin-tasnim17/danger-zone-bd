@@ -23,3 +23,5 @@ services:
         generateValue: true
       - key: JWT_REFRESH_SECRET
         generateValue: true
+      - key: CRON_SECRET
+        value: danger-zone-bd-cron-crawler-secret-2026
