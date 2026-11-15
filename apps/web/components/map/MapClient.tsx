@@ -130,10 +130,14 @@ function MapViewUpdater() {
 
     // Only initiate flight if programmatic target actually differs from current camera
     if (distLat > 0.0001 || distLng > 0.0001 || distZoom > 0.1) {
-      map.flyTo([targetCommand.lat, targetCommand.lng], targetZoom, {
-        animate: true,
-        duration: 1.0,
-      });
+      try {
+        map.flyTo([targetCommand.lat, targetCommand.lng], targetZoom, {
+          animate: true,
+          duration: 1.0,
+        });
+      } catch {
+        map.setView([targetCommand.lat, targetCommand.lng], targetZoom);
+      }
     }
   }, [targetCommand, map]);
 
@@ -181,6 +185,11 @@ function MapResizeHandler() {
 
     observer.observe(container);
 
+    // Initial layout alignment on mount for mobile dynamic viewport heights
+    const initialTimer = setTimeout(() => {
+      map.invalidateSize({ pan: false });
+    }, 150);
+
     const handleWindowResize = () => {
       map.invalidateSize({ pan: false });
     };
@@ -188,6 +197,7 @@ function MapResizeHandler() {
 
     return () => {
       observer.disconnect();
+      if (initialTimer) clearTimeout(initialTimer);
       if (resizeTimer) clearTimeout(resizeTimer);
       window.removeEventListener("resize", handleWindowResize);
     };
@@ -204,8 +214,7 @@ export default function MapClient() {
 
   const center = useMapStore((state) => state.center);
   const zoom = useMapStore((state) => state.zoom);
-  const setCenter = useMapStore((state) => state.setCenter);
-  const setZoom = useMapStore((state) => state.setZoom);
+  const flyTo = useMapStore((state) => state.flyTo);
   const activeTileLayer = useMapStore((state) => state.activeTileLayer);
   const currentTileConfig = MAP_LAYERS[activeTileLayer] || MAP_LAYERS.google_streets;
   const userLocation = useMapStore((state) => state.userLocation);
@@ -314,21 +323,14 @@ export default function MapClient() {
 
   const adjustCameraForAccuracy = useCallback(
     (coords: { lat: number; lng: number }, acc: number | null) => {
-      if (!mapRef.current) return;
-      if (acc && acc > 100) {
-        try {
-          const latLng = L.latLng(coords.lat, coords.lng);
-          const bounds = latLng.toBounds(acc * 2);
-          mapRef.current.fitBounds(bounds, { maxZoom: 16, padding: [40, 40], animate: true });
-        } catch {
-          mapRef.current.flyTo([coords.lat, coords.lng], 15, { animate: true, duration: 1.0 });
-        }
-      } else {
-        const targetZoom = acc && acc <= 30 ? 17 : acc && acc <= 100 ? 16 : 15;
-        mapRef.current.flyTo([coords.lat, coords.lng], targetZoom, { animate: true, duration: 1.0 });
-      }
+      // Determine appropriate zoom level based on GPS accuracy:
+      // High accuracy (<= 30m): zoom 17 (close street / building level)
+      // Moderate accuracy (<= 100m, e.g. 30-80m): zoom 16 (neighborhood / road level)
+      // Coarse / low accuracy (> 100m): zoom 15 (general vicinity level)
+      const targetZoom = acc !== null && acc <= 30 ? 17 : acc !== null && acc <= 100 ? 16 : 15;
+      flyTo(coords, targetZoom);
     },
-    []
+    [flyTo]
   );
 
   const activeWatchIdRef = useRef<number | null>(null);
@@ -377,13 +379,11 @@ export default function MapClient() {
         'calibrated',
         saved.label
       );
-      setCenter({ lat: saved.lat, lng: saved.lng });
-      setZoom(17);
-      mapRef.current?.flyTo([saved.lat, saved.lng], 17, { animate: true, duration: 1.2 });
+      flyTo({ lat: saved.lat, lng: saved.lng }, 17);
     } else {
       openCalibrationModal();
     }
-  }, [loadSavedLocation, setUserLocation, setCenter, setZoom, openCalibrationModal, stopActiveAcquisition, setIsLocating]);
+  }, [loadSavedLocation, setUserLocation, flyTo, openCalibrationModal, stopActiveAcquisition, setIsLocating]);
 
   // Smart Location Initialization: Prioritize saved calibrated location; auto-locate silently ONLY if permission is already granted
   useEffect(() => {
@@ -400,8 +400,7 @@ export default function MapClient() {
         'calibrated',
         saved.label
       );
-      setCenter({ lat: saved.lat, lng: saved.lng });
-      setZoom(16);
+      flyTo({ lat: saved.lat, lng: saved.lng }, 16);
     }
 
     // 2. Track live browser geolocation permission state without popping an unprompted dialog
@@ -430,7 +429,6 @@ export default function MapClient() {
                 setUserLocation(coords, acc, 'gps', undefined, pos.timestamp);
 
                 if (isWithinBangladesh(coords.lat, coords.lng)) {
-                  setCenter(coords);
                   adjustCameraForAccuracy(coords, acc);
                 } else {
                   console.info("[Geo] Device is outside Bangladesh boundaries. Displaying national view.");
@@ -453,7 +451,7 @@ export default function MapClient() {
         permStatus.removeEventListener('change', handlePermChange);
       }
     };
-  }, [setCenter, setZoom, loadSavedLocation, setUserLocation, adjustCameraForAccuracy]);
+  }, [flyTo, loadSavedLocation, setUserLocation, adjustCameraForAccuracy]);
 
   // Request browser geolocation (manual button click): High-accuracy with progressive GPS refinement loop
   const handleLocateMe = useCallback(() => {
@@ -461,6 +459,22 @@ export default function MapClient() {
     stopActiveAcquisition();
     const reqId = incrementRequestId();
     bestAccuracyRef.current = Infinity;
+
+    // If user already has a calibrated location pin, smoothly fly to it
+    if (useMapStore.getState().locationSource === "calibrated") {
+      const loc = useMapStore.getState().userLocation;
+      if (loc && isWithinBangladesh(loc.lat, loc.lng)) {
+        flyTo(loc, 17);
+        return;
+      }
+    }
+
+    // If we already have a valid position in store from earlier, center immediately to avoid perception of lag
+    const existingLoc = useMapStore.getState().userLocation;
+    const existingAcc = useMapStore.getState().userAccuracy;
+    if (existingLoc && isWithinBangladesh(existingLoc.lat, existingLoc.lng)) {
+      adjustCameraForAccuracy(existingLoc, existingAcc);
+    }
 
     // 2. Check for Secure Context on mobile (iOS/Android block geolocation on insecure HTTP)
     if (
@@ -513,7 +527,6 @@ export default function MapClient() {
           }
 
           setUserLocation(coords, acc, "gps", undefined, coarsePos.timestamp || Date.now());
-          setCenter(coords);
           adjustCameraForAccuracy(coords, acc);
           setIsLocating(false);
           setAcquisitionStage("timeout");
@@ -538,7 +551,7 @@ export default function MapClient() {
       );
     };
 
-    // 3. Start Watchdog Timer (11s) to prevent runaway battery drain or infinite spinner
+    // 3. Start Watchdog Timer (15s) to prevent runaway battery drain or infinite spinner
     watchdogTimerRef.current = setTimeout(() => {
       if (useMapStore.getState().activeRequestId === reqId) {
         stopActiveAcquisition();
@@ -557,7 +570,7 @@ export default function MapClient() {
           }
         }
       }
-    }, 11000);
+    }, 15000);
 
     // 4. Position update handler with timestamp freshness, accuracy progression, and concurrency guards
     const onPositionUpdate = (pos: GeolocationPosition) => {
@@ -610,9 +623,8 @@ export default function MapClient() {
 
       // Commit to store
       setUserLocation(coords, acc, "gps", undefined, pos.timestamp || Date.now());
-      setCenter(coords);
 
-      // Adjust camera viewport dynamically
+      // Adjust camera viewport dynamically (unifying center & target zoom 16-17)
       adjustCameraForAccuracy(coords, acc);
 
       // Clean termination when target high accuracy (<= 15m) is achieved
@@ -701,7 +713,7 @@ export default function MapClient() {
     setIsLocating,
     setAcquisitionStage,
     setUserLocation,
-    setCenter,
+    flyTo,
     adjustCameraForAccuracy,
     setIsLowAccuracy,
   ]);
@@ -761,9 +773,7 @@ export default function MapClient() {
         <div className="pointer-events-auto w-full sm:w-72 md:w-80 shadow-md">
           <LocationSearchBar
             onSelectLocation={(loc: GeocodedLocation) => {
-              setCenter({ lat: loc.lat, lng: loc.lng });
-              setZoom(17);
-              mapRef.current?.flyTo([loc.lat, loc.lng], 17, { animate: true, duration: 1.2 });
+              flyTo({ lat: loc.lat, lng: loc.lng }, 17);
             }}
           />
         </div>
@@ -921,6 +931,7 @@ export default function MapClient() {
             <Marker
               position={[userLocation.lat, userLocation.lng]}
               icon={userGpsIcon}
+              zIndexOffset={2000}
               draggable={true}
               eventHandlers={{
                 dragend: (e) => {

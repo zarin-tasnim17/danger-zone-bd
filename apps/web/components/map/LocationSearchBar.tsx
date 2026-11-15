@@ -29,7 +29,6 @@ export default function LocationSearchBar({
   const { language } = useLanguageStore();
   const isBn = language === "bn";
   const calibrateUserLocation = useMapStore((state) => state.calibrateUserLocation);
-  const setZoom = useMapStore((state) => state.setZoom);
 
   const [query, setQuery] = useState(initialQuery);
   const [results, setResults] = useState<GeocodedLocation[]>([]);
@@ -160,7 +159,6 @@ export default function LocationSearchBar({
     setIsOpen(false);
     setResults([]);
     onSelectLocation(item);
-    setZoom(16);
   };
 
   const handleClear = () => {

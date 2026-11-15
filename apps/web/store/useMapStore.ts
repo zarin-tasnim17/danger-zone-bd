@@ -104,7 +104,7 @@ export interface MapState {
   activeWatchId: number | null;
 
   setMode: (mode: MapMode) => void;
-  setCenter: (center: Coordinates) => void;
+  setCenter: (center: Coordinates, zoom?: number) => void;
   setZoom: (zoom: number) => void;
   flyTo: (coords: Coordinates, zoom?: number) => void;
   setActiveTileLayer: (layer: MapTileLayer) => void;
@@ -152,16 +152,20 @@ export const useMapStore = create<MapState>((set, get) => ({
   targetCommand: null,
 
   setMode: (mode) => set({ mode }),
-  setCenter: (center) =>
-    set((state) => ({
-      center,
-      targetCommand: {
-        lat: center.lat,
-        lng: center.lng,
-        zoom: state.zoom,
-        id: Date.now() + Math.random(),
-      },
-    })),
+  setCenter: (center, zoom) =>
+    set((state) => {
+      const targetZoom = zoom ?? state.zoom;
+      return {
+        center,
+        zoom: targetZoom,
+        targetCommand: {
+          lat: center.lat,
+          lng: center.lng,
+          zoom: targetZoom,
+          id: Date.now() + Math.random(),
+        },
+      };
+    }),
   setZoom: (zoom) =>
     set((state) => ({
       zoom,
@@ -173,16 +177,19 @@ export const useMapStore = create<MapState>((set, get) => ({
       },
     })),
   flyTo: (coords, zoom) =>
-    set((state) => ({
-      center: coords,
-      zoom: zoom ?? state.zoom,
-      targetCommand: {
-        lat: coords.lat,
-        lng: coords.lng,
-        zoom: zoom ?? state.zoom,
-        id: Date.now() + Math.random(),
-      },
-    })),
+    set((state) => {
+      const targetZoom = zoom ?? state.zoom;
+      return {
+        center: coords,
+        zoom: targetZoom,
+        targetCommand: {
+          lat: coords.lat,
+          lng: coords.lng,
+          zoom: targetZoom,
+          id: Date.now() + Math.random(),
+        },
+      };
+    }),
   setActiveTileLayer: (activeTileLayer) => set({ activeTileLayer }),
   setIsLocating: (isLocating) => set({ isLocating }),
   setAcquisitionStage: (acquisitionStage) => set({ acquisitionStage }),

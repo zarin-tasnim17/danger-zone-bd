@@ -67,8 +67,7 @@ export default function IncidentFeed({ onIncidentSelect }: { onIncidentSelect?: 
   const voteIncident = useIncidentStore((state) => state.voteIncident);
   const addContextUpdate = useIncidentStore((state) => state.addContextUpdate);
   const { selectedSeverity, setSeverity, selectedCategories, searchQuery, resetFilters } = useFilterStore();
-  const setCenter = useMapStore((state) => state.setCenter);
-  const setZoom = useMapStore((state) => state.setZoom);
+  const flyTo = useMapStore((state) => state.flyTo);
   const t = getTranslation(language);
   const isBn = language === "bn";
 
@@ -114,8 +113,7 @@ export default function IncidentFeed({ onIncidentSelect }: { onIncidentSelect?: 
 
   const handleFocusIncident = (incident: DangerIncident) => {
     setSelectedIncidentId(incident.id);
-    setCenter(incident.coordinates);
-    setZoom(16);
+    flyTo(incident.coordinates, 16);
     if (onIncidentSelect) {
       onIncidentSelect();
     }
@@ -294,8 +292,7 @@ export default function IncidentFeed({ onIncidentSelect }: { onIncidentSelect?: 
               <div className="flex flex-col gap-2 pt-1 items-center">
                 <button
                   onClick={() => {
-                    setCenter({ lat: 23.685, lng: 90.3563 });
-                    setZoom(7);
+                    flyTo({ lat: 23.685, lng: 90.3563 }, 7);
                   }}
                   className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold shadow-xs transition-all active:scale-95 cursor-pointer"
                 >
