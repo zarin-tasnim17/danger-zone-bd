@@ -13,6 +13,7 @@ import {
   STORAGE_KEY_USER_LOCATION,
   SavedUserLocation,
 } from '@/store/useMapStore';
+import { isMobileDevice } from '@/lib/deviceUtils';
 import { installBrowserGlobals, BrowserSandboxHandle } from '../framework/domEnv';
 
 describe('[Unit][MapPinpoint] GPS Pinpoint Location, Interactive Calibration & Map Camera Synchronization', () => {
@@ -445,5 +446,286 @@ describe('[Unit][MapPinpoint] GPS Pinpoint Location, Interactive Calibration & M
     assert.equal(updatedState.targetCommand?.lat, knownUserLocation.lat);
     assert.equal(updatedState.targetCommand?.lng, knownUserLocation.lng);
     assert.equal(updatedState.targetCommand?.zoom, 17);
+  });
+
+  // -------------------------------------------------------------------------
+  // Test 11: centerOnUserLocation Dynamic Zoom & Boundary Guard
+  // -------------------------------------------------------------------------
+  it('Test 11: centerOnUserLocation dynamically selects zoom tier (17/16/15) based on accuracy and guards bounds', () => {
+    const store = useMapStore.getState();
+
+    // 1. When userLocation is null, returns false without throwing or updating targetCommand
+    useMapStore.setState({ userLocation: null, targetCommand: null });
+    assert.equal(store.centerOnUserLocation(), false);
+    assert.equal(useMapStore.getState().targetCommand, null);
+
+    // 2. When userLocation is outside Bangladesh, returns false and suppresses flight
+    useMapStore.setState({ userLocation: { lat: 10.0, lng: 20.0 }, targetCommand: null });
+    assert.equal(store.centerOnUserLocation(), false);
+    assert.equal(useMapStore.getState().targetCommand, null);
+
+    // 3. High accuracy (<= 30m): target zoom must be 17
+    const dhakaLocation = { lat: 23.8103, lng: 90.4125 };
+    useMapStore.setState({
+      userLocation: dhakaLocation,
+      userAccuracy: 18,
+      center: { lat: 22.0, lng: 90.0 },
+      zoom: 8,
+      targetCommand: null,
+    });
+    assert.equal(store.centerOnUserLocation(), true);
+    let state = useMapStore.getState();
+    assert.equal(state.zoom, 17);
+    assert.equal(state.targetCommand?.zoom, 17);
+    assert.equal(state.targetCommand?.lat, dhakaLocation.lat);
+    assert.equal(state.targetCommand?.lng, dhakaLocation.lng);
+
+    // 4. Moderate accuracy (<= 100m, e.g. 60m): target zoom must be 16
+    useMapStore.setState({
+      userLocation: dhakaLocation,
+      userAccuracy: 60,
+      zoom: 8,
+      targetCommand: null,
+    });
+    assert.equal(store.centerOnUserLocation(), true);
+    state = useMapStore.getState();
+    assert.equal(state.zoom, 16);
+    assert.equal(state.targetCommand?.zoom, 16);
+
+    // 5. Coarse accuracy (> 100m, e.g. 350m): target zoom must be 15
+    useMapStore.setState({
+      userLocation: dhakaLocation,
+      userAccuracy: 350,
+      zoom: 8,
+      targetCommand: null,
+    });
+    assert.equal(store.centerOnUserLocation(), true);
+    state = useMapStore.getState();
+    assert.equal(state.zoom, 15);
+    assert.equal(state.targetCommand?.zoom, 15);
+
+    // 6. Calibrated location: target zoom must always be street-level 17
+    useMapStore.setState({
+      userLocation: dhakaLocation,
+      userAccuracy: 25,
+      locationSource: 'calibrated',
+      zoom: 8,
+      targetCommand: null,
+    });
+    assert.equal(store.centerOnUserLocation(), true);
+    state = useMapStore.getState();
+    assert.equal(state.zoom, 17, 'Calibrated location must default to street-level zoom 17');
+    assert.equal(state.targetCommand?.zoom, 17);
+  });
+
+  // -------------------------------------------------------------------------
+  // Test 12: isMobileDevice Detection Utility
+  // -------------------------------------------------------------------------
+  it('Test 12: isMobileDevice correctly identifies mobile devices, touch screens, and desktop environments', () => {
+    const originalWindow = globalThis.window;
+    const originalNavigator = globalThis.navigator;
+
+    try {
+      // 1. Android user-agent
+      Object.defineProperty(globalThis, 'navigator', {
+        configurable: true,
+        writable: true,
+        value: { userAgent: 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 Mobile Safari/537.36' },
+      });
+      (globalThis as any).window = { innerWidth: 412 };
+      assert.equal(isMobileDevice(), true, 'Android device UA must be detected as mobile');
+
+      // 2. iPhone user-agent
+      Object.defineProperty(globalThis, 'navigator', {
+        configurable: true,
+        writable: true,
+        value: { userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15' },
+      });
+      (globalThis as any).window = { innerWidth: 393 };
+      assert.equal(isMobileDevice(), true, 'iPhone UA must be detected as mobile');
+
+      // 3. Small screen viewport (<= 768px)
+      Object.defineProperty(globalThis, 'navigator', {
+        configurable: true,
+        writable: true,
+        value: { userAgent: 'CustomBrowser/1.0' },
+      });
+      (globalThis as any).window = { innerWidth: 375 };
+      assert.equal(isMobileDevice(), true, 'Screen width <= 768px must be treated as mobile');
+
+      // 4. Desktop with wide screen and no touch
+      Object.defineProperty(globalThis, 'navigator', {
+        configurable: true,
+        writable: true,
+        value: { userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124.0.0.0 Safari/537.36', maxTouchPoints: 0 },
+      });
+      (globalThis as any).window = { innerWidth: 1440 };
+      assert.equal(isMobileDevice(), false, 'Desktop wide screen without touch must return false');
+
+      // 5. iPadOS 13+ (Macintosh UA with maxTouchPoints > 1)
+      Object.defineProperty(globalThis, 'navigator', {
+        configurable: true,
+        writable: true,
+        value: {
+          userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15',
+          maxTouchPoints: 5,
+        },
+      });
+      (globalThis as any).window = { innerWidth: 1024 };
+      assert.equal(isMobileDevice(), true, 'iPadOS 13+ tablet with touch must be detected as mobile');
+    } finally {
+      Object.defineProperty(globalThis, 'navigator', {
+        configurable: true,
+        writable: true,
+        value: originalNavigator,
+      });
+      (globalThis as any).window = originalWindow;
+    }
+  });
+
+  // -------------------------------------------------------------------------
+  // Test 13: Auto-detection on Mobile Mount Automatically Centers & Zooms
+  // -------------------------------------------------------------------------
+  it('Test 13: Mobile auto-location on mount acquires device GPS, updates store, and auto-zooms without manual click', () => {
+    const store = useMapStore.getState();
+
+    // Reset store to national view
+    useMapStore.setState({
+      center: { lat: 23.685, lng: 90.3563 },
+      zoom: 7,
+      userLocation: null,
+      userAccuracy: null,
+      targetCommand: null,
+      hasAutoLocated: false,
+    });
+
+    // Simulate mobile auto-detection flow on mount
+    store.setIsLocating(true);
+    store.setAcquisitionStage('acquiring');
+    store.setHasAutoLocated(true);
+
+    // Device emits real GPS coordinates in Bangladesh with good accuracy
+    const gpsLocation = { lat: 23.7508, lng: 90.3842 };
+    const gpsAccuracy = 18; // <= 30m -> zoom 17
+
+    store.setUserLocation(gpsLocation, gpsAccuracy, 'gps', undefined, Date.now());
+    store.centerOnUserLocation();
+    store.setIsLocating(false);
+    store.setAcquisitionStage('success');
+
+    const state = useMapStore.getState();
+    assert.deepEqual(state.userLocation, gpsLocation);
+    assert.equal(state.userAccuracy, 18);
+    assert.equal(state.userAccuracyTier, 'GOOD');
+    assert.equal(state.hasAutoLocated, true);
+    assert.equal(state.zoom, 17, 'Auto-detection must auto-zoom map camera to street level (17)');
+    assert.notEqual(state.targetCommand, null);
+    assert.equal(state.targetCommand?.lat, gpsLocation.lat);
+    assert.equal(state.targetCommand?.lng, gpsLocation.lng);
+    assert.equal(state.targetCommand?.zoom, 17);
+  });
+
+  // -------------------------------------------------------------------------
+  // Test 14: Desktop Mount Permission Handling
+  // -------------------------------------------------------------------------
+  it('Test 14: Desktop mount auto-locates when permission is already granted and suppresses unprompted prompts when state is prompt', () => {
+    const store = useMapStore.getState();
+
+    // Case 1: Permission is already granted on desktop -> initiates auto-location
+    const desktopGrantedPos = { lat: 24.3636, lng: 88.6241 }; // Rajshahi
+    store.setUserLocation(desktopGrantedPos, 25, 'gps');
+    store.centerOnUserLocation();
+
+    let state = useMapStore.getState();
+    assert.deepEqual(state.userLocation, desktopGrantedPos);
+    assert.equal(state.zoom, 17);
+    assert.equal(state.targetCommand?.lat, desktopGrantedPos.lat);
+
+    // Case 2: Reset to browser GPS resets hasAutoLocated cleanly
+    store.resetToBrowserGps();
+    state = useMapStore.getState();
+    assert.equal(state.userLocation, null);
+    assert.equal(state.hasAutoLocated, false);
+  });
+
+  // -------------------------------------------------------------------------
+  // Test 15: Panning Away and Pressing "My Location" Returns to User Position
+  // -------------------------------------------------------------------------
+  it('Test 15: Panning map away and pressing My Location at any time restores focus to user location immediately', () => {
+    const store = useMapStore.getState();
+
+    // User is located in Dhaka
+    const userPos = { lat: 23.7508, lng: 90.3842 };
+    store.setUserLocation(userPos, 15, 'gps');
+    store.centerOnUserLocation();
+
+    let state = useMapStore.getState();
+    assert.equal(state.zoom, 17);
+    assert.equal(state.targetCommand?.lat, userPos.lat);
+
+    // User pans away to Sylhet at zoom 9
+    useMapStore.setState({
+      center: { lat: 24.8949, lng: 91.8687 },
+      zoom: 9,
+    });
+
+    state = useMapStore.getState();
+    assert.equal(state.center.lat, 24.8949);
+    assert.equal(state.zoom, 9);
+
+    // User presses "My Location" (calling centerOnUserLocation)
+    const recentered = store.centerOnUserLocation();
+    assert.equal(recentered, true);
+
+    state = useMapStore.getState();
+    assert.equal(state.center.lat, userPos.lat);
+    assert.equal(state.center.lng, userPos.lng);
+    assert.equal(state.zoom, 17);
+    assert.equal(state.targetCommand?.lat, userPos.lat);
+    assert.equal(state.targetCommand?.lng, userPos.lng);
+    assert.equal(state.targetCommand?.zoom, 17);
+  });
+
+  // -------------------------------------------------------------------------
+  // Test 16: Calibrated vs GPS Zoom Consistency and Re-centering Preservation
+  // -------------------------------------------------------------------------
+  it('Test 16: Calibrated location centerOnUserLocation consistently selects street-level zoom 17 without accuracy degradation', () => {
+    const store = useMapStore.getState();
+
+    // Reset store
+    useMapStore.setState({
+      center: { lat: 23.685, lng: 90.3563 },
+      zoom: 7,
+      userLocation: null,
+      userAccuracy: null,
+      locationSource: null,
+      targetCommand: null,
+    });
+
+    // Calibrate location
+    const calibratedPos = { lat: 23.7925, lng: 90.4078 }; // Banani
+    store.calibrateUserLocation(calibratedPos, 'My Office');
+
+    let state = useMapStore.getState();
+    assert.deepEqual(state.userLocation, calibratedPos);
+    assert.equal(state.locationSource, 'calibrated');
+
+    // User pans to Khulna at zoom 10
+    useMapStore.setState({
+      center: { lat: 22.8456, lng: 89.5403 },
+      zoom: 10,
+    });
+
+    // Press "My Location" (centerOnUserLocation)
+    const success = store.centerOnUserLocation();
+    assert.equal(success, true);
+
+    state = useMapStore.getState();
+    assert.equal(state.center.lat, calibratedPos.lat);
+    assert.equal(state.center.lng, calibratedPos.lng);
+    assert.equal(state.zoom, 17, 'Calibrated re-centering must auto-zoom to street level 17');
+    assert.equal(state.targetCommand?.zoom, 17);
+    assert.equal(state.targetCommand?.lat, calibratedPos.lat);
+    assert.equal(state.targetCommand?.lng, calibratedPos.lng);
   });
 });
