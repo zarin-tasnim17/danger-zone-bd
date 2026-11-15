@@ -27,6 +27,7 @@ const envSchema = z.object({
   VAPID_PUBLIC_KEY: z.string().optional(),
   VAPID_PRIVATE_KEY: z.string().optional(),
   VAPID_SUBJECT: z.string().optional(),
+  OSRM_BASE_URL: z.string().default('https://router.project-osrm.org'),
 });
 
 const _env = envSchema.safeParse(process.env);

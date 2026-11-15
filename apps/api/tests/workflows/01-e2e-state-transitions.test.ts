@@ -118,8 +118,8 @@ describe('Workflows Suite: Multi-Step End-to-End Business Journeys', () => {
       await responder.client.post('/api/v1/reports', {
         category: 'ROBBERY',
         severity: 'HIGH',
-        latitude: 23.748,
-        longitude: 90.38,
+        latitude: 23.7396,
+        longitude: 90.3832,
         description: 'E2E active corridor blockade',
       }),
       201

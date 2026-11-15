@@ -349,3 +349,4 @@ export interface SafeRouteOutput {
 }
 
 export type EnhancedSafeRouteResponse = SafeRouteOutput;
+
