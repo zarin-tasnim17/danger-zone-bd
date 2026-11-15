@@ -44,8 +44,7 @@ export default function LocationCalibrationModal() {
     closeCalibrationModal,
     calibrateUserLocation,
     center,
-    setCenter,
-    setZoom,
+    flyTo,
     locationSource,
   } = useMapStore();
   const { language } = useLanguageStore();
@@ -127,8 +126,7 @@ export default function LocationCalibrationModal() {
 
   const handleSelectLocation = (lat: number, lng: number, label: string) => {
     calibrateUserLocation({ lat, lng }, label);
-    setCenter({ lat, lng });
-    setZoom(17);
+    flyTo({ lat, lng }, 17);
     closeCalibrationModal();
   };
 

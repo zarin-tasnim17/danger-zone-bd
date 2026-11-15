@@ -175,9 +175,15 @@ importers:
       tailwindcss:
         specifier: ^3.4.1
         version: 3.4.19(tsx@4.23.13)
+      tsx:
+        specifier: ^4.19.1
+        version: 4.23.13
       typescript:
         specifier: ^5
         version: 5.9.3
+      zod:
+        specifier: ^4.5.4
+        version: 4.6.7
 
   packages/shared:
     devDependencies:

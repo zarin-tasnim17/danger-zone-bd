@@ -251,4 +251,199 @@ describe('[Unit][MapPinpoint] GPS Pinpoint Location, Interactive Calibration & M
     assert.equal(unavailableResult.status, 'UNAVAILABLE');
     assert.equal(unavailableResult.distanceMeters, null);
   });
+
+  // -------------------------------------------------------------------------
+  // Test 7: Unified Camera Zoom & TargetCommand Synchronization (Prevents Zoom 7 Collision)
+  // -------------------------------------------------------------------------
+  it('Test 7: Unified camera zoom updates targetCommand to 16-17 on location acquisition and prevents zoom 7 overwrite', () => {
+    const store = useMapStore.getState();
+
+    // 1. Initial country-level state
+    useMapStore.setState({
+      center: { lat: 23.685, lng: 90.3563 },
+      zoom: 7,
+      targetCommand: null,
+    });
+    assert.equal(useMapStore.getState().zoom, 7);
+
+    const testCoords = { lat: 23.7508, lng: 90.3842 };
+
+    // 2. Moderate accuracy fix (30-100m, e.g. 50m) -> target zoom must be 16
+    const moderateAcc = 50;
+    const targetZoomModerate = moderateAcc <= 30 ? 17 : moderateAcc <= 100 ? 16 : 15;
+    assert.equal(targetZoomModerate, 16);
+
+    store.flyTo(testCoords, targetZoomModerate);
+
+    let state = useMapStore.getState();
+    assert.equal(state.zoom, 16, 'Store zoom must update to target zoom 16');
+    assert.notEqual(state.targetCommand, null);
+    assert.equal(state.targetCommand?.zoom, 16, 'targetCommand must carry zoom 16 instead of collapsing to zoom 7');
+    assert.equal(state.targetCommand?.lat, testCoords.lat);
+    assert.equal(state.targetCommand?.lng, testCoords.lng);
+
+    // 3. High precision refinement fix (<= 30m, e.g. 12m) -> target zoom must be 17
+    const highAcc = 12;
+    const targetZoomHigh = highAcc <= 30 ? 17 : highAcc <= 100 ? 16 : 15;
+    assert.equal(targetZoomHigh, 17);
+
+    store.flyTo(testCoords, targetZoomHigh);
+
+    state = useMapStore.getState();
+    assert.equal(state.zoom, 17, 'Store zoom must update to street-level zoom 17');
+    assert.equal(state.targetCommand?.zoom, 17, 'targetCommand must carry zoom 17');
+
+    // 4. setCenter with explicit zoom parameter updates targetCommand atomically
+    const newCoords = { lat: 23.8103, lng: 90.4125 };
+    store.setCenter(newCoords, 16);
+    state = useMapStore.getState();
+    assert.equal(state.center.lat, newCoords.lat);
+    assert.equal(state.zoom, 16);
+    assert.equal(state.targetCommand?.zoom, 16);
+    assert.equal(state.targetCommand?.lat, newCoords.lat);
+  });
+
+  // -------------------------------------------------------------------------
+  // Test 8: Watchdog 15-second Timeout Preserves Acquired Fix Without Camera Disruption
+  // -------------------------------------------------------------------------
+  it('Test 8: 15s watchdog timeout halts spinner, preserves best acquired fix, and leaves camera focused at zoom 16', () => {
+    const store = useMapStore.getState();
+
+    // Reset to country level
+    useMapStore.setState({
+      center: { lat: 23.685, lng: 90.3563 },
+      zoom: 7,
+      userLocation: null,
+      targetCommand: null,
+      isLocating: true,
+      acquisitionStage: 'acquiring',
+    });
+
+    // Device acquires initial usable fix with moderate accuracy (65m)
+    const acquiredCoords = { lat: 23.7508, lng: 90.3842 };
+    store.setUserLocation(acquiredCoords, 65, 'gps');
+    store.flyTo(acquiredCoords, 16);
+    store.setAcquisitionStage('refining');
+
+    let state = useMapStore.getState();
+    assert.deepEqual(state.userLocation, acquiredCoords);
+    assert.equal(state.userAccuracy, 65);
+    assert.equal(state.zoom, 16);
+    assert.equal(state.targetCommand?.zoom, 16);
+    assert.equal(state.targetCommand?.lat, acquiredCoords.lat);
+    assert.equal(state.acquisitionStage, 'refining');
+
+    // Watchdog fires after 15s deadline without reaching <= 15m
+    const triggerWatchdogTimeout = () => {
+      useMapStore.getState().setIsLocating(false);
+      useMapStore.getState().setAcquisitionStage('timeout');
+    };
+
+    triggerWatchdogTimeout();
+
+    const finalState = useMapStore.getState();
+    // Verify locating spinner stopped
+    assert.equal(finalState.isLocating, false);
+    // Verify timeout stage set
+    assert.equal(finalState.acquisitionStage, 'timeout');
+    // Verify userLocation is completely preserved
+    assert.deepEqual(finalState.userLocation, acquiredCoords);
+    assert.equal(finalState.userAccuracy, 65);
+    // Verify camera targetCommand remains at zoom 16 focused on user without disruption
+    assert.equal(finalState.zoom, 16);
+    assert.equal(finalState.targetCommand?.zoom, 16);
+    assert.equal(finalState.targetCommand?.lat, acquiredCoords.lat);
+    assert.equal(finalState.targetCommand?.lng, acquiredCoords.lng);
+  });
+
+  // -------------------------------------------------------------------------
+  // Test 9: Progressive Refinement (80m -> 45m -> 14m) Zoom Transition
+  // -------------------------------------------------------------------------
+  it('Test 9: Rapid progressive refinement sequence (80m -> 45m -> 14m) upgrades zoom monotonically to 17 without zoom 7 collision', () => {
+    const store = useMapStore.getState();
+
+    // Start at country level
+    useMapStore.setState({
+      center: { lat: 23.685, lng: 90.3563 },
+      zoom: 7,
+      userLocation: null,
+      targetCommand: null,
+      isLocating: true,
+      acquisitionStage: 'acquiring',
+    });
+
+    const getTargetZoom = (acc: number | null) =>
+      acc !== null && acc <= 30 ? 17 : acc !== null && acc <= 100 ? 16 : 15;
+
+    // Step 1: Moderate fix (80m)
+    const fix1 = { lat: 23.7508, lng: 90.3842 };
+    store.setUserLocation(fix1, 80, 'gps');
+    store.flyTo(fix1, getTargetZoom(80));
+    store.setAcquisitionStage('refining');
+
+    let state = useMapStore.getState();
+    assert.equal(state.zoom, 16);
+    assert.equal(state.targetCommand?.zoom, 16);
+    assert.equal(state.targetCommand?.lat, fix1.lat);
+
+    // Step 2: Refined moderate fix (45m)
+    const fix2 = { lat: 23.75085, lng: 90.38422 };
+    store.setUserLocation(fix2, 45, 'gps');
+    store.flyTo(fix2, getTargetZoom(45));
+
+    state = useMapStore.getState();
+    assert.equal(state.zoom, 16);
+    assert.equal(state.targetCommand?.zoom, 16);
+    assert.equal(state.targetCommand?.lat, fix2.lat);
+
+    // Step 3: High precision fix (14m <= 15m)
+    const fix3 = { lat: 23.75088, lng: 90.38425 };
+    store.setUserLocation(fix3, 14, 'gps');
+    store.flyTo(fix3, getTargetZoom(14));
+    store.setIsLocating(false);
+    store.setAcquisitionStage('success');
+
+    state = useMapStore.getState();
+    assert.equal(state.zoom, 17, 'High precision reading must upgrade camera to zoom 17');
+    assert.equal(state.targetCommand?.zoom, 17);
+    assert.equal(state.targetCommand?.lat, fix3.lat);
+    assert.equal(state.isLocating, false);
+    assert.equal(state.acquisitionStage, 'success');
+  });
+
+  // -------------------------------------------------------------------------
+  // Test 10: Immediate Re-centering on Existing Location When Panned Away
+  // -------------------------------------------------------------------------
+  it('Test 10: Re-centering on known location immediately flies camera back to street level (17) without waiting for new GPS fix', () => {
+    const store = useMapStore.getState();
+
+    const knownUserLocation = { lat: 23.7508, lng: 90.3842 };
+    const knownAccuracy = 22; // <= 30m -> zoom 17
+
+    useMapStore.setState({
+      userLocation: knownUserLocation,
+      userAccuracy: knownAccuracy,
+      locationSource: 'gps',
+      center: { lat: 22.3587, lng: 91.8215 }, // User panned away to Chittagong
+      zoom: 11,
+      targetCommand: null,
+    });
+
+    const getTargetZoom = (acc: number | null) =>
+      acc !== null && acc <= 30 ? 17 : acc !== null && acc <= 100 ? 16 : 15;
+
+    // Simulate clicking "My Location" when position is already known
+    const existingLoc = useMapStore.getState().userLocation!;
+    const existingAcc = useMapStore.getState().userAccuracy;
+    store.flyTo(existingLoc, getTargetZoom(existingAcc));
+
+    const updatedState = useMapStore.getState();
+    assert.equal(updatedState.center.lat, knownUserLocation.lat);
+    assert.equal(updatedState.center.lng, knownUserLocation.lng);
+    assert.equal(updatedState.zoom, 17);
+    assert.notEqual(updatedState.targetCommand, null);
+    assert.equal(updatedState.targetCommand?.lat, knownUserLocation.lat);
+    assert.equal(updatedState.targetCommand?.lng, knownUserLocation.lng);
+    assert.equal(updatedState.targetCommand?.zoom, 17);
+  });
 });
