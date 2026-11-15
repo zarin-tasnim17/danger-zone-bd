@@ -25,10 +25,20 @@ export const metadata: Metadata = {
   title: "Danger Zone ⚡ — Bangladesh Safety & Alert Map",
   description: "Real-time, crowdsourced community safety, alert, and danger zone map for Bangladesh",
   manifest: "/manifest.json",
+  icons: {
+    icon: [
+      { url: "/icon.svg", type: "image/svg+xml" },
+      { url: "/favicon.ico", sizes: "any" },
+    ],
+    apple: [
+      { url: "/icon.svg", type: "image/svg+xml" },
+    ],
+    shortcut: "/favicon.ico",
+  },
 };
 
 export const viewport: Viewport = {
-  themeColor: "#FFFFFF",
+  themeColor: "#0F172A",
 };
 
 export default function RootLayout({
