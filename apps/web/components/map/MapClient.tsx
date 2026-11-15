@@ -562,11 +562,23 @@ export default function MapClient() {
             triggerCoarseFallback();
           } else {
             setAcquisitionStage("timeout");
-            showToast(
-              isBn ? geoTranslations.bn.status.timeout : geoTranslations.en.status.timeout,
-              "info",
-              4000
-            );
+            const currentAcc = useMapStore.getState().userAccuracy;
+            if (currentAcc !== null && currentAcc <= 50) {
+              showToast(
+                (isBn ? geoTranslations.bn.status.goodAccuracy : geoTranslations.en.status.goodAccuracy).replace(
+                  "{acc}",
+                  Math.round(currentAcc).toString()
+                ),
+                "success",
+                3500
+              );
+            } else {
+              showToast(
+                isBn ? geoTranslations.bn.status.timeout : geoTranslations.en.status.timeout,
+                "info",
+                4000
+              );
+            }
           }
         }
       }
