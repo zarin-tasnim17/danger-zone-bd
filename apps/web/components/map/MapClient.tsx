@@ -921,7 +921,35 @@ export default function MapClient() {
             <Marker
               position={[userLocation.lat, userLocation.lng]}
               icon={userGpsIcon}
-              draggable={false}
+              draggable={true}
+              eventHandlers={{
+                dragend: (e) => {
+                  const marker = e.target;
+                  if (marker) {
+                    const newPos = marker.getLatLng();
+                    if (isWithinBangladesh(newPos.lat, newPos.lng)) {
+                      calibrateUserLocation(
+                        { lat: newPos.lat, lng: newPos.lng },
+                        isBn ? "টেনে নির্ধারিত অবস্থান" : "Calibrated Location Pin"
+                      );
+                      showToast(
+                        isBn ? "সঠিক অবস্থান সংরক্ষিত হয়েছে।" : "Location calibrated and saved.",
+                        "success",
+                        3000
+                      );
+                    } else {
+                      marker.setLatLng([userLocation.lat, userLocation.lng]);
+                      showToast(
+                        isBn
+                          ? "নির্বাচিত অবস্থানটি বাংলাদেশের সীমানার বাইরে।"
+                          : "Selected position is outside Bangladesh territory.",
+                        "warning",
+                        4000
+                      );
+                    }
+                  }
+                },
+              }}
             >
               <Popup autoPanPadding={[24, 24]}>
                 <div className="p-3 min-w-[240px] max-w-[280px] text-slate-800 text-xs space-y-2 font-sans">

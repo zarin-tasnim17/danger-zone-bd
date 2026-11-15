@@ -288,6 +288,12 @@ export const useMapStore = create<MapState>((set, get) => ({
       isLowAccuracy: false,
       dismissedCalibrationBanner: false,
       center: formattedCoords,
+      targetCommand: {
+        lat: formattedCoords.lat,
+        lng: formattedCoords.lng,
+        zoom: Math.max(state.zoom, 16),
+        id: Date.now() + Math.random(),
+      },
     }));
   },
 
