@@ -166,6 +166,7 @@ export const safePathRequestSchema = z
     startLng: z.number().min(87).max(93),
     endLat: z.number().min(20).max(27),
     endLng: z.number().min(87).max(93),
+    mode: z.enum(['walking', 'driving']).optional(),
   })
   .strict();
 

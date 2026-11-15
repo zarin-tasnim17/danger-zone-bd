@@ -8,7 +8,13 @@ import { useAuthStore } from "@/store/useAuthStore";
 import { useLanguageStore } from "@/store/useLanguageStore";
 import { formatCategoryLabel } from "@/lib/incidentUtils";
 import { showToast } from "@/store/useToastStore";
-import { BypassedHazardItem } from "@/components/routes/RoutePathMap";
+import type {
+  SafeRouteOutput,
+  RouteAlternative,
+  NavigationStep,
+  TransportMode,
+  RouteSafetyRating,
+} from "@repo/shared";
 import {
   Navigation,
   MapPin,
@@ -27,14 +33,16 @@ import {
   Clock,
   Car,
   Footprints,
-  PhoneCall,
   Check,
   Sparkles,
   Info,
+  ChevronDown,
+  ChevronUp,
+  ShieldAlert,
 } from "lucide-react";
+import LocationSearchBar, { GeocodedLocation } from "@/components/map/LocationSearchBar";
 
 // Dynamically import Leaflet Map with ssr: false
-import LocationSearchBar, { GeocodedLocation } from "@/components/map/LocationSearchBar";
 const RoutePathMap = dynamic(
   () => import("@/components/routes/RoutePathMap"),
   {
@@ -48,18 +56,13 @@ const RoutePathMap = dynamic(
   }
 );
 
-interface SafeRouteOutput {
-  origin: [number, number];
-  destination: [number, number];
-  directDistanceMeters: number;
-  safeDistanceMeters: number;
-  safetyRating: "CLEAR" | "HIGH_SAFETY" | "MODERATE_RISK";
-  bypassedHazardsCount: number;
-  bypassedHazards: BypassedHazardItem[];
-  waypoints: [number, number][]; // [lat, lng] array
-}
-
 const ROUTE_PRESETS = [
+  {
+    nameEn: "Khulna Royal Square → Station (Fix Road Network)",
+    nameBn: "খুলনা রয়েল মোড় → স্টেশন (সড়ক নেটওয়ার্ক ফিক্স)",
+    start: { lat: 22.8116, lng: 89.5611 },
+    end: { lat: 22.802473, lng: 89.558654 },
+  },
   {
     nameEn: "Farmgate → Banani (High Crime Corridor)",
     nameBn: "ফার্মগেট → বনানী (উচ্চ ছিনতাই প্রবণ করিডোর)",
@@ -77,12 +80,6 @@ const ROUTE_PRESETS = [
     nameBn: "ধানমন্ডি ২৭ → শাহবাগ (আলোহীন রাস্তা)",
     start: { lat: 23.7533, lng: 90.3768 },
     end: { lat: 23.7388, lng: 90.3957 },
-  },
-  {
-    nameEn: "Uttara Sector 3 → Airport Road",
-    nameBn: "উত্তরা সেক্টর ৩ → বিমানবন্দর মহাসড়ক",
-    start: { lat: 23.8683, lng: 90.3995 },
-    end: { lat: 23.8433, lng: 90.4049 },
   },
   {
     nameEn: "GEC Circle → Agrabad, Chittagong",
@@ -104,15 +101,66 @@ export default function RoutesPage() {
   const [endLng, setEndLng] = useState("");
   const [destinationLabel, setDestinationLabel] = useState<string | null>(null);
 
+  // Transport Mode
+  const [mode, setMode] = useState<TransportMode>("driving");
+
   // Map Click Picking Mode
   const [clickMode, setClickMode] = useState<"START" | "END" | "NONE">("NONE");
 
   // Route State
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState<SafeRouteOutput | null>(null);
+  const [selectedRouteId, setSelectedRouteId] = useState<string>("safest");
+  const [showGuidanceSteps, setShowGuidanceSteps] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isLocatingUser, setIsLocatingUser] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
+
+  // Core Safe Path calculation
+  const calculateSafePath = useCallback(
+    async (
+      sLat: number,
+      sLng: number,
+      eLat: number,
+      eLng: number,
+      targetMode: TransportMode = mode
+    ) => {
+      setIsLoading(true);
+      setError(null);
+      setResult(null);
+
+      try {
+        if (isNaN(sLat) || isNaN(sLng) || isNaN(eLat) || isNaN(eLng)) {
+          throw new Error("Please enter valid start and destination coordinates.");
+        }
+
+        const data = await apiFetch<SafeRouteOutput>("/routes/safe-path", {
+          method: "POST",
+          body: JSON.stringify({
+            startLat: sLat,
+            startLng: sLng,
+            endLat: eLat,
+            endLng: eLng,
+            mode: targetMode,
+          }),
+        });
+
+        setResult(data);
+        // Default selected route to the recommended one
+        const rec = data.routes?.find((r) => r.isRecommended);
+        if (rec) {
+          setSelectedRouteId(rec.id);
+        } else if (data.routes && data.routes.length > 0) {
+          setSelectedRouteId(data.routes[0].id);
+        }
+      } catch (err: any) {
+        setError(err.message || "Failed to calculate safe route");
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [mode]
+  );
 
   useEffect(() => {
     initAuth();
@@ -122,57 +170,37 @@ export default function RoutesPage() {
       const qStartLng = params.get("startLng");
       const qEndLat = params.get("endLat");
       const qEndLng = params.get("endLng");
+      const qMode = params.get("mode") as TransportMode;
       const qDestName = params.get("destName") || params.get("name");
 
       if (qStartLat) setStartLat(qStartLat);
       if (qStartLng) setStartLng(qStartLng);
       if (qEndLat) setEndLat(qEndLat);
       if (qEndLng) setEndLng(qEndLng);
+      if (qMode === "walking" || qMode === "driving") setMode(qMode);
       if (qDestName) setDestinationLabel(decodeURIComponent(qDestName));
 
-      // If all 4 coordinates are present in URL, auto-calculate route
       if (qStartLat && qStartLng && qEndLat && qEndLng) {
         calculateSafePath(
           parseFloat(qStartLat),
           parseFloat(qStartLng),
           parseFloat(qEndLat),
-          parseFloat(qEndLng)
+          parseFloat(qEndLng),
+          qMode || "driving"
         );
       }
     }
-  }, [initAuth]);
+  }, [initAuth, calculateSafePath]);
 
-  // Core Safe Path calculation
-  const calculateSafePath = async (
-    sLat: number,
-    sLng: number,
-    eLat: number,
-    eLng: number
-  ) => {
-    setIsLoading(true);
-    setError(null);
-    setResult(null);
-
-    try {
-      if (isNaN(sLat) || isNaN(sLng) || isNaN(eLat) || isNaN(eLng)) {
-        throw new Error("Please enter valid start and destination coordinates.");
-      }
-
-      const data = await apiFetch<SafeRouteOutput>("/routes/safe-path", {
-        method: "POST",
-        body: JSON.stringify({
-          startLat: sLat,
-          startLng: sLng,
-          endLat: eLat,
-          endLng: eLng,
-        }),
-      });
-
-      setResult(data);
-    } catch (err: any) {
-      setError(err.message || "Failed to calculate safe route");
-    } finally {
-      setIsLoading(false);
+  // Recalculate route on mode change if endpoints are populated
+  const handleModeChange = (newMode: TransportMode) => {
+    setMode(newMode);
+    const sLat = parseFloat(startLat);
+    const sLng = parseFloat(startLng);
+    const eLat = parseFloat(endLat);
+    const eLng = parseFloat(endLng);
+    if (!isNaN(sLat) && !isNaN(sLng) && !isNaN(eLat) && !isNaN(eLng)) {
+      calculateSafePath(sLat, sLng, eLat, eLng, newMode);
     }
   };
 
@@ -182,11 +210,12 @@ export default function RoutesPage() {
       parseFloat(startLat),
       parseFloat(startLng),
       parseFloat(endLat),
-      parseFloat(endLng)
+      parseFloat(endLng),
+      mode
     );
   };
 
-  const handleApplyPreset = (preset: typeof ROUTE_PRESETS[0]) => {
+  const handleApplyPreset = (preset: (typeof ROUTE_PRESETS)[0]) => {
     setStartLat(preset.start.lat.toString());
     setStartLng(preset.start.lng.toString());
     setEndLat(preset.end.lat.toString());
@@ -196,7 +225,8 @@ export default function RoutesPage() {
       preset.start.lat,
       preset.start.lng,
       preset.end.lat,
-      preset.end.lng
+      preset.end.lng,
+      mode
     );
   };
 
@@ -214,9 +244,12 @@ export default function RoutesPage() {
         setStartLng(pos.coords.longitude.toFixed(6));
         setIsLocatingUser(false);
       },
-      (err) => {
+      () => {
         setIsLocatingUser(false);
-        showToast("Failed to retrieve GPS location. Please allow browser location access.", "error");
+        showToast(
+          "Failed to retrieve GPS location. Please allow browser location access.",
+          "error"
+        );
       },
       { enableHighAccuracy: true, timeout: 10000 }
     );
@@ -248,47 +281,37 @@ export default function RoutesPage() {
 
   // Share Route Link
   const handleShareRoute = () => {
-    const url = `${window.location.origin}/routes?startLat=${startLat}&startLng=${startLng}&endLat=${endLat}&endLng=${endLng}`;
+    const url = `${window.location.origin}/routes?startLat=${startLat}&startLng=${startLng}&endLat=${endLat}&endLng=${endLng}&mode=${mode}`;
     navigator.clipboard.writeText(url);
     setCopiedLink(true);
     setTimeout(() => setCopiedLink(false), 2500);
   };
 
-  const isDiverted = (result?.bypassedHazardsCount || 0) > 0;
-  const detourOverheadMeters = result
-    ? Math.max(0, result.safeDistanceMeters - result.directDistanceMeters)
-    : 0;
-  const detourOverheadPercent =
-    result && result.directDistanceMeters > 0
-      ? ((detourOverheadMeters / result.directDistanceMeters) * 100).toFixed(1)
-      : "0";
-
-  // Estimated Travel Times
-  const walkingTimeMinutes = result
-    ? Math.round(result.safeDistanceMeters / 80) // ~4.8 km/h walking speed
-    : 0;
-  const drivingTimeMinutes = result
-    ? Math.round(result.safeDistanceMeters / 400) // ~24 km/h urban Dhaka traffic
-    : 0;
+  // Currently selected active route alternative
+  const activeRouteAlternative = useMemo(() => {
+    if (result?.routes && result.routes.length > 0) {
+      const match = result.routes.find((r) => r.id === selectedRouteId);
+      return match || result.routes.find((r) => r.isRecommended) || result.routes[0];
+    }
+    return null;
+  }, [result, selectedRouteId]);
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 text-slate-900 selection:bg-blue-500 selection:text-white">
-      {/* Single Unified Navbar (No top telemetry bar, integrated bilingual toggle) */}
       <Navbar />
 
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6">
-
         {/* Page Hero Header */}
         <section className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <div className="flex items-center gap-2 mb-1.5">
+            <div className="flex items-center gap-2 mb-1.5 flex-wrap">
               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200">
                 <Navigation className="w-3.5 h-3.5" />
-                <span>{isBn ? "পোস্টজিআইএস এআই অ্যালগরিদম" : "PostGIS Hazard Avoidance Engine"}</span>
+                <span>{isBn ? "ওএসআরএম রোড-নেটওয়ার্ক ইঞ্জিন" : "OSRM Road-Network Engine"}</span>
               </span>
               <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
                 <ShieldCheck className="w-3 h-3" />
-                <span>{isBn ? "সক্রিয় বিপদ মুক্ত রুট" : "Zero High-Risk Exposure"}</span>
+                <span>{isBn ? "পোস্টজিআইএস বাস্তব সড়ক করিডোর" : "PostGIS Street-Level Hazard Detection"}</span>
               </span>
             </div>
 
@@ -297,8 +320,8 @@ export default function RoutesPage() {
             </h1>
             <p className="text-xs sm:text-sm text-slate-600 mt-1 max-w-2xl">
               {isBn
-                ? "সক্রিয় অপরাধ, অন্ধকার রাস্তা ও বিপদের এলাকা বাইপাস করে পথচারী ও যাত্রীদের জন্য স্বয়ংক্রিয় নিরাপদ রুট তৈরি করে।"
-                : "Dynamic pathfinding algorithm that routes pedestrians and commuters around active red zones, mugging hotspots, and unlit corridors."}
+                ? "বাস্তব সড়ক নেটওয়ার্ক ও পোস্টজিআইএস করিডোর বিশ্লেষণের মাধ্যমে পথচারী ও চালকদের জন্য সক্রিয় বিপদমুক্ত নিরাপদ রুট তৈরি করে।"
+                : "Genuine road-network navigation with PostGIS street-level hazard detection, multi-route alternatives, and explainable safety scoring."}
             </p>
           </div>
 
@@ -325,15 +348,15 @@ export default function RoutesPage() {
           </div>
         </section>
 
-        {/* High Crime Corridor Presets */}
+        {/* High Risk Corridor Presets */}
         <section className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-xs space-y-3">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
               <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-              <span>{isBn ? "সাধারণ ঝুঁকিপূর্ণ করিডোরসমূহ" : "High-Risk Corridor Presets"}</span>
+              <span>{isBn ? "বাস্তব ভৌগোলিক করিডোর প্রিসেট" : "Real-World Geographic Corridors"}</span>
             </span>
             <span className="text-[11px] text-slate-500 font-medium">
-              {isBn ? "এক ক্লিকে রুট পরীক্ষা করুন" : "1-Click Real PostGIS Corridor Test"}
+              {isBn ? "১-ক্লিকে সড়ক নেটওয়ার্ক পরীক্ষা করুন" : "1-Click Road Network Verification"}
             </span>
           </div>
 
@@ -359,201 +382,316 @@ export default function RoutesPage() {
           </div>
         </section>
 
-        {/* Main 2-Column Split: Form (Left) vs Interactive Route Map & Analytics (Right) */}
+        {/* Main 2-Column Split */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-          {/* Left Column: Route Parameters Form (5 cols) */}
-          <div className="lg:col-span-5 bg-white border border-slate-200 rounded-2xl p-5 shadow-xs space-y-5">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <h2 className="text-xs font-bold uppercase tracking-wider text-slate-900 flex items-center gap-1.5">
-                <Route className="w-4 h-4 text-blue-600" />
-                <span>{isBn ? "যাত্রাপথ কনফিগারেশন" : "Route Parameters"}</span>
-              </h2>
-              <button
-                type="button"
-                onClick={handleSwapEndpoints}
-                className="p-1.5 text-xs text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors flex items-center gap-1"
-                title="Swap Origin and Destination"
-              >
-                <ArrowDownUp className="w-3.5 h-3.5 text-slate-600" />
-                <span className="text-[10px] font-semibold">{isBn ? "উলোটপালট" : "Swap"}</span>
-              </button>
-            </div>
+          {/* Left Column: Route Parameters & Alternative Cards (5 cols) */}
+          <div className="lg:col-span-5 space-y-5">
+            <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs space-y-5">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                <h2 className="text-xs font-bold uppercase tracking-wider text-slate-900 flex items-center gap-1.5">
+                  <Route className="w-4 h-4 text-blue-600" />
+                  <span>{isBn ? "যাত্রাপথ কনফিগারেশন" : "Route Parameters"}</span>
+                </h2>
+                <button
+                  type="button"
+                  onClick={handleSwapEndpoints}
+                  className="p-1.5 text-xs text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors flex items-center gap-1"
+                  title="Swap Origin and Destination"
+                >
+                  <ArrowDownUp className="w-3.5 h-3.5 text-slate-600" />
+                  <span className="text-[10px] font-semibold">{isBn ? "উলোটপালট" : "Swap"}</span>
+                </button>
+              </div>
 
-            <form onSubmit={handleCalculateRoute} className="space-y-4">
-              {/* Origin Start Point */}
-              <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2.5">
-                <div className="flex items-center justify-between text-xs">
-                  <div className="flex items-center gap-1.5 font-bold text-slate-800">
-                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0" />
-                    <span>{isBn ? "যাত্রার শুরু (Origin)" : "Start Point (Origin)"}</span>
+              {/* Transport Mode Switcher */}
+              <div className="space-y-1.5">
+                <label className="block text-[10px] text-slate-500 font-bold uppercase tracking-wider">
+                  {isBn ? "পরিবহন মাধ্যম (Mode)" : "Transport Mode"}
+                </label>
+                <div className="grid grid-cols-2 gap-2 bg-slate-100 p-1 rounded-xl">
+                  <button
+                    type="button"
+                    onClick={() => handleModeChange("driving")}
+                    className={`py-2 px-3 rounded-lg text-xs font-bold flex items-center justify-center gap-2 transition-all ${
+                      mode === "driving"
+                        ? "bg-white text-blue-700 shadow-xs border border-slate-200"
+                        : "text-slate-600 hover:text-slate-900"
+                    }`}
+                  >
+                    <Car className="w-3.5 h-3.5" />
+                    <span>{isBn ? "গাড়ি / ড্রাইভ" : "Driving"}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleModeChange("walking")}
+                    className={`py-2 px-3 rounded-lg text-xs font-bold flex items-center justify-center gap-2 transition-all ${
+                      mode === "walking"
+                        ? "bg-white text-emerald-700 shadow-xs border border-slate-200"
+                        : "text-slate-600 hover:text-slate-900"
+                    }`}
+                  >
+                    <Footprints className="w-3.5 h-3.5" />
+                    <span>{isBn ? "হাঁটার পথ" : "Walking"}</span>
+                  </button>
+                </div>
+              </div>
+
+              <form onSubmit={handleCalculateRoute} className="space-y-4">
+                {/* Origin Start Point */}
+                <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2.5">
+                  <div className="flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-1.5 font-bold text-slate-800">
+                      <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0" />
+                      <span>{isBn ? "যাত্রার শুরু (Origin)" : "Start Point (Origin)"}</span>
+                    </div>
+
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={handleUseMyLocation}
+                        disabled={isLocatingUser}
+                        className="text-[10px] text-blue-600 hover:text-blue-800 font-bold flex items-center gap-1 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-200"
+                      >
+                        <Crosshair className={`w-2.5 h-2.5 ${isLocatingUser ? "animate-spin" : ""}`} />
+                        <span>{isBn ? "আমার লোকেশন" : "My GPS"}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setClickMode(clickMode === "START" ? "NONE" : "START")}
+                        className={`text-[10px] font-bold px-2 py-0.5 rounded-md border transition-colors ${
+                          clickMode === "START"
+                            ? "bg-slate-900 text-white border-slate-900"
+                            : "bg-white text-slate-600 border-slate-200 hover:bg-slate-100"
+                        }`}
+                      >
+                        {clickMode === "START"
+                          ? isBn ? "বাতিল" : "Cancel"
+                          : isBn ? "ম্যাপ থেকে নিন" : "Pick Map"}
+                      </button>
+                    </div>
                   </div>
 
-                  <div className="flex items-center gap-1.5">
+                  <LocationSearchBar
+                    placeholder={isBn ? "যাত্রার শুরু অনুসন্ধান করুন (যেমন: ফার্মগেট)..." : "Search origin location (e.g. Farmgate)..."}
+                    onSelectLocation={(loc: GeocodedLocation) => {
+                      setStartLat(loc.lat.toString());
+                      setStartLng(loc.lng.toString());
+                    }}
+                  />
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-[10px] text-slate-500 font-semibold mb-0.5">Latitude</label>
+                      <input
+                        type="text"
+                        value={startLat}
+                        onChange={(e) => setStartLat(e.target.value)}
+                        placeholder="23.7570"
+                        required
+                        className="w-full p-2 text-xs bg-white border border-slate-300 rounded-lg font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] text-slate-500 font-semibold mb-0.5">Longitude</label>
+                      <input
+                        type="text"
+                        value={startLng}
+                        onChange={(e) => setStartLng(e.target.value)}
+                        placeholder="90.3905"
+                        required
+                        className="w-full p-2 text-xs bg-white border border-slate-300 rounded-lg font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Destination Point */}
+                <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2.5">
+                  <div className="flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-1.5 font-bold text-slate-800">
+                      <span className="w-2.5 h-2.5 rounded-full bg-red-600 shrink-0" />
+                      <span>{isBn ? "গন্তব্য (Destination)" : "Destination Point"}</span>
+                    </div>
+
                     <button
                       type="button"
-                      onClick={handleUseMyLocation}
-                      disabled={isLocatingUser}
-                      className="text-[10px] text-blue-600 hover:text-blue-800 font-bold flex items-center gap-1 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-200"
-                    >
-                      <Crosshair className={`w-2.5 h-2.5 ${isLocatingUser ? "animate-spin" : ""}`} />
-                      <span>{isBn ? "আমার লোকেশন" : "My GPS"}</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setClickMode(clickMode === "START" ? "NONE" : "START")}
+                      onClick={() => setClickMode(clickMode === "END" ? "NONE" : "END")}
                       className={`text-[10px] font-bold px-2 py-0.5 rounded-md border transition-colors ${
-                        clickMode === "START"
+                        clickMode === "END"
                           ? "bg-slate-900 text-white border-slate-900"
                           : "bg-white text-slate-600 border-slate-200 hover:bg-slate-100"
                       }`}
                     >
-                      {clickMode === "START"
-                        ? isBn ? "ম্যাপে ক্লিক করুন" : "Cancel"
+                      {clickMode === "END"
+                        ? isBn ? "বাতিল" : "Cancel"
                         : isBn ? "ম্যাপ থেকে নিন" : "Pick Map"}
                     </button>
                   </div>
-                </div>
 
-                <LocationSearchBar
-                  placeholder={isBn ? "যাত্রার শুরু অনুসন্ধান করুন (যেমন: ফার্মগেট)..." : "Search origin location (e.g. Farmgate)..."}
-                  onSelectLocation={(loc: GeocodedLocation) => {
-                    setStartLat(loc.lat.toString());
-                    setStartLng(loc.lng.toString());
-                  }}
-                />
+                  {destinationLabel && (
+                    <div className="p-2 rounded-lg bg-blue-50 border border-blue-200 text-blue-900 text-[11px] font-semibold flex items-center justify-between">
+                      <span className="truncate">{destinationLabel}</span>
+                      <button
+                        type="button"
+                        onClick={() => setDestinationLabel(null)}
+                        className="text-xs text-blue-500 hover:text-blue-800 ml-1"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  )}
 
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="block text-[10px] text-slate-500 font-semibold mb-0.5">Latitude</label>
-                    <input
-                      type="text"
-                      value={startLat}
-                      onChange={(e) => setStartLat(e.target.value)}
-                      placeholder="23.7570"
-                      required
-                      className="w-full p-2 text-xs bg-white border border-slate-300 rounded-lg font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] text-slate-500 font-semibold mb-0.5">Longitude</label>
-                    <input
-                      type="text"
-                      value={startLng}
-                      onChange={(e) => setStartLng(e.target.value)}
-                      placeholder="90.3905"
-                      required
-                      className="w-full p-2 text-xs bg-white border border-slate-300 rounded-lg font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-                    />
-                  </div>
-                </div>
-              </div>
+                  <LocationSearchBar
+                    placeholder={isBn ? "গন্তব্য অনুসন্ধান করুন (যেমন: বনানী ১১)..." : "Search destination (e.g. Banani 11)..."}
+                    onSelectLocation={(loc: GeocodedLocation) => {
+                      setEndLat(loc.lat.toString());
+                      setEndLng(loc.lng.toString());
+                      setDestinationLabel(loc.name);
+                    }}
+                  />
 
-              {/* Destination Point */}
-              <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2.5">
-                <div className="flex items-center justify-between text-xs">
-                  <div className="flex items-center gap-1.5 font-bold text-slate-800">
-                    <span className="w-2.5 h-2.5 rounded-full bg-red-600 shrink-0" />
-                    <span>{isBn ? "গন্তব্য (Destination)" : "Destination Point"}</span>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() => setClickMode(clickMode === "END" ? "NONE" : "END")}
-                    className={`text-[10px] font-bold px-2 py-0.5 rounded-md border transition-colors ${
-                      clickMode === "END"
-                        ? "bg-slate-900 text-white border-slate-900"
-                        : "bg-white text-slate-600 border-slate-200 hover:bg-slate-100"
-                    }`}
-                  >
-                    {clickMode === "END"
-                      ? isBn ? "ম্যাপে ক্লিক করুন" : "Cancel"
-                      : isBn ? "ম্যাপ থেকে নিন" : "Pick Map"}
-                  </button>
-                </div>
-
-                {destinationLabel && (
-                  <div className="p-2 rounded-lg bg-blue-50 border border-blue-200 text-blue-900 text-[11px] font-semibold flex items-center justify-between">
-                    <span className="truncate">{destinationLabel}</span>
-                    <button
-                      type="button"
-                      onClick={() => setDestinationLabel(null)}
-                      className="text-xs text-blue-500 hover:text-blue-800 ml-1"
-                    >
-                      ✕
-                    </button>
-                  </div>
-                )}
-
-                <LocationSearchBar
-                  placeholder={isBn ? "গন্তব্য অনুসন্ধান করুন (যেমন: বনানী ১১)..." : "Search destination (e.g. Banani 11)..."}
-                  onSelectLocation={(loc: GeocodedLocation) => {
-                    setEndLat(loc.lat.toString());
-                    setEndLng(loc.lng.toString());
-                    setDestinationLabel(loc.name);
-                  }}
-                />
-
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="block text-[10px] text-slate-500 font-semibold mb-0.5">Latitude</label>
-                    <input
-                      type="text"
-                      value={endLat}
-                      onChange={(e) => setEndLat(e.target.value)}
-                      placeholder="23.7925"
-                      required
-                      className="w-full p-2 text-xs bg-white border border-slate-300 rounded-lg font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] text-slate-500 font-semibold mb-0.5">Longitude</label>
-                    <input
-                      type="text"
-                      value={endLng}
-                      onChange={(e) => setEndLng(e.target.value)}
-                      placeholder="90.4078"
-                      required
-                      className="w-full p-2 text-xs bg-white border border-slate-300 rounded-lg font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-                    />
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-[10px] text-slate-500 font-semibold mb-0.5">Latitude</label>
+                      <input
+                        type="text"
+                        value={endLat}
+                        onChange={(e) => setEndLat(e.target.value)}
+                        placeholder="23.7925"
+                        required
+                        className="w-full p-2 text-xs bg-white border border-slate-300 rounded-lg font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] text-slate-500 font-semibold mb-0.5">Longitude</label>
+                      <input
+                        type="text"
+                        value={endLng}
+                        onChange={(e) => setEndLng(e.target.value)}
+                        placeholder="90.4078"
+                        required
+                        className="w-full p-2 text-xs bg-white border border-slate-300 rounded-lg font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                      />
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              {/* Submit CTA */}
-              <button
-                type="submit"
-                disabled={isLoading}
-                className="w-full py-3 px-4 text-xs font-extrabold bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-xl shadow-xs transition-all flex items-center justify-center gap-2 active:scale-98"
-              >
-                {isLoading ? (
-                  <>
-                    <RefreshCw className="w-4 h-4 animate-spin" />
-                    <span>{isBn ? "পোস্টজিআইএস নিরাপদ পথ গণনা হচ্ছে..." : "Calculating Safe Path (POST /safe-path)..."}</span>
-                  </>
-                ) : (
-                  <>
-                    <Navigation className="w-4 h-4" />
-                    <span>{isBn ? "নিরাপদ পথ ক্যালকুলেট করুন" : "Calculate Safe Path (POST /safe-path)"}</span>
-                  </>
-                )}
-              </button>
-            </form>
-
-            {/* Safety Methodology Explainer Box */}
-            <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-1.5 text-[11px] text-slate-600">
-              <div className="flex items-center gap-1.5 font-bold text-slate-800">
-                <Info className="w-3.5 h-3.5 text-blue-600" />
-                <span>{isBn ? "সুরক্ষা প্রযুক্তি" : "Safety Algorithm Logic"}</span>
-              </div>
-              <p className="leading-relaxed">
-                {isBn
-                  ? "সরাসরি যাত্রাপথের ২৫০ মিটারের মধ্যে কোনো সক্রিয় ছিনতাই বা বিপদ থাকলে অ্যালগরিদমটি বিপরীত পাশে নিরাপদ দূরত্ব রেখে স্বয়ংক্রিয় নোড তৈরি করে।"
-                  : "If an active crime or hazard intersects within 250m of direct trajectory, the orthogonal vector steers the polyline away with a 150m buffer."}
-              </p>
+                {/* Submit CTA */}
+                <button
+                  type="submit"
+                  disabled={isLoading}
+                  className="w-full py-3 px-4 text-xs font-extrabold bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-xl shadow-xs transition-all flex items-center justify-center gap-2 active:scale-98"
+                >
+                  {isLoading ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                      <span>{isBn ? "সড়ক নেটওয়ার্ক পথ গণনা হচ্ছে..." : "Routing along road network..."}</span>
+                    </>
+                  ) : (
+                    <>
+                      <Navigation className="w-4 h-4" />
+                      <span>{isBn ? "নিরাপদ সড়ক পথ খুঁজুন" : "Calculate Road-Network Route"}</span>
+                    </>
+                  )}
+                </button>
+              </form>
             </div>
+
+            {/* Route Alternatives Selection Cards */}
+            {result?.routes && result.routes.length > 0 && (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800 flex items-center gap-1.5">
+                    <Activity className="w-3.5 h-3.5 text-blue-600" />
+                    <span>{isBn ? "উপলব্ধ সড়ক রুট বিকল্পসমূহ" : "Available Route Alternatives"}</span>
+                  </h3>
+                  <span className="text-[10px] font-semibold text-slate-500">
+                    {result.routes.length} {isBn ? "টি রুট" : "options"}
+                  </span>
+                </div>
+
+                <div className="space-y-2.5">
+                  {result.routes.map((route) => {
+                    const isSelected = route.id === selectedRouteId;
+                    const durationMins = Math.round(route.durationSeconds / 60);
+                    const distanceKm = (route.distanceMeters / 1000).toFixed(2);
+
+                    return (
+                      <div
+                        key={route.id}
+                        onClick={() => setSelectedRouteId(route.id)}
+                        className={`p-4 rounded-2xl border transition-all cursor-pointer relative ${
+                          isSelected
+                            ? "bg-blue-50/70 border-blue-500 shadow-sm ring-1 ring-blue-500"
+                            : "bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50/50"
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-sm font-extrabold text-slate-900">
+                                {route.title}
+                              </span>
+                              {route.isRecommended && (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                                  <ShieldCheck className="w-3 h-3 text-emerald-700" />
+                                  <span>{isBn ? "প্রস্তাবিত নিরাপদ পথ" : "Recommended Safest"}</span>
+                                </span>
+                              )}
+                            </div>
+
+                            <div className="flex items-center gap-3 text-xs text-slate-600 font-medium">
+                              <span className="flex items-center gap-1">
+                                <Clock className="w-3.5 h-3.5 text-slate-400" />
+                                <strong className="text-slate-900">{durationMins}</strong> {isBn ? "মি." : "mins"}
+                              </span>
+                              <span className="text-slate-300">•</span>
+                              <span className="flex items-center gap-1">
+                                <Route className="w-3.5 h-3.5 text-slate-400" />
+                                <strong className="text-slate-900">{distanceKm}</strong> km
+                              </span>
+                              <span className="text-slate-300">•</span>
+                              <span className="flex items-center gap-1">
+                                <AlertTriangle className={`w-3.5 h-3.5 ${route.hazardCount > 0 ? "text-amber-500" : "text-emerald-500"}`} />
+                                <span>{route.hazardCount} {isBn ? "ঝুঁকি" : "hazards"}</span>
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Safety Score Pill */}
+                          <div className="text-right shrink-0">
+                            <div
+                              className={`inline-block px-2.5 py-1 rounded-xl text-xs font-black border ${
+                                route.safetyScore >= 80
+                                  ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                  : route.safetyScore >= 50
+                                  ? "bg-blue-50 text-blue-700 border-blue-200"
+                                  : "bg-amber-50 text-amber-700 border-amber-200"
+                              }`}
+                            >
+                              <span className="text-[10px] uppercase font-bold mr-1">Score</span>
+                              <span className="text-sm font-black">{route.safetyScore}</span>
+                              <span className="text-[9px] font-normal text-slate-400">/95</span>
+                            </div>
+                            <div className="text-[9px] text-slate-500 font-medium mt-0.5">
+                              {route.safetyRating === "LOW_HAZARD_EXPOSURE"
+                                ? isBn ? "স্বল্প ঝুঁকি" : "Low Exposure"
+                                : route.safetyRating === "MODERATE_HAZARD_EXPOSURE"
+                                ? isBn ? "মধ্যম ঝুঁকি" : "Moderate Exposure"
+                                : isBn ? "উচ্চ ঝুঁকি" : "High Exposure"}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
 
-          {/* Right Column: Interactive Map & Detailed Analytics (7 cols) */}
+          {/* Right Column: Interactive Map & Turn-by-Turn Guidance (7 cols) */}
           <div className="lg:col-span-7 space-y-5">
             {error && (
               <div className="bg-rose-50 border border-rose-200 rounded-2xl p-4 text-rose-800 text-xs flex items-center gap-2">
@@ -568,20 +706,24 @@ export default function RoutesPage() {
                 <div className="flex items-center gap-2">
                   <span className="w-2.5 h-2.5 rounded-full bg-blue-600 animate-pulse"></span>
                   <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
-                    {isBn ? "লাইভ রুট ম্যাপ ও বিপদ বাইপাস ভিজ্যুয়ালাইজার" : "Live Route Map & Hazard Visualizer"}
+                    {isBn ? "লাইভ সড়ক নেটওয়ার্ক ও বিপদ করিডোর" : "Live Road Network & Hazard Corridors"}
                   </h3>
                 </div>
-                {result && (
+                {activeRouteAlternative && (
                   <span
                     className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
-                      isDiverted
+                      activeRouteAlternative.hazardCount > 0
                         ? "bg-amber-50 text-amber-700 border-amber-200"
                         : "bg-emerald-50 text-emerald-700 border-emerald-200"
                     }`}
                   >
-                    {isDiverted
-                      ? isBn ? `বিপদ এড়িয়ে ঘুরানো হয়েছে (${result.bypassedHazardsCount}টি)` : `Hazard Detour (${result.bypassedHazardsCount} avoided)`
-                      : isBn ? "সরাসরি রুট নিরাপদ" : "Direct Path Clear"}
+                    {activeRouteAlternative.hazardCount > 0
+                      ? isBn
+                        ? `শনাক্ত বিপদ (${activeRouteAlternative.hazardCount}টি)`
+                        : `Corridor Hazards (${activeRouteAlternative.hazardCount})`
+                      : isBn
+                      ? "করিডোর নিরাপদ"
+                      : "Corridor Clear"}
                   </span>
                 )}
               </div>
@@ -591,9 +733,9 @@ export default function RoutesPage() {
                 startLng={parseFloat(startLng)}
                 endLat={parseFloat(endLat)}
                 endLng={parseFloat(endLng)}
-                waypoints={result?.waypoints || []}
-                bypassedHazards={result?.bypassedHazards || []}
-                isDiverted={isDiverted}
+                routes={result?.routes || []}
+                selectedRouteId={selectedRouteId}
+                onSelectRoute={(id) => setSelectedRouteId(id)}
                 onMapClick={handleMapClick}
                 clickMode={clickMode}
                 language={language}
@@ -601,185 +743,153 @@ export default function RoutesPage() {
               />
             </div>
 
-            {/* Route Results Analytics */}
+            {/* Results Analytics & Explainability */}
             {result ? (
               <div className="space-y-4">
-                {/* Safety Status Banner */}
-                <div
-                  className={`border rounded-2xl p-4.5 shadow-2xs ${
-                    isDiverted
-                      ? "bg-amber-50/80 border-amber-200 text-amber-950"
-                      : "bg-emerald-50/80 border-emerald-200 text-emerald-950"
-                  }`}
-                >
-                  <div className="flex items-center gap-2 font-bold text-sm mb-1">
-                    {isDiverted ? (
-                      <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0" />
-                    ) : (
-                      <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
-                    )}
-                    <span>
-                      {isDiverted
-                        ? isBn
-                          ? `সতর্কতা: ${result.bypassedHazardsCount}টি সক্রিয় বিপদের এলাকা এড়িয়ে নিরাপদ ঘুরতি পথ তৈরি করা হয়েছে`
-                          : `Safety Detour Active: Successfully steered around ${result.bypassedHazardsCount} active crime hazards`
-                        : isBn
-                        ? "সরাসরি পথ নিরাপদ: যাত্রাপথের করিডোরে কোনো সক্রিয় বিপদ নেই"
-                        : "Direct Route Clear: No active violent crime or dark road hazards detected along trajectory"}
-                    </span>
-                  </div>
-                  <p className="text-xs leading-relaxed text-slate-700">
-                    {isDiverted
-                      ? isBn
-                        ? `যাত্রাপথে ছিনতাই বা আলোকস্বল্পতার ঝুঁকি শনাক্ত হওয়ায় ${detourOverheadMeters} মিটার অতিরিক্ত ঘুরতি পথে নিরাপদ করা হয়েছে।`
-                        : `Active hazards were detected near the direct trajectory. The algorithm added +${detourOverheadMeters}m safe clearance (+${detourOverheadPercent}% overhead) for complete safety.`
-                      : isBn
-                      ? "সম্পূর্ণ যাত্রাপথটি বর্তমান নাগরিক সুরক্ষা ডেটাবেজের সাথে মিলিয়ে নিরাপদ পাওয়া গেছে।"
-                      : "The corridor has zero active hazard overlap within the safety exclusion perimeter."}
-                  </p>
-                </div>
-
-                {/* Key Metrics Grid */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                  <div className="bg-white border border-slate-200 rounded-xl p-3.5 shadow-2xs text-center">
-                    <span className="text-[10px] uppercase font-bold text-slate-400">
-                      {isBn ? "মোট দূরত্ব" : "Safe Distance"}
-                    </span>
-                    <p className="text-base sm:text-lg font-black text-slate-900 mt-0.5">
-                      {(result.safeDistanceMeters / 1000).toFixed(2)} km
-                    </p>
-                    <span className="text-[10px] text-slate-500 font-mono">
-                      {result.safeDistanceMeters.toLocaleString()} m
-                    </span>
-                  </div>
-
-                  <div className="bg-white border border-slate-200 rounded-xl p-3.5 shadow-2xs text-center">
-                    <span className="text-[10px] uppercase font-bold text-slate-400">
-                      {isBn ? "এড়ানো বিপদ" : "Hazards Avoided"}
-                    </span>
-                    <p
-                      className={`text-base sm:text-lg font-black mt-0.5 ${
-                        result.bypassedHazardsCount > 0 ? "text-amber-600" : "text-emerald-600"
-                      }`}
-                    >
-                      {result.bypassedHazardsCount} {isBn ? "টি" : "Zones"}
-                    </p>
-                    <span className="text-[10px] text-slate-500">250m Buffer</span>
-                  </div>
-
-                  <div className="bg-white border border-slate-200 rounded-xl p-3.5 shadow-2xs text-center">
-                    <div className="flex items-center justify-center gap-1 text-[10px] uppercase font-bold text-slate-400">
-                      <Footprints className="w-3 h-3 text-slate-400" />
-                      <span>{isBn ? "হাঁটার সময়" : "Walking Time"}</span>
+                {/* Explainable Trade-Off Banner */}
+                {result.tradeOffSummary && (
+                  <div className="bg-blue-50/90 border border-blue-200 rounded-2xl p-4 shadow-2xs text-blue-950">
+                    <div className="flex items-center gap-2 font-bold text-xs mb-1 text-blue-800">
+                      <Sparkles className="w-4 h-4 text-blue-600 shrink-0" />
+                      <span>{isBn ? "রুট ট্রেড-অফ ও সুরক্ষার ব্যাখ্যা" : "Route Recommendation & Trade-Off Analysis"}</span>
                     </div>
-                    <p className="text-base sm:text-lg font-black text-slate-900 mt-0.5">
-                      ~{walkingTimeMinutes} {isBn ? "মি." : "mins"}
+                    <p className="text-xs leading-relaxed text-blue-900 font-medium">
+                      {result.tradeOffSummary}
                     </p>
-                    <span className="text-[10px] text-slate-500">@ 4.8 km/h</span>
                   </div>
+                )}
 
-                  <div className="bg-white border border-slate-200 rounded-xl p-3.5 shadow-2xs text-center">
-                    <div className="flex items-center justify-center gap-1 text-[10px] uppercase font-bold text-slate-400">
-                      <Car className="w-3 h-3 text-slate-400" />
-                      <span>{isBn ? "গাড়ির সময়" : "Driving Time"}</span>
+                {/* Key Metrics Grid for Active Route */}
+                {activeRouteAlternative && (
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div className="bg-white border border-slate-200 rounded-xl p-3.5 shadow-2xs text-center">
+                      <span className="text-[10px] uppercase font-bold text-slate-400">
+                        {isBn ? "প্রকৃত সড়ক দূরত্ব" : "Road Distance"}
+                      </span>
+                      <p className="text-base sm:text-lg font-black text-slate-900 mt-0.5">
+                        {(activeRouteAlternative.distanceMeters / 1000).toFixed(2)} km
+                      </p>
+                      <span className="text-[10px] text-slate-500 font-mono">
+                        {activeRouteAlternative.distanceMeters.toLocaleString()} m
+                      </span>
                     </div>
-                    <p className="text-base sm:text-lg font-black text-slate-900 mt-0.5">
-                      ~{drivingTimeMinutes} {isBn ? "মি." : "mins"}
-                    </p>
-                    <span className="text-[10px] text-slate-500">{isBn ? "ঢাকা ট্রাফিক" : "Urban Speed"}</span>
-                  </div>
-                </div>
 
-                {/* Bypassed Hazards Detail List */}
-                {result.bypassedHazards && result.bypassedHazards.length > 0 && (
-                  <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs space-y-2.5">
-                    <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800 flex items-center gap-1.5">
-                      <AlertTriangle className="w-4 h-4 text-red-600" />
-                      <span>{isBn ? "যাত্রাপথ থেকে বাইপাসকৃত বিপদসমূহ" : "Active Hazards Successfully Bypassed"}</span>
-                    </h3>
+                    <div className="bg-white border border-slate-200 rounded-xl p-3.5 shadow-2xs text-center">
+                      <span className="text-[10px] uppercase font-bold text-slate-400">
+                        {isBn ? "আনুমানিক সময়" : "Estimated Duration"}
+                      </span>
+                      <p className="text-base sm:text-lg font-black text-slate-900 mt-0.5">
+                        {Math.round(activeRouteAlternative.durationSeconds / 60)} {isBn ? "মি." : "mins"}
+                      </p>
+                      <span className="text-[10px] text-slate-500">
+                        {mode === "walking" ? "@ 4.5 km/h" : isBn ? "শহুরে ট্রাফিক" : "Urban Profile"}
+                      </span>
+                    </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      {result.bypassedHazards.map((hazard) => (
-                        <div
-                          key={hazard.id}
-                          className="p-3 rounded-xl bg-red-50/60 border border-red-200/80 text-xs flex items-center justify-between"
-                        >
-                          <div>
-                            <span className="font-bold text-red-900 uppercase">
-                              {formatCategoryLabel(hazard.category, language)}
-                            </span>
-                            <p className="text-[11px] text-red-700">
-                              {isBn
-                                ? `করিডোর থেকে ${hazard.distanceFromRouteMeters} মিটার দূরে`
-                                : `${hazard.distanceFromRouteMeters}m from direct path`}
-                            </p>
-                          </div>
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-800 border border-red-300 uppercase">
-                            {hazard.severity}
-                          </span>
-                        </div>
-                      ))}
+                    <div className="bg-white border border-slate-200 rounded-xl p-3.5 shadow-2xs text-center">
+                      <span className="text-[10px] uppercase font-bold text-slate-400">
+                        {isBn ? "সুরক্ষা স্কোর" : "Safety Score"}
+                      </span>
+                      <p
+                        className={`text-base sm:text-lg font-black mt-0.5 ${
+                          activeRouteAlternative.safetyScore >= 80
+                            ? "text-emerald-600"
+                            : activeRouteAlternative.safetyScore >= 50
+                            ? "text-blue-600"
+                            : "text-amber-600"
+                        }`}
+                      >
+                        {activeRouteAlternative.safetyScore}
+                        <span className="text-xs text-slate-400 font-normal"> / 95</span>
+                      </p>
+                      <span className="text-[10px] text-slate-500 font-medium">
+                        {activeRouteAlternative.safetyRating === "LOW_HAZARD_EXPOSURE"
+                          ? isBn ? "স্বল্প ঝুঁকি" : "Low Risk"
+                          : activeRouteAlternative.safetyRating === "MODERATE_HAZARD_EXPOSURE"
+                          ? isBn ? "মধ্যম ঝুঁকি" : "Moderate Risk"
+                          : isBn ? "উচ্চ ঝুঁকি" : "High Risk"}
+                      </span>
+                    </div>
+
+                    <div className="bg-white border border-slate-200 rounded-xl p-3.5 shadow-2xs text-center">
+                      <span className="text-[10px] uppercase font-bold text-slate-400">
+                        {isBn ? "করিডোর বিপদ" : "Corridor Hazards"}
+                      </span>
+                      <p
+                        className={`text-base sm:text-lg font-black mt-0.5 ${
+                          activeRouteAlternative.hazardCount > 0 ? "text-amber-600" : "text-emerald-600"
+                        }`}
+                      >
+                        {activeRouteAlternative.hazardCount} {isBn ? "টি" : "Zones"}
+                      </p>
+                      <span className="text-[10px] text-slate-500">80m - 250m Buffer</span>
                     </div>
                   </div>
                 )}
 
-                {/* Waypoints Sequence List */}
-                <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs space-y-3">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800 flex items-center gap-1.5">
-                      <Route className="w-4 h-4 text-blue-600" />
-                      <span>{isBn ? "নেভিগেশন নোড ও টার্নিং পয়েন্ট" : "Navigation Nodes & Waypoints"}</span>
-                    </h3>
-                    <span className="text-[11px] font-bold text-slate-500 font-mono">
-                      {result.waypoints.length} {isBn ? "টি নোড" : "Nodes"}
-                    </span>
-                  </div>
+                {/* Turn-by-Turn Navigation Guidance Steps */}
+                {activeRouteAlternative?.steps && activeRouteAlternative.steps.length > 0 && (
+                  <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800 flex items-center gap-1.5">
+                        <Navigation className="w-4 h-4 text-blue-600" />
+                        <span>{isBn ? "ধাপে ধাপে নেভিগেশন ও ঝুঁকি সতর্কতা" : "Turn-by-Turn Navigation & Hazard Alerts"}</span>
+                      </h3>
+                      <button
+                        type="button"
+                        onClick={() => setShowGuidanceSteps(!showGuidanceSteps)}
+                        className="text-xs text-slate-500 hover:text-slate-800 flex items-center gap-1"
+                      >
+                        <span className="text-[11px] font-bold font-mono">
+                          {activeRouteAlternative.steps.length} {isBn ? "টি ধাপ" : "steps"}
+                        </span>
+                        {showGuidanceSteps ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                      </button>
+                    </div>
 
-                  <div className="overflow-x-auto max-h-52 scrollbar-thin">
-                    <table className="w-full text-left text-xs border-collapse">
-                      <thead>
-                        <tr className="border-b border-slate-100 text-slate-400 text-[10px] uppercase font-bold">
-                          <th className="py-2 px-3">#</th>
-                          <th className="py-2 px-3">{isBn ? "ভূমিকা" : "Node Role"}</th>
-                          <th className="py-2 px-3 font-mono">Latitude</th>
-                          <th className="py-2 px-3 font-mono">Longitude</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100">
-                        {result.waypoints.map((wp, idx) => (
-                          <tr key={idx} className="hover:bg-slate-50">
-                            <td className="py-2 px-3 font-bold text-slate-700">#{idx + 1}</td>
-                            <td className="py-2 px-3">
-                              {idx === 0 ? (
-                                <span className="text-emerald-700 font-bold flex items-center gap-1">
-                                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                                  <span>{isBn ? "যাত্রা শুরু" : "Start Origin"}</span>
+                    {showGuidanceSteps && (
+                      <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+                        {activeRouteAlternative.steps.map((step, idx) => (
+                          <div
+                            key={idx}
+                            className={`p-3 rounded-xl border text-xs transition-colors ${
+                              step.hazardWarning
+                                ? "bg-amber-50/60 border-amber-200 text-amber-950"
+                                : "bg-slate-50 border-slate-200/80 text-slate-800 hover:bg-slate-100/60"
+                            }`}
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex items-start gap-2.5">
+                                <span className="w-5 h-5 rounded-full bg-slate-200 text-slate-700 font-bold text-[10px] flex items-center justify-center shrink-0 mt-0.5">
+                                  {idx + 1}
                                 </span>
-                              ) : idx === result.waypoints.length - 1 ? (
-                                <span className="text-red-700 font-bold flex items-center gap-1">
-                                  <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
-                                  <span>{isBn ? "গন্তব্য" : "Destination"}</span>
-                                </span>
-                              ) : (
-                                <span className="text-blue-600 font-semibold flex items-center gap-1">
-                                  <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
-                                  <span>{isBn ? "নিরাপদ বাইপাস নোড" : "Detour Clearance Node"}</span>
-                                </span>
-                              )}
-                            </td>
-                            <td className="py-2 px-3 font-mono text-slate-600">{wp[0].toFixed(5)}</td>
-                            <td className="py-2 px-3 font-mono text-slate-600">{wp[1].toFixed(5)}</td>
-                          </tr>
+                                <div>
+                                  <p className="font-bold text-slate-900">{step.instruction}</p>
+                                  <p className="text-[10px] text-slate-500 font-mono mt-0.5">
+                                    {step.distanceMeters}m • ~{Math.round(step.durationSeconds)}s • maneuver: {step.maneuverType}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Localized Hazard Warning Pill */}
+                            {step.hazardWarning && (
+                              <div className="mt-2 flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-100 text-amber-900 text-[11px] font-bold border border-amber-300">
+                                <ShieldAlert className="w-3.5 h-3.5 text-amber-700 shrink-0" />
+                                <span>{step.hazardWarning}</span>
+                              </div>
+                            )}
+                          </div>
                         ))}
-                      </tbody>
-                    </table>
+                      </div>
+                    )}
                   </div>
-                </div>
+                )}
 
                 {/* External Maps Action */}
                 <div className="flex items-center justify-end gap-2 pt-1">
                   <a
-                    href={`https://www.google.com/maps/dir/?api=1&origin=${startLat},${startLng}&destination=${endLat},${endLng}`}
+                    href={`https://www.google.com/maps/dir/?api=1&origin=${startLat},${startLng}&destination=${endLat},${endLng}&travelmode=${mode}`}
                     target="_blank"
                     rel="noreferrer"
                     className="inline-flex items-center gap-1.5 px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl transition-all shadow-2xs"
@@ -798,7 +908,7 @@ export default function RoutesPage() {
                 <p className="text-xs text-slate-500 max-w-sm mx-auto">
                   {isBn
                     ? "উপরে করিডোর প্রিসেট সিলেক্ট করুন অথবা ম্যাপে ক্লিক করে যাত্রাস্থল ও গন্তব্য নির্ধারণ করুন।"
-                    : "Select a high-risk corridor preset above or enter origin and destination coordinates to generate your hazard-free path."}
+                    : "Select a high-risk corridor preset above or enter origin and destination coordinates to generate your genuine road-network safe path."}
                 </p>
               </div>
             )}
