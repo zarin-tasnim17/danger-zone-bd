@@ -84,13 +84,13 @@ describe('API Functional: Safe Zones & Safe-Path Routing (EP-020..EP-023)', () =
     });
     assertErrorEnvelope(nestedRes, 400);
 
-    // Plant a HIGH severity hazard strictly on midpoint between (23.738, 90.37) and (23.758, 90.39)
+    // Plant a HIGH severity hazard on the route corridor between (23.738, 90.37) and (23.758, 90.39)
     const hazard = assertSuccessEnvelope(
       await admin.client.post('/api/v1/reports', {
         category: 'ARMED_ASSAULT',
         severity: 'HIGH',
-        latitude: 23.748,
-        longitude: 90.38,
+        latitude: 23.7396,
+        longitude: 90.3832,
         description: 'Corridor hazard for detour calculation verification',
       }),
       201

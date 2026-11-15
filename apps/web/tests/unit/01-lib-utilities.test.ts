@@ -6,6 +6,7 @@ import { calculateDistanceMeters, evaluateHardwareGpsProximity } from '@/lib/gps
 import { isIncidentCategoryMatch } from '@/lib/filterUtils';
 import { cleanIncidentTitle, formatCategoryLabel } from '@/lib/incidentUtils';
 import { getSafeZonePresentation, normalizeSafeZoneType } from '@/lib/safeZoneMeta';
+import { DEFAULT_VAPID_PUBLIC_KEY, urlBase64ToUint8Array, getVapidPublicKey } from '@/lib/webPush';
 import { installBrowserGlobals } from '../framework/domEnv';
 import {
   MAX_GPS_PROXIMITY_METERS,
@@ -122,5 +123,50 @@ describe('[Unit][Mocked] Frontend API & Domain Utilities', () => {
 
     assert.equal(normalizeBangladeshPhone('8801711223344'), '+8801711223344');
     assert.equal(normalizeBangladeshPhone('01812345678'), '+8801812345678');
+  });
+
+  it('urlBase64ToUint8Array decodes DEFAULT_VAPID_PUBLIC_KEY into valid 65-byte uncompressed P-256 point and handles edge cases', () => {
+    const sandbox = installBrowserGlobals();
+    try {
+      assert.ok(typeof DEFAULT_VAPID_PUBLIC_KEY === 'string' && DEFAULT_VAPID_PUBLIC_KEY.length > 0);
+      const keyBytes = urlBase64ToUint8Array(DEFAULT_VAPID_PUBLIC_KEY);
+      assert.equal(keyBytes instanceof Uint8Array, true);
+      assert.equal(keyBytes.length, 65, 'VAPID public key must decode to exactly 65 bytes (P-256 uncompressed EC point)');
+      assert.equal(keyBytes[0], 0x04, 'VAPID public key must start with 0x04 uncompressed prefix');
+
+      // Test decoding with wrapping double quotes, single quotes, and padding whitespace
+      const quotedKeyBytes = urlBase64ToUint8Array(`  "${DEFAULT_VAPID_PUBLIC_KEY}"  `);
+      assert.equal(quotedKeyBytes.length, 65);
+      assert.equal(quotedKeyBytes[0], 0x04);
+
+      const singleQuotedBytes = urlBase64ToUint8Array(` '${DEFAULT_VAPID_PUBLIC_KEY}' `);
+      assert.equal(singleQuotedBytes.length, 65);
+
+      // Throws on empty or non-string inputs
+      assert.throws(() => urlBase64ToUint8Array(''), /Invalid VAPID base64 key/);
+      assert.throws(() => urlBase64ToUint8Array('   '), /Invalid VAPID base64 key/);
+      assert.throws(() => (urlBase64ToUint8Array as any)(null), /Invalid VAPID base64 key/);
+
+      // Test fallback resolution when process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY is unset, empty, or whitespace
+      const prevEnv = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+      try {
+        delete process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+        assert.equal(getVapidPublicKey(), DEFAULT_VAPID_PUBLIC_KEY);
+
+        process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY = '   ';
+        assert.equal(getVapidPublicKey(), DEFAULT_VAPID_PUBLIC_KEY);
+
+        process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY = 'custom-key-123';
+        assert.equal(getVapidPublicKey(), 'custom-key-123');
+
+        process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY = '"custom-key-quoted"';
+        assert.equal(getVapidPublicKey(), 'custom-key-quoted');
+      } finally {
+        if (prevEnv !== undefined) process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY = prevEnv;
+        else delete process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+      }
+    } finally {
+      sandbox.restore();
+    }
   });
 });

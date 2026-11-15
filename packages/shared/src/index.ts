@@ -3,6 +3,98 @@ export type MapMode = "basic" | "heatmap" | "labeled";
 export const MAX_GPS_PROXIMITY_METERS = 200;
 export const MAX_HARDWARE_GPS_ACCURACY_METERS = 250;
 
+export type GeolocationAccuracyTier =
+  | 'HIGH'            // 0 – 15m
+  | 'GOOD'            // 15 – 30m
+  | 'MODERATE'        // 30 – 100m
+  | 'LOW'             // 100 – 500m
+  | 'VERY_LOW'        // 500 – 1,000m
+  | 'EXTREMELY_POOR'; // > 1,000m or invalid
+
+export interface GeolocationThresholdConfig {
+  HIGH_MAX: 15;
+  GOOD_MAX: 30;
+  MODERATE_MAX: 100;
+  LOW_MAX: 500;
+  VERY_LOW_MAX: 1000;
+}
+
+export const GEOLOCATION_THRESHOLDS: GeolocationThresholdConfig = {
+  HIGH_MAX: 15,
+  GOOD_MAX: 30,
+  MODERATE_MAX: 100,
+  LOW_MAX: 500,
+  VERY_LOW_MAX: 1000,
+};
+
+export function classifyGeolocationAccuracy(accuracy: number | null | undefined): GeolocationAccuracyTier {
+  if (accuracy === null || accuracy === undefined || !Number.isFinite(accuracy) || accuracy < 0) {
+    return 'EXTREMELY_POOR';
+  }
+  if (accuracy <= 15) return 'HIGH';
+  if (accuracy <= 30) return 'GOOD';
+  if (accuracy <= 100) return 'MODERATE';
+  if (accuracy <= 500) return 'LOW';
+  if (accuracy <= 1000) return 'VERY_LOW';
+  return 'EXTREMELY_POOR';
+}
+
+export interface BangladeshBoundingBox {
+  minLat: number;
+  maxLat: number;
+  minLng: number;
+  maxLng: number;
+}
+
+export const BANGLADESH_BOUNDS: BangladeshBoundingBox = {
+  minLat: 20.3,
+  maxLat: 26.8,
+  minLng: 87.8,
+  maxLng: 92.9,
+};
+
+export function isWithinBangladesh(lat: number, lng: number): boolean {
+  return (
+    lat >= BANGLADESH_BOUNDS.minLat &&
+    lat <= BANGLADESH_BOUNDS.maxLat &&
+    lng >= BANGLADESH_BOUNDS.minLng &&
+    lng <= BANGLADESH_BOUNDS.maxLng
+  );
+}
+
+export function formatCoordinate(val: number): number {
+  return Number(val.toFixed(6));
+}
+
+export function sanitizeAccuracy(accuracy: number | null | undefined): number | null {
+  if (accuracy === null || accuracy === undefined || !Number.isFinite(accuracy) || accuracy < 0) {
+    return null;
+  }
+  return accuracy;
+}
+
+export function computeAccuracyCircleRadius(
+  source: string | null,
+  accuracy: number | null | undefined
+): number {
+  if (source === 'calibrated') {
+    return 25;
+  }
+  const sanitized = sanitizeAccuracy(accuracy);
+  return sanitized !== null ? sanitized : 50;
+}
+
+export function isFreshPosition(
+  timestamp: number | null | undefined,
+  maxAgeMs = 30000,
+  currentTime = Date.now()
+): boolean {
+  if (typeof timestamp !== 'number' || !Number.isFinite(timestamp) || timestamp <= 0) {
+    return false;
+  }
+  return currentTime - timestamp <= maxAgeMs;
+}
+
 export const BD_MOBILE_REGEX = /^(?:\+?880|0)1[3-9]\d{8}$/;
 
 export function normalizeBangladeshPhone(phone: string): string {
@@ -179,3 +271,82 @@ export function getSocketReportId(
 ): string | undefined {
   return payload?.reportId ?? payload?.id;
 }
+
+// ==========================================
+// Safe Routes Engine Types and Interfaces
+// ==========================================
+
+export const TRANSPORT_MODES = ['walking', 'driving'] as const;
+export type TransportMode = (typeof TRANSPORT_MODES)[number];
+
+export interface LocalizedHazard {
+  id: string;
+  category: string;
+  severity: ReportSeverity;
+  distanceFromRouteMeters: number;
+  latitude: number;
+  longitude: number;
+  description?: string | null;
+  approxStreetName?: string;
+}
+
+// Backward compatibility alias for legacy BypassedHazard
+export type BypassedHazard = LocalizedHazard;
+
+export interface NavigationStep {
+  instruction: string;
+  distanceMeters: number;
+  durationSeconds: number;
+  maneuverType: string;
+  location: [number, number]; // [latitude, longitude]
+  hazardWarning?: string;
+}
+
+export type RouteAlternativeId = 'safest' | 'fastest' | 'alternative';
+
+export type RouteSafetyRating =
+  | 'LOW_HAZARD_EXPOSURE'
+  | 'MODERATE_HAZARD_EXPOSURE'
+  | 'HIGH_HAZARD_EXPOSURE';
+
+export type LegacyRouteSafetyRating =
+  | 'CLEAR'
+  | 'HIGH_SAFETY'
+  | 'MODERATE_RISK';
+
+export type OverallRouteSafetyRating =
+  | RouteSafetyRating
+  | LegacyRouteSafetyRating;
+
+export interface RouteAlternative {
+  id: RouteAlternativeId;
+  title: string;
+  isRecommended: boolean;
+  distanceMeters: number;
+  durationSeconds: number;
+  safetyScore: number; // 15 - 95 (explainable, capped)
+  safetyRating: RouteSafetyRating;
+  hazardCount: number;
+  hazards: LocalizedHazard[];
+  geometry: [number, number][]; // Street-following [latitude, longitude]
+  steps: NavigationStep[];
+}
+
+export interface SafeRouteOutput {
+  // Legacy backward-compatible fields
+  origin: [number, number]; // [latitude, longitude]
+  destination: [number, number]; // [latitude, longitude]
+  directDistanceMeters: number;
+  safeDistanceMeters: number;
+  safetyRating: OverallRouteSafetyRating;
+  bypassedHazardsCount: number;
+  bypassedHazards: LocalizedHazard[];
+  waypoints: [number, number][]; // [latitude, longitude][]
+  // Enhanced multi-route fields
+  mode: TransportMode;
+  routes: RouteAlternative[];
+  tradeOffSummary?: string;
+}
+
+export type EnhancedSafeRouteResponse = SafeRouteOutput;
+

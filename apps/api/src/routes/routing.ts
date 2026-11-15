@@ -12,6 +12,7 @@ const safeRouteSchema = z.object({
     startLng: z.number().min(-180).max(180),
     endLat: z.number().min(-90).max(90),
     endLng: z.number().min(-180).max(180),
+    mode: z.enum(['walking', 'driving']).optional(),
   }).strict(),
 });
 
