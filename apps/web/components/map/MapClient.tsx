@@ -53,6 +53,7 @@ import {
   RotateCcw,
   Sparkles,
   MapPin,
+  Radio,
 } from "lucide-react";
 import { isMobileDevice } from "@/lib/deviceUtils";
 export { isMobileDevice };
@@ -264,6 +265,12 @@ export default function MapClient() {
   const activeRequestId = useMapStore((state) => state.activeRequestId);
   const incrementRequestId = useMapStore((state) => state.incrementRequestId);
   const setActiveWatchId = useMapStore((state) => state.setActiveWatchId);
+  const isLiveTracking = useMapStore((state) => state.isLiveTracking);
+  const trackingStatus = useMapStore((state) => state.trackingStatus);
+  const isFollowingUser = useMapStore((state) => state.isFollowingUser);
+  const startLiveTracking = useMapStore((state) => state.startLiveTracking);
+  const stopLiveTracking = useMapStore((state) => state.stopLiveTracking);
+  const recenterOnUser = useMapStore((state) => state.recenterOnUser);
 
   const incidents = useIncidentStore((state) => state.incidents);
   const safeZones = useIncidentStore((state) => state.safeZones);
@@ -397,6 +404,7 @@ export default function MapClient() {
   useEffect(() => {
     return () => {
       stopActiveAcquisition();
+      useMapStore.getState().stopLiveTracking();
     };
   }, [stopActiveAcquisition]);
 
@@ -834,27 +842,33 @@ export default function MapClient() {
     handleLocateMe();
   }, [resetToBrowserGps, handleLocateMe]);
 
-  // User GPS Pin icon (Dynamic icon: Green star badge for calibrated, blue beacon for network GPS)
+  // User GPS Pin icon (Dynamic icon: Green star badge for calibrated, emerald beacon for live tracking, blue for network GPS)
   const userGpsIcon = useMemo(() => {
     const isCalibrated = locationSource === 'calibrated';
+    const isLive = isLiveTracking;
     const starSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>`;
     const pinSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>`;
+    const liveSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3"/><path d="M12 19v3"/><path d="M2 12h3"/><path d="M19 12h3"/></svg>`;
+
+    const pinColor = isCalibrated ? '#059669' : isLive ? (trackingStatus === 'paused' ? '#D97706' : '#059669') : '#2563EB';
+    const sonarColor = isCalibrated ? '#10B981' : isLive ? (trackingStatus === 'paused' ? '#F59E0B' : '#10B981') : '#3B82F6';
+    const shadowColor = isCalibrated ? 'rgba(5, 150, 105, 0.7)' : isLive ? (trackingStatus === 'paused' ? 'rgba(217, 119, 6, 0.7)' : 'rgba(5, 150, 105, 0.7)') : 'rgba(37, 99, 235, 0.7)';
 
     return L.divIcon({
       className: "user-gps-pulse",
       html: `
-        <div style="position: relative; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;">
+        <div style="position: relative; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; transition: transform 0.25s linear;">
           <span class="user-gps-sonar" style="
             position: absolute;
             width: 100%;
             height: 100%;
             border-radius: 50%;
-            background-color: ${isCalibrated ? '#10B981' : '#3B82F6'};
+            background-color: ${sonarColor};
             opacity: 0.65;
           "></span>
           <div style="
             position: relative;
-            background-color: ${isCalibrated ? '#059669' : '#2563EB'};
+            background-color: ${pinColor};
             border: 2.5px solid #FFFFFF;
             width: 26px;
             height: 26px;
@@ -863,9 +877,9 @@ export default function MapClient() {
             align-items: center;
             justify-content: center;
             color: #FFFFFF;
-            box-shadow: 0 0 14px ${isCalibrated ? 'rgba(5, 150, 105, 0.7)' : 'rgba(37, 99, 235, 0.7)'};
+            box-shadow: 0 0 14px ${shadowColor};
           ">
-            ${isCalibrated ? starSvg : pinSvg}
+            ${isCalibrated ? starSvg : isLive ? liveSvg : pinSvg}
           </div>
         </div>
       `,
@@ -873,7 +887,7 @@ export default function MapClient() {
       iconAnchor: [14, 14],
       popupAnchor: [0, -16],
     });
-  }, [locationSource]);
+  }, [locationSource, isLiveTracking, trackingStatus]);
 
   return (
     <div className="relative w-full h-full min-h-0 bg-slate-100">
@@ -892,6 +906,106 @@ export default function MapClient() {
         <div className="pointer-events-auto flex items-center gap-1 sm:gap-1.5 p-1 bg-white/95 backdrop-blur-xl border border-slate-200/90 rounded-2xl shadow-md">
           {/* Map Layer Switcher (Google Streets / Hybrid / OSM) */}
           <MapLayerSwitcher />
+
+          {/* Dedicated Continuous Live Tracking Mode Toggle */}
+          <button
+            type="button"
+            onClick={async () => {
+              if (isLiveTracking) {
+                stopLiveTracking();
+                showToast(
+                  isBn ? "লাইভ জিপিএস ট্র্যাকিং বন্ধ করা হয়েছে।" : "Live GPS tracking stopped.",
+                  "info",
+                  3000
+                );
+              } else {
+                const ok = await startLiveTracking();
+                if (ok) {
+                  hasUserPannedMapRef.current = false;
+                  showToast(
+                    isBn ? "লাইভ জিপিএস ট্র্যাকিং সক্রিয় হয়েছে।" : "Live GPS tracking active.",
+                    "success",
+                    3000
+                  );
+                } else {
+                  showToast(
+                    isBn
+                      ? "লাইভ জিপিএস ট্র্যাকিং শুরু করা সম্ভব হয়নি। লোকেশন পারমিশন পরীক্ষা করুন।"
+                      : "Could not start Live GPS tracking. Please check location permissions.",
+                    "warning",
+                    5000
+                  );
+                }
+              }
+            }}
+            aria-label={
+              isLiveTracking
+                ? (isBn ? "লাইভ ট্র্যাকিং বন্ধ করুন" : "Stop Live Tracking")
+                : (isBn ? "লাইভ জিপিএস ট্র্যাকিং চালু করুন" : "Start Live Tracking")
+            }
+            className={`px-2 sm:px-2.5 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1 sm:gap-1.5 transition-all cursor-pointer ${
+              isLiveTracking
+                ? trackingStatus === "active"
+                  ? "bg-emerald-600 text-white shadow-sm shadow-emerald-600/30 ring-2 ring-emerald-400/50"
+                  : trackingStatus === "paused"
+                  ? "bg-amber-500 text-white shadow-sm shadow-amber-500/30"
+                  : "bg-rose-600 text-white shadow-sm shadow-rose-600/30"
+                : "text-slate-700 hover:text-slate-900 hover:bg-slate-100"
+            }`}
+            title={
+              isLiveTracking
+                ? trackingStatus === "active"
+                  ? isBn ? "লাইভ ট্র্যাকিং সক্রিয় (বন্ধ করতে ক্লিক করুন)" : "Live Tracking Active (Click to stop)"
+                  : trackingStatus === "paused"
+                  ? isBn ? "ট্র্যাকিং স্থগিত (পুনরায় কেন্দ্র করতে ক্লিক করুন)" : "Tracking Paused (Pan detected)"
+                  : isBn ? "ট্র্যাকিং অনুপলব্ধ" : "Tracking Unavailable"
+                : isBn ? "লাইভ জিপিএস ট্র্যাকিং শুরু করুন" : "Start Live GPS Tracking"
+            }
+          >
+            <Radio className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${isLiveTracking && trackingStatus === "active" ? "animate-pulse text-white" : ""}`} />
+            <span className="hidden sm:inline text-xs">
+              {isLiveTracking
+                ? trackingStatus === "active"
+                  ? (isBn ? "লাইভ" : "Live")
+                  : trackingStatus === "paused"
+                  ? (isBn ? "স্থগিত" : "Paused")
+                  : (isBn ? "অনুপলব্ধ" : "Unavailable")
+                : (isBn ? "লাইভ ট্র্যাক" : "Live Track")}
+            </span>
+          </button>
+
+          {/* Follow Me / Recenter Button (visible during Live Tracking) */}
+          {isLiveTracking && (
+            <button
+              type="button"
+              onClick={() => {
+                hasUserPannedMapRef.current = false;
+                recenterOnUser();
+                showToast(
+                  isBn ? "ক্যামেরা আপনার অবস্থানে কেন্দ্রীভূত হয়েছে।" : "Camera re-centered on your location.",
+                  "info",
+                  2000
+                );
+              }}
+              className={`px-2 sm:px-2.5 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1 sm:gap-1.5 transition-all cursor-pointer ${
+                isFollowingUser
+                  ? "bg-emerald-50 text-emerald-800 border border-emerald-300"
+                  : "bg-amber-50 text-amber-900 border border-amber-300 animate-pulse hover:bg-amber-100"
+              }`}
+              title={
+                isFollowingUser
+                  ? isBn ? "ক্যামেরা আপনাকে অনুসরণ করছে" : "Camera Following You"
+                  : isBn ? "ক্যামেরা পুনরায় আপনার অবস্থানে কেন্দ্র করুন (ফলো মি)" : "Recenter Camera / Follow Me"
+              }
+            >
+              <Navigation className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${isFollowingUser ? "text-emerald-600" : "text-amber-600"}`} />
+              <span className="hidden sm:inline text-xs">
+                {isFollowingUser
+                  ? (isBn ? "ফলো" : "Following")
+                  : (isBn ? "পুনরায় কেন্দ্র" : "Recenter")}
+              </span>
+            </button>
+          )}
 
           {/* Locate Me (GPS / Calibrated Location) */}
           <button
@@ -1014,7 +1128,15 @@ export default function MapClient() {
       >
         <MapInstanceRegistrar onMapReady={onMapReady} />
         <MapViewUpdater />
-        <MapEventsHandler onUserDragStart={() => { hasUserPannedMapRef.current = true; }} />
+        <MapEventsHandler
+          onUserDragStart={() => {
+            hasUserPannedMapRef.current = true;
+            if (useMapStore.getState().isLiveTracking) {
+              useMapStore.getState().setIsFollowingUser(false);
+              useMapStore.getState().setTrackingStatus("paused");
+            }
+          }}
+        />
         <MapResizeHandler />
 
         {/* Zoom Control repositioned neatly at bottom-left */}
@@ -1081,7 +1203,24 @@ export default function MapClient() {
                 <div className="p-3 min-w-[240px] max-w-[280px] text-slate-800 text-xs space-y-2 font-sans">
                   {/* Status Header */}
                   <div className="flex items-center justify-between gap-1">
-                    {locationSource === 'calibrated' ? (
+                    {isLiveTracking ? (
+                      <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                        trackingStatus === 'active'
+                          ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                          : trackingStatus === 'paused'
+                          ? "bg-amber-50 text-amber-800 border-amber-200"
+                          : "bg-rose-50 text-rose-800 border-rose-200"
+                      }`}>
+                        {trackingStatus === 'active' && <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-ping" />}
+                        <span>
+                          {trackingStatus === 'active'
+                            ? (isBn ? "📡 লাইভ জিপিএস (সক্রিয়)" : "📡 Live GPS (Active)")
+                            : trackingStatus === 'paused'
+                            ? (isBn ? "⏸️ লাইভ জিপিএস (স্থগিত)" : "⏸️ Live GPS (Paused)")
+                            : (isBn ? "⚠️ লাইভ জিপিএস (অনুপলব্ধ)" : "⚠️ Live GPS (Unavailable)")}
+                        </span>
+                      </span>
+                    ) : locationSource === 'calibrated' ? (
                       <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">
                         <Sparkles className="w-3 h-3 text-emerald-600" />
                         <span>{isBn ? "ক্যালিব্রেটেড (সংরক্ষিত)" : "Calibrated (Saved)"}</span>
