@@ -57,6 +57,19 @@ import {
 } from "lucide-react";
 import { isMobileDevice } from "@/lib/deviceUtils";
 export { isMobileDevice };
+import { useHazardProximityAlert, type ProximityAlertItem } from "@/hooks/useHazardProximityAlert";
+import HazardProximityBanner from "./HazardProximityBanner";
+import {
+  unlockAudioContext,
+  playDangerAlertSound,
+  isAudioMuted,
+  setAudioMuted,
+} from "@/lib/audioAlert";
+import { triggerDangerVibration } from "@/lib/vibrationAlert";
+import {
+  showDangerSystemNotification,
+  requestNotificationPermission,
+} from "@/lib/systemNotification";
 
 // Map events handler: fetches viewport incidents on pan/zoom without triggering reactive setState feedback loops
 function MapEventsHandler({ onUserDragStart }: { onUserDragStart?: () => void }) {
@@ -290,6 +303,47 @@ export default function MapClient() {
   const geoPermissionStateRef = useRef<PermissionState | null>(null);
   const hasInitialAutoZoomedRef = useRef(false);
   const hasUserPannedMapRef = useRef(false);
+
+  // Proximity Danger Notification Controls & States
+  const [isAudioAlertMuted, setIsAudioAlertMuted] = useState(isAudioMuted);
+
+  const handleToggleAudioMute = useCallback(() => {
+    const next = !isAudioAlertMuted;
+    setIsAudioAlertMuted(next);
+    setAudioMuted(next);
+  }, [isAudioAlertMuted]);
+
+  // AudioContext unlock on initial user gesture (click, touchstart, keydown) to comply with browser autoplay
+  useEffect(() => {
+    const handleGestureUnlock = () => {
+      unlockAudioContext();
+    };
+    window.addEventListener("click", handleGestureUnlock, { passive: true });
+    window.addEventListener("touchstart", handleGestureUnlock, { passive: true });
+    window.addEventListener("keydown", handleGestureUnlock, { passive: true });
+    return () => {
+      window.removeEventListener("click", handleGestureUnlock);
+      window.removeEventListener("touchstart", handleGestureUnlock);
+      window.removeEventListener("keydown", handleGestureUnlock);
+    };
+  }, []);
+
+  // Proximity Alert Detection Engine Integration
+  const {
+    activeAlerts,
+    closestAlert,
+    dismissAlert,
+  } = useHazardProximityAlert({
+    enabled: isLiveTracking || !!userLocation,
+    onAlert: useCallback((item: ProximityAlertItem) => {
+      // 1. Web Audio API synthesizer dual-pulse 800 Hz chime
+      playDangerAlertSound({ isMuted: isAudioMuted() });
+      // 2. Mobile haptic vibration pattern [300, 150, 300]
+      triggerDangerVibration();
+      // 3. Browser system notification
+      showDangerSystemNotification(item.hazard, item.distanceMeters);
+    }, []),
+  });
 
   // Mount: fetch nationwide incidents across Bangladesh, verified safe zones, and start socket listeners
   useEffect(() => {
@@ -911,6 +965,10 @@ export default function MapClient() {
           <button
             type="button"
             onClick={async () => {
+              // Unlock audio synthesizer and prompt system notification permission on user gesture
+              unlockAudioContext();
+              requestNotificationPermission().catch(() => {});
+
               if (isLiveTracking) {
                 stopLiveTracking();
                 showToast(
@@ -1498,6 +1556,16 @@ export default function MapClient() {
       </MapContainer>
 
 
+
+      {/* Proximity Warning Banner HUD */}
+      {closestAlert && (
+        <HazardProximityBanner
+          alerts={activeAlerts}
+          isMuted={isAudioAlertMuted}
+          onToggleMute={handleToggleAudioMute}
+          onDismiss={dismissAlert}
+        />
+      )}
 
       {/* Dynamic Low-Accuracy Warning Banner with 1-click calibration */}
       <LocationAccuracyBanner />
