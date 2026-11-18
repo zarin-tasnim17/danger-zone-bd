@@ -10,7 +10,9 @@ import {
 import { findChromiumExecutable, WEB_TEST_CONFIG } from '../framework/config';
 
 const canRunBrowserE2E =
-  WEB_TEST_CONFIG.runBrowserE2E && Boolean(findChromiumExecutable());
+  WEB_TEST_CONFIG.runBrowserE2E &&
+  Boolean(findChromiumExecutable()) &&
+  process.env.RUN_LIVE_BACKEND_TESTS === 'true';
 
 const waitUntil = async (predicate: () => boolean, timeoutMs = 20000, label = 'condition') => {
   const deadline = Date.now() + timeoutMs;

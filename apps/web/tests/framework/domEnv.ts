@@ -149,6 +149,10 @@ export class MockGeolocation {
     return this.watches.size;
   }
 
+  isWatchActive(id: number): boolean {
+    return this.watches.has(id);
+  }
+
   mockEmitPosition(pos: {
     coords: {
       latitude: number;
@@ -185,6 +189,41 @@ export class MockGeolocation {
     }
   }
 
+  mockEmitPositionTo(
+    watchId: number,
+    pos: {
+      coords: {
+        latitude: number;
+        longitude: number;
+        accuracy?: number;
+        altitude?: number | null;
+        altitudeAccuracy?: number | null;
+        heading?: number | null;
+        speed?: number | null;
+      };
+      timestamp?: number;
+    }
+  ): boolean {
+    const watch = this.watches.get(watchId);
+    if (!watch) return false;
+
+    const fullPosition: MockGeolocationPosition = {
+      coords: {
+        latitude: pos.coords.latitude,
+        longitude: pos.coords.longitude,
+        accuracy: pos.coords.accuracy ?? 15,
+        altitude: pos.coords.altitude ?? null,
+        altitudeAccuracy: pos.coords.altitudeAccuracy ?? null,
+        heading: pos.coords.heading ?? null,
+        speed: pos.coords.speed ?? null,
+      },
+      timestamp: pos.timestamp ?? Date.now(),
+    };
+
+    watch.success(fullPosition);
+    return true;
+  }
+
   mockEmitError(err: { code: number; message: string }): void {
     const fullError: MockGeolocationPositionError = {
       code: err.code,
@@ -219,20 +258,186 @@ export class MockGeolocation {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Web Audio API Mocks
+// ---------------------------------------------------------------------------
+
+export class MockAudioNode {
+  connect(target: any) {
+    return target;
+  }
+  disconnect() {}
+}
+
+export class MockAudioParam {
+  value: number;
+  constructor(initial = 0) {
+    this.value = initial;
+  }
+  setValueAtTime(val: number, _time: number) {
+    this.value = val;
+  }
+  exponentialRampToValueAtTime(val: number, _time: number) {
+    this.value = val;
+  }
+  linearRampToValueAtTime(val: number, _time: number) {
+    this.value = val;
+  }
+}
+
+export class MockOscillatorNode extends MockAudioNode {
+  type: OscillatorType = 'sine';
+  frequency = new MockAudioParam(440);
+  started = false;
+  stopped = false;
+  startTime?: number;
+  stopTime?: number;
+
+  start(time?: number) {
+    this.started = true;
+    this.startTime = time;
+  }
+  stop(time?: number) {
+    this.stopped = true;
+    this.stopTime = time;
+  }
+}
+
+export class MockGainNode extends MockAudioNode {
+  gain = new MockAudioParam(1);
+}
+
+export class MockAudioContext {
+  static instances: MockAudioContext[] = [];
+
+  state: AudioContextState = 'suspended';
+  currentTime = 0;
+  destination = new MockAudioNode();
+  oscillators: MockOscillatorNode[] = [];
+  gains: MockGainNode[] = [];
+
+  constructor() {
+    MockAudioContext.instances.push(this);
+  }
+
+  async resume(): Promise<void> {
+    this.state = 'running';
+  }
+
+  async close(): Promise<void> {
+    this.state = 'closed';
+  }
+
+  createOscillator(): MockOscillatorNode {
+    const osc = new MockOscillatorNode();
+    this.oscillators.push(osc);
+    return osc;
+  }
+
+  createGain(): MockGainNode {
+    const gain = new MockGainNode();
+    this.gains.push(gain);
+    return gain;
+  }
+
+  static reset(): void {
+    MockAudioContext.instances = [];
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Browser Notification API Mock
+// ---------------------------------------------------------------------------
+
+export class MockNotification {
+  static permission: NotificationPermission = 'default';
+  static instances: MockNotification[] = [];
+
+  static async requestPermission(): Promise<NotificationPermission> {
+    return MockNotification.permission;
+  }
+
+  static reset(): void {
+    MockNotification.permission = 'default';
+    MockNotification.instances = [];
+  }
+
+  title: string;
+  options?: NotificationOptions;
+  closed = false;
+
+  constructor(title: string, options?: NotificationOptions) {
+    this.title = title;
+    this.options = options;
+    MockNotification.instances.push(this);
+  }
+
+  close(): void {
+    this.closed = true;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Service Worker Registration Mock
+// ---------------------------------------------------------------------------
+
+export interface MockServiceWorkerRegistration {
+  showNotification: (title: string, options?: any) => Promise<void>;
+  notifications: Array<{ title: string; options?: any }>;
+}
+
+// ---------------------------------------------------------------------------
+// Sandbox Handle & Installation
+// ---------------------------------------------------------------------------
+
 export interface BrowserSandboxHandle {
   localStorage: MemoryStorage;
   sessionStorage: MemoryStorage;
   geolocation: MockGeolocation;
+  vibrations: Array<number | number[]>;
+  notifications: typeof MockNotification;
+  audioContextInstances: MockAudioContext[];
+  serviceWorkerRegistration: MockServiceWorkerRegistration | null;
+  setVisibilityState: (state: DocumentVisibilityState) => void;
   restore: () => void;
 }
 
+export interface InstallBrowserGlobalsOptions {
+  origin?: string;
+  online?: boolean;
+  isSecureContext?: boolean;
+  permissionState?: PermissionState;
+  notificationPermission?: NotificationPermission;
+  supportsVibration?: boolean;
+  supportsServiceWorker?: boolean;
+}
+
+const createEventTarget = () => {
+  const listeners = new Map<string, Set<EventListenerOrEventListenerObject>>();
+  return {
+    addEventListener: (type: string, fn: EventListenerOrEventListenerObject) => {
+      if (!listeners.has(type)) listeners.set(type, new Set());
+      listeners.get(type)!.add(fn);
+    },
+    removeEventListener: (type: string, fn: EventListenerOrEventListenerObject) => {
+      listeners.get(type)?.delete(fn);
+    },
+    dispatchEvent: (event: { type: string }) => {
+      const set = listeners.get(event.type);
+      if (set) {
+        for (const fn of set) {
+          if (typeof fn === 'function') fn(event as any);
+          else if (fn && typeof fn === 'object' && 'handleEvent' in fn) (fn as any).handleEvent(event);
+        }
+      }
+      return true;
+    },
+    clear: () => listeners.clear(),
+  };
+};
+
 export const installBrowserGlobals = (
-  options: {
-    origin?: string;
-    online?: boolean;
-    isSecureContext?: boolean;
-    permissionState?: PermissionState;
-  } = {}
+  options: InstallBrowserGlobalsOptions = {}
 ): BrowserSandboxHandle => {
   const g = globalThis as Record<string, unknown>;
   const prev = {
@@ -248,6 +453,12 @@ export const installBrowserGlobals = (
     navigator: g.navigator,
     hasIsSecureContext: 'isSecureContext' in g,
     isSecureContext: g.isSecureContext,
+    hasAudioContext: 'AudioContext' in g,
+    audioContext: g.AudioContext,
+    hasWebkitAudioContext: 'webkitAudioContext' in g,
+    webkitAudioContext: g.webkitAudioContext,
+    hasNotification: 'Notification' in g,
+    notification: g.Notification,
   };
 
   const localStorage = new MemoryStorage();
@@ -261,6 +472,40 @@ export const installBrowserGlobals = (
       urlObj.hostname === 'localhost' ||
       urlObj.hostname === '127.0.0.1');
 
+  const windowEvents = createEventTarget();
+  const documentEvents = createEventTarget();
+
+  const vibrationCalls: Array<number | number[]> = [];
+  const swNotifications: Array<{ title: string; options?: any }> = [];
+
+  const mockRegistration: MockServiceWorkerRegistration = {
+    notifications: swNotifications,
+    showNotification: async (title, options) => {
+      swNotifications.push({ title, options });
+    },
+  };
+
+  const mockServiceWorker =
+    options.supportsServiceWorker !== false
+      ? {
+          ready: Promise.resolve(mockRegistration),
+          getRegistration: async () => mockRegistration,
+          register: async () => mockRegistration,
+        }
+      : undefined;
+
+  const mockVibrate =
+    options.supportsVibration !== false
+      ? (pattern: number | number[]) => {
+          vibrationCalls.push(pattern);
+          return true;
+        }
+      : undefined;
+
+  MockNotification.reset();
+  MockNotification.permission = options.notificationPermission ?? 'default';
+  MockAudioContext.reset();
+
   const windowObj: Record<string, unknown> = {
     location: {
       origin,
@@ -273,23 +518,40 @@ export const installBrowserGlobals = (
     isSecureContext: isSecure,
     localStorage,
     sessionStorage,
-    addEventListener: () => {},
-    removeEventListener: () => {},
-    dispatchEvent: () => true,
+    AudioContext: MockAudioContext,
+    webkitAudioContext: MockAudioContext,
+    Notification: MockNotification,
+    addEventListener: windowEvents.addEventListener,
+    removeEventListener: windowEvents.removeEventListener,
+    dispatchEvent: windowEvents.dispatchEvent,
   };
 
   const navigatorDesc = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
 
   g.window = windowObj;
   g.isSecureContext = isSecure;
-  g.document = {
+  g.AudioContext = MockAudioContext;
+  g.webkitAudioContext = MockAudioContext;
+  g.Notification = MockNotification;
+
+  let currentVisibilityState: DocumentVisibilityState = 'visible';
+
+  const docObj: Record<string, unknown> = {
     cookie: '',
     title: 'DangerZoneBD Test',
-    visibilityState: 'visible',
-    addEventListener: () => {},
-    removeEventListener: () => {},
+    get visibilityState() {
+      return currentVisibilityState;
+    },
+    set visibilityState(v: DocumentVisibilityState) {
+      currentVisibilityState = v;
+    },
+    addEventListener: documentEvents.addEventListener,
+    removeEventListener: documentEvents.removeEventListener,
+    dispatchEvent: documentEvents.dispatchEvent,
     createElement: () => ({}),
   };
+
+  g.document = docObj;
   g.localStorage = localStorage;
   g.sessionStorage = sessionStorage;
 
@@ -308,9 +570,10 @@ export const installBrowserGlobals = (
       value: {
         onLine: options.online ?? true,
         userAgent: 'DangerZoneBD-WebAudit/1.0',
-        serviceWorker: undefined,
+        serviceWorker: mockServiceWorker,
         geolocation: mockGeolocation,
         permissions: mockPermissions,
+        vibrate: mockVibrate,
       },
     });
   } catch {
@@ -323,7 +586,20 @@ export const installBrowserGlobals = (
     localStorage,
     sessionStorage,
     geolocation: mockGeolocation,
+    vibrations: vibrationCalls,
+    notifications: MockNotification,
+    audioContextInstances: MockAudioContext.instances,
+    serviceWorkerRegistration: options.supportsServiceWorker !== false ? mockRegistration : null,
+    setVisibilityState: (state: DocumentVisibilityState) => {
+      currentVisibilityState = state;
+      documentEvents.dispatchEvent({ type: 'visibilitychange' });
+    },
     restore: () => {
+      windowEvents.clear();
+      documentEvents.clear();
+      MockNotification.reset();
+      MockAudioContext.reset();
+
       const restoreKey = (key: string, had: boolean, val: unknown) => {
         if (had) {
           g[key] = val;
@@ -336,6 +612,10 @@ export const installBrowserGlobals = (
       restoreKey('localStorage', prev.hasLocalStorage, prev.localStorage);
       restoreKey('sessionStorage', prev.hasSessionStorage, prev.sessionStorage);
       restoreKey('isSecureContext', prev.hasIsSecureContext, prev.isSecureContext);
+      restoreKey('AudioContext', prev.hasAudioContext, prev.audioContext);
+      restoreKey('webkitAudioContext', prev.hasWebkitAudioContext, prev.webkitAudioContext);
+      restoreKey('Notification', prev.hasNotification, prev.notification);
+
       if (navigatorDesc) {
         try {
           Object.defineProperty(globalThis, 'navigator', navigatorDesc);

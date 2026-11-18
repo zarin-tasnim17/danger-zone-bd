@@ -14,7 +14,23 @@ import {
   sanitizeAccuracy,
   formatCoordinate,
   isWithinBangladesh,
+  isFreshPosition,
 } from '@repo/shared';
+
+export type TrackingStatus = 'active' | 'paused' | 'unavailable' | 'stopped';
+
+export interface LiveTrackingState {
+  isLiveTracking: boolean;
+  trackingStatus: TrackingStatus;
+  isFollowingUser: boolean;
+  liveWatchId: number | null;
+  startLiveTracking: () => Promise<boolean>;
+  stopLiveTracking: () => void;
+  setIsFollowingUser: (follow: boolean) => void;
+  recenterOnUser: () => void;
+  setTrackingStatus: (status: TrackingStatus) => void;
+  setLiveWatchId: (id: number | null) => void;
+}
 
 export type MapTileLayer = 'google_streets' | 'google_hybrid' | 'osm';
 export type LocationSource = 'gps' | 'calibrated';
@@ -81,7 +97,7 @@ const defaultLayerEnv =
   (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_MAP_DEFAULT_LAYER as MapTileLayer) ||
   'google_streets';
 
-export interface MapState {
+export interface MapState extends LiveTrackingState {
   mode: MapMode;
   center: Coordinates;
   zoom: number;
@@ -156,6 +172,12 @@ export const useMapStore = create<MapState>((set, get) => ({
   isSosModalOpen: false,
   targetCommand: null,
 
+  // Continuous Live Tracking State
+  isLiveTracking: false,
+  trackingStatus: 'stopped',
+  isFollowingUser: false,
+  liveWatchId: null,
+
   setMode: (mode) => set({ mode }),
   setCenter: (center, zoom) =>
     set((state) => {
@@ -214,6 +236,132 @@ export const useMapStore = create<MapState>((set, get) => ({
   closeSosModal: () => set({ isSosModalOpen: false }),
   setIsLowAccuracy: (isLowAccuracy) => set({ isLowAccuracy }),
   setDismissedCalibrationBanner: (dismissedCalibrationBanner) => set({ dismissedCalibrationBanner }),
+  setTrackingStatus: (trackingStatus) => set({ trackingStatus }),
+  setIsFollowingUser: (isFollowingUser) => set({ isFollowingUser }),
+  setLiveWatchId: (liveWatchId) => set({ liveWatchId }),
+
+  recenterOnUser: () => {
+    const loc = get().userLocation;
+    set({
+      isFollowingUser: true,
+      ...(get().isLiveTracking ? { trackingStatus: 'active' } : {}),
+    });
+    if (loc && isWithinBangladesh(loc.lat, loc.lng)) {
+      get().centerOnUserLocation();
+    }
+  },
+
+  stopLiveTracking: () => {
+    const watchId = get().liveWatchId;
+    if (typeof navigator !== 'undefined' && navigator.geolocation && watchId !== null) {
+      try {
+        navigator.geolocation.clearWatch(watchId);
+      } catch (err) {
+        console.warn('[useMapStore] Failed to clear live tracking watch:', err);
+      }
+    }
+    set({
+      isLiveTracking: false,
+      trackingStatus: 'stopped',
+      isFollowingUser: false,
+      liveWatchId: null,
+    });
+  },
+
+  startLiveTracking: async () => {
+    if (typeof navigator === 'undefined' || !navigator.geolocation) {
+      set({
+        isLiveTracking: false,
+        trackingStatus: 'unavailable',
+        isFollowingUser: false,
+        liveWatchId: null,
+      });
+      return false;
+    }
+
+    const prevWatchId = get().liveWatchId;
+    if (prevWatchId !== null) {
+      try {
+        navigator.geolocation.clearWatch(prevWatchId);
+      } catch (err) {
+        console.warn('[useMapStore] clearWatch error:', err);
+      }
+    }
+
+    set({
+      isLiveTracking: true,
+      trackingStatus: 'active',
+      isFollowingUser: true,
+      locationSource: 'gps',
+    });
+
+    try {
+      const watchId = navigator.geolocation.watchPosition(
+        (pos) => {
+          if (!get().isLiveTracking) return;
+
+          // Timestamp freshness check: reject readings older than 30s or non-positive timestamp
+          if (!isFreshPosition(pos.timestamp, 30000, Date.now())) {
+            return;
+          }
+
+          const rawAcc = pos.coords.accuracy;
+          const sanitizedAcc = sanitizeAccuracy(rawAcc);
+
+          const coords = {
+            lat: formatCoordinate(pos.coords.latitude),
+            lng: formatCoordinate(pos.coords.longitude),
+          };
+
+          if (!isWithinBangladesh(coords.lat, coords.lng)) {
+            return;
+          }
+
+          // Degraded accuracy does not freeze position in continuous tracking
+          const tier = classifyGeolocationAccuracy(rawAcc);
+          const isLow =
+            tier === 'LOW' ||
+            tier === 'VERY_LOW' ||
+            tier === 'EXTREMELY_POOR';
+
+          set({
+            userLocation: coords,
+            userAccuracy: sanitizedAcc,
+            userAccuracyTier: tier,
+            locationSource: 'gps',
+            locationTimestamp: pos.timestamp || Date.now(),
+            isLowAccuracy: isLow,
+          });
+
+          if (get().isFollowingUser) {
+            get().centerOnUserLocation();
+          }
+        },
+        (err) => {
+          console.warn('[useMapStore] watchPosition error:', err);
+          set({
+            trackingStatus: 'unavailable',
+          });
+        },
+        {
+          enableHighAccuracy: true,
+          maximumAge: 0,
+        }
+      );
+
+      set({ liveWatchId: watchId });
+      return true;
+    } catch (err) {
+      console.warn('[useMapStore] Exception in startLiveTracking:', err);
+      set({
+        isLiveTracking: false,
+        trackingStatus: 'unavailable',
+        isFollowingUser: false,
+        liveWatchId: null,
+      });
+      return false;
+    }
+  },
 
   setUserLocation: (coords, accuracy = null, source = 'gps', label = undefined, timestamp = null) => {
     if (!coords) {
@@ -264,6 +412,14 @@ export const useMapStore = create<MapState>((set, get) => ({
         console.warn('[useMapStore] Failed to clear geolocation watch upon calibration:', err);
       }
     }
+    const currentLiveWatchId = get().liveWatchId;
+    if (typeof navigator !== 'undefined' && navigator.geolocation && currentLiveWatchId !== null) {
+      try {
+        navigator.geolocation.clearWatch(currentLiveWatchId);
+      } catch (err) {
+        console.warn('[useMapStore] Failed to clear live geolocation watch upon calibration:', err);
+      }
+    }
 
     const formattedCoords = {
       lat: formatCoordinate(coords.lat),
@@ -292,6 +448,10 @@ export const useMapStore = create<MapState>((set, get) => ({
       activeWatchId: null,
       isLocating: false,
       acquisitionStage: 'idle',
+      isLiveTracking: false,
+      trackingStatus: 'stopped',
+      isFollowingUser: false,
+      liveWatchId: null,
       userLocation: formattedCoords,
       userAccuracy: 25,
       userAccuracyTier: 'GOOD',
@@ -337,6 +497,14 @@ export const useMapStore = create<MapState>((set, get) => ({
         console.warn('[useMapStore] Failed to clear geolocation watch upon reset:', err);
       }
     }
+    const currentLiveWatchId = get().liveWatchId;
+    if (typeof navigator !== 'undefined' && navigator.geolocation && currentLiveWatchId !== null) {
+      try {
+        navigator.geolocation.clearWatch(currentLiveWatchId);
+      } catch (err) {
+        console.warn('[useMapStore] Failed to clear live geolocation watch upon reset:', err);
+      }
+    }
 
     if (typeof window !== 'undefined') {
       try {
@@ -350,6 +518,10 @@ export const useMapStore = create<MapState>((set, get) => ({
       activeWatchId: null,
       isLocating: false,
       acquisitionStage: 'idle',
+      isLiveTracking: false,
+      trackingStatus: 'stopped',
+      isFollowingUser: false,
+      liveWatchId: null,
       userLocation: null,
       userAccuracy: null,
       userAccuracyTier: null,
