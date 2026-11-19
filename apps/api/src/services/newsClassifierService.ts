@@ -94,6 +94,33 @@ const CATEGORY_KEYWORDS: Record<ReportCategory, string[]> = {
     'সংঘর্ষ',
     'দুই পক্ষের সংঘর্ষ',
     'দুপক্ষের সংঘর্ষ',
+    'দুই গ্রামের সংঘর্ষ',
+    'দুই গ্রামবাসীর সংঘর্ষ',
+    'গ্রামবাসীর সংঘর্ষ',
+    'গ্রামবাসীর মধ্যে সংঘর্ষ',
+    'এলাকাবাসীর সংঘর্ষ',
+    'দুই গ্রুপের সংঘর্ষ',
+    'গোষ্ঠীগত সংঘর্ষ',
+    'সংঘর্ষে আহত',
+    'সংঘর্ষে নিহত',
+    'সংঘর্ষে রক্তাক্ত',
+    'টেঁটা যুদ্ধ',
+    'টেঁটা',
+    'রামদা',
+    'চাপাতি',
+    'বল্লম',
+    'হাঁসুয়া',
+    'ঢাল-সড়কি',
+    'সড়কি',
+    'লাঠিসোঁটা',
+    'দেশীয় অস্ত্র',
+    'ইটপাটকেল',
+    'মারপিট',
+    'হাতাহাতি',
+    'রণক্ষেত্র',
+    'চোর সন্দেহে পিটুনি',
+    'গণপিটুনি',
+    'পাল্টাপাল্টি ধাওয়া',
     'পক্ষের সংঘর্ষ',
     'মারামারি',
     'মারধর',
@@ -224,8 +251,6 @@ const CATEGORY_KEYWORDS: Record<ReportCategory, string[]> = {
     'ট্রাক ধাক্কা',
     'বাস-ট্রাক সংঘর্ষ',
     'মুখোমুখি সংঘর্ষ',
-    'সংঘর্ষে নিহত',
-    'সংঘর্ষে আহত',
     'পিকআপের সংঘর্ষ',
     'পিকআপ সংঘর্ষ',
     'ট্রাক-পিকআপ সংঘর্ষ',
@@ -342,6 +367,18 @@ const HIGH_SEVERITY_KEYWORDS = [
   'বিস্ফোরণ',
   'রক্তক্ষয়ী',
   'রক্তক্ষয়ী সংঘর্ষ',
+  'অর্ধশত আহত',
+  'শতাধিক আহত',
+  'বহু আহত',
+  'গুরুতর আহত',
+  'গুরুতর জখম',
+  'টেঁটা যুদ্ধ',
+  'রণক্ষেত্র',
+  'দেশীয় অস্ত্র',
+  'রামদা',
+  'চাপাতি',
+  'বল্লম',
+  'সংঘর্ষে অর্ধশত',
   'অগ্নিসংযোগ',
   'dead',
   'killed',
@@ -383,6 +420,20 @@ const COMPOUND_SAFETY_PHRASES = new Set([
   'বোমা হামলা',
   'দুই পক্ষের সংঘর্ষ',
   'দুপক্ষের সংঘর্ষ',
+  'দুই গ্রামের সংঘর্ষ',
+  'দুই গ্রামবাসীর সংঘর্ষ',
+  'গ্রামবাসীর সংঘর্ষ',
+  'এলাকাবাসীর সংঘর্ষ',
+  'দুই গ্রুপের সংঘর্ষ',
+  'সংঘর্ষে আহত',
+  'সংঘর্ষে নিহত',
+  'সংঘর্ষে রক্তাক্ত',
+  'টেঁটা যুদ্ধ',
+  'চোর সন্দেহে পিটুনি',
+  'গণপিটুনি',
+  'চুরির ঘটনাকে কেন্দ্র করে',
+  'চুরির জেরে সংঘর্ষ',
+  'চুরি নিয়ে সংঘর্ষ',
   'পক্ষের সংঘর্ষ',
   'হামলা ও সংঘর্ষ',
   'হামলা-ভাঙচুর',
@@ -581,6 +632,36 @@ const VIOLENT_FACTION_KEYWORDS = [
   'দুই পক্ষ',
   'দুপক্ষ',
   'দুই দলের',
+  'দুই গ্রাম',
+  'দুই গ্রামের',
+  'দুই গ্রামের সংঘর্ষ',
+  'গ্রামবাসী',
+  'গ্রামবাসীর',
+  'গ্রামবাসীর সংঘর্ষ',
+  'এলাকাবাসী',
+  'এলাকাবাসীর',
+  'দুই গ্রুপ',
+  'দুই গ্রুপের',
+  'গোষ্ঠী',
+  'গোষ্ঠীর',
+  'টেঁটা',
+  'টেঁটা যুদ্ধ',
+  'রামদা',
+  'চাপাতি',
+  'বল্লম',
+  'হাঁসুয়া',
+  'ঢাল-সড়কি',
+  'সড়কি',
+  'লাঠিসোঁটা',
+  'দেশীয় অস্ত্র',
+  'ইটপাটকেল',
+  'মারপিট',
+  'হাতাহাতি',
+  'গণপিটুনি',
+  'চোর সন্দেহে পিটুনি',
+  'পাল্টাপাল্টি ধাওয়া',
+  'village clash',
+  'mob violence',
   'পক্ষের সংঘর্ষ',
   'রাজনৈতিক সংঘর্ষ',
   'দলাদলি',
@@ -985,23 +1066,20 @@ export const classifyNewsText = (title: string, summary: string = ''): Classifie
   const hasVehicle = VEHICLE_KEYWORDS.some((vk) => matchesKeyword(combinedText, vk));
   const hasViolentFaction = VIOLENT_FACTION_KEYWORDS.some((fk) => matchesKeyword(combinedText, fk));
   const hasRoadCollisionTerms =
+    combinedText.includes('সংঘর্ষ') ||
+    combinedText.includes('দুর্ঘটনা') ||
+    combinedText.includes('দুর্ঘটনায়') ||
+    combinedText.includes('ধাক্কা') ||
+    combinedText.includes('ধাক্কায়') ||
+    combinedText.includes('চাপা') ||
+    combinedText.includes('চাপায়') ||
+    combinedText.includes('উল্টে') ||
+    combinedText.includes('খাদে') ||
+    combinedText.includes('নিয়ন্ত্রণ হারিয়ে') ||
+    combinedText.includes('নিয়ন্ত্রণ হারিয়ে') ||
     combinedText.includes('মুখোমুখি সংঘর্ষ') ||
     combinedText.includes('সড়ক দুর্ঘটনা') ||
     combinedText.includes('গাড়ি দুর্ঘটনা') ||
-    combinedText.includes('বাস-ট্রাক') ||
-    combinedText.includes('ট্রাক-পিকআপ') ||
-    combinedText.includes('পিকআপ-ড্রাম') ||
-    combinedText.includes('গাড়ির সংঘর্ষ') ||
-    combinedText.includes('লরির সংঘর্ষ') ||
-    combinedText.includes('মোটরসাইকেল দুর্ঘটনা') ||
-    combinedText.includes('অটোরিকশা দুর্ঘটনা') ||
-    combinedText.includes('চাপা পড়ে নিহত') ||
-    combinedText.includes('চাপা দিয়ে নিহত') ||
-    combinedText.includes('চাপা দিয়েছে') ||
-    combinedText.includes('উল্টে খাদে') ||
-    combinedText.includes('বাস উল্টে') ||
-    combinedText.includes('ট্রাক উল্টে') ||
-    combinedText.includes('পিকআপ উল্টে') ||
     combinedText.includes('collision') ||
     combinedText.includes('traffic accident') ||
     combinedText.includes('head-on collision') ||
@@ -1030,12 +1108,18 @@ export const classifyNewsText = (title: string, summary: string = ''): Classifie
   } else if (hasSnatching && hasArmedAssault) {
     resolvedCategory = 'SNATCHING_ARMED_ASSAULT';
   } else if (hasArmedAssault && (categoryScores['ROAD_ACCIDENT'] || 0) > 0) {
-    // If genuine violent political/weapon terms are present, violent clash overrides road keywords
-    if (hasViolentFaction) {
-      resolvedCategory = 'ARMED_ASSAULT';
-    } else {
+    // A road accident strictly requires vehicular involvement and collision context.
+    // If genuine violent human/faction/clash terms are present, ARMED_ASSAULT takes precedence.
+    if (hasVehicle && hasRoadCollisionTerms && !hasViolentFaction) {
       resolvedCategory = 'ROAD_ACCIDENT';
+    } else {
+      resolvedCategory = 'ARMED_ASSAULT';
     }
+  } else if (hasArmedAssault && hasTheft) {
+    // When a theft-related dispute, background cause, or trigger leads to an active physical clash,
+    // assault, or injuries (e.g. "হবিগঞ্জে চুরির ঘটনাকে কেন্দ্র করে দুই গ্রামের সংঘর্ষে আহত অর্ধশত"),
+    // the active physical safety hazard on the ground is ARMED_ASSAULT.
+    resolvedCategory = 'ARMED_ASSAULT';
   } else {
     // Pick category with highest score (prefer primary forms over legacy aliases)
     let maxScore = 0;

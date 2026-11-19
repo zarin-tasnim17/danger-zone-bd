@@ -557,10 +557,11 @@ export const processAndIngestNewsItems = async (
         ? 'ADMIN_VERIFIED'
         : 'CORROBORATED';
 
-      // If existing report was previously misclassified (e.g. ARMED_ASSAULT instead of ROAD_ACCIDENT), fix it:
+      // If existing report was misclassified as ROAD_ACCIDENT, but a corroborating outlet confirms
+      // a specific crime or violent clash (ARMED_ASSAULT, THEFT, ROBBERY, etc.), elevate to specific category:
       const updatedCategory =
-        existingReport.category === 'ARMED_ASSAULT' && finalCategory === 'ROAD_ACCIDENT'
-          ? 'ROAD_ACCIDENT'
+        existingReport.category === 'ROAD_ACCIDENT' && finalCategory !== 'ROAD_ACCIDENT'
+          ? finalCategory
           : existingReport.category;
 
       await prisma.report.update({

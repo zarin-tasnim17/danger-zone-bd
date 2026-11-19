@@ -27,6 +27,9 @@ export async function reclassifyAllNewsReports() {
     const cleanDesc = (report.description || '').replace(/^\[(?:Google News[^\]]*|The Daily Star[^\]]*)\]\s*/i, '').trim();
 
     const classification = classifyNewsText(rawHeadline, cleanDesc);
+    if (!classification.isSafetyRelated) {
+      continue;
+    }
 
     const categoryChanged = report.category !== classification.category;
     const severityChanged = report.severity !== classification.severity;
