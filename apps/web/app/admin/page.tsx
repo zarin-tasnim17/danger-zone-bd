@@ -315,6 +315,7 @@ export default function AdminPage() {
           isCrawling={isCrawling}
           crawlStatus={crawlStatus}
           dataError={dataError}
+          onDismissCrawlStatus={() => setCrawlStatus(null)}
         />
 
         {/* Tab Navigation Bar */}

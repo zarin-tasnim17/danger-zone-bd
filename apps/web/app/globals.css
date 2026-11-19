@@ -238,3 +238,40 @@
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
+
+/* Continuous News Ticker / Live Crawler Marquee */
+@keyframes news-ticker-scroll {
+  0% {
+    transform: translate3d(0, 0, 0);
+  }
+  100% {
+    transform: translate3d(-50%, 0, 0);
+  }
+}
+
+.animate-news-ticker {
+  display: flex;
+  width: max-content;
+  animation: news-ticker-scroll 24s linear infinite;
+  will-change: transform;
+}
+
+.animate-news-ticker:hover {
+  animation-play-state: paused;
+}
+
+/* Glowing Scanning Laser Line */
+@keyframes scan-laser {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(350%);
+  }
+}
+
+.animate-scan-laser {
+  animation: scan-laser 2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  will-change: transform;
+}
+

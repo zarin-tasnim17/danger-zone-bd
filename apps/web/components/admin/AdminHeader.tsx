@@ -11,6 +11,7 @@ import {
   Radio,
   CheckCircle2,
   AlertTriangle,
+  X,
 } from "lucide-react";
 
 interface AdminHeaderProps {
@@ -27,6 +28,7 @@ interface AdminHeaderProps {
   isCrawling: boolean;
   crawlStatus: string | null;
   dataError: string | null;
+  onDismissCrawlStatus?: () => void;
 }
 
 export default function AdminHeader({
@@ -40,6 +42,7 @@ export default function AdminHeader({
   isCrawling,
   crawlStatus,
   dataError,
+  onDismissCrawlStatus,
 }: AdminHeaderProps) {
   return (
     <header className="space-y-3 sm:space-y-4">
@@ -99,20 +102,37 @@ export default function AdminHeader({
 
         {/* Right: Actions Toolbar */}
         <div className="flex items-center gap-2 sm:gap-2.5 flex-wrap">
-          {/* Quick News Crawler Trigger */}
+          {/* Quick News Crawler Trigger with Active Live Pulse */}
           <button
             type="button"
             onClick={onTriggerNewsCrawl}
             disabled={isCrawling}
             title={crawlStatus || (isBn ? "সংবাদ ক্রলার চালু করুন" : "Trigger news crawler")}
-            className="px-3 py-2 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-semibold border border-slate-200/90 flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs disabled:opacity-60"
+            className={`px-3 py-2 rounded-xl text-xs font-semibold border flex items-center gap-1.5 transition-all shadow-2xs ${
+              isCrawling
+                ? "bg-sky-50 border-sky-300 text-sky-800 ring-2 ring-sky-500/20 cursor-wait"
+                : "bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200/90 cursor-pointer active:scale-95"
+            }`}
           >
-            <Radio className={`w-3.5 h-3.5 ${isCrawling ? "text-sky-600 animate-pulse" : "text-slate-500"}`} />
-            <span className="hidden sm:inline">
-              {isCrawling
-                ? isBn ? "ক্রলিং..." : "Crawling..."
-                : isBn ? "নিউজ ক্রলার" : "News Crawler"}
-            </span>
+            {isCrawling ? (
+              <>
+                <span className="relative flex h-2 w-2 mr-0.5">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-sky-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-sky-500"></span>
+                </span>
+                <Radio className="w-3.5 h-3.5 text-sky-600 animate-pulse" />
+                <span className="hidden sm:inline font-bold">
+                  {isBn ? "ক্রলিং চলছে..." : "Crawling Feeds..."}
+                </span>
+              </>
+            ) : (
+              <>
+                <Radio className="w-3.5 h-3.5 text-slate-500" />
+                <span className="hidden sm:inline">
+                  {isBn ? "নিউজ ক্রলার" : "News Crawler"}
+                </span>
+              </>
+            )}
           </button>
 
           {/* Keyboard Shortcuts Trigger Button */}
@@ -161,11 +181,147 @@ export default function AdminHeader({
 
       </div>
 
-      {/* Crawl Status Notification Banner */}
-      {crawlStatus && (
-        <div className="bg-sky-50 border border-sky-200 text-sky-900 rounded-xl px-4 py-2.5 text-xs font-medium flex items-center gap-2 shadow-2xs">
-          <CheckCircle2 className="w-4 h-4 text-sky-600 shrink-0" />
-          <span>{crawlStatus}</span>
+      {/* Active News Crawler Live Stream & Animated Scroller */}
+      {isCrawling && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="relative overflow-hidden bg-gradient-to-r from-sky-50 via-sky-50/90 to-blue-50 border border-sky-200 rounded-2xl p-2.5 sm:p-3 shadow-xs animate-in fade-in duration-200"
+        >
+          <div className="flex items-center gap-3">
+            {/* Live Crawler Pulse Pill */}
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-sky-600 text-white text-[11px] font-bold tracking-wide shrink-0 shadow-xs">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-80"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-white"></span>
+              </span>
+              <span>{isBn ? "লাইভ নিউজ ক্রলার" : "LIVE CRAWLER"}</span>
+            </div>
+
+            {/* Scrolling News Ticker Stream */}
+            <div className="flex-1 overflow-hidden relative">
+              <div className="animate-news-ticker">
+                {/* News Feed Stream - Set 1 */}
+                <div className="flex items-center gap-6 text-xs text-sky-950 font-medium whitespace-nowrap pr-6">
+                  <span className="inline-flex items-center gap-1.5">
+                    <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-sky-100 text-sky-700 border border-sky-200">
+                      GOOGLE NEWS BD
+                    </span>
+                    {isBn
+                      ? "ঢাকা ও চট্টগ্রাম অঞ্চলের ছিনতাই ও ডাকাতি সংক্রান্ত আরএসএস ফিড রিড করা হচ্ছে..."
+                      : "Scanning real-time theft, robbery & snatching dispatches..."}
+                  </span>
+                  <span className="text-sky-300">•</span>
+                  <span className="inline-flex items-center gap-1.5">
+                    <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-700 border border-blue-200">
+                      THE DAILY STAR
+                    </span>
+                    {isBn
+                      ? "ব্রেকিং পাবলিক সেফটি ও ক্রাইম রিপোর্ট ইনজেস্ট হচ্ছে..."
+                      : "Ingesting verified crime & road accident bulletins..."}
+                  </span>
+                  <span className="text-sky-300">•</span>
+                  <span className="inline-flex items-center gap-1.5">
+                    <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-700 border border-amber-200">
+                      GEOCODER
+                    </span>
+                    {isBn
+                      ? "৬৪ জেলার ভৌগোলিক স্থানাঙ্ক ও জেলা সীমানা ক্রস-ভেরিফাই করা হচ্ছে..."
+                      : "Resolving geospatial boundaries across 64 Bangladesh districts..."}
+                  </span>
+                  <span className="text-sky-300">•</span>
+                  <span className="inline-flex items-center gap-1.5">
+                    <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-700 border border-emerald-200">
+                      CROSS-VERIFY
+                    </span>
+                    {isBn
+                      ? "নাগরিক বিপদের রিপোর্টের সাথে নিউজ বুলেটিন ক্রস-রেফারেন্স চলছে..."
+                      : "Matching citizen emergency reports against breaking news sources..."}
+                  </span>
+                </div>
+
+                {/* News Feed Stream - Duplicate Set for Seamless Continuous Loop */}
+                <div className="flex items-center gap-6 text-xs text-sky-950 font-medium whitespace-nowrap pr-6" aria-hidden="true">
+                  <span className="inline-flex items-center gap-1.5">
+                    <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-sky-100 text-sky-700 border border-sky-200">
+                      GOOGLE NEWS BD
+                    </span>
+                    {isBn
+                      ? "ঢাকা ও চট্টগ্রাম অঞ্চলের ছিনতাই ও ডাকাতি সংক্রান্ত আরএসএস ফিড রিড করা হচ্ছে..."
+                      : "Scanning real-time theft, robbery & snatching dispatches..."}
+                  </span>
+                  <span className="text-sky-300">•</span>
+                  <span className="inline-flex items-center gap-1.5">
+                    <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-700 border border-blue-200">
+                      THE DAILY STAR
+                    </span>
+                    {isBn
+                      ? "ব্রেকিং পাবলিক সেফটি ও ক্রাইম রিপোর্ট ইনজেস্ট হচ্ছে..."
+                      : "Ingesting verified crime & road accident bulletins..."}
+                  </span>
+                  <span className="text-sky-300">•</span>
+                  <span className="inline-flex items-center gap-1.5">
+                    <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-700 border border-amber-200">
+                      GEOCODER
+                    </span>
+                    {isBn
+                      ? "৬৪ জেলার ভৌগোলিক স্থানাঙ্ক ও জেলা সীমানা ক্রস-ভেরিফাই করা হচ্ছে..."
+                      : "Resolving geospatial boundaries across 64 Bangladesh districts..."}
+                  </span>
+                  <span className="text-sky-300">•</span>
+                  <span className="inline-flex items-center gap-1.5">
+                    <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-700 border border-emerald-200">
+                      CROSS-VERIFY
+                    </span>
+                    {isBn
+                      ? "নাগরিক বিপদের রিপোর্টের সাথে নিউজ বুলেটিন ক্রস-রেফারেন্স চলছে..."
+                      : "Matching citizen emergency reports against breaking news sources..."}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Right: Live Sync Spinner Icon */}
+            <div className="hidden sm:flex items-center gap-1.5 text-xs text-sky-700 font-semibold shrink-0 bg-sky-100/70 border border-sky-200/80 px-2.5 py-1 rounded-lg">
+              <RefreshCw className="w-3.5 h-3.5 animate-spin text-sky-600" />
+              <span>{isBn ? "স্ক্যানিং..." : "Scanning..."}</span>
+            </div>
+          </div>
+
+          {/* Laser Scanning Track Indicator */}
+          <div className="absolute bottom-0 left-0 right-0 h-[2.5px] bg-sky-200/60 overflow-hidden">
+            <div className="h-full w-1/3 bg-gradient-to-r from-transparent via-sky-600 to-transparent animate-scan-laser"></div>
+          </div>
+        </div>
+      )}
+
+      {/* Crawl Completed Notification Banner */}
+      {!isCrawling && crawlStatus && (
+        <div
+          role="status"
+          className="bg-emerald-50 border border-emerald-200 text-emerald-950 rounded-2xl px-4 py-3 text-xs font-medium flex items-center justify-between gap-3 shadow-2xs animate-in fade-in duration-200"
+        >
+          <div className="flex items-center gap-2.5">
+            <div className="w-6 h-6 rounded-lg bg-emerald-100 border border-emerald-300 flex items-center justify-center text-emerald-700 shrink-0">
+              <CheckCircle2 className="w-3.5 h-3.5" />
+            </div>
+            <div>
+              <span className="font-bold text-emerald-800 mr-2">
+                {isBn ? "ক্রল সম্পন্ন:" : "Crawl Complete:"}
+              </span>
+              <span>{crawlStatus}</span>
+            </div>
+          </div>
+          {onDismissCrawlStatus && (
+            <button
+              type="button"
+              onClick={onDismissCrawlStatus}
+              title={isBn ? "বন্ধ করুন" : "Dismiss"}
+              className="p-1 rounded-lg text-emerald-600 hover:text-emerald-900 hover:bg-emerald-100 transition-colors cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
         </div>
       )}
     </header>
