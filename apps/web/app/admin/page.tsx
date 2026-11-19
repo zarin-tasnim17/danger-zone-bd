@@ -1,121 +1,70 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
-import Link from "next/link";
 import Navbar from "@/components/layout/Navbar";
 import AdminLoginGateway from "@/components/auth/AdminLoginGateway";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useLanguageStore } from "@/store/useLanguageStore";
 import { apiFetch } from "@/lib/api";
-import { translations } from "@/lib/translations";
 import { showToast } from "@/store/useToastStore";
+
+// Modular Admin Components
+import AdminHeader from "@/components/admin/AdminHeader";
+import AdminTabsNav from "@/components/admin/AdminTabsNav";
+import AdminAnalyticsSection from "@/components/admin/AdminAnalyticsSection";
+import AdminReportsSection from "@/components/admin/AdminReportsSection";
+import AdminVerificationsSection from "@/components/admin/AdminVerificationsSection";
+import AdminUsersSection from "@/components/admin/AdminUsersSection";
+import AdminLogsSection from "@/components/admin/AdminLogsSection";
+import AdminPurgeModal from "@/components/admin/AdminPurgeModal";
+import AdminRejectModal from "@/components/admin/AdminRejectModal";
+import AdminShortcutsModal from "@/components/admin/AdminShortcutsModal";
 import {
-  ShieldAlert,
-  ArrowLeft,
-  Trash2,
-  UserX,
-  UserCheck,
-  RefreshCw,
-  FileText,
-  AlertTriangle,
-  Lock,
-  Globe,
-  Radio,
-  CheckCircle2,
-  Keyboard,
-  BarChart3,
-  TrendingUp,
-  Moon,
-  Clock,
-  Shield,
-  Activity,
-  PhoneCall,
-  ExternalLink,
-  ChevronRight,
-  Sparkles,
-  KeyRound,
-  X,
-  Check,
-  Eye,
-  EyeOff,
-  Mail,
-} from "lucide-react";
-
-const CATEGORY_ALIAS_MAP: Record<string, string> = {
-  MUGGING: "SNATCHING",
-  DACOITY: "ROBBERY",
-  THEFT_DACOITY: "THEFT_ROBBERY",
-  TEEN_GANG: "YOUTH_GANG_ACTIVITY",
-  DRUG_ACTIVITY: "DRUG_RELATED_CRIME",
-};
-
-const CATEGORY_BAR_COLORS: Record<string, string> = {
-  SNATCHING: "bg-orange-500",
-  ARMED_ASSAULT: "bg-rose-600",
-  SNATCHING_ARMED_ASSAULT: "bg-red-600",
-  ROBBERY: "bg-red-500",
-  THEFT: "bg-amber-500",
-  THEFT_ROBBERY: "bg-red-700",
-  EXTORTION: "bg-purple-500",
-  YOUTH_GANG_ACTIVITY: "bg-violet-500",
-  DRUG_RELATED_CRIME: "bg-blue-500",
-  UNLIT_ROAD: "bg-yellow-500",
-  ROAD_ACCIDENT: "bg-emerald-500",
-  TEEN_GANG_ARMED_ASSAULT: "bg-fuchsia-600",
-};
-
-const UUID_PATTERN =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  AdminTab,
+  AdminReport,
+  AdminVerification,
+  AdminLog,
+  AdminTrends,
+} from "@/components/admin/types";
 
 export default function AdminPage() {
-  const { user, loginAdminWithPassword, logout, initAuth } = useAuthStore();
+  const { user, logout, initAuth } = useAuthStore();
   const { language } = useLanguageStore();
   const isBn = language === "bn";
 
-  // Login Gate State
-  const [adminEmail, setAdminEmail] = useState("");
-  const [adminPassword, setAdminPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
+  // Dashboard Navigation State
+  const [activeTab, setActiveTab] = useState<AdminTab>("overview");
 
-  const [authError, setAuthError] = useState<string | null>(null);
-  const [isAuthenticating, setIsAuthenticating] = useState(false);
+  // Remote Data State
+  const [reports, setReports] = useState<AdminReport[]>([]);
+  const [logs, setLogs] = useState<AdminLog[]>([]);
+  const [verifications, setVerifications] = useState<AdminVerification[]>([]);
+  const [trends, setTrends] = useState<AdminTrends | null>(null);
 
-  // Dashboard Data State
-  const [activeTab, setActiveTab] = useState<
-    "reports" | "users" | "verifications" | "logs" | "analytics"
-  >("reports");
-  const [reports, setReports] = useState<any[]>([]);
-  const [logs, setLogs] = useState<any[]>([]);
-  const [verifications, setVerifications] = useState<any[]>([]);
-  const [trends, setTrends] = useState<any | null>(null);
+  // Loading & Error States
   const [isLoadingData, setIsLoadingData] = useState(false);
   const [dataError, setDataError] = useState<string | null>(null);
   const [isLoadingTrends, setIsLoadingTrends] = useState(false);
 
-  // Action Inputs
-  const [banUserId, setBanUserId] = useState("");
-  const [banReason, setBanReason] = useState("");
+  // News Crawler State
   const [crawlStatus, setCrawlStatus] = useState<string | null>(null);
   const [isCrawling, setIsCrawling] = useState(false);
 
-  // Purge Modal State
-  const [purgeTarget, setPurgeTarget] = useState<any | null>(null);
-  const [purgeReason, setPurgeReason] = useState("");
-  const [isPurging, setIsPurging] = useState(false);
+  // Modal Dialog States
+  const [purgeTarget, setPurgeTarget] = useState<AdminReport | null>(null);
+  const [rejectTarget, setRejectTarget] = useState<AdminVerification | null>(null);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
 
-  // Reject Modal State
-  const [rejectTarget, setRejectTarget] = useState<any | null>(null);
-  const [rejectReason, setRejectReason] = useState("");
-  const [isRejecting, setIsRejecting] = useState(false);
-
+  // Initialize Auth
   useEffect(() => {
     initAuth();
   }, [initAuth]);
 
+  // Fetch Trends
   const fetchTrends = useCallback(async () => {
     setIsLoadingTrends(true);
     try {
-      const data = await apiFetch<any>("/admin/analytics/trends");
+      const data = await apiFetch<AdminTrends>("/admin/analytics/trends");
       setTrends(data);
     } catch (err: any) {
       console.warn("[Admin Trends Fetch] Notice:", err.message);
@@ -124,31 +73,34 @@ export default function AdminPage() {
     }
   }, []);
 
+  // Fetch Full Admin Dashboard Dataset
   const fetchAdminData = useCallback(async () => {
     setIsLoadingData(true);
     setDataError(null);
     try {
       // 1. Fetch live reports
-      const reportsData = await apiFetch<any[]>(
+      const reportsData = await apiFetch<AdminReport[]>(
         "/reports?minLat=20&maxLat=27&minLng=88&maxLng=93"
       );
       setReports(reportsData || []);
 
       // 2. Fetch moderation audit logs
-      const logsData = await apiFetch<{ logs: any[] }>("/admin/logs?page=1&limit=30");
+      const logsData = await apiFetch<{ logs: AdminLog[] }>("/admin/logs?page=1&limit=30");
       setLogs(logsData?.logs || []);
 
       // 3. Fetch pending KYC verifications
-      const verificationsData = await apiFetch<any[]>("/admin/verifications");
+      const verificationsData = await apiFetch<AdminVerification[]>("/admin/verifications");
       setVerifications(verificationsData || []);
 
       // 4. Fetch 30-day hazard analytics and trends
-      const trendsData = await apiFetch<any>("/admin/analytics/trends");
+      const trendsData = await apiFetch<AdminTrends>("/admin/analytics/trends");
       setTrends(trendsData || null);
     } catch (err: any) {
       const msg =
         err?.message ||
-        (isBn ? "অ্যাডমিন ড্যাশবোর্ড ডেটা লোড করতে ব্যর্থ হয়েছে।" : "Failed to load admin dashboard data.");
+        (isBn
+          ? "অ্যাডমিন ড্যাশবোর্ড ডেটা লোড করতে ব্যর্থ হয়েছে।"
+          : "Failed to load admin dashboard data.");
       setDataError(msg);
       showToast(msg, "error");
     } finally {
@@ -164,63 +116,48 @@ export default function AdminPage() {
   }, [user, fetchAdminData]);
 
   // Purge Report Execution
-  const executePurge = async () => {
+  const executePurge = async (reason: string) => {
     if (!purgeTarget) return;
-    if (purgeReason.trim().length < 3) {
-      showToast(
-        isBn
-          ? "রিপোর্ট মুছে ফেলার কারণ কমপক্ষে ৩ অক্ষরের হতে হবে।"
-          : "Purge reason must be at least 3 characters.",
-        "warning"
-      );
-      return;
-    }
-    const reason = purgeReason.trim();
-    setIsPurging(true);
     try {
       await apiFetch(`/admin/reports/${purgeTarget.id}/purge`, {
         method: "POST",
         body: JSON.stringify({ reason }),
       });
+      showToast(
+        isBn ? "রিপোর্ট সফলভাবে অপসারণ করা হয়েছে।" : "Incident report purged successfully.",
+        "success"
+      );
       setPurgeTarget(null);
-      setPurgeReason("");
       fetchAdminData();
     } catch (err: any) {
       showToast(err.message || "Failed to purge report.", "error");
-    } finally {
-      setIsPurging(false);
+      throw err;
     }
   };
 
-  // Reject Verification Execution
-  const executeReject = async () => {
+  // Reject KYC Verification Execution
+  const executeReject = async (reason: string) => {
     if (!rejectTarget) return;
-    if (rejectReason.trim().length < 3) {
-      showToast(
-        isBn
-          ? "প্রত্যাখ্যানের কারণ কমপক্ষে ৩ অক্ষরের হতে হবে।"
-          : "Rejection reason must be at least 3 characters.",
-        "warning"
-      );
-      return;
-    }
-    const reason = rejectReason.trim();
-    setIsRejecting(true);
     try {
       await apiFetch(`/admin/verifications/${rejectTarget.id}/reject`, {
         method: "POST",
         body: JSON.stringify({ reason }),
       });
+      showToast(
+        isBn
+          ? "কেওয়াইসি ভেরিফিকেশন সফলভাবে প্রত্যাখ্যান করা হয়েছে।"
+          : "Verification rejected successfully.",
+        "success"
+      );
       setRejectTarget(null);
-      setRejectReason("");
       fetchAdminData();
     } catch (err: any) {
       showToast(err.message || "Failed to reject verification.", "error");
-    } finally {
-      setIsRejecting(false);
+      throw err;
     }
   };
 
+  // Approve KYC Verification Execution
   const handleApproveVerification = useCallback(
     async (verifId: string) => {
       const msg = isBn
@@ -231,6 +168,10 @@ export default function AdminPage() {
         await apiFetch(`/admin/verifications/${verifId}/approve`, {
           method: "POST",
         });
+        showToast(
+          isBn ? "কেওয়াইসি সফলভাবে অনুমোদিত হয়েছে।" : "KYC verified and responder activated.",
+          "success"
+        );
         fetchAdminData();
       } catch (err: any) {
         showToast(err.message || "Failed to approve verification.", "error");
@@ -239,106 +180,31 @@ export default function AdminPage() {
     [fetchAdminData, isBn]
   );
 
-  // Keyboard Shortcuts: [P], [B], [A], [R]
-  useEffect(() => {
-    if (user?.role !== "ADMIN") return;
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      const targetTag = (e.target as HTMLElement)?.tagName?.toLowerCase();
-      if (targetTag === "input" || targetTag === "textarea" || targetTag === "select") {
-        return;
-      }
-
-      const key = e.key.toUpperCase();
-
-      if (key === "P") {
-        if (reports.length > 0) {
-          e.preventDefault();
-          setPurgeTarget(reports[0]);
-        }
-      } else if (key === "B") {
-        e.preventDefault();
-        setActiveTab("users");
-        const input = document.getElementById("admin-ban-user-id");
-        if (input) input.focus();
-      } else if (key === "A") {
-        if (verifications.length > 0) {
-          e.preventDefault();
-          handleApproveVerification(verifications[0].id);
-        }
-      } else if (key === "R") {
-        if (verifications.length > 0) {
-          e.preventDefault();
-          setRejectTarget(verifications[0]);
-        }
-      }
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [user, reports, verifications, handleApproveVerification]);
-
-  const handleAdminLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setAuthError(null);
-    setIsAuthenticating(true);
-
+  // Ban / Unban User Execution
+  const handleBanUser = async (userId: string, reason: string, action: "ban" | "unban") => {
     try {
-      await loginAdminWithPassword(adminEmail.trim(), adminPassword);
-    } catch (err: any) {
-      setAuthError(
-        err.message ||
-          (isBn
-            ? "প্রশাসনিক অ্যাকাউন্টে প্রমাণীকরণ ব্যর্থ হয়েছে।"
-            : "Failed to authenticate administrator account.")
-      );
-    } finally {
-      setIsAuthenticating(false);
-    }
-  };
-
-  const handleBanUser = async (action: "ban" | "unban") => {
-    const trimmedUserId = banUserId.trim();
-    if (!UUID_PATTERN.test(trimmedUserId)) {
-      showToast(
-        isBn
-          ? "অনুগ্রহ করে একটি বৈধ ইউজার UUID প্রদান করুন।"
-          : "Please enter a valid target user UUID.",
-        "warning"
-      );
-      return;
-    }
-
-    if (banReason.trim().length < 3) {
-      showToast(
-        isBn
-          ? "মডারেশনের কারণ কমপক্ষে ৩ অক্ষরের হতে হবে।"
-          : "Moderation reason must be at least 3 characters.",
-        "warning"
-      );
-      return;
-    }
-    const reason = banReason.trim();
-
-    try {
-      await apiFetch(`/admin/users/${trimmedUserId}/${action}`, {
+      await apiFetch(`/admin/users/${userId}/${action}`, {
         method: "POST",
         body: JSON.stringify({ reason }),
       });
       showToast(
         action === "ban"
-          ? isBn ? "ইউজার সফলভাবে স্থগিত / নিষিদ্ধ করা হয়েছে।" : "User suspended successfully."
-          : isBn ? "ইউজার অ্যাকাউন্ট সফলভাবে পুনরুদ্ধার করা হয়েছে।" : "User restored successfully.",
+          ? isBn
+            ? "ইউজার সফলভাবে স্থগিত / নিষিদ্ধ করা হয়েছে।"
+            : "User suspended successfully."
+          : isBn
+          ? "ইউজার অ্যাকাউন্ট সফলভাবে পুনরুদ্ধার করা হয়েছে।"
+          : "User restored successfully.",
         "success"
       );
-      setBanUserId("");
-      setBanReason("");
       fetchAdminData();
     } catch (err: any) {
       showToast(err.message || `Failed to ${action} user.`, "error");
+      throw err;
     }
   };
 
+  // Trigger News Crawler
   const handleTriggerNewsCrawl = async () => {
     setIsCrawling(true);
     setCrawlStatus(
@@ -361,14 +227,66 @@ export default function AdminPage() {
     }
   };
 
+  // Keyboard Shortcuts: [P], [B], [A], [R], [Esc], [?]
+  useEffect(() => {
+    if (user?.role !== "ADMIN") return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const targetTag = (e.target as HTMLElement)?.tagName?.toLowerCase();
+      if (targetTag === "input" || targetTag === "textarea" || targetTag === "select") {
+        if (e.key === "Escape") {
+          (e.target as HTMLElement).blur();
+        }
+        return;
+      }
+
+      const key = e.key.toUpperCase();
+
+      if (e.key === "Escape") {
+        setPurgeTarget(null);
+        setRejectTarget(null);
+        setShortcutsOpen(false);
+      } else if (key === "P") {
+        if (reports.length > 0) {
+          e.preventDefault();
+          setActiveTab("reports");
+          setPurgeTarget(reports[0]);
+        }
+      } else if (key === "B") {
+        e.preventDefault();
+        setActiveTab("users");
+        setTimeout(() => {
+          const input = document.getElementById("admin-ban-user-id");
+          if (input) input.focus();
+        }, 50);
+      } else if (key === "A") {
+        if (verifications.length > 0) {
+          e.preventDefault();
+          handleApproveVerification(verifications[0].id);
+        }
+      } else if (key === "R") {
+        if (verifications.length > 0) {
+          e.preventDefault();
+          setActiveTab("verifications");
+          setRejectTarget(verifications[0]);
+        }
+      } else if (e.key === "?" || key === "K") {
+        e.preventDefault();
+        setShortcutsOpen((prev) => !prev);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [user, reports, verifications, handleApproveVerification]);
+
   // -------------------------------------------------------------
-  // Unauthenticated Admin Gate (Premium Minimal Portal)
+  // Unauthenticated Admin Gate (Clean Minimal Portal)
   // -------------------------------------------------------------
   if (user?.role !== "ADMIN") {
     return (
       <div className="min-h-screen flex flex-col bg-slate-50 text-slate-900 selection:bg-red-500 selection:text-white">
         <Navbar />
-
         <main className="flex-1 w-full mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-16 flex flex-col items-center justify-center">
           <AdminLoginGateway onSuccess={() => fetchAdminData()} />
         </main>
@@ -381,929 +299,103 @@ export default function AdminPage() {
   // -------------------------------------------------------------
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 text-slate-900 selection:bg-red-500 selection:text-white">
-      {/* Single Unified Navbar with integrated EN/বাংলা toggle */}
+      {/* Global Navbar */}
       <Navbar />
 
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6">
+        {/* SaaS Admin Header */}
+        <AdminHeader
+          user={user}
+          isBn={isBn}
+          isLoadingData={isLoadingData}
+          onRefresh={fetchAdminData}
+          onLogout={logout}
+          onOpenShortcuts={() => setShortcutsOpen(true)}
+          onTriggerNewsCrawl={handleTriggerNewsCrawl}
+          isCrawling={isCrawling}
+          crawlStatus={crawlStatus}
+          dataError={dataError}
+        />
 
-        {/* Admin Command Header Strip */}
-        <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex items-center gap-3.5">
-            <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-slate-900 to-slate-800 border border-slate-700/80 flex items-center justify-center text-red-500 shrink-0 shadow-md shadow-slate-900/20 ring-1 ring-red-500/20">
-              <ShieldAlert className="w-6 h-6" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-lg sm:text-xl font-black text-slate-900 tracking-tight">
-                  {isBn
-                    ? "পাবলিক সেফটি সিকিউরিটি মডারেশন কনসোল"
-                    : "Public Safety Security Moderation Console"}
-                </h1>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-red-50 text-red-700 border border-red-200">
-                  ROOT ADMIN
-                </span>
-              </div>
-              <p className="text-xs text-slate-500 font-medium mt-0.5">
-                {isBn ? "অ্যাডমিন আইডি: " : "Admin ID: "}
-                <span className="font-mono text-red-700 font-bold">{user.id.slice(0, 8)}...</span>
-                {user.email && (
-                  <>
-                    <span className="mx-2 text-slate-300">•</span>
-                    <span className="text-slate-600">{user.email}</span>
-                  </>
-                )}
-              </p>
-            </div>
-          </div>
+        {/* Tab Navigation Bar */}
+        <AdminTabsNav
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+          reportsCount={reports.length}
+          verificationsCount={verifications.length}
+          logsCount={logs.length}
+          isBn={isBn}
+        />
 
-          <div className="flex items-center gap-2 sm:gap-2.5 flex-wrap">
-            <button
-              onClick={fetchAdminData}
-              disabled={isLoadingData}
-              className="px-3.5 py-2 rounded-xl bg-slate-50 hover:bg-slate-100 text-xs font-bold text-slate-700 border border-slate-200 flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${isLoadingData ? "animate-spin text-red-600" : ""}`} />
-              <span>{isBn ? "রিফ্রেশ" : "Refresh"}</span>
-            </button>
+        {/* Tab Content Panes */}
+        <div className="transition-all duration-200">
+          {activeTab === "overview" && (
+            <AdminAnalyticsSection
+              trends={trends}
+              isBn={isBn}
+              isLoadingTrends={isLoadingTrends}
+              onRefreshTrends={fetchTrends}
+            />
+          )}
 
-            <Link
-              href="/"
-              className="px-3.5 py-2 rounded-xl bg-slate-50 hover:bg-slate-100 text-xs font-bold text-slate-700 border border-slate-200 flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
-            >
-              <Globe className="w-3.5 h-3.5 text-blue-600" />
-              <span>{isBn ? "লাইভ ম্যাপ" : "Live Map"}</span>
-            </Link>
+          {activeTab === "reports" && (
+            <AdminReportsSection
+              reports={reports}
+              isBn={isBn}
+              onSelectPurge={setPurgeTarget}
+            />
+          )}
 
-            <button
-              onClick={logout}
-              className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold transition-all shadow-xs active:scale-95 cursor-pointer"
-            >
-              {isBn ? "সাইন আউট" : "Sign Out"}
-            </button>
-          </div>
+          {activeTab === "verifications" && (
+            <AdminVerificationsSection
+              verifications={verifications}
+              isBn={isBn}
+              onApprove={handleApproveVerification}
+              onSelectReject={setRejectTarget}
+            />
+          )}
+
+          {activeTab === "users" && (
+            <AdminUsersSection
+              logs={logs}
+              isBn={isBn}
+              onBanUser={handleBanUser}
+            />
+          )}
+
+          {activeTab === "logs" && (
+            <AdminLogsSection
+              logs={logs}
+              isBn={isBn}
+            />
+          )}
         </div>
-
-        {/* Tactical Cheatsheet & News Crawler Banner */}
-        {dataError && (
-          <div className="bg-red-50 border border-red-200 text-red-800 rounded-2xl p-3.5 text-xs font-semibold flex items-center justify-between gap-3">
-            <span>{dataError}</span>
-            <button
-              type="button"
-              onClick={fetchAdminData}
-              className="px-3 py-1 rounded-lg bg-red-600 text-white font-bold hover:bg-red-700 transition-colors shrink-0 cursor-pointer"
-            >
-              {isBn ? "আবার চেষ্টা করুন" : "Retry"}
-            </button>
-          </div>
-        )}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-          {/* Tactical Keyboard Shortcuts HUD (5 cols on lg) */}
-          <div className="lg:col-span-5 bg-white border border-slate-200/90 rounded-2xl p-4 shadow-xs flex items-center gap-3">
-            <div className="p-2.5 bg-slate-100 border border-slate-200 text-slate-800 rounded-xl shrink-0 shadow-2xs">
-              <Keyboard className="w-5 h-5" />
-            </div>
-            <div>
-              <div className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider mb-1">
-                {isBn ? "কিবোর্ড শর্টকাট হাব" : "Tactical Admin Shortcuts"}
-              </div>
-              <div className="flex flex-wrap gap-1.5 text-[11px] font-mono">
-                <span className="px-2 py-0.5 rounded-lg bg-slate-100 border border-slate-200 text-slate-800 font-semibold">
-                  <strong className="text-slate-900">[P]</strong> {isBn ? "শীর্ষ রিপোর্ট মুছুন" : "Purge Top"}
-                </span>
-                <span className="px-2 py-0.5 rounded-lg bg-slate-100 border border-slate-200 text-slate-800 font-semibold">
-                  <strong className="text-slate-900">[B]</strong> {isBn ? "ইউজার ব্যান" : "Ban User"}
-                </span>
-                <span className="px-2 py-0.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 font-semibold">
-                  <strong className="text-slate-900">[A]</strong> {isBn ? "কেওয়াইসি অনুমোদন" : "Approve KYC"}
-                </span>
-                <span className="px-2 py-0.5 rounded-lg bg-red-50 border border-red-200 text-red-700 font-semibold">
-                  <strong className="text-slate-900">[R]</strong> {isBn ? "কেওয়াইসি প্রত্যাখ্যান" : "Reject KYC"}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Automated News Portal Ingestion (7 cols on lg) */}
-          <div className="lg:col-span-7 bg-white border border-slate-200/90 rounded-2xl p-4 shadow-xs flex flex-wrap items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-sky-50 text-sky-600 border border-sky-200 flex items-center justify-center shrink-0 shadow-2xs">
-                <Radio className="w-5 h-5" />
-              </div>
-              <div>
-                <h2 className="text-xs sm:text-sm font-bold text-slate-900">
-                  {isBn
-                    ? "স্বয়ংক্রিয় সংবাদ পোর্টাল ইনজেশন (Google News BD + Daily Star)"
-                    : "Automated News Portal Ingestion (Google News + Daily Star)"}
-                </h2>
-                <p className="text-[11px] text-slate-500 font-medium">
-                  {isBn
-                    ? "লাইভ আরএসএস ফিড ক্রল করে মানচিত্রে দুর্ঘটনা যাচাই করুন।"
-                    : "Live RSS news crawler cross-verifies citizen reports with national press."}
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3">
-              {crawlStatus && (
-                <span className="text-xs text-slate-700 font-semibold bg-sky-50 px-2.5 py-1 rounded-lg border border-sky-200">
-                  {crawlStatus}
-                </span>
-              )}
-              <button
-                onClick={handleTriggerNewsCrawl}
-                disabled={isCrawling}
-                className="px-3.5 py-2 bg-sky-600 hover:bg-sky-700 disabled:opacity-50 text-white text-xs font-bold rounded-xl shadow-xs transition-all active:scale-95 cursor-pointer flex items-center gap-1.5"
-              >
-                <RefreshCw className={`w-3.5 h-3.5 ${isCrawling ? "animate-spin" : ""}`} />
-                <span>{isBn ? "ক্রল শুরু করুন" : "Trigger Crawl"}</span>
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Interactive Dashboard Tabs */}
-        <div className="flex border-b border-slate-200 gap-2 sm:gap-6 overflow-x-auto select-none">
-          <button
-            onClick={() => setActiveTab("reports")}
-            className={`pb-3 text-xs sm:text-sm font-bold border-b-2 transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
-              activeTab === "reports"
-                ? "border-red-600 text-red-600"
-                : "border-transparent text-slate-500 hover:text-slate-900"
-            }`}
-          >
-            <span>{isBn ? "সক্রিয় রিপোর্ট" : "Active Incidents"}</span>
-            <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-red-50 text-red-700 border border-red-200 font-mono">
-              {reports.length}
-            </span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab("users")}
-            className={`pb-3 text-xs sm:text-sm font-bold border-b-2 transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
-              activeTab === "users"
-                ? "border-red-600 text-red-600"
-                : "border-transparent text-slate-500 hover:text-slate-900"
-            }`}
-          >
-            <span>{isBn ? "ইউজার ব্যান ও নিয়ন্ত্রণ" : "User Defense & Ban"}</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab("verifications")}
-            className={`pb-3 text-xs sm:text-sm font-bold border-b-2 transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
-              activeTab === "verifications"
-                ? "border-red-600 text-red-600"
-                : "border-transparent text-slate-500 hover:text-slate-900"
-            }`}
-          >
-            <span>{isBn ? "অপেক্ষমান কেওয়াইসি" : "Pending Verifications"}</span>
-            <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-amber-50 text-amber-700 border border-amber-200 font-mono">
-              {verifications.length}
-            </span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab("logs")}
-            className={`pb-3 text-xs sm:text-sm font-bold border-b-2 transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
-              activeTab === "logs"
-                ? "border-red-600 text-red-600"
-                : "border-transparent text-slate-500 hover:text-slate-900"
-            }`}
-          >
-            <span>{isBn ? "অপরিবর্তনীয় অডিট লগ" : "Audit Trail"}</span>
-            <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-slate-100 text-slate-700 border border-slate-200 font-mono">
-              {logs.length}
-            </span>
-          </button>
-
-          <button
-            onClick={() => {
-              setActiveTab("analytics");
-              fetchTrends();
-            }}
-            className={`pb-3 text-xs sm:text-sm font-bold border-b-2 transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
-              activeTab === "analytics"
-                ? "border-red-600 text-red-600"
-                : "border-transparent text-slate-500 hover:text-slate-900"
-            }`}
-          >
-            <span>{isBn ? "এনালিটিক্স ও ট্রেন্ডস (৩০ দিন)" : "Analytics & Trends (30 Days)"}</span>
-          </button>
-        </div>
-
-        {/* ------------------------------------------------------------- */}
-        {/* TAB 1: Report Moderation */}
-        {/* ------------------------------------------------------------- */}
-        {activeTab === "reports" && (
-          <div className="bg-white border border-slate-200/90 rounded-2xl shadow-xs overflow-hidden">
-            <div className="p-4 border-b border-slate-100 bg-slate-50/70 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-              <h2 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
-                <ShieldAlert className="w-4 h-4 text-red-600" />
-                <span>{isBn ? "লাইভ পোস্টজিআইএস ম্যাপ রিপোর্টসমূহ" : "Live Map Incidents (PostGIS Feed)"}</span>
-              </h2>
-              <span className="text-[11px] text-slate-500 font-mono">
-                {isBn ? "কিবোর্ডে [P] চেপে শীর্ষ রিপোর্ট সরাসরি মুছুন" : "Press [P] to purge top report"}
-              </span>
-            </div>
-
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200">
-                  <tr>
-                    <th className="p-3.5">{isBn ? "বিভাগ" : "Category"}</th>
-                    <th className="p-3.5">{isBn ? "তীব্রতা" : "Severity"}</th>
-                    <th className="p-3.5">{isBn ? "বিবরণ" : "Description"}</th>
-                    <th className="p-3.5">{isBn ? "ভোট সংখ্যা" : "Votes"}</th>
-                    <th className="p-3.5">{isBn ? "সময়" : "Logged"}</th>
-                    <th className="p-3.5 text-right">{isBn ? "পদক্ষেপ" : "Action"}</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 text-slate-700">
-                  {reports.length === 0 ? (
-                    <tr>
-                      <td colSpan={6} className="p-8 text-center text-slate-500">
-                        {isBn ? "কোনো সক্রিয় রিপোর্ট পাওয়া যায়নি।" : "No active reports found in PostGIS database."}
-                      </td>
-                    </tr>
-                  ) : (
-                    reports.map((r, idx) => (
-                      <tr key={r.id} className="hover:bg-slate-50/80 transition-colors">
-                        <td className="p-3.5 font-bold text-slate-900">
-                          {idx === 0 && (
-                            <span className="mr-2 px-1.5 py-0.5 rounded text-[10px] bg-red-50 border border-red-200 text-red-700 font-mono font-bold">
-                              [P] TARGET
-                            </span>
-                          )}
-                          {r.category}
-                        </td>
-                        <td className="p-3.5">
-                          <span
-                            className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold border ${
-                              r.severity === "HIGH"
-                                ? "bg-red-50 text-red-700 border-red-200"
-                                : r.severity === "MEDIUM"
-                                ? "bg-amber-50 text-amber-700 border-amber-200"
-                                : "bg-emerald-50 text-emerald-700 border-emerald-200"
-                            }`}
-                          >
-                            {r.severity}
-                          </span>
-                        </td>
-                        <td className="p-3.5 max-w-xs truncate text-slate-800" title={r.description}>
-                          {r.description || "—"}
-                        </td>
-                        <td className="p-3.5 font-semibold text-slate-700">
-                          👍 {r.upvotes} / 👎 {r.downvotes}
-                        </td>
-                        <td className="p-3.5 text-slate-500 font-mono text-[11px]">
-                          {new Date(r.createdAt).toLocaleTimeString()}
-                        </td>
-                        <td className="p-3.5 text-right">
-                          <button
-                            onClick={() => setPurgeTarget(r)}
-                            className="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 rounded-xl font-bold inline-flex items-center gap-1.5 transition-colors shadow-2xs cursor-pointer active:scale-95"
-                            title="Purge false report"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                            <span>{isBn ? "মুছুন" : "Purge"}</span>
-                          </button>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-
-        {/* ------------------------------------------------------------- */}
-        {/* TAB 2: User Ban & Suspension */}
-        {/* ------------------------------------------------------------- */}
-        {activeTab === "users" && (
-          <div className="bg-white border border-slate-200/90 rounded-2xl shadow-xs p-6 max-w-xl space-y-4">
-            <div>
-              <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                <UserX className="w-4 h-4 text-red-600" />
-                <span>{isBn ? "অ্যাকাউন্ট সাসপেনশন ও প্রতিরোধ ব্যবস্থা" : "Account Suspension & Protection"}</span>
-              </h2>
-              <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-                {isBn
-                  ? "নিষিদ্ধ ব্যবহারকারীরা নতুন রিপোর্ট দাখিল বা ভোট দেওয়া থেকে চিরতরে অবরুদ্ধ থাকবে। প্রতিটি পদক্ষেপ অডিট লগে অপরিবর্তনীয়ভাবে সংরক্ষিত হয়।"
-                  : "Suspended citizens are blocked from submitting hazard pins, casting votes, or contributing updates. Every action is recorded in the immutable audit trail."}
-              </p>
-            </div>
-
-            <div className="space-y-4 pt-2">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  {isBn ? "টার্গেট ইউজার ইউইউআইডি (User UUID) *" : "Target User UUID *"}
-                </label>
-                <input
-                  id="admin-ban-user-id"
-                  type="text"
-                  value={banUserId}
-                  onChange={(e) => setBanUserId(e.target.value)}
-                  placeholder="e.g. 1960138d-8dd4-4a06-b403-19a76966fc64"
-                  className="w-full px-3.5 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-mono focus:bg-white focus:ring-1 focus:ring-red-500 focus:outline-none transition-colors"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  {isBn ? "স্থগিতের কারণ / কেস রেফারেন্স *" : "Reason / Case Reference *"}
-                </label>
-                <input
-                  type="text"
-                  value={banReason}
-                  onChange={(e) => setBanReason(e.target.value)}
-                  placeholder={isBn ? "ধানমন্ডিতে বারবার মিথ্যা ছিনতাইয়ের রিপোর্ট" : "Repeated false mugging reports"}
-                  className="w-full px-3.5 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-900 focus:bg-white focus:ring-1 focus:ring-red-500 focus:outline-none transition-colors"
-                />
-              </div>
-
-              <div className="flex gap-3 pt-2">
-                <button
-                  onClick={() => handleBanUser("ban")}
-                  className="px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 shadow-xs transition-all active:scale-95 cursor-pointer"
-                >
-                  <UserX className="w-3.5 h-3.5" />
-                  <span>{isBn ? "ইউজার স্থগিত / ব্যান করুন" : "Suspend / Ban User"}</span>
-                </button>
-
-                <button
-                  onClick={() => handleBanUser("unban")}
-                  className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl flex items-center gap-1.5 border border-slate-200 transition-colors cursor-pointer"
-                >
-                  <UserCheck className="w-3.5 h-3.5" />
-                  <span>{isBn ? "অ্যাকাউন্ট পুনরুদ্ধার করুন" : "Unban Account"}</span>
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ------------------------------------------------------------- */}
-        {/* TAB 3: Verifications */}
-        {/* ------------------------------------------------------------- */}
-        {activeTab === "verifications" && (
-          <div className="bg-white border border-slate-200/90 rounded-2xl shadow-xs overflow-hidden">
-            <div className="p-4 border-b border-slate-100 bg-slate-50/70 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-              <h2 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
-                <UserCheck className="w-4 h-4 text-emerald-600" />
-                <span>{isBn ? "অপেক্ষমান নাগরিক কেওয়াইসি অনুরোধসমূহ" : "Pending KYC & Citizen Verification Requests"}</span>
-              </h2>
-              <span className="text-[11px] text-slate-500 font-mono">
-                {isBn ? "শর্টকাট: [A] অনুমোদন • [R] প্রত্যাখ্যান" : "Shortcuts: [A] Approve Top • [R] Reject Top"}
-              </span>
-            </div>
-
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200">
-                  <tr>
-                    <th className="p-3.5">{isBn ? "ইউজার আইডি" : "User ID"}</th>
-                    <th className="p-3.5">{isBn ? "ভেরিফিকেশন টাইপ" : "Type"}</th>
-                    <th className="p-3.5">{isBn ? "নথি / যোগাযোগ" : "Document / Phone"}</th>
-                    <th className="p-3.5">{isBn ? "দাখিলের সময়" : "Submitted"}</th>
-                    <th className="p-3.5 text-right">{isBn ? "পদক্ষেপ" : "Actions"}</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 text-slate-700">
-                  {verifications.length === 0 ? (
-                    <tr>
-                      <td colSpan={5} className="p-8 text-center text-slate-500">
-                        {isBn ? "কোনো অপেক্ষমান ভেরিফিকেশন অনুরোধ নেই।" : "No pending citizen verification requests."}
-                      </td>
-                    </tr>
-                  ) : (
-                    verifications.map((v, idx) => (
-                      <tr key={v.id} className="hover:bg-slate-50/80 transition-colors">
-                        <td className="p-3.5 font-mono text-slate-700">
-                          {idx === 0 && (
-                            <span className="mr-2 px-1.5 py-0.5 rounded text-[10px] bg-emerald-50 border border-emerald-200 text-emerald-700 font-mono font-bold">
-                              [A/R] TARGET
-                            </span>
-                          )}
-                          {v.userId.slice(0, 8)}...
-                        </td>
-                        <td className="p-3.5 font-bold text-slate-900">{v.type || "NID / Phone"}</td>
-                        <td className="p-3.5 font-mono text-slate-600 truncate max-w-xs">
-                          {v.type === "PHONE_OTP" || !v.documentUrl ? (
-                            <span>{v.phoneNumber || v.user?.phoneNumber || "—"}</span>
-                          ) : (
-                            <a
-                              href={v.documentUrl}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="text-blue-600 hover:underline flex items-center gap-1"
-                            >
-                              <span>{v.documentUrl.slice(0, 30)}...</span>
-                              <ExternalLink className="w-3 h-3" />
-                            </a>
-                          )}
-                        </td>
-                        <td className="p-3.5 text-slate-500 font-mono text-[11px]">
-                          {new Date(v.createdAt).toLocaleString()}
-                        </td>
-                        <td className="p-3.5 text-right space-x-2">
-                          <button
-                            onClick={() => handleApproveVerification(v.id)}
-                            className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-xl font-bold inline-flex items-center gap-1.5 transition-colors shadow-2xs cursor-pointer active:scale-95"
-                          >
-                            <CheckCircle2 className="w-3.5 h-3.5" />
-                            <span>{isBn ? "অনুমোদন [A]" : "Approve [A]"}</span>
-                          </button>
-                          <button
-                            onClick={() => setRejectTarget(v)}
-                            className="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 rounded-xl font-bold inline-flex items-center gap-1.5 transition-colors shadow-2xs cursor-pointer active:scale-95"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                            <span>{isBn ? "প্রত্যাখ্যান [R]" : "Reject [R]"}</span>
-                          </button>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-
-        {/* ------------------------------------------------------------- */}
-        {/* TAB 4: Audit Logs */}
-        {/* ------------------------------------------------------------- */}
-        {activeTab === "logs" && (
-          <div className="bg-white border border-slate-200/90 rounded-2xl shadow-xs overflow-hidden">
-            <div className="p-4 border-b border-slate-100 bg-slate-50/70 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <FileText className="w-4 h-4 text-slate-700" />
-                <h2 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
-                  {isBn ? "অপরিবর্তনীয় অডিট ট্রেইল ও কমপ্লায়েন্স লগ" : "Immutable Moderation Log (Compliance Trail)"}
-                </h2>
-              </div>
-              <span className="text-xs text-slate-500 font-medium">
-                {isBn ? "স্বয়ংক্রিয়ভাবে সংরক্ষিত" : "Cryptographically logged"}
-              </span>
-            </div>
-
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200">
-                  <tr>
-                    <th className="p-3.5">{isBn ? "সময়কাল" : "Timestamp"}</th>
-                    <th className="p-3.5">{isBn ? "অ্যাকশন" : "Action"}</th>
-                    <th className="p-3.5">{isBn ? "অ্যাডমিন আইডি" : "Admin ID"}</th>
-                    <th className="p-3.5">{isBn ? "টার্গেট রেফারেন্স" : "Target Reference"}</th>
-                    <th className="p-3.5">{isBn ? "কারণ" : "Reason"}</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 text-slate-700">
-                  {logs.length === 0 ? (
-                    <tr>
-                      <td colSpan={5} className="p-8 text-center text-slate-500">
-                        {isBn ? "কোনো অডিট রেকর্ড পাওয়া যায়নি।" : "No moderation actions recorded yet."}
-                      </td>
-                    </tr>
-                  ) : (
-                    logs.map((log) => (
-                      <tr key={log.id} className="hover:bg-slate-50/80 transition-colors">
-                        <td className="p-3.5 text-slate-500 font-mono text-[11px]">
-                          {new Date(log.createdAt).toLocaleString()}
-                        </td>
-                        <td className="p-3.5">
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-slate-100 border border-slate-200 text-slate-800">
-                            {log.action}
-                          </span>
-                        </td>
-                        <td className="p-3.5 font-mono text-slate-600">{log.adminId.slice(0, 8)}...</td>
-                        <td className="p-3.5 font-mono text-slate-600">
-                          {log.targetReportId
-                            ? `Report: ${log.targetReportId.slice(0, 8)}...`
-                            : log.targetUserId
-                            ? `User: ${log.targetUserId.slice(0, 8)}...`
-                            : "—"}
-                        </td>
-                        <td className="p-3.5 text-slate-800 font-semibold">{log.reason}</td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-
-        {/* ------------------------------------------------------------- */}
-        {/* TAB 5: Analytics & Trends */}
-        {/* ------------------------------------------------------------- */}
-        {activeTab === "analytics" && (
-          <div className="space-y-6">
-            {/* Top Aggregate Metric Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-xs">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-                    {isBn ? "৩০ দিনে মোট বিপদ" : "30-Day Total Hazards"}
-                  </span>
-                  <div className="p-2 bg-red-50 text-red-600 rounded-xl border border-red-200">
-                    <TrendingUp className="w-4 h-4" />
-                  </div>
-                </div>
-                <div className="text-2xl font-black text-slate-900">{trends?.totalReports ?? 0}</div>
-                <p className="text-[11px] text-slate-500 mt-1">
-                  {isBn ? "বাংলাদেশ জুড়ে নথিভুক্ত" : "Live recorded across Bangladesh"}
-                </p>
-              </div>
-
-              <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-xs">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-                    {isBn ? "রাত্রিকালীন বিপদের হার" : "Night Hazard Ratio"}
-                  </span>
-                  <div className="p-2 bg-indigo-50 text-indigo-600 rounded-xl border border-indigo-200">
-                    <Moon className="w-4 h-4" />
-                  </div>
-                </div>
-                <div className="text-2xl font-black text-indigo-700">
-                  {trends?.nightReportPercentage ?? 0}%
-                </div>
-                <p className="text-[11px] text-slate-500 mt-1 font-mono">
-                  {trends?.nightReportsCount ?? 0} {isBn ? "টি রাতের ঘটনা" : "incidents occurred at night"}
-                </p>
-              </div>
-
-              <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-xs">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-                    {isBn ? "উচ্চমাত্রার সশস্ত্র হুমকি" : "High Severity Threats"}
-                  </span>
-                  <div className="p-2 bg-red-50 text-red-600 rounded-xl border border-red-200">
-                    <ShieldAlert className="w-4 h-4" />
-                  </div>
-                </div>
-                <div className="text-2xl font-black text-red-600">
-                  {trends?.breakdown?.bySeverity?.HIGH ?? 0}
-                </div>
-                <p className="text-[11px] text-slate-500 mt-1">
-                  {isBn ? "সশস্ত্র বা চরম ঝুঁকিপূর্ণ পিন" : "Armed or imminent danger pins"}
-                </p>
-              </div>
-
-              <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-xs">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-                    {isBn ? "নিষ্পত্তিকৃত ঘটনা" : "Resolved Incidents"}
-                  </span>
-                  <div className="p-2 bg-emerald-50 text-emerald-600 rounded-xl border border-emerald-200">
-                    <CheckCircle2 className="w-4 h-4" />
-                  </div>
-                </div>
-                <div className="text-2xl font-black text-emerald-700">
-                  {trends?.breakdown?.byStatus?.RESOLVED ?? 0}
-                </div>
-                <p className="text-[11px] text-slate-500 mt-1">
-                  {isBn ? "উদ্ধার বা নিরাপদ ঘোষিত" : "Neutralized or safe status"}
-                </p>
-              </div>
-            </div>
-
-            {/* Breakdown Grids */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Category Distribution */}
-              <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-xs space-y-4">
-                <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                  <div className="flex items-center gap-2">
-                    <BarChart3 className="w-4 h-4 text-slate-700" />
-                    <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
-                      {isBn ? "বিপদের ধরন অনুযায়ী বিভাজন" : "Hazard Category Distribution"}
-                    </h3>
-                  </div>
-                  <span className="text-[11px] text-slate-500 font-mono">
-                    {isBn ? "বিগত ৩০ দিন" : "Last 30 Days"}
-                  </span>
-                </div>
-
-                <div className="space-y-3.5">
-                  {(() => {
-                    const rawCategories = (trends?.breakdown?.byCategory ?? {}) as Record<string, number>;
-                    const aggregated = new Map<string, number>();
-
-                    for (const [rawKey, rawCount] of Object.entries(rawCategories)) {
-                      const count = Number(rawCount) || 0;
-                      if (count <= 0) continue;
-                      const canonicalKey = CATEGORY_ALIAS_MAP[rawKey] ?? rawKey;
-                      aggregated.set(canonicalKey, (aggregated.get(canonicalKey) ?? 0) + count);
-                    }
-
-                    const entries = Array.from(aggregated.entries()).sort((a, b) => b[1] - a[1]);
-
-                    if (entries.length === 0) {
-                      return (
-                        <p className="text-xs text-slate-500 py-4 text-center">
-                          {isBn ? "বিগত ৩০ দিনে কোনো শ্রেণিবদ্ধ রিপোর্ট পাওয়া যায়নি।" : "No categorized reports recorded in the last 30 days."}
-                        </p>
-                      );
-                    }
-
-                    const total = trends?.totalReports || entries.reduce((sum, [, c]) => sum + c, 0) || 1;
-                    const categoryLabels = translations[isBn ? "bn" : "en"].categories as Record<string, string>;
-
-                    return entries.map(([key, count]) => {
-                      const pct = Math.min(100, Math.round((count / total) * 100));
-                      const label = categoryLabels[key] || key.replace(/_/g, " ");
-                      const color = CATEGORY_BAR_COLORS[key] || "bg-slate-500";
-                      return (
-                        <div key={key} className="space-y-1">
-                          <div className="flex justify-between text-xs font-semibold text-slate-700">
-                            <span>{label}</span>
-                            <span className="font-mono text-slate-900 font-bold">
-                              {count} ({pct}%)
-                            </span>
-                          </div>
-                          <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
-                            <div
-                              className={`h-full ${color} rounded-full transition-all duration-500`}
-                              style={{ width: `${pct}%` }}
-                            />
-                          </div>
-                        </div>
-                      );
-                    });
-                  })()}
-                </div>
-              </div>
-
-              {/* Severity & Status Breakdown */}
-              <div className="space-y-6">
-                <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-xs space-y-4">
-                  <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                    <div className="flex items-center gap-2">
-                      <Shield className="w-4 h-4 text-red-600" />
-                      <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
-                        {isBn ? "হুমকির তীব্রতা অনুপাত" : "Threat Severity Breakdown"}
-                      </h3>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-3 gap-3 text-center">
-                    <div className="p-3.5 rounded-xl bg-red-50 border border-red-200">
-                      <span className="text-[11px] font-bold text-red-700 block uppercase">HIGH</span>
-                      <span className="text-xl font-black text-red-700 font-mono">
-                        {trends?.breakdown?.bySeverity?.HIGH ?? 0}
-                      </span>
-                    </div>
-                    <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200">
-                      <span className="text-[11px] font-bold text-amber-700 block uppercase">MEDIUM</span>
-                      <span className="text-xl font-black text-amber-700 font-mono">
-                        {trends?.breakdown?.bySeverity?.MEDIUM ?? 0}
-                      </span>
-                    </div>
-                    <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200">
-                      <span className="text-[11px] font-bold text-emerald-700 block uppercase">LOW</span>
-                      <span className="text-xl font-black text-emerald-700 font-mono">
-                        {trends?.breakdown?.bySeverity?.LOW ?? 0}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-xs space-y-4">
-                  <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                    <div className="flex items-center gap-2">
-                      <Activity className="w-4 h-4 text-blue-600" />
-                      <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
-                        {isBn ? "ঘটনা নিষ্পত্তি পাইপলাইন" : "Incident Resolution Pipeline"}
-                      </h3>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-3 gap-3 text-center">
-                    <div className="p-3.5 rounded-xl bg-blue-50 border border-blue-200">
-                      <span className="text-[11px] font-bold text-blue-700 block uppercase">ACTIVE</span>
-                      <span className="text-xl font-black text-blue-700 font-mono">
-                        {trends?.breakdown?.byStatus?.ACTIVE ?? 0}
-                      </span>
-                    </div>
-                    <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200">
-                      <span className="text-[11px] font-bold text-emerald-700 block uppercase">RESOLVED</span>
-                      <span className="text-xl font-black text-emerald-700 font-mono">
-                        {trends?.breakdown?.byStatus?.RESOLVED ?? 0}
-                      </span>
-                    </div>
-                    <div className="p-3.5 rounded-xl bg-slate-100 border border-slate-200">
-                      <span className="text-[11px] font-bold text-slate-700 block uppercase">PURGED</span>
-                      <span className="text-xl font-black text-slate-700 font-mono">
-                        {trends?.breakdown?.byStatus?.PURGED ?? 0}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Daily Timeline Table */}
-            <div className="bg-white border border-slate-200/90 rounded-2xl shadow-xs overflow-hidden">
-              <div className="p-4 border-b border-slate-100 bg-slate-50/70 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Clock className="w-4 h-4 text-slate-700" />
-                  <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
-                    {isBn ? "দৈনিক ঘটনার টাইমলাইন" : "Daily Incident Timeline (PostGIS Aggregated Days)"}
-                  </h3>
-                </div>
-                <button
-                  onClick={fetchTrends}
-                  disabled={isLoadingTrends}
-                  className="px-3 py-1.5 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer"
-                >
-                  <RefreshCw className={`w-3.5 h-3.5 ${isLoadingTrends ? "animate-spin" : ""}`} />
-                  <span>{isBn ? "ট্রেন্ডস রিফ্রেশ" : "Refresh Trends"}</span>
-                </button>
-              </div>
-
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200">
-                    <tr>
-                      <th className="p-3.5">{isBn ? "তারিখ (UTC)" : "Date (UTC)"}</th>
-                      <th className="p-3.5">{isBn ? "দাখিলকৃত রিপোর্ট" : "Incidents Logged"}</th>
-                      <th className="p-3.5">{isBn ? "প্রাকৃতিক বণ্টন" : "Proportional Distribution"}</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 text-slate-700">
-                    {!trends?.timeline || trends.timeline.length === 0 ? (
-                      <tr>
-                        <td colSpan={3} className="p-8 text-center text-slate-500">
-                          {isBn ? "বিগত ৩০ দিনে কোনো রেকর্ড পাওয়া যায়নি।" : "No timeline records found in the last 30 days."}
-                        </td>
-                      </tr>
-                    ) : (
-                      trends.timeline.map((row: { date: string; count: number }) => {
-                        const maxCount = Math.max(...trends.timeline.map((r: any) => r.count), 1);
-                        const barWidth = Math.round((row.count / maxCount) * 100);
-                        return (
-                          <tr key={row.date} className="hover:bg-slate-50/80 transition-colors">
-                            <td className="p-3.5 font-mono font-bold text-slate-900">{row.date}</td>
-                            <td className="p-3.5 font-mono font-black text-red-600">
-                              {row.count} {isBn ? "টি রিপোর্ট" : "reports"}
-                            </td>
-                            <td className="p-3.5 w-1/2">
-                              <div className="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
-                                <div
-                                  className="bg-red-600 h-full rounded-full transition-all duration-300"
-                                  style={{ width: `${Math.max(barWidth, 6)}%` }}
-                                />
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      })
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        )}
       </main>
 
-      {/* ------------------------------------------------------------- */}
-      {/* Purge Modal Dialog */}
-      {/* ------------------------------------------------------------- */}
+      {/* Confirmation & Action Modals */}
       {purgeTarget && (
-        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-md w-full p-6 space-y-4 animate-in fade-in zoom-in-95 duration-150">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <div className="flex items-center gap-2 text-red-600 font-bold text-sm">
-                <Trash2 className="w-4 h-4" />
-                <span>{isBn ? "রিপোর্ট বাতিল ও অপসারণ" : "Purge Hazard Incident"}</span>
-              </div>
-              <button
-                onClick={() => setPurgeTarget(null)}
-                className="text-slate-400 hover:text-slate-600 p-1"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="space-y-2 text-xs">
-              <p className="text-slate-600">
-                {isBn
-                  ? "এই রিপোর্টটি মানচিত্র এবং লাইভ ফিড থেকে স্থায়ীভাবে অপসারণ করা হবে। অনুগ্রহ করে অডিট ট্রেইলে সংরক্ষণের জন্য কারণ উল্লেখ করুন:"
-                  : "This report will be permanently purged from the live map and public feed. Please specify a mandatory reason for the audit trail:"}
-              </p>
-              <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-mono text-[11px] text-slate-800">
-                <span className="font-bold">ID:</span> {purgeTarget.id}
-                <br />
-                <span className="font-bold">Category:</span> {purgeTarget.category}
-              </div>
-              <textarea
-                value={purgeReason}
-                onChange={(e) => setPurgeReason(e.target.value)}
-                placeholder={isBn ? "যেমন: এলাকা পরিদর্শনে কোনো অগ্নিকাণ্ড পাওয়া যায়নি" : "e.g., False alarm confirmed by local field patrol"}
-                rows={3}
-                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:ring-1 focus:ring-red-500 focus:outline-none transition-colors resize-none"
-              />
-            </div>
-
-            <div className="flex gap-2.5 justify-end pt-2">
-              <button
-                type="button"
-                onClick={() => setPurgeTarget(null)}
-                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
-              >
-                {isBn ? "বাতিল" : "Cancel"}
-              </button>
-              <button
-                type="button"
-                onClick={executePurge}
-                disabled={isPurging}
-                className="px-4 py-2 rounded-xl text-xs font-bold bg-red-600 hover:bg-red-700 text-white shadow-xs transition-all active:scale-95 cursor-pointer flex items-center gap-1.5"
-              >
-                {isPurging ? (
-                  <>
-                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                    <span>{isBn ? "অপসারণ হচ্ছে..." : "Purging..."}</span>
-                  </>
-                ) : (
-                  <>
-                    <Trash2 className="w-3.5 h-3.5" />
-                    <span>{isBn ? "স্থায়ীভাবে মুছুন" : "Confirm Purge"}</span>
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
+        <AdminPurgeModal
+          report={purgeTarget}
+          isBn={isBn}
+          onClose={() => setPurgeTarget(null)}
+          onConfirm={executePurge}
+        />
       )}
 
-      {/* ------------------------------------------------------------- */}
-      {/* Reject Verification Modal Dialog */}
-      {/* ------------------------------------------------------------- */}
       {rejectTarget && (
-        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-md w-full p-6 space-y-4 animate-in fade-in zoom-in-95 duration-150">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <div className="flex items-center gap-2 text-red-600 font-bold text-sm">
-                <UserX className="w-4 h-4" />
-                <span>{isBn ? "কেওয়াইসি অনুরোধ প্রত্যাখ্যান" : "Reject KYC Verification"}</span>
-              </div>
-              <button
-                onClick={() => setRejectTarget(null)}
-                className="text-slate-400 hover:text-slate-600 p-1"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
+        <AdminRejectModal
+          verification={rejectTarget}
+          isBn={isBn}
+          onClose={() => setRejectTarget(null)}
+          onConfirm={executeReject}
+        />
+      )}
 
-            <div className="space-y-2 text-xs">
-              <p className="text-slate-600">
-                {isBn
-                  ? "নাগরিকের ভেরিফিকেশন নথি প্রত্যাখ্যান করা হচ্ছে। প্রত্যাখ্যানের সুনির্দিষ্ট কারণ উল্লেখ করুন:"
-                  : "Specify the reason for rejecting this verification request (recorded in audit log):"}
-              </p>
-              <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-mono text-[11px] text-slate-800">
-                <span className="font-bold">User:</span> {rejectTarget.userId}
-              </div>
-              <textarea
-                value={rejectReason}
-                onChange={(e) => setRejectReason(e.target.value)}
-                placeholder={isBn ? "যেমন: স্মার্ট এনআইডি কার্ডের ছবি অস্পষ্ট" : "e.g., Document illegible or blurred"}
-                rows={3}
-                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:ring-1 focus:ring-red-500 focus:outline-none transition-colors resize-none"
-              />
-            </div>
-
-            <div className="flex gap-2.5 justify-end pt-2">
-              <button
-                type="button"
-                onClick={() => setRejectTarget(null)}
-                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
-              >
-                {isBn ? "বাতিল" : "Cancel"}
-              </button>
-              <button
-                type="button"
-                onClick={executeReject}
-                disabled={isRejecting}
-                className="px-4 py-2 rounded-xl text-xs font-bold bg-red-600 hover:bg-red-700 text-white shadow-xs transition-all active:scale-95 cursor-pointer flex items-center gap-1.5"
-              >
-                {isRejecting ? (
-                  <>
-                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                    <span>{isBn ? "প্রত্যাখ্যান হচ্ছে..." : "Rejecting..."}</span>
-                  </>
-                ) : (
-                  <>
-                    <Trash2 className="w-3.5 h-3.5" />
-                    <span>{isBn ? "প্রত্যাখ্যান নিশ্চিত করুন" : "Confirm Rejection"}</span>
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
+      {shortcutsOpen && (
+        <AdminShortcutsModal
+          isBn={isBn}
+          onClose={() => setShortcutsOpen(false)}
+        />
       )}
     </div>
   );

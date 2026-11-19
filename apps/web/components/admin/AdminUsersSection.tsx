@@ -88,7 +88,7 @@ export default function AdminUsersSection({
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
               <label
-                htmlFor="target-user-uuid"
+                htmlFor="admin-ban-user-id"
                 className="block text-xs font-semibold text-slate-700"
               >
                 {isBn ? "টার্গেট ইউজার UUID *" : "Target User UUID *"}
@@ -102,7 +102,7 @@ export default function AdminUsersSection({
               )}
             </div>
             <input
-              id="target-user-uuid"
+              id="admin-ban-user-id"
               type="text"
               value={targetUserId}
               onChange={(e) => setTargetUserId(e.target.value)}
