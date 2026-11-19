@@ -33,7 +33,12 @@ import {
   formatCoordinate,
 } from "@repo/shared";
 import { getTranslation, geoTranslations } from "@/lib/translations";
-import { cleanIncidentTitle, formatCategoryLabel } from "@/lib/incidentUtils";
+import {
+  cleanIncidentTitle,
+  formatCategoryLabel,
+  getCategoryIcon,
+  getCategoryBadgeClass,
+} from "@/lib/incidentUtils";
 import { isIncidentCategoryMatch } from "@/lib/filterUtils";
 import { getSafeZonePresentation } from "@/lib/safeZoneMeta";
 import L from "leaflet";
@@ -1480,9 +1485,18 @@ export default function MapClient() {
                         {(t.severity as any)[incident.severity.toLowerCase()] || incident.severity}
                       </span>
 
-                      <span className="text-[10px] text-slate-500 font-mono font-bold">
-                        {formatCategoryLabel(incident.category, language)}
-                      </span>
+                      {(() => {
+                        const PopupCatIcon = getCategoryIcon(incident.category);
+                        const catBadgeClass = getCategoryBadgeClass(incident.category);
+                        return (
+                          <span
+                            className={`text-[10px] font-bold px-2 py-0.5 rounded-full border flex items-center gap-1 shrink-0 ${catBadgeClass}`}
+                          >
+                            <PopupCatIcon className="w-3 h-3 shrink-0" />
+                            <span>{formatCategoryLabel(incident.category, language)}</span>
+                          </span>
+                        );
+                      })()}
                     </div>
 
                     {/* Title */}

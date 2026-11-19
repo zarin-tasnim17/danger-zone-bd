@@ -44,6 +44,11 @@ import {
   Info,
   HelpCircle,
   FileText,
+  Grab,
+  Skull,
+  KeyRound,
+  PackageX,
+  Banknote,
 } from "lucide-react";
 
 // Dynamically import Leaflet Map with ssr: false
@@ -66,6 +71,7 @@ function isCurrentNightBangladesh(): boolean {
 }
 
 import { MAX_GPS_PROXIMITY_METERS, ReportCategory } from "@repo/shared";
+import { CATEGORY_VISUALS, getCategoryVisual } from "@/lib/incidentCategoryVisuals";
 import {
   HardwareGpsFix,
   evaluateHardwareGpsProximity,
@@ -95,7 +101,7 @@ const CATEGORIES: CategoryDefinition[] = [
     labelBn: "ছিনতাই",
     descEn: "Bag snatching, phone grabbing, fast intercept",
     descBn: "রাস্তায় ব্যাগ টানা, ফোন ছিনতাই বা গতিরোধ",
-    icon: Siren,
+    icon: Grab,
     color: "text-orange-700",
     bgColor: "bg-orange-50",
     borderColor: "border-orange-200",
@@ -121,7 +127,7 @@ const CATEGORIES: CategoryDefinition[] = [
     labelBn: "ছিনতাই ও অস্ত্রসহ হামলা",
     descEn: "Snatching accompanied by sharp weapon assault or gunfire",
     descBn: "ছিনতাইকালে ধারালো অস্ত্র দিয়ে কুপিয়ে বা গুলি করে জখম",
-    icon: ShieldAlert,
+    icon: Crosshair,
     color: "text-red-800",
     bgColor: "bg-red-50",
     borderColor: "border-red-300",
@@ -134,7 +140,7 @@ const CATEGORIES: CategoryDefinition[] = [
     labelBn: "চুরি",
     descEn: "Residential burglary, vehicle theft, covert stealing",
     descBn: "বাসাবাড়িতে বা দোকানে চুরি, গাড়ি চুরি",
-    icon: Lock,
+    icon: KeyRound,
     color: "text-amber-700",
     bgColor: "bg-amber-50",
     borderColor: "border-amber-200",
@@ -147,7 +153,7 @@ const CATEGORIES: CategoryDefinition[] = [
     labelBn: "ডাকাতি",
     descEn: "Group armed robbery, home invasion, looting",
     descBn: "দলবদ্ধ সশস্ত্র ডাকাতি, মালামাল লুণ্ঠন",
-    icon: ShieldAlert,
+    icon: Skull,
     color: "text-red-700",
     bgColor: "bg-red-50",
     borderColor: "border-red-200",
@@ -160,7 +166,7 @@ const CATEGORIES: CategoryDefinition[] = [
     labelBn: "চুরি ডাকাতি",
     descEn: "Covert break-in escalating to armed gang robbery",
     descBn: "চুরির উদ্দেশ্যে প্রবেশ করে সশস্ত্র ডাকাতিতে রূপ নেওয়া",
-    icon: ShieldAlert,
+    icon: PackageX,
     color: "text-red-800",
     bgColor: "bg-red-50",
     borderColor: "border-red-300",
@@ -173,7 +179,7 @@ const CATEGORIES: CategoryDefinition[] = [
     labelBn: "চাঁদাবাজি",
     descEn: "Illegal toll collection, blackmail, commercial harassment",
     descBn: "অবৈধ চাঁদা দাবি, হুমকি, দোকানে চাঁদা তোলা",
-    icon: AlertOctagon,
+    icon: Banknote,
     color: "text-purple-700",
     bgColor: "bg-purple-50",
     borderColor: "border-purple-200",
@@ -815,15 +821,15 @@ export default function ReportPage() {
 
                   <div className="flex flex-wrap gap-2 p-2 bg-slate-50/80 border border-slate-200 rounded-xl">
                     {[
-                      { id: "SNATCHING", labelEn: "Snatching", labelBn: "ছিনতাই", icon: Siren, color: "text-orange-700" },
-                      { id: "ARMED_ASSAULT", labelEn: "Armed Assault", labelBn: "অস্ত্রসহ হামলা", icon: Swords, color: "text-rose-700" },
-                      { id: "THEFT", labelEn: "Theft", labelBn: "চুরি", icon: Lock, color: "text-amber-700" },
-                      { id: "DACOITY", labelEn: "Dacoity", labelBn: "ডাকাতি", icon: ShieldAlert, color: "text-red-700" },
-                      { id: "TEEN_GANG", labelEn: "Teen Gang", labelBn: "কিশোর গ্যাং", icon: Users, color: "text-violet-700" },
-                      { id: "EXTORTION", labelEn: "Extortion", labelBn: "চাঁদাবাজি", icon: AlertOctagon, color: "text-purple-700" },
-                      { id: "DRUG_ACTIVITY", labelEn: "Narcotics", labelBn: "মাদক অপরাধ", icon: Pill, color: "text-blue-700" },
-                      { id: "ROAD_ACCIDENT", labelEn: "Road Accident", labelBn: "সড়ক দুর্ঘটনা", icon: Car, color: "text-emerald-700" },
-                      { id: "UNLIT_ROAD", labelEn: "Unlit Road", labelBn: "অন্ধকার রাস্তা", icon: LightbulbOff, color: "text-slate-700" },
+                      { id: "SNATCHING", labelEn: CATEGORY_VISUALS.SNATCHING.labelEn, labelBn: CATEGORY_VISUALS.SNATCHING.labelBn, icon: CATEGORY_VISUALS.SNATCHING.icon, color: "text-orange-700" },
+                      { id: "ARMED_ASSAULT", labelEn: CATEGORY_VISUALS.ARMED_ASSAULT.labelEn, labelBn: CATEGORY_VISUALS.ARMED_ASSAULT.labelBn, icon: CATEGORY_VISUALS.ARMED_ASSAULT.icon, color: "text-rose-700" },
+                      { id: "THEFT", labelEn: CATEGORY_VISUALS.THEFT.labelEn, labelBn: CATEGORY_VISUALS.THEFT.labelBn, icon: CATEGORY_VISUALS.THEFT.icon, color: "text-amber-700" },
+                      { id: "DACOITY", labelEn: CATEGORY_VISUALS.ROBBERY.labelEn, labelBn: CATEGORY_VISUALS.ROBBERY.labelBn, icon: CATEGORY_VISUALS.ROBBERY.icon, color: "text-red-700" },
+                      { id: "TEEN_GANG", labelEn: CATEGORY_VISUALS.YOUTH_GANG_ACTIVITY.labelEn, labelBn: CATEGORY_VISUALS.YOUTH_GANG_ACTIVITY.labelBn, icon: CATEGORY_VISUALS.YOUTH_GANG_ACTIVITY.icon, color: "text-violet-700" },
+                      { id: "EXTORTION", labelEn: CATEGORY_VISUALS.EXTORTION.labelEn, labelBn: CATEGORY_VISUALS.EXTORTION.labelBn, icon: CATEGORY_VISUALS.EXTORTION.icon, color: "text-purple-700" },
+                      { id: "DRUG_ACTIVITY", labelEn: CATEGORY_VISUALS.DRUG_RELATED_CRIME.labelEn, labelBn: CATEGORY_VISUALS.DRUG_RELATED_CRIME.labelBn, icon: CATEGORY_VISUALS.DRUG_RELATED_CRIME.icon, color: "text-blue-700" },
+                      { id: "ROAD_ACCIDENT", labelEn: CATEGORY_VISUALS.ROAD_ACCIDENT.labelEn, labelBn: CATEGORY_VISUALS.ROAD_ACCIDENT.labelBn, icon: CATEGORY_VISUALS.ROAD_ACCIDENT.icon, color: "text-emerald-700" },
+                      { id: "UNLIT_ROAD", labelEn: CATEGORY_VISUALS.UNLIT_ROAD.labelEn, labelBn: CATEGORY_VISUALS.UNLIT_ROAD.labelBn, icon: CATEGORY_VISUALS.UNLIT_ROAD.icon, color: "text-slate-700" },
                     ].map((tag) => {
                       const isSelected = selectedTags.includes(tag.id);
                       const Icon = tag.icon;

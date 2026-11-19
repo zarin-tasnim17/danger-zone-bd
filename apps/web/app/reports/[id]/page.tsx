@@ -22,6 +22,7 @@ import {
   type ReportVerifiedPayload,
 } from "@repo/shared";
 import DynamicIncidentMiniMap from "@/components/map/DynamicIncidentMiniMap";
+import { getCategoryVisual } from "@/lib/incidentCategoryVisuals";
 import {
   ArrowLeft,
   Clock,
@@ -496,107 +497,17 @@ export default function ReportDetailsPage() {
       .slice(0, 3);
   }, [report, safeZones]);
 
-  // Category Configuration with Icons & Bilingual Labels
+  // Category Configuration with Icons & Bilingual Labels from Centralized Visuals
   const categoryMeta = useMemo(() => {
-    const cat = report?.category || "MUGGING";
-    switch (cat) {
-      case "SNATCHING":
-      case "MUGGING":
-        return {
-          icon: Siren,
-          labelEn: "Snatching",
-          labelBn: "ছিনতাই",
-          colorClass: "text-orange-700 bg-orange-50 border-orange-200",
-        };
-      case "ARMED_ASSAULT":
-        return {
-          icon: Swords,
-          labelEn: "Armed Assault",
-          labelBn: "অস্ত্রসহ হামলা",
-          colorClass: "text-rose-700 bg-rose-50 border-rose-200",
-        };
-      case "SNATCHING_ARMED_ASSAULT":
-        return {
-          icon: ShieldAlert,
-          labelEn: "Snatching & Armed Assault",
-          labelBn: "ছিনতাই ও অস্ত্রসহ হামলা",
-          colorClass: "text-red-800 bg-red-50 border-red-300 font-bold",
-        };
-      case "THEFT":
-        return {
-          icon: Lock,
-          labelEn: "Theft",
-          labelBn: "চুরি",
-          colorClass: "text-amber-700 bg-amber-50 border-amber-200",
-        };
-      case "ROBBERY":
-      case "DACOITY":
-        return {
-          icon: ShieldAlert,
-          labelEn: "Robbery",
-          labelBn: "ডাকাতি",
-          colorClass: "text-red-700 bg-red-50 border-red-200",
-        };
-      case "THEFT_ROBBERY":
-      case "THEFT_DACOITY":
-        return {
-          icon: ShieldAlert,
-          labelEn: "Theft & Robbery",
-          labelBn: "চুরি ডাকাতি",
-          colorClass: "text-red-800 bg-red-50 border-red-300 font-bold",
-        };
-      case "EXTORTION":
-        return {
-          icon: AlertOctagon,
-          labelEn: "Extortion",
-          labelBn: "চাঁদাবাজি",
-          colorClass: "text-purple-700 bg-purple-50 border-purple-200",
-        };
-      case "YOUTH_GANG_ACTIVITY":
-      case "TEEN_GANG":
-        return {
-          icon: Users,
-          labelEn: "Youth Gang Activity",
-          labelBn: "কিশোর গ্যাং",
-          colorClass: "text-violet-700 bg-violet-50 border-violet-200",
-        };
-      case "TEEN_GANG_ARMED_ASSAULT":
-        return {
-          icon: Swords,
-          labelEn: "Youth Gang Armed Clash",
-          labelBn: "কিশোর গ্যাং ও অস্ত্রসহ হামলা",
-          colorClass: "text-purple-800 bg-purple-50 border-purple-300 font-bold",
-        };
-      case "DRUG_RELATED_CRIME":
-      case "DRUG_ACTIVITY":
-        return {
-          icon: Pill,
-          labelEn: "Drug-Related Crime",
-          labelBn: "মাদক সংক্রান্ত অপরাধ",
-          colorClass: "text-blue-700 bg-blue-50 border-blue-200",
-        };
-      case "ROAD_ACCIDENT":
-        return {
-          icon: Car,
-          labelEn: "Road Accident",
-          labelBn: "সড়ক দুর্ঘটনা / এক্সিডেন্ট",
-          colorClass: "text-emerald-700 bg-emerald-50 border-emerald-200",
-        };
-      case "UNLIT_ROAD":
-        return {
-          icon: LightbulbOff,
-          labelEn: "Unlit Road",
-          labelBn: "অন্ধকার রাস্তা",
-          colorClass: "text-slate-700 bg-slate-100 border-slate-300",
-        };
-      default:
-        return {
-          icon: ShieldAlert,
-          labelEn: "Public Danger",
-          labelBn: "নাগরিক বিপদ",
-          colorClass: "text-red-700 bg-red-50 border-red-200",
-        };
-    }
+    const visual = getCategoryVisual(report?.category);
+    return {
+      icon: visual.icon,
+      labelEn: visual.labelEn,
+      labelBn: visual.labelBn,
+      colorClass: visual.badgeClass,
+      descriptionEn: visual.descriptionEn,
+      descriptionBn: visual.descriptionBn,
+    };
   }, [report?.category]);
 
   const isAuthor = Boolean(report?.isOwner);

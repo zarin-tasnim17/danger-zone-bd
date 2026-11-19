@@ -10,6 +10,7 @@ import { useStatsStore } from "@/store/useStatsStore";
 import { showToast } from "@/store/useToastStore";
 import { getSocket } from "@/lib/socket";
 import { formatCategoryLabel } from "@/lib/incidentUtils";
+import { CATEGORY_VISUALS } from "@/lib/incidentCategoryVisuals";
 import {
   SOCKET_EVENTS,
   getSocketReportId,
@@ -505,17 +506,72 @@ export default function FeedPage() {
     icon: React.ComponentType<{ className?: string }>;
   }[] = [
     { id: "ALL", labelEn: "All Reports", labelBn: "সকল বিপদ", icon: Layers },
-    { id: "SNATCHING", labelEn: "Snatching", labelBn: "ছিনতাই", icon: Siren },
-    { id: "ARMED_ASSAULT", labelEn: "Armed Assault", labelBn: "অস্ত্রসহ হামলা", icon: Swords },
-    { id: "SNATCHING_ARMED_ASSAULT", labelEn: "Snatching & Armed Assault", labelBn: "ছিনতাই ও অস্ত্রসহ হামলা", icon: ShieldAlert },
-    { id: "THEFT", labelEn: "Theft", labelBn: "চুরি", icon: Lock },
-    { id: "ROBBERY", labelEn: "Robbery", labelBn: "ডাকাতি", icon: ShieldAlert },
-    { id: "THEFT_ROBBERY", labelEn: "Theft & Robbery", labelBn: "চুরি ডাকাতি", icon: ShieldAlert },
-    { id: "EXTORTION", labelEn: "Extortion", labelBn: "চাঁদাবাজি", icon: AlertOctagon },
-    { id: "YOUTH_GANG_ACTIVITY", labelEn: "Youth Gang Activity", labelBn: "কিশোর গ্যাং", icon: Users },
-    { id: "DRUG_RELATED_CRIME", labelEn: "Drug-Related Crime", labelBn: "মাদক সংক্রান্ত অপরাধ", icon: Pill },
-    { id: "ROAD_ACCIDENT", labelEn: "Road Accident", labelBn: "সড়ক দুর্ঘটনা / এক্সিডেন্ট", icon: Car },
-    { id: "UNLIT_ROAD", labelEn: "Unlit Road", labelBn: "অন্ধকার রাস্তা", icon: LightbulbOff },
+    {
+      id: "SNATCHING",
+      labelEn: CATEGORY_VISUALS.SNATCHING.labelEn,
+      labelBn: CATEGORY_VISUALS.SNATCHING.labelBn,
+      icon: CATEGORY_VISUALS.SNATCHING.icon,
+    },
+    {
+      id: "ARMED_ASSAULT",
+      labelEn: CATEGORY_VISUALS.ARMED_ASSAULT.labelEn,
+      labelBn: CATEGORY_VISUALS.ARMED_ASSAULT.labelBn,
+      icon: CATEGORY_VISUALS.ARMED_ASSAULT.icon,
+    },
+    {
+      id: "SNATCHING_ARMED_ASSAULT",
+      labelEn: CATEGORY_VISUALS.SNATCHING_ARMED_ASSAULT.labelEn,
+      labelBn: CATEGORY_VISUALS.SNATCHING_ARMED_ASSAULT.labelBn,
+      icon: CATEGORY_VISUALS.SNATCHING_ARMED_ASSAULT.icon,
+    },
+    {
+      id: "THEFT",
+      labelEn: CATEGORY_VISUALS.THEFT.labelEn,
+      labelBn: CATEGORY_VISUALS.THEFT.labelBn,
+      icon: CATEGORY_VISUALS.THEFT.icon,
+    },
+    {
+      id: "ROBBERY",
+      labelEn: CATEGORY_VISUALS.ROBBERY.labelEn,
+      labelBn: CATEGORY_VISUALS.ROBBERY.labelBn,
+      icon: CATEGORY_VISUALS.ROBBERY.icon,
+    },
+    {
+      id: "THEFT_ROBBERY",
+      labelEn: CATEGORY_VISUALS.THEFT_ROBBERY.labelEn,
+      labelBn: CATEGORY_VISUALS.THEFT_ROBBERY.labelBn,
+      icon: CATEGORY_VISUALS.THEFT_ROBBERY.icon,
+    },
+    {
+      id: "EXTORTION",
+      labelEn: CATEGORY_VISUALS.EXTORTION.labelEn,
+      labelBn: CATEGORY_VISUALS.EXTORTION.labelBn,
+      icon: CATEGORY_VISUALS.EXTORTION.icon,
+    },
+    {
+      id: "YOUTH_GANG_ACTIVITY",
+      labelEn: CATEGORY_VISUALS.YOUTH_GANG_ACTIVITY.labelEn,
+      labelBn: CATEGORY_VISUALS.YOUTH_GANG_ACTIVITY.labelBn,
+      icon: CATEGORY_VISUALS.YOUTH_GANG_ACTIVITY.icon,
+    },
+    {
+      id: "DRUG_RELATED_CRIME",
+      labelEn: CATEGORY_VISUALS.DRUG_RELATED_CRIME.labelEn,
+      labelBn: CATEGORY_VISUALS.DRUG_RELATED_CRIME.labelBn,
+      icon: CATEGORY_VISUALS.DRUG_RELATED_CRIME.icon,
+    },
+    {
+      id: "ROAD_ACCIDENT",
+      labelEn: CATEGORY_VISUALS.ROAD_ACCIDENT.labelEn,
+      labelBn: CATEGORY_VISUALS.ROAD_ACCIDENT.labelBn,
+      icon: CATEGORY_VISUALS.ROAD_ACCIDENT.icon,
+    },
+    {
+      id: "UNLIT_ROAD",
+      labelEn: CATEGORY_VISUALS.UNLIT_ROAD.labelEn,
+      labelBn: CATEGORY_VISUALS.UNLIT_ROAD.labelBn,
+      icon: CATEGORY_VISUALS.UNLIT_ROAD.icon,
+    },
   ];
 
   const SEVERITY_OPTIONS = [

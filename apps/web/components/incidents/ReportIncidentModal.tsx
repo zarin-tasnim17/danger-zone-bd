@@ -10,19 +10,12 @@ import {
   Navigation,
   AlertTriangle,
   Crosshair,
-  Lock,
-  Swords,
-  Users,
-  AlertOctagon,
-  Pill,
-  LightbulbOff,
-  Car,
-  Siren,
   Sparkles,
 } from "lucide-react";
 import { ReportCategory, ReportSeverity } from "@repo/shared";
 import { useMapStore } from "@/store/useMapStore";
 import { apiFetch } from "@/lib/api";
+import { getCategoryVisual, formatCategoryLabel } from "@/lib/incidentCategoryVisuals";
 import {
   HardwareGpsFix,
   evaluateHardwareGpsProximity,
@@ -45,89 +38,47 @@ interface IncidentTagDef {
   borderColor: string;
 }
 
-const PRIMARY_TAGS: IncidentTagDef[] = [
-  {
-    id: "SNATCHING",
-    labelEn: "Snatching",
-    labelBn: "ছিনতাই",
-    icon: Siren,
-    color: "text-orange-700",
-    bgColor: "bg-orange-50",
-    borderColor: "border-orange-200",
-  },
-  {
-    id: "ARMED_ASSAULT",
-    labelEn: "Armed Assault",
-    labelBn: "অস্ত্রসহ হামলা",
-    icon: Swords,
-    color: "text-rose-700",
-    bgColor: "bg-rose-50",
-    borderColor: "border-rose-200",
-  },
-  {
-    id: "THEFT",
-    labelEn: "Theft",
-    labelBn: "চুরি",
-    icon: Lock,
-    color: "text-amber-700",
-    bgColor: "bg-amber-50",
-    borderColor: "border-amber-200",
-  },
-  {
-    id: "ROBBERY",
-    labelEn: "Robbery",
-    labelBn: "ডাকাতি",
-    icon: ShieldAlert,
-    color: "text-red-700",
-    bgColor: "bg-red-50",
-    borderColor: "border-red-200",
-  },
-  {
-    id: "YOUTH_GANG_ACTIVITY",
-    labelEn: "Youth Gang Activity",
-    labelBn: "কিশোর গ্যাং",
-    icon: Users,
-    color: "text-violet-700",
-    bgColor: "bg-violet-50",
-    borderColor: "border-violet-200",
-  },
-  {
-    id: "EXTORTION",
-    labelEn: "Extortion",
-    labelBn: "চাঁদাবাজি",
-    icon: AlertOctagon,
-    color: "text-purple-700",
-    bgColor: "bg-purple-50",
-    borderColor: "border-purple-200",
-  },
-  {
-    id: "DRUG_RELATED_CRIME",
-    labelEn: "Drug-Related Crime",
-    labelBn: "মাদক সংক্রান্ত অপরাধ",
-    icon: Pill,
-    color: "text-blue-700",
-    bgColor: "bg-blue-50",
-    borderColor: "border-blue-200",
-  },
-  {
-    id: "ROAD_ACCIDENT",
-    labelEn: "Road Accident",
-    labelBn: "সড়ক দুর্ঘটনা",
-    icon: Car,
-    color: "text-emerald-700",
-    bgColor: "bg-emerald-50",
-    borderColor: "border-emerald-200",
-  },
-  {
-    id: "UNLIT_ROAD",
-    labelEn: "Unlit Road",
-    labelBn: "অন্ধকার রাস্তা",
-    icon: LightbulbOff,
-    color: "text-slate-700",
-    bgColor: "bg-slate-100",
-    borderColor: "border-slate-300",
-  },
+const PRIMARY_TAG_IDS: ReportCategory[] = [
+  "SNATCHING",
+  "ARMED_ASSAULT",
+  "THEFT",
+  "ROBBERY",
+  "YOUTH_GANG_ACTIVITY",
+  "EXTORTION",
+  "DRUG_RELATED_CRIME",
+  "ROAD_ACCIDENT",
+  "UNLIT_ROAD",
 ];
+
+const PRIMARY_TAGS: IncidentTagDef[] = PRIMARY_TAG_IDS.map((id) => {
+  const visual = getCategoryVisual(id);
+  return {
+    id,
+    labelEn: visual.labelEn,
+    labelBn: visual.labelBn,
+    icon: visual.icon,
+    color:
+      id === "SNATCHING"
+        ? "text-orange-700"
+        : id === "ARMED_ASSAULT"
+        ? "text-rose-700"
+        : id === "THEFT"
+        ? "text-amber-700"
+        : id === "ROBBERY"
+        ? "text-red-700"
+        : id === "YOUTH_GANG_ACTIVITY"
+        ? "text-violet-700"
+        : id === "EXTORTION"
+        ? "text-purple-700"
+        : id === "DRUG_RELATED_CRIME"
+        ? "text-blue-700"
+        : id === "ROAD_ACCIDENT"
+        ? "text-emerald-700"
+        : "text-slate-700",
+    bgColor: id === "UNLIT_ROAD" ? "bg-slate-100" : visual.badgeClass.split(" ")[0] || "bg-slate-50",
+    borderColor: visual.badgeClass.split(" ")[2] || "border-slate-200",
+  };
+});
 
 export default function ReportIncidentModal({ isOpen, onClose }: ReportModalProps) {
   const { language } = useLanguageStore();
@@ -417,9 +368,7 @@ export default function ReportIncidentModal({ isOpen, onClose }: ReportModalProp
                   <span className="text-xs font-bold">
                     {isBn ? "কার্যকর ক্যাটাগরি:" : "Resolved Category:"}{" "}
                     <span className="underline decoration-blue-500 underline-offset-2">
-                      {isBn
-                        ? t.categories[resolvedCategory] || resolvedCategory
-                        : t.categories[resolvedCategory] || resolvedCategory}
+                      {formatCategoryLabel(resolvedCategory, language)}
                     </span>
                   </span>
                 </div>
