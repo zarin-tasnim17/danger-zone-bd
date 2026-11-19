@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import Navbar from "@/components/layout/Navbar";
+import AdminLoginGateway from "@/components/auth/AdminLoginGateway";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useLanguageStore } from "@/store/useLanguageStore";
 import { apiFetch } from "@/lib/api";
@@ -361,144 +362,17 @@ export default function AdminPage() {
   };
 
   // -------------------------------------------------------------
-  // Unauthenticated Admin Gate (Shows Navbar + Login Card)
+  // Unauthenticated Admin Gate (Elevated Security Gateway)
   // -------------------------------------------------------------
   if (user?.role !== "ADMIN") {
     return (
-      <div className="min-h-screen flex flex-col bg-slate-50 text-slate-900 selection:bg-purple-500 selection:text-white">
+      <div className="min-h-screen flex flex-col bg-slate-50 text-slate-900 selection:bg-red-500 selection:text-white">
         <Navbar />
 
-        <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-8 flex flex-col items-center justify-center">
-          {/* National Emergency Hotline Banner */}
-          <div className="w-full max-w-md mb-6">
-            <section className="bg-gradient-to-r from-red-600 via-rose-600 to-red-700 rounded-2xl p-4 text-white shadow-md shadow-red-500/10 flex items-center justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-xl bg-white/15 backdrop-blur-md flex items-center justify-center shrink-0 border border-white/20">
-                  <PhoneCall className="w-5 h-5 text-white animate-pulse" />
-                </div>
-                <div>
-                  <span className="text-[10px] uppercase font-extrabold tracking-wider bg-white/20 px-2 py-0.5 rounded-full border border-white/20">
-                    {isBn ? "জরুরি হেল্পলাইন" : "Emergency Crisis"}
-                  </span>
-                  <p className="text-xs font-bold text-white/95 mt-0.5">
-                    {isBn ? "তাৎক্ষণিক পুলিশ বা ফায়ারের জন্য ৯৯৯ কল করুন" : "Dial 999 for immediate police or fire rescue"}
-                  </p>
-                </div>
-              </div>
-              <a
-                href="tel:999"
-                className="px-3 py-1.5 rounded-xl bg-white text-red-600 font-extrabold text-xs hover:bg-red-50 transition-all shrink-0"
-              >
-                999
-              </a>
-            </section>
-          </div>
-
-          {/* Admin Login Gateway Card */}
-          <div className="bg-white rounded-3xl border border-slate-200 shadow-xl max-w-md w-full p-6 sm:p-8 space-y-6">
-            <div className="flex items-center gap-3.5 pb-4 border-b border-slate-100">
-              <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-purple-700 to-purple-500 flex items-center justify-center text-white shrink-0 shadow-md shadow-purple-600/25 ring-1 ring-purple-400/30">
-                <Lock className="w-6 h-6" />
-              </div>
-              <div>
-                <h1 className="text-lg font-black text-slate-900 tracking-tight">
-                  {isBn ? "অ্যাডমিনিস্ট্রেটর সিকিউরিটি গেটওয়ে" : "Administrator Security Gateway"}
-                </h1>
-                <p className="text-xs text-slate-500 font-medium mt-0.5">
-                  {isBn
-                    ? "বাংলাদেশ পাবলিক সেফটি নেটওয়ার্ক মডারেশন পোর্টাল"
-                    : "Bangladesh Public Safety Network Moderation Portal"}
-                </p>
-              </div>
-            </div>
-
-            <div className="p-3.5 bg-purple-50/80 border border-purple-200 rounded-2xl text-xs text-purple-900 flex items-start gap-2.5">
-              <Shield className="w-4 h-4 text-purple-700 shrink-0 mt-0.5" />
-              <p className="leading-relaxed">
-                {isBn
-                  ? "এই প্যানেলে প্রবেশাধিকার শুধুমাত্র অনুমোদিত নিরাপত্তা মডারেটর এবং সিস্টেম অ্যাডমিনিস্ট্রেটরদের জন্য সংরক্ষিত।"
-                  : "Access is restricted to authorized emergency moderators and system administrators. All actions are cryptographically logged."}
-              </p>
-            </div>
-
-            {authError && (
-              <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 flex items-center gap-2">
-                <AlertTriangle className="w-4 h-4 shrink-0 text-red-600" />
-                <span>{authError}</span>
-              </div>
-            )}
-
-            <form onSubmit={handleAdminLogin} className="space-y-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  {isBn ? "অ্যাডমিন ইমেইল *" : "Admin Email *"}
-                </label>
-                <div className="relative">
-                  <input
-                    type="email"
-                    required
-                    value={adminEmail}
-                    onChange={(e) => setAdminEmail(e.target.value)}
-                    placeholder="admin@example.com"
-                    className="w-full pl-9 pr-3.5 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-900 focus:bg-white focus:ring-1 focus:ring-purple-500 focus:outline-none transition-colors"
-                  />
-                  <Mail className="w-4 h-4 text-slate-400 absolute left-3 top-3 pointer-events-none" />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  {isBn ? "পাসওয়ার্ড *" : "Password *"}
-                </label>
-                <div className="relative">
-                  <input
-                    type={showPassword ? "text" : "password"}
-                    required
-                    value={adminPassword}
-                    onChange={(e) => setAdminPassword(e.target.value)}
-                    placeholder="••••••••••••"
-                    className="w-full pl-9 pr-10 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-900 focus:bg-white focus:ring-1 focus:ring-purple-500 focus:outline-none transition-colors"
-                  />
-                  <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-3 pointer-events-none" />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600 focus:outline-none"
-                    aria-label={showPassword ? "Hide password" : "Show password"}
-                  >
-                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
-              </div>
-
-              <button
-                type="submit"
-                disabled={isAuthenticating}
-                className="w-full py-3 bg-purple-700 hover:bg-purple-800 text-white text-xs font-bold rounded-xl transition-all shadow-md shadow-purple-700/20 disabled:opacity-50 active:scale-98 cursor-pointer flex items-center justify-center gap-2"
-              >
-                {isAuthenticating ? (
-                  <>
-                    <RefreshCw className="w-4 h-4 animate-spin" />
-                    <span>{isBn ? "যাচাই করা হচ্ছে..." : "Verifying Credentials..."}</span>
-                  </>
-                ) : (
-                  <>
-                    <Lock className="w-4 h-4" />
-                    <span>{isBn ? "অ্যাডমিন হিসেবে লগইন করুন" : "Authenticate as Administrator"}</span>
-                  </>
-                )}
-              </button>
-            </form>
-
-            <div className="pt-2 border-t border-slate-100 flex items-center justify-end text-xs">
-              <Link
-                href="/"
-                className="text-slate-500 hover:text-slate-900 font-semibold flex items-center gap-1 transition-colors"
-              >
-                <span>{isBn ? "লাইভ ম্যাপে ফিরুন" : "Return to Live Map"}</span>
-                <ChevronRight className="w-3.5 h-3.5" />
-              </Link>
-            </div>
+        <main className="flex-1 w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 flex flex-col items-center justify-center relative">
+          <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-96 h-96 bg-red-600/5 rounded-full blur-3xl pointer-events-none" />
+          <div className="w-full relative z-10">
+            <AdminLoginGateway onSuccess={() => fetchAdminData()} />
           </div>
         </main>
       </div>
@@ -509,7 +383,7 @@ export default function AdminPage() {
   // Authenticated Admin Operations Console
   // -------------------------------------------------------------
   return (
-    <div className="min-h-screen flex flex-col bg-slate-50 text-slate-900 selection:bg-purple-500 selection:text-white">
+    <div className="min-h-screen flex flex-col bg-slate-50 text-slate-900 selection:bg-red-500 selection:text-white">
       {/* Single Unified Navbar with integrated EN/বাংলা toggle */}
       <Navbar />
 
@@ -518,7 +392,7 @@ export default function AdminPage() {
         {/* Admin Command Header Strip */}
         <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-center gap-3.5">
-            <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-purple-700 to-purple-500 flex items-center justify-center text-white shrink-0 shadow-md shadow-purple-600/25 ring-1 ring-purple-400/30">
+            <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-slate-900 to-slate-800 border border-slate-700/80 flex items-center justify-center text-red-500 shrink-0 shadow-md shadow-slate-900/20 ring-1 ring-red-500/20">
               <ShieldAlert className="w-6 h-6" />
             </div>
             <div>
@@ -528,13 +402,13 @@ export default function AdminPage() {
                     ? "পাবলিক সেফটি সিকিউরিটি মডারেশন কনসোল"
                     : "Public Safety Security Moderation Console"}
                 </h1>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-purple-50 text-purple-700 border border-purple-200">
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-red-50 text-red-700 border border-red-200">
                   ROOT ADMIN
                 </span>
               </div>
               <p className="text-xs text-slate-500 font-medium mt-0.5">
                 {isBn ? "অ্যাডমিন আইডি: " : "Admin ID: "}
-                <span className="font-mono text-purple-700 font-bold">{user.id.slice(0, 8)}...</span>
+                <span className="font-mono text-red-700 font-bold">{user.id.slice(0, 8)}...</span>
                 {user.email && (
                   <>
                     <span className="mx-2 text-slate-300">•</span>
@@ -551,7 +425,7 @@ export default function AdminPage() {
               disabled={isLoadingData}
               className="px-3.5 py-2 rounded-xl bg-slate-50 hover:bg-slate-100 text-xs font-bold text-slate-700 border border-slate-200 flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
             >
-              <RefreshCw className={`w-3.5 h-3.5 ${isLoadingData ? "animate-spin text-purple-600" : ""}`} />
+              <RefreshCw className={`w-3.5 h-3.5 ${isLoadingData ? "animate-spin text-red-600" : ""}`} />
               <span>{isBn ? "রিফ্রেশ" : "Refresh"}</span>
             </button>
 
@@ -588,7 +462,7 @@ export default function AdminPage() {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
           {/* Tactical Keyboard Shortcuts HUD (5 cols on lg) */}
           <div className="lg:col-span-5 bg-white border border-slate-200/90 rounded-2xl p-4 shadow-xs flex items-center gap-3">
-            <div className="p-2.5 bg-purple-50 border border-purple-200 text-purple-600 rounded-xl shrink-0 shadow-2xs">
+            <div className="p-2.5 bg-slate-100 border border-slate-200 text-slate-800 rounded-xl shrink-0 shadow-2xs">
               <Keyboard className="w-5 h-5" />
             </div>
             <div>
@@ -596,10 +470,10 @@ export default function AdminPage() {
                 {isBn ? "কিবোর্ড শর্টকাট হাব" : "Tactical Admin Shortcuts"}
               </div>
               <div className="flex flex-wrap gap-1.5 text-[11px] font-mono">
-                <span className="px-2 py-0.5 rounded-lg bg-slate-100 border border-slate-200 text-purple-700 font-semibold">
+                <span className="px-2 py-0.5 rounded-lg bg-slate-100 border border-slate-200 text-slate-800 font-semibold">
                   <strong className="text-slate-900">[P]</strong> {isBn ? "শীর্ষ রিপোর্ট মুছুন" : "Purge Top"}
                 </span>
-                <span className="px-2 py-0.5 rounded-lg bg-slate-100 border border-slate-200 text-purple-700 font-semibold">
+                <span className="px-2 py-0.5 rounded-lg bg-slate-100 border border-slate-200 text-slate-800 font-semibold">
                   <strong className="text-slate-900">[B]</strong> {isBn ? "ইউজার ব্যান" : "Ban User"}
                 </span>
                 <span className="px-2 py-0.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 font-semibold">
@@ -656,12 +530,12 @@ export default function AdminPage() {
             onClick={() => setActiveTab("reports")}
             className={`pb-3 text-xs sm:text-sm font-bold border-b-2 transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
               activeTab === "reports"
-                ? "border-purple-600 text-purple-600"
+                ? "border-red-600 text-red-600"
                 : "border-transparent text-slate-500 hover:text-slate-900"
             }`}
           >
             <span>{isBn ? "সক্রিয় রিপোর্ট" : "Active Incidents"}</span>
-            <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-purple-50 text-purple-700 border border-purple-200 font-mono">
+            <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-red-50 text-red-700 border border-red-200 font-mono">
               {reports.length}
             </span>
           </button>
@@ -670,7 +544,7 @@ export default function AdminPage() {
             onClick={() => setActiveTab("users")}
             className={`pb-3 text-xs sm:text-sm font-bold border-b-2 transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
               activeTab === "users"
-                ? "border-purple-600 text-purple-600"
+                ? "border-red-600 text-red-600"
                 : "border-transparent text-slate-500 hover:text-slate-900"
             }`}
           >
@@ -681,7 +555,7 @@ export default function AdminPage() {
             onClick={() => setActiveTab("verifications")}
             className={`pb-3 text-xs sm:text-sm font-bold border-b-2 transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
               activeTab === "verifications"
-                ? "border-purple-600 text-purple-600"
+                ? "border-red-600 text-red-600"
                 : "border-transparent text-slate-500 hover:text-slate-900"
             }`}
           >
@@ -695,7 +569,7 @@ export default function AdminPage() {
             onClick={() => setActiveTab("logs")}
             className={`pb-3 text-xs sm:text-sm font-bold border-b-2 transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
               activeTab === "logs"
-                ? "border-purple-600 text-purple-600"
+                ? "border-red-600 text-red-600"
                 : "border-transparent text-slate-500 hover:text-slate-900"
             }`}
           >
@@ -712,7 +586,7 @@ export default function AdminPage() {
             }}
             className={`pb-3 text-xs sm:text-sm font-bold border-b-2 transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
               activeTab === "analytics"
-                ? "border-purple-600 text-purple-600"
+                ? "border-red-600 text-red-600"
                 : "border-transparent text-slate-500 hover:text-slate-900"
             }`}
           >
@@ -727,7 +601,7 @@ export default function AdminPage() {
           <div className="bg-white border border-slate-200/90 rounded-2xl shadow-xs overflow-hidden">
             <div className="p-4 border-b border-slate-100 bg-slate-50/70 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <h2 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
-                <ShieldAlert className="w-4 h-4 text-purple-600" />
+                <ShieldAlert className="w-4 h-4 text-red-600" />
                 <span>{isBn ? "লাইভ পোস্টজিআইএস ম্যাপ রিপোর্টসমূহ" : "Live Map Incidents (PostGIS Feed)"}</span>
               </h2>
               <span className="text-[11px] text-slate-500 font-mono">
@@ -759,7 +633,7 @@ export default function AdminPage() {
                       <tr key={r.id} className="hover:bg-slate-50/80 transition-colors">
                         <td className="p-3.5 font-bold text-slate-900">
                           {idx === 0 && (
-                            <span className="mr-2 px-1.5 py-0.5 rounded text-[10px] bg-purple-50 border border-purple-200 text-purple-700 font-mono font-bold">
+                            <span className="mr-2 px-1.5 py-0.5 rounded text-[10px] bg-red-50 border border-red-200 text-red-700 font-mono font-bold">
                               [P] TARGET
                             </span>
                           )}
@@ -834,7 +708,7 @@ export default function AdminPage() {
                   value={banUserId}
                   onChange={(e) => setBanUserId(e.target.value)}
                   placeholder="e.g. 1960138d-8dd4-4a06-b403-19a76966fc64"
-                  className="w-full px-3.5 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-mono focus:bg-white focus:ring-1 focus:ring-purple-500 focus:outline-none transition-colors"
+                  className="w-full px-3.5 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-mono focus:bg-white focus:ring-1 focus:ring-red-500 focus:outline-none transition-colors"
                 />
               </div>
 
@@ -847,7 +721,7 @@ export default function AdminPage() {
                   value={banReason}
                   onChange={(e) => setBanReason(e.target.value)}
                   placeholder={isBn ? "ধানমন্ডিতে বারবার মিথ্যা ছিনতাইয়ের রিপোর্ট" : "Repeated false mugging reports"}
-                  className="w-full px-3.5 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-900 focus:bg-white focus:ring-1 focus:ring-purple-500 focus:outline-none transition-colors"
+                  className="w-full px-3.5 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-900 focus:bg-white focus:ring-1 focus:ring-red-500 focus:outline-none transition-colors"
                 />
               </div>
 
@@ -879,7 +753,7 @@ export default function AdminPage() {
           <div className="bg-white border border-slate-200/90 rounded-2xl shadow-xs overflow-hidden">
             <div className="p-4 border-b border-slate-100 bg-slate-50/70 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <h2 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
-                <UserCheck className="w-4 h-4 text-purple-600" />
+                <UserCheck className="w-4 h-4 text-emerald-600" />
                 <span>{isBn ? "অপেক্ষমান নাগরিক কেওয়াইসি অনুরোধসমূহ" : "Pending KYC & Citizen Verification Requests"}</span>
               </h2>
               <span className="text-[11px] text-slate-500 font-mono">
@@ -910,7 +784,7 @@ export default function AdminPage() {
                       <tr key={v.id} className="hover:bg-slate-50/80 transition-colors">
                         <td className="p-3.5 font-mono text-slate-700">
                           {idx === 0 && (
-                            <span className="mr-2 px-1.5 py-0.5 rounded text-[10px] bg-purple-50 border border-purple-200 text-purple-700 font-mono font-bold">
+                            <span className="mr-2 px-1.5 py-0.5 rounded text-[10px] bg-emerald-50 border border-emerald-200 text-emerald-700 font-mono font-bold">
                               [A/R] TARGET
                             </span>
                           )}
@@ -967,7 +841,7 @@ export default function AdminPage() {
           <div className="bg-white border border-slate-200/90 rounded-2xl shadow-xs overflow-hidden">
             <div className="p-4 border-b border-slate-100 bg-slate-50/70 flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <FileText className="w-4 h-4 text-purple-600" />
+                <FileText className="w-4 h-4 text-slate-700" />
                 <h2 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
                   {isBn ? "অপরিবর্তনীয় অডিট ট্রেইল ও কমপ্লায়েন্স লগ" : "Immutable Moderation Log (Compliance Trail)"}
                 </h2>
@@ -1002,7 +876,7 @@ export default function AdminPage() {
                           {new Date(log.createdAt).toLocaleString()}
                         </td>
                         <td className="p-3.5">
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-purple-50 border border-purple-200 text-purple-700">
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-slate-100 border border-slate-200 text-slate-800">
                             {log.action}
                           </span>
                         </td>
@@ -1036,7 +910,7 @@ export default function AdminPage() {
                   <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
                     {isBn ? "৩০ দিনে মোট বিপদ" : "30-Day Total Hazards"}
                   </span>
-                  <div className="p-2 bg-purple-50 text-purple-600 rounded-xl border border-purple-200">
+                  <div className="p-2 bg-red-50 text-red-600 rounded-xl border border-red-200">
                     <TrendingUp className="w-4 h-4" />
                   </div>
                 </div>
@@ -1104,7 +978,7 @@ export default function AdminPage() {
               <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-xs space-y-4">
                 <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                   <div className="flex items-center gap-2">
-                    <BarChart3 className="w-4 h-4 text-purple-600" />
+                    <BarChart3 className="w-4 h-4 text-slate-700" />
                     <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
                       {isBn ? "বিপদের ধরন অনুযায়ী বিভাজন" : "Hazard Category Distribution"}
                     </h3>
@@ -1169,7 +1043,7 @@ export default function AdminPage() {
                 <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-xs space-y-4">
                   <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                     <div className="flex items-center gap-2">
-                      <Shield className="w-4 h-4 text-purple-600" />
+                      <Shield className="w-4 h-4 text-red-600" />
                       <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
                         {isBn ? "হুমকির তীব্রতা অনুপাত" : "Threat Severity Breakdown"}
                       </h3>
@@ -1201,7 +1075,7 @@ export default function AdminPage() {
                 <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-xs space-y-4">
                   <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                     <div className="flex items-center gap-2">
-                      <Activity className="w-4 h-4 text-purple-600" />
+                      <Activity className="w-4 h-4 text-blue-600" />
                       <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
                         {isBn ? "ঘটনা নিষ্পত্তি পাইপলাইন" : "Incident Resolution Pipeline"}
                       </h3>
@@ -1236,7 +1110,7 @@ export default function AdminPage() {
             <div className="bg-white border border-slate-200/90 rounded-2xl shadow-xs overflow-hidden">
               <div className="p-4 border-b border-slate-100 bg-slate-50/70 flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <Clock className="w-4 h-4 text-purple-600" />
+                  <Clock className="w-4 h-4 text-slate-700" />
                   <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
                     {isBn ? "দৈনিক ঘটনার টাইমলাইন" : "Daily Incident Timeline (PostGIS Aggregated Days)"}
                   </h3>
@@ -1244,7 +1118,7 @@ export default function AdminPage() {
                 <button
                   onClick={fetchTrends}
                   disabled={isLoadingTrends}
-                  className="px-3 py-1.5 text-xs font-bold text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200 rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer"
+                  className="px-3 py-1.5 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer"
                 >
                   <RefreshCw className={`w-3.5 h-3.5 ${isLoadingTrends ? "animate-spin" : ""}`} />
                   <span>{isBn ? "ট্রেন্ডস রিফ্রেশ" : "Refresh Trends"}</span>
@@ -1274,13 +1148,13 @@ export default function AdminPage() {
                         return (
                           <tr key={row.date} className="hover:bg-slate-50/80 transition-colors">
                             <td className="p-3.5 font-mono font-bold text-slate-900">{row.date}</td>
-                            <td className="p-3.5 font-mono font-black text-purple-700">
+                            <td className="p-3.5 font-mono font-black text-red-600">
                               {row.count} {isBn ? "টি রিপোর্ট" : "reports"}
                             </td>
                             <td className="p-3.5 w-1/2">
                               <div className="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
                                 <div
-                                  className="bg-purple-600 h-full rounded-full transition-all duration-300"
+                                  className="bg-red-600 h-full rounded-full transition-all duration-300"
                                   style={{ width: `${Math.max(barWidth, 6)}%` }}
                                 />
                               </div>
