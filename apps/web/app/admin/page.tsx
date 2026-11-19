@@ -362,18 +362,15 @@ export default function AdminPage() {
   };
 
   // -------------------------------------------------------------
-  // Unauthenticated Admin Gate (Elevated Security Gateway)
+  // Unauthenticated Admin Gate (Premium Minimal Portal)
   // -------------------------------------------------------------
   if (user?.role !== "ADMIN") {
     return (
       <div className="min-h-screen flex flex-col bg-slate-50 text-slate-900 selection:bg-red-500 selection:text-white">
         <Navbar />
 
-        <main className="flex-1 w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 flex flex-col items-center justify-center relative">
-          <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-96 h-96 bg-red-600/5 rounded-full blur-3xl pointer-events-none" />
-          <div className="w-full relative z-10">
-            <AdminLoginGateway onSuccess={() => fetchAdminData()} />
-          </div>
+        <main className="flex-1 w-full mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-16 flex flex-col items-center justify-center">
+          <AdminLoginGateway onSuccess={() => fetchAdminData()} />
         </main>
       </div>
     );
