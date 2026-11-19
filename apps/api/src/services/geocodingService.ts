@@ -45,7 +45,14 @@ export const isWithinBangladeshBounds = isWithinBangladesh;
  * Maps common urban hubs, thanas, and districts in Bangladesh to verified coordinates.
  * Supports both English and Bangla names for zero-latency, network-free resolution.
  */
-export const LOCAL_LANDMARK_MAP: Record<string, { lat: number; lng: number; standardName: string }> = {
+export interface LandmarkEntry {
+  lat: number;
+  lng: number;
+  standardName: string;
+  adminLevel?: 'LOCALITY' | 'THANA' | 'DISTRICT' | 'DIVISION' | 'HOSPITAL';
+}
+
+export const LOCAL_LANDMARK_MAP: Record<string, LandmarkEntry> = {
   // ==========================================
   // ALL 64 DISTRICTS OF BANGLADESH
   // ==========================================
@@ -341,8 +348,42 @@ export const LOCAL_LANDMARK_MAP: Record<string, { lat: number; lng: number; stan
   'শম্ভুগঞ্জ': { lat: 24.7505, lng: 90.435, standardName: 'Shombhugonj, Mymensingh' },
   trishal: { lat: 24.5819, lng: 90.3956, standardName: 'Trishal, Mymensingh' },
   'ত্রিশাল': { lat: 24.5819, lng: 90.3956, standardName: 'Trishal, Mymensingh' },
-  bhaluka: { lat: 24.375, lng: 90.3778, standardName: 'Bhaluka, Mymensingh' },
-  'ভালুকা': { lat: 24.375, lng: 90.3778, standardName: 'Bhaluka, Mymensingh' },
+  bhaluka: { lat: 24.375, lng: 90.3778, standardName: 'Bhaluka, Mymensingh', adminLevel: 'THANA' },
+  'ভালুকা': { lat: 24.375, lng: 90.3778, standardName: 'Bhaluka, Mymensingh', adminLevel: 'THANA' },
+
+  // --- Prominent Accident & Crime Hub Thanas Across Districts ---
+  chauddagram: { lat: 23.2186, lng: 91.3093, standardName: 'Chauddagram, Cumilla', adminLevel: 'THANA' },
+  'চৌদ্দগ্রাম': { lat: 23.2186, lng: 91.3093, standardName: 'Chauddagram, Cumilla', adminLevel: 'THANA' },
+  singra: { lat: 24.5028, lng: 89.1458, standardName: 'Singra, Natore', adminLevel: 'THANA' },
+  'সিংড়া': { lat: 24.5028, lng: 89.1458, standardName: 'Singra, Natore', adminLevel: 'THANA' },
+  'সিংড়া': { lat: 24.5028, lng: 89.1458, standardName: 'Singra, Natore', adminLevel: 'THANA' },
+  osmaninagar: { lat: 24.7397, lng: 91.7877, standardName: 'Osmaninagar, Sylhet', adminLevel: 'THANA' },
+  'osmani nagar': { lat: 24.7397, lng: 91.7877, standardName: 'Osmaninagar, Sylhet', adminLevel: 'THANA' },
+  'ওসমানীনগর': { lat: 24.7397, lng: 91.7877, standardName: 'Osmaninagar, Sylhet', adminLevel: 'THANA' },
+  'ওসমানী নগর': { lat: 24.7397, lng: 91.7877, standardName: 'Osmaninagar, Sylhet', adminLevel: 'THANA' },
+  golapganj: { lat: 24.8624, lng: 92.0211, standardName: 'Golapganj, Sylhet', adminLevel: 'THANA' },
+  'গোলাপগঞ্জ': { lat: 24.8624, lng: 92.0211, standardName: 'Golapganj, Sylhet', adminLevel: 'THANA' },
+  boalia: { lat: 24.3686, lng: 88.5997, standardName: 'Boalia, Rajshahi', adminLevel: 'THANA' },
+  'বোয়ালিয়া': { lat: 24.3686, lng: 88.5997, standardName: 'Boalia, Rajshahi', adminLevel: 'THANA' },
+  patenga: { lat: 22.2543, lng: 91.8023, standardName: 'Patenga, Chittagong', adminLevel: 'THANA' },
+  'পতেঙ্গা': { lat: 22.2543, lng: 91.8023, standardName: 'Patenga, Chittagong', adminLevel: 'THANA' },
+
+  // --- Major Hospitals & Medical College Centers (Secondary Medical Venues) ---
+  dmch: { lat: 23.7258, lng: 90.3976, standardName: 'Dhaka Medical College Hospital', adminLevel: 'HOSPITAL' },
+  'ঢামেক': { lat: 23.7258, lng: 90.3976, standardName: 'Dhaka Medical College Hospital', adminLevel: 'HOSPITAL' },
+  'ঢামেক হাসপাতাল': { lat: 23.7258, lng: 90.3976, standardName: 'Dhaka Medical College Hospital', adminLevel: 'HOSPITAL' },
+  'ঢাকা মেডিকেল': { lat: 23.7258, lng: 90.3976, standardName: 'Dhaka Medical College Hospital', adminLevel: 'HOSPITAL' },
+  'ঢাকা মেডিকেল কলেজ হাসপাতাল': { lat: 23.7258, lng: 90.3976, standardName: 'Dhaka Medical College Hospital', adminLevel: 'HOSPITAL' },
+  cmch: { lat: 22.3584, lng: 91.8286, standardName: 'Chittagong Medical College Hospital', adminLevel: 'HOSPITAL' },
+  'চমেক': { lat: 22.3584, lng: 91.8286, standardName: 'Chittagong Medical College Hospital', adminLevel: 'HOSPITAL' },
+  'চমেক হাসপাতাল': { lat: 22.3584, lng: 91.8286, standardName: 'Chittagong Medical College Hospital', adminLevel: 'HOSPITAL' },
+  'চট্টগ্রাম মেডিকেল': { lat: 22.3584, lng: 91.8286, standardName: 'Chittagong Medical College Hospital', adminLevel: 'HOSPITAL' },
+  'চট্টগ্রাম মেডিকেল কলেজ হাসপাতাল': { lat: 22.3584, lng: 91.8286, standardName: 'Chittagong Medical College Hospital', adminLevel: 'HOSPITAL' },
+  'পঙ্গু হাসপাতাল': { lat: 23.7712, lng: 90.3695, standardName: 'NITOR (Pangu Hospital), Dhaka', adminLevel: 'HOSPITAL' },
+  nitor: { lat: 23.7712, lng: 90.3695, standardName: 'NITOR (Pangu Hospital), Dhaka', adminLevel: 'HOSPITAL' },
+  'সোহরাওয়ার্দী হাসপাতাল': { lat: 23.7698, lng: 90.3705, standardName: 'Suhrawardy Hospital, Dhaka', adminLevel: 'HOSPITAL' },
+  'ওসমানী মেডিকেল': { lat: 24.8988, lng: 91.8596, standardName: 'Osmani Medical College Hospital, Sylhet', adminLevel: 'HOSPITAL' },
+  'ওসমানী মেডিকেল কলেজ হাসপাতাল': { lat: 24.8988, lng: 91.8596, standardName: 'Osmani Medical College Hospital, Sylhet', adminLevel: 'HOSPITAL' },
 };
 
 // Augment LOCAL_LANDMARK_MAP with authoritative statutory police stations across all 64 districts
@@ -368,20 +409,20 @@ try {
           const enBase = st.station_name_en.toLowerCase().trim();
           const enShort = enBase.replace(/\s+(?:thana|model thana|police station)$/i, '').trim();
           if (enBase && !LOCAL_LANDMARK_MAP[enBase]) {
-            LOCAL_LANDMARK_MAP[enBase] = { lat, lng, standardName };
+            LOCAL_LANDMARK_MAP[enBase] = { lat, lng, standardName, adminLevel: 'THANA' };
           }
           if (enShort && !LOCAL_LANDMARK_MAP[enShort]) {
-            LOCAL_LANDMARK_MAP[enShort] = { lat, lng, standardName };
+            LOCAL_LANDMARK_MAP[enShort] = { lat, lng, standardName, adminLevel: 'THANA' };
           }
 
           if (st.station_name_bn) {
             const bnNorm = normalizeBengali(st.station_name_bn).toLowerCase().trim();
             const bnShort = bnNorm.replace(/\s+(?:থানা|মডেল থানা|পুলিশ ফাঁড়ি|পুলিশ স্টেশন)$/, '').trim();
             if (bnNorm && !LOCAL_LANDMARK_MAP[bnNorm]) {
-              LOCAL_LANDMARK_MAP[bnNorm] = { lat, lng, standardName };
+              LOCAL_LANDMARK_MAP[bnNorm] = { lat, lng, standardName, adminLevel: 'THANA' };
             }
             if (bnShort && !LOCAL_LANDMARK_MAP[bnShort]) {
-              LOCAL_LANDMARK_MAP[bnShort] = { lat, lng, standardName };
+              LOCAL_LANDMARK_MAP[bnShort] = { lat, lng, standardName, adminLevel: 'THANA' };
             }
           }
         }
@@ -395,6 +436,88 @@ try {
 
 // In-memory cache for newly geocoded areas
 const dynamicCache = new Map<string, { lat: number; lng: number; standardName: string }>();
+
+// All 64 Districts of Bangladesh in both English and Bengali (used for administrative hierarchy ranking)
+const DISTRICT_NAMES = new Set([
+  'dhaka', 'ঢাকা',
+  'gazipur', 'গাজীপুর',
+  'narayanganj', 'নারায়ণগঞ্জ', 'নারায়ণগঞ্জ',
+  'tangail', 'টাঙ্গাইল',
+  'narsingdi', 'নরসিংদী',
+  'faridpur', 'ফরিদপুর',
+  'gopalganj', 'গোপালগঞ্জ',
+  'kishoreganj', 'কিশোরগঞ্জ',
+  'manikganj', 'মানিকগঞ্জ',
+  'munshiganj', 'মুন্সীগঞ্জ', 'মুন্সিগঞ্জ',
+  'rajbari', 'রাজবাড়ী', 'রাজবাড়ী',
+  'madaripur', 'মাদারীপুর',
+  'shariatpur', 'শরীয়তপুর', 'শরীয়তপুর',
+  'chittagong', 'chattogram', 'চট্টগ্রাম',
+  "cox's bazar", 'coxs bazar', 'কক্সবাজার',
+  'cumilla', 'comilla', 'কুমিল্লা',
+  'chandpur', 'চাঁদপুর',
+  'feni', 'ফেনী',
+  'noakhali', 'নোয়াখালী', 'নোয়াখালী',
+  'brahmanbaria', 'ব্রাহ্মণবাড়িয়া', 'ব্রাহ্মণবাড়িয়া',
+  'lakshmipur', 'লক্ষ্মীপুর',
+  'bandarban', 'বান্দরবান',
+  'khagrachhari', 'খাগড়াছড়ি', 'খাগড়াছড়ি',
+  'rangamati', 'রাঙ্গামাটি', 'রাঙামাটি',
+  'rajshahi', 'রাজশাহী',
+  'bogra', 'bogura', 'বগুড়া', 'বগুড়া',
+  'pabna', 'পাবনা',
+  'sirajganj', 'সিরাজগঞ্জ',
+  'naogaon', 'নওগাঁ',
+  'natore', 'নাটোর',
+  'chapainawabganj', 'নবাবগঞ্জ', 'চাঁপাইনবাবগঞ্জ',
+  'joypurhat', 'জয়পুরহাট', 'জয়পুরহাট',
+  'khulna', 'খুলনা',
+  'jessore', 'jashore', 'যশোর',
+  'kushtia', 'কুষ্টিয়া', 'কুষ্টিয়া',
+  'satkhira', 'সাতক্ষীরা',
+  'bagerhat', 'বাগেরহাট',
+  'jhenaidah', 'ঝিনাইদহ',
+  'magura', 'মাগুরা',
+  'narail', 'নড়াইল', 'নড়াইল',
+  'chuadanga', 'চুয়াডাঙ্গা', 'চুয়াডাঙ্গা',
+  'meherpur', 'মেহেরপুর',
+  'barisal', 'barishal', 'বরিশাল',
+  'patuakhali', 'পটুয়াখালী', 'পটুয়াখালী',
+  'bhola', 'ভোলা',
+  'pirojpur', 'পিরোজপুর',
+  'barguna', 'বরগুনা',
+  'jhalokati', 'jhalakathi', 'ঝালকাঠি', 'ঝালকাঠী',
+  'sylhet', 'সিলেট',
+  'moulvibazar', 'maulvibazar', 'মৌলভীবাজার',
+  'habiganj', 'হবিগঞ্জ',
+  'sunamganj', 'সুনামগঞ্জ',
+  'rangpur', 'রংপুর',
+  'dinajpur', 'দিনাজপুর',
+  'kurigram', 'কুড়িগ্রাম', 'কুড়িগ্রাম',
+  'gaibandha', 'গাইবান্ধা',
+  'nilphamari', 'নীলফামারী',
+  'lalmonirhat', 'লালমনিরহাট',
+  'panchagarh', 'পঞ্চগড়', 'পঞ্চগড়',
+  'thakurgaon', 'ঠাকুরগাঁও',
+  'mymensingh', 'ময়মনসিংহ', 'ময়মনসিংহ',
+  'jamalpur', 'জামালপুর',
+  'netrokona', 'নেত্রকোনা', 'নেত্রকোণা',
+  'sherpur', 'শেরপুর',
+]);
+
+/**
+ * Returns administrative priority weight:
+ * - 100: Specific locality, neighborhood, thana, police station (e.g. Mirpur, Tongi, Chauddagram)
+ * - 50: Broad district centroid (e.g. Dhaka, Chittagong, Gazipur)
+ * - 10: Secondary place / hospital venue (e.g. DMCH, CMCH)
+ */
+export function getAdminPriority(key: string): number {
+  const normKey = normalizeBengali(key).toLowerCase().trim();
+  const entry = LOCAL_LANDMARK_MAP[normKey] || LOCAL_LANDMARK_MAP[key];
+  if (entry?.adminLevel === 'HOSPITAL') return 10;
+  if (DISTRICT_NAMES.has(normKey) || entry?.adminLevel === 'DISTRICT') return 50;
+  return 100;
+}
 
 // Rate limiter for OpenStreetMap Nominatim (strictly max 1 request per second)
 let lastNominatimCallTime = 0;
@@ -411,12 +534,18 @@ const throttleNominatim = async () => {
 
 /**
  * Searches the input text for any known Bangladesh landmark or thana name.
+ * Ranks by administrative hierarchy: locality/thana (100) > district centroid (50) > hospital (10),
+ * then descending by length within the same administrative tier.
  */
 export const findLandmarkInText = (text: string): GeocodeResult | null => {
   const cleanInput = normalizeBengali(text).toLowerCase();
 
-  // Sort keys descending by length so longer names like 'Mirpur 10' match before 'Mirpur'
-  const keys = Object.keys(LOCAL_LANDMARK_MAP).sort((a, b) => b.length - a.length);
+  // Sort keys by administrative hierarchy, then length
+  const keys = Object.keys(LOCAL_LANDMARK_MAP).sort((a, b) => {
+    const prioDiff = getAdminPriority(b) - getAdminPriority(a);
+    if (prioDiff !== 0) return prioDiff;
+    return b.length - a.length;
+  });
 
   for (const key of keys) {
     const cleanKey = normalizeBengali(key).toLowerCase();
@@ -533,6 +662,147 @@ export const geocodeWithNominatim = async (query: string): Promise<GeocodeResult
 };
 
 /**
+ * Strips dateline bureau tokens from the beginning of news snippet text.
+ * e.g. "Dhaka, Nov 19 (UNB) - " or "ঢাকা, ১৯ নভেম্বর - " or "স্টাফ রিপোর্টার, ঢাকা: "
+ */
+export function stripDateline(text: string): string {
+  if (!text) return '';
+  return text
+    // "Dhaka, Nov 19 (UNB) - " or "Dhaka, Nov 19: " or "Dhaka — "
+    .replace(
+      /^(?:Dhaka|Chittagong|Chattogram|Sylhet|Rajshahi|Khulna|Barisal|Barishal|Rangpur|Mymensingh|Comilla|Cumilla)(?:,\s*|\s+)(?:[A-Za-z0-9\s,().—–:-]+?)(?:[-—–:]\s*|\s{2,})/i,
+      ''
+    )
+    // "ঢাকা, ১৯ নভেম্বর (বাসস) - " or "ঢাকা, ১৯ নভেম্বর:"
+    .replace(
+      /^(?:ঢাকা|চট্টগ্রাম|রাজশাহী|সিলেট|খুলনা|বরিশাল|রংপুর|ময়মনসিংহ|ময়মনসিংহ|কুমিল্লা)(?:,\s*|\s+)(?:[\u0980-\u09FF0-9\s,().—–:-]+?)(?:[-—–:]\s*|\s{2,})/i,
+      ''
+    )
+    // "নিজস্ব প্রতিবেদক, ঢাকা:" or "স্টাফ রিপোর্টার, ঢাকা -" or "অনলাইন ডেস্ক -"
+    .replace(
+      /^(?:নিজস্ব প্রতিবেদক|স্টাফ রিপোর্টার|অনলাইন ডেস্ক|Staff Reporter|Special Correspondent|News Desk)[^:—–-]+[:—–-]\s*/i,
+      ''
+    )
+    .trim();
+}
+
+/**
+ * Neutralizes transit departure and destination points in text so that a vehicle's origin
+ * (e.g. "ঢাকা থেকে ছেড়ে আসা", "coming from Chittagong") or transit destination
+ * (e.g. "চট্টগ্রামগামী", "ঢাকামুখী", "bound for Chittagong") does not override the actual crash scene.
+ */
+export function maskTransitDepartures(text: string): string {
+  if (!text) return '';
+  return text
+    // Multi-city routes: "ঢাকা থেকে কক্সবাজারগামী", "Dhaka to Cox's Bazar bound"
+    .replace(
+      /(?:^|[\s,।–—])([^\s,।–—]+)\s*(?:থেকে|হতে)\s*([^\s,।–—]+)(?:গামী|মুখী|অভিমুখী)/gi,
+      ' '
+    )
+    // Bengali destination suffixes: "ঢাকাগামী", "চট্টগ্রামগামী", "কক্সবাজারগামী", "ঢাকামুখী", "চট্টগ্রাম অভিমুখী"
+    .replace(
+      /(?:^|[\s,।–—])([^\s,।–—]+)(?:গামী|মুখী|অভিমুখী)/gi,
+      ' '
+    )
+    // Bengali departure origins: "ঢাকা থেকে ছেড়ে আসা", "চট্টগ্রাম থেকে আসা", "সিলেট হতে ছেড়ে আসা", "খুলনা থেকে রওনা"
+    .replace(
+      /(?:^|[\s,।–—])(কক্স\s*বাজার|saint\s*martin|[^\s,।–—]+)\s*(?:থেকে|হতে)\s*(?:ছেড়ে\s*আসা|ছেড়ে\s*যাওয়া|ছেড়ে|ছেড়ে\s*আসা|ছেড়ে|আসা|রওনা|যাত্রা|ছেড়েছিল|আসছিল)/gi,
+      ' '
+    )
+    // English destination phrases: "bound for Chittagong", "heading to Dhaka", "en route to Rajshahi", "destined for Sylhet"
+    .replace(
+      /(?:bound for|heading to|heading towards|heading toward|headed for|headed to|en route to|destined for|on its way to|way to)\s+([^\s,;]+)/gi,
+      ' '
+    )
+    // English departure origins: "coming from Chittagong", "departed from Dhaka", "traveling from Rajshahi", "left Sylhet"
+    .replace(
+      /(?:coming from|departed from|departing from|traveling from|travelling from|en route from|bound from|bus from|truck from|left|originating from)\s+([^\s,;]+)/gi,
+      ' '
+    );
+}
+
+/**
+ * Neutralizes inter-district connecting highway and expressway corridor names
+ * (e.g. "ঢাকা-চট্টগ্রাম মহাসড়কে", "Dhaka-Chittagong highway") so that the corridor endpoints
+ * do not hijack incidents occurring in intermediate districts (e.g. Feni, Cumilla, Narayanganj).
+ */
+export function maskHighwayCorridors(text: string): string {
+  if (!text) return '';
+  return text
+    // Bengali: "ঢাকা-চট্টগ্রাম মহাসড়কে", "ঢাকা-সিলেট মহাসড়কে", "ঢাকা-মাওয়া এক্সপ্রেসওয়েতে"
+    .replace(
+      /[^\s,।–—]+-[^\s,।–—]+\s*(?:মহাসড়কে|মহাসড়ক|এক্সপ্রেসওয়েতে|এক্সপ্রেসওয়ে|সড়কে|সড়ক)/gi,
+      ' '
+    )
+    // English: "Dhaka-Chittagong highway", "Dhaka-Sylhet expressway"
+    .replace(
+      /[A-Za-z]+-[A-Za-z]+\s+(?:highway|expressway|corridor|road)/gi,
+      ' '
+    );
+}
+
+/**
+ * Masks secondary medical / hospital venues in text so that the hospital where victims were rushed
+ * (e.g. "ঢামেক হাসপাতালে নেওয়া হলে", "Dhaka Medical College Hospital", "কুমিল্লা মেডিকেল কলেজ হাসপাতালে")
+ * does not override the actual accident / crime scene.
+ */
+export function maskHospitalPhrases(text: string): string {
+  if (!text) return '';
+  return text
+    // Bengali medical colleges & hospitals: Any district/place preceding hospital
+    // e.g. "ঢাকা মেডিকেল কলেজ হাসপাতাল", "কুমিল্লা মেডিকেল কলেজ হাসপাতাল", "ফেনী সদর হাসপাতাল", "কেরানীগঞ্জ উপজেলা স্বাস্থ্য কমপ্লেক্স"
+    .replace(
+      /(?:^|[\s,।–—])(?:[^\s,।–—]+\s+)?(?:মেডিকেল\s*কলেজ\s*(?:হাসপাতাল|এ)?|মেডিকেলে|মেডিকেল|সদর\s*হাসপাতাল|জেনারেল\s*হাসপাতাল|উপজেলা\s*স্বাস্থ্য\s*কমপ্লেক্স|স্বাস্থ্য\s*কমপ্লেক্স|হাসপাতালে|হাসপাতাল)/gi,
+      ' '
+    )
+    // English medical colleges & hospitals: "Dhaka Medical College Hospital", "Cumilla Medical College", "Feni Sadar Hospital"
+    .replace(
+      /(?:[A-Za-z]+\s+)?(?:Medical\s+College\s+(?:Hospital)?|Medical|Sadar\s+Hospital|General\s+Hospital|District\s+Hospital|Health\s+Complex)/gi,
+      ' '
+    )
+    // Referral phrases in English: "rushed to Dhaka Medical", "admitted to Chittagong Hospital"
+    .replace(
+      /(?:rushed to|admitted to|taken to|referred to)\s+[^,;]+(?:\s+Hospital)?/gi,
+      ' '
+    )
+    // Known medical centers and acronyms: "ঢামেক", "চমেক", "রামেক", "কুমেক", "পঙ্গু হাসপাতাল", "DMCH", "CMCH", "NITOR"
+    .replace(
+      /\b(?:ঢামেক|চমেক|রামেক|সিমেক|শমেক|কুমেক|শজিমেক|মিটফোর্ড|পঙ্গু\s*হাসপাতাল|সোহরাওয়ার্দী\s*হাসপাতাল|DMCH|CMCH|RMCH|SOMCH|NITOR|BSMMU)\b/gi,
+      ' '
+    );
+}
+
+/**
+ * Masks secondary administrative filing places (e.g. police stations where a report/GD was filed later)
+ * to prevent them from overriding the actual physical crime/accident scene.
+ */
+export function maskSecondaryPlaces(text: string): string {
+  if (!text) return '';
+  return text
+    // Secondary filing police stations: "শাহবাগ থানায় মামলা", "কোতোয়ালী থানায় সাধারণ ডায়েরি"
+    .replace(
+      /[^\s,।–—]+\s*(?:থানায়\s*(?:মামলা|অভিযোগ|সাধারণ\s*ডায়েরি|জিডি|হস্তান্তর|সোপর্দ))/gi,
+      ' '
+    )
+    // English: "case filed with Kotwali police station"
+    .replace(
+      /(?:case filed with|complaint lodged at|handed over to)\s+([^\s,;]+)\s+(?:police station|thana)/gi,
+      ' '
+    );
+}
+
+function maskAllSecondaryNoise(text: string): string {
+  if (!text) return '';
+  return maskSecondaryPlaces(
+    maskHighwayCorridors(
+      maskTransitDepartures(
+        maskHospitalPhrases(text)
+      )
+    )
+  );
+}
+
+/**
  * Determines if a matched location in the text refers merely to a casualty's origin/residence
  * (e.g. "নিহতদের বাড়ি কক্সবাজারে", "গ্রামের বাড়ি চকরিয়ায়") rather than the actual incident scene.
  */
@@ -571,7 +841,9 @@ export function isVictimOriginContext(text: string, locationName: string): boole
  * High-level domestic geocode resolver:
  * 1. Rejects international/foreign events (USA, Saudi, UK, Canada, India, etc.) -> returns null (pins nothing).
  * 2. Matches the headline first (highest confidence incident location).
- * 3. If checking snippet, ensures the location is an actual crash/crime scene and NOT a victim origin address.
+ * 3. Applies administrative hierarchy: Locality / Thana > District Centroid.
+ * 4. Neutralizes transit departure origins and secondary hospital/court venues.
+ * 5. Strips datelines from news snippets.
  */
 export const resolveLocationFromText = async (
   titleOrCombined: string,
@@ -587,32 +859,51 @@ export const resolveLocationFromText = async (
     return null;
   }
 
-  // 2. Headline Priority Match:
-  // In professional journalism, the incident location is almost always in the headline
-  const headlineMatch = findLandmarkInText(title);
+  // Dateline bureau stripping
+  const cleanBody = stripDateline(body);
+
+  // 2. Headline Priority Match with transit, highway, hospital, and secondary place masking:
+  // Incident scenes almost always appear in the headline without departure/destination/hospital noise
+  const maskedTitle = maskAllSecondaryNoise(title);
+  const headlineMatch = findLandmarkInText(maskedTitle);
   if (headlineMatch) {
-    return headlineMatch;
+    if (!isVictimOriginContext(title, headlineMatch.locationName)) {
+      return headlineMatch;
+    }
   }
 
-  // 3. Snippet inspection:
-  // If body snippet is provided, ensure matched location is NOT merely the victim's hometown
-  if (body) {
-    const snippetMatch = findLandmarkInText(body);
-    if (snippetMatch) {
-      if (isVictimOriginContext(body, snippetMatch.locationName)) {
-        // Matched location is victim's residence, NOT the accident location. Pin nothing!
-        return null;
-      }
-      return snippetMatch;
+  // 3. Snippet inspection with masking:
+  // If body snippet is provided, check if masked body reveals the incident scene
+  if (cleanBody) {
+    const maskedBody = maskAllSecondaryNoise(cleanBody);
+    const bodySceneMatch = findLandmarkInText(maskedBody);
+    if (bodySceneMatch && !isVictimOriginContext(cleanBody, bodySceneMatch.locationName)) {
+      return bodySceneMatch;
+    }
+  }
+
+  // 4. Fallback to raw unmasked headline (e.g. story purely about "Dhaka-Chittagong highway" or hospital venue)
+  const rawHeadlineMatch = findLandmarkInText(title);
+  if (rawHeadlineMatch && !isVictimOriginContext(title, rawHeadlineMatch.locationName)) {
+    return rawHeadlineMatch;
+  }
+
+  // 5. Fallback to raw clean body
+  if (cleanBody) {
+    const rawBodyMatch = findLandmarkInText(cleanBody);
+    if (rawBodyMatch && !isVictimOriginContext(cleanBody, rawBodyMatch.locationName)) {
+      return rawBodyMatch;
     }
   } else if (!snippet) {
-    // Single combined string fallback
-    const combinedMatch = findLandmarkInText(titleOrCombined);
-    if (combinedMatch) {
-      if (isVictimOriginContext(titleOrCombined, combinedMatch.locationName)) {
-        return null;
-      }
+    const maskedCombined = maskAllSecondaryNoise(titleOrCombined);
+    const combinedMatch = findLandmarkInText(maskedCombined);
+    if (combinedMatch && !isVictimOriginContext(titleOrCombined, combinedMatch.locationName)) {
       return combinedMatch;
+    }
+
+    const rawMatch = findLandmarkInText(titleOrCombined);
+    if (rawMatch && !isVictimOriginContext(titleOrCombined, rawMatch.locationName)) {
+      return rawMatch;
     }
   }
 

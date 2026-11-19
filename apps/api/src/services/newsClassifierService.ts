@@ -6,7 +6,10 @@ export interface ClassifiedNews {
   severity: ReportSeverity;
   confidence: number;
   matchedKeywords: string[];
+  disqualifiedReason?: string;
 }
+
+export type ClassificationResult = ClassifiedNews;
 
 const CATEGORY_KEYWORDS: Record<ReportCategory, string[]> = {
   THEFT: [
@@ -17,12 +20,26 @@ const CATEGORY_KEYWORDS: Record<ReportCategory, string[]> = {
     'টাকা চুরি',
     'মোটরসাইকেল চুরি',
     'স্বর্ণালঙ্কার চুরি',
+    'তালা ভেঙে চুরি',
+    'গ্রিল কেটে চুরি',
+    'চুরি হয়েছে',
+    'চুরির ঘটনা',
+    'চুরি চক্র',
+    'মুঠোফোন চুরি',
+    'মোবাইল চুরি',
+    'গরু চুরি',
+    'নগদ টাকা চুরি',
     'theft',
     'thief',
     'thieves',
     'burglary',
     'burgled',
     'stolen',
+    'stole',
+    'burglarized',
+    'break-in',
+    'broken into',
+    'stealing',
   ],
   ROBBERY: [
     'ডাকাতি',
@@ -102,6 +119,14 @@ const CATEGORY_KEYWORDS: Record<ReportCategory, string[]> = {
     'bullet',
     'bomb attack',
     'bomb',
+    'bombed',
+    'bombing',
+    'blast',
+    'cocktail blast',
+    'cocktail explosion',
+    'explosive',
+    'explosives',
+    'explosion',
     'kill',
     'killing',
     'clash',
@@ -227,6 +252,29 @@ const CATEGORY_KEYWORDS: Record<ReportCategory, string[]> = {
     'চাপা পড়ে নিহত',
     'চাপা দিয়ে নিহত',
     'চাপা দিয়েছে',
+    'চাপা পড়ে',
+    'চাপা দিয়ে',
+    'চাপায়',
+    'চাপায় নিহত',
+    'ধাক্কায়',
+    'ধাক্কায় নিহত',
+    'ধাক্কায় আহত',
+    'ধাক্কা লেগে',
+    'ধাক্কা দিয়ে',
+    'খাদে পড়ে',
+    'খাদে পড়ে নিহত',
+    'খাদে পড়ে আহত',
+    'নিয়ন্ত্রণ হারিয়ে',
+    'নিয়ন্ত্রণ হারিয়ে',
+    'প্রাণহানি',
+    'প্রাণ হারান',
+    'দুর্ঘটনায় প্রাণ গেল',
+    'দুর্ঘটনায় নিহত',
+    'দুর্ঘটনায় আহত',
+    'চাপায় আহত',
+    'ধাক্কায় আহত',
+    'দুর্ঘটনায় প্রাণহানি',
+    'মোটরসাইকেল চালক নিহত',
     'road accident',
     'traffic accident',
     'deadly crash',
@@ -243,6 +291,10 @@ const CATEGORY_KEYWORDS: Record<ReportCategory, string[]> = {
     'highway crash',
     'hit and run',
     'overturned bus',
+    'lost control',
+    'plunged into ditch',
+    'fatal crash',
+    'crashed',
   ],
   // Legacy aliases
   MUGGING: [
@@ -575,6 +627,333 @@ const VIOLENT_FACTION_KEYWORDS = [
   'arson',
 ];
 
+const BAIL_KEYWORDS = [
+  'জামিন',
+  'জামিনে',
+  'জামিন পেলেন',
+  'জামিন মঞ্জুর',
+  'জামিন নামঞ্জুর',
+  'জামিন আবেদন',
+  'জামিন স্থগিত',
+  'অন্তর্র্বতীকালীন জামিন',
+  'স্থায়ী জামিন',
+  'অগ্রিম জামিন',
+  'জামিনের শুনানি',
+  'bail',
+  'bail plea',
+  'bail petition',
+  'bail granted',
+  'bail rejected',
+  'bail denied',
+  'secures bail',
+  'anticipatory bail',
+  'interim bail',
+  'bail hearing',
+  'granted bail',
+];
+
+const COURT_KEYWORDS = [
+  'আদালত',
+  'আদালতে',
+  'আদালতের নির্দেশ',
+  'আদালত প্রাঙ্গণ',
+  'হাইকোর্ট',
+  'সুপ্রিম কোর্ট',
+  'বিচারিক আদালত',
+  'জজ কোর্ট',
+  'ম্যাজিস্ট্রেট',
+  'বিচারক',
+  'রিমান্ড',
+  'রিমান্ডে',
+  'রিমান্ড মঞ্জুর',
+  'রিমান্ড আবেদন',
+  'চার্জশিট',
+  'অভিযোগপত্র',
+  'অভিযোগ গঠন',
+  'চার্জ গঠন',
+  'শুনানি',
+  'শুনানির দিন',
+  'হাজিরা দিলেন',
+  'আদালতে হাজিরা',
+  'কারাগারে প্রেরণের নির্দেশ',
+  'কারাগারে প্রেরণ',
+  'জেলহাজতে প্রেরণ',
+  'কারাগারে পাঠানোর নির্দেশ',
+  'কারাদণ্ড',
+  'সাজা বহাল',
+  'সাজার নির্দেশ',
+  'যাবজ্জীবন কারাদণ্ড',
+  'যাবজ্জীবন',
+  'যাবজ্জীবন সাজা',
+  'মৃত্যুদণ্ড',
+  'মৃত্যুদণ্ডের রায়',
+  'ফাঁসির রায়',
+  'সাজা',
+  'দণ্ডাদেশ',
+  'বিচার শুরু',
+  'রায় ঘোষণা',
+  'আদালতের আদেশ',
+  'বিচারিক আদেশ',
+  'বিশেষ ট্রাইব্যুনাল',
+  'ট্রাইব্যুনাল',
+  'খালাস পেলেন',
+  'মামলা থেকে খালাস',
+  'গ্রেপ্তারি পরোয়ানা',
+  'গ্রেফতারি পরোয়ানা',
+  'হুলিয়া জারি',
+  'আইনি লড়াই',
+  'রিট আবেদন',
+  'রিট দায়ের',
+  'court',
+  'courthouse',
+  'high court',
+  'supreme court',
+  'appellate division',
+  'magistrate court',
+  'sessions court',
+  'sessions judge',
+  'metropolitan magistrate',
+  'judge',
+  'magistrate',
+  'tribunal',
+  'remand',
+  'remanded',
+  'placed on remand',
+  'chargesheet',
+  'charge sheet',
+  'charges framed',
+  'indictment',
+  'hearing',
+  'trial',
+  'verdict',
+  'sentences',
+  'sentenced',
+  'sentencing',
+  'sentenced to',
+  'life term',
+  'death sentence',
+  'sent to jail',
+  'ordered to jail',
+  'judicial custody',
+  'convicted',
+  'conviction',
+  'convicts',
+  'acquitted',
+  'acquittal',
+  'acquits',
+  'arrest warrant',
+  'warrant of arrest',
+  'lawsuit',
+  'legal battle',
+  'writ petition',
+];
+
+const CORRUPTION_KEYWORDS = [
+  'দুদক',
+  'দুদকের',
+  'দুর্নীতি দমন কমিশন',
+  'দুর্নীতি',
+  'দুর্নীতির অভিযোগ',
+  'দুর্নীতি মামলায়',
+  'দুর্নীতির অনুসন্ধান',
+  'অবৈধ সম্পদ',
+  'জ্ঞাত আয়বহির্ভূত সম্পদ',
+  'জ্ঞাত আয়বহির্ভূত',
+  'অর্থ পাচার',
+  'মানি লন্ডারিং',
+  'মানিলন্ডারিং',
+  'অর্থ আত্মসাৎ',
+  'তহবিল তছরুপ',
+  'ঘুষ কেলেঙ্কারি',
+  'ঘুষ গ্রহণ',
+  'ঘুষ নেওয়ার',
+  'ব্যাংক জালিয়াতি',
+  'ঋণ জালিয়াতি',
+  'ভুয়া ঋণ',
+  'সম্পদ বিবরণী',
+  'acc',
+  'anti-corruption commission',
+  'anti-corruption',
+  'corruption',
+  'corruption probe',
+  'corruption case',
+  'graft',
+  'graft case',
+  'ill-gotten wealth',
+  'illegal assets',
+  'unexplained wealth',
+  'money laundering',
+  'embezzlement',
+  'embezzled',
+  'bribery',
+  'bribe',
+  'financial scam',
+  'loan scam',
+  'bank fraud',
+  'financial irregularities',
+];
+
+const POLITICAL_STATEMENT_KEYWORDS = [
+  'সংবাদ সম্মেলন',
+  'প্রেস ব্রিফিং',
+  'প্রেস কনফারেন্স',
+  'বিবৃতিতে বলেন',
+  'এক বিবৃতিতে',
+  'যৌথ বিবৃতি',
+  'সমাবেশে বললেন',
+  'আলোচনা সভায় বললেন',
+  'বক্তব্যে বলেন',
+  'হুঁশিয়ারি উচ্চারণ',
+  'হুঁশিয়ারি দেন',
+  'হুঁশিয়ারি দিলেন',
+  'স্মারকলিপি পেশ',
+  'স্মারকলিপি প্রদান',
+  'গোলটেবিল বৈঠক',
+  'মতবিনিময় সভা',
+  'নির্বাচনী প্রচারণায় বললেন',
+  'প্রেস বিজ্ঞপ্তি',
+  'press conference',
+  'press briefing',
+  'press release',
+  'joint statement',
+  'issued a statement',
+  'in a statement',
+  'speaks at rally',
+  'addressed the gathering',
+  'submitted memorandum',
+  'roundtable discussion',
+  'discussion meeting',
+  'election campaign speech',
+];
+
+const ADMINISTRATIVE_DISPUTE_KEYWORDS = [
+  'সীমানা বিরোধ',
+  'জমি সংক্রান্ত বিরোধ',
+  'দাপ্তরিক আদেশ',
+  'প্রশাসনিক আদেশ',
+  'বদলি করা হয়েছে',
+  'কর্মকর্তা বদলি',
+  'টেন্ডার বাতিল',
+  'কারণ দর্শানোর নোটিশ',
+  'শোকজ নোটিশ',
+  'পদত্যাগপত্র জমা',
+  'পদত্যাগ করেছেন',
+  'boundary dispute',
+  'land dispute',
+  'civil dispute',
+  'administrative order',
+  'official transfer',
+  'tender cancellation',
+  'show-cause notice',
+  'show cause notice',
+  'resignation letter',
+  'tender dispute',
+];
+
+const HISTORICAL_ALLEGATION_KEYWORDS = [
+  'বছরের পুরোনো মামলা',
+  'দশক আগের মামলা',
+  'ঐতিহাসিক মামলা',
+  '১৯৭১ সালের যুদ্ধাপরাধ',
+  'যুদ্ধাপরাধ ট্রাইব্যুনাল',
+  'মানবতাবিরোধী অপরাধ ট্রাইব্যুনাল',
+  'আন্তর্জাতিক অপরাধ ট্রাইব্যুনাল',
+  '১৯৭১ সালের',
+  'decades-old case',
+  'decades-old',
+  'years-old case',
+  'war crimes tribunal',
+  'crimes against humanity',
+  'international crimes tribunal',
+  '1971 war crimes',
+  '1971 war',
+];
+
+const RETROSPECTIVE_JUDICIAL_PATTERNS = [
+  // Bengali: case trials, chargesheets, remands, verdicts, life sentences, death sentences, hearings
+  /(?:মামলায়|মামলার|মামলা|বিচার)[\s\S]{0,40}?(?:চার্জশিট|অভিযোগপত্র|রিমান্ড|রায়|সাজা|কারাদণ্ড|যাবজ্জীবন|মৃত্যুদণ্ড|জামিন|শুনানি|বিচার|খালাস|আদেশ|দণ্ড)/i,
+  /(?:চার্জশিট|অভিযোগপত্র|রিমান্ড|রায়|সাজা|কারাদণ্ড|যাবজ্জীবন|মৃত্যুদণ্ড|জামিন|শুনানি|বিচার|খালাস)[\s\S]{0,35}?(?:মঞ্জুর|দাখিল|ঘোষণা|নামঞ্জুর|স্থগিত|শুরু|পেলেন|দিলেন|প্রদান|বহাল|দণ্ড|হাজিরা|কার্যকর)/i,
+  /(?:আদালতের|বিচারিক|বিচারকের|ট্রাইব্যুনালের|আদালত|ট্রাইব্যুনাল)\s*(?:আদেশ|নির্দেশ|রায়|সাজা|দণ্ড|হাজিরা|বিচার)/i,
+
+  // English: sentences, indictments, chargesheets, remands, verdicts, trials
+  /(?:sentences|sentenced|sentencing|convicted|conviction|convicts|acquitted|acquittal|acquits)[\s\S]{0,40}?(?:imprisonment|jail|term|death|in|to|for|penalty)/i,
+  /(?:chargesheet|charge sheet|indictment|remand|remanded|verdict|bail|hearing|trial)[\s\S]{0,35}?(?:in|upheld|deferred|rejected|denied|granted|issued|passed|announced|delivered|begins|set|ordered)/i,
+  /(?:sentenced\s+to|life\s+term|death\s+sentence|placed\s+on\s+remand|remanded\s+to|sent\s+to\s+jail|ordered\s+to\s+jail|judicial\s+custody)/i,
+  /(?:court|tribunal|judge|magistrate)\s+(?:sentences|sentenced|convicts|convicted|orders|ordered|delivered\s+verdict|announced\s+verdict)/i,
+
+  // Historical / past time allegations
+  /(?:বছরের\s+পুরোনো|বছর\s+আগের|দশক\s+আগের|১৯৭১\s*সালের|১৯৭১|decades-old|years-old|years\s+ago)/i,
+];
+
+// Patterns identifying active physical attacks directed AT court venues or political gatherings
+const COURT_VENUE_PATTERNS = [
+  /(?:আদালত\s*(?:চত্বরে|চত্বর|প্রাঙ্গণে|প্রাঙ্গণ|ভবনে|ভবন|গেটে|গেট|এলাকায়|এলাকা|কক্ষে|কক্ষ|সামনে)|court\s+(?:premises|building|compound|gate|complex|entrance)|courthouse)/i,
+];
+
+const POLITICAL_VENUE_PATTERNS = [
+  /(?:রাজনৈতিক\s*সমাবেশ|সমাবেশস্থলে|সমাবেশস্থল|সমাবেশ\s*মঞ্চ|মিছিল|দলীয়\s*কার্যালয়|party\s+office|political\s+rally|campaign\s+rally|protest\s+rally)/i,
+];
+
+const IMMEDIATE_VIOLENT_ATTACK_PATTERNS = [
+  /(?:ককটেল\s*বিস্ফোরণ|বোমা\s*হামলা|বোমা\s*বিস্ফোরণ|গুলি\s*বর্ষণ|গুলি\s*ছুড়ে|ককটেল\s*হামলা|রণক্ষেত্র|ককটেল\s*ছোড়া|অস্ত্রধারীদের\s*গুলি|cocktail\s*blast|cocktail\s*explosion|bomb\s*attack|bomb\s*blast|gunfire|shooting|bombed|explosive\s*device)/i,
+];
+
+function checkGroundRealityDisqualification(
+  combinedText: string
+): { isDisqualified: boolean; reason?: string } {
+  // Retrospective legal / trial detection
+  const isJudicialRetrospective = RETROSPECTIVE_JUDICIAL_PATTERNS.some((pat) =>
+    pat.test(combinedText)
+  );
+
+  // Active physical attack directed at venue (not a past trial/verdict)
+  const isCourtVenueAttack =
+    COURT_VENUE_PATTERNS.some((p) => p.test(combinedText)) &&
+    IMMEDIATE_VIOLENT_ATTACK_PATTERNS.some((p) => p.test(combinedText)) &&
+    !isJudicialRetrospective;
+
+  const isPoliticalVenueAttack =
+    POLITICAL_VENUE_PATTERNS.some((p) => p.test(combinedText)) &&
+    IMMEDIATE_VIOLENT_ATTACK_PATTERNS.some((p) => p.test(combinedText)) &&
+    !isJudicialRetrospective;
+
+  // 1. Bail Hearing Disqualification (Bail hearings are strictly legal proceedings)
+  if (BAIL_KEYWORDS.some((kw) => matchesKeyword(combinedText, kw))) {
+    return { isDisqualified: true, reason: 'BAIL_HEARING' };
+  }
+
+  // 2. Corruption Probe Disqualification (ACC investigations are strictly non-physical financial/graft inquiries)
+  if (CORRUPTION_KEYWORDS.some((kw) => matchesKeyword(combinedText, kw))) {
+    return { isDisqualified: true, reason: 'CORRUPTION_PROBE' };
+  }
+
+  // 3. Historical Allegation Disqualification (1971 war crimes, decades-old allegations)
+  if (HISTORICAL_ALLEGATION_KEYWORDS.some((kw) => matchesKeyword(combinedText, kw))) {
+    return { isDisqualified: true, reason: 'HISTORICAL_ALLEGATION' };
+  }
+
+  // 4. Court Proceeding Disqualification (unless an active bomb/gunfire attack is taking place at the court venue itself)
+  if (COURT_KEYWORDS.some((kw) => matchesKeyword(combinedText, kw))) {
+    if (!isCourtVenueAttack) {
+      return { isDisqualified: true, reason: 'COURT_PROCEEDING' };
+    }
+  }
+
+  // 5. Political Statement Disqualification (unless an active violent attack is taking place at the political gathering)
+  if (POLITICAL_STATEMENT_KEYWORDS.some((kw) => matchesKeyword(combinedText, kw))) {
+    if (!isPoliticalVenueAttack) {
+      return { isDisqualified: true, reason: 'POLITICAL_STATEMENT' };
+    }
+  }
+
+  // 6. Administrative Dispute Disqualification
+  if (ADMINISTRATIVE_DISPUTE_KEYWORDS.some((kw) => matchesKeyword(combinedText, kw))) {
+    return { isDisqualified: true, reason: 'ADMINISTRATIVE_DISPUTE' };
+  }
+
+  return { isDisqualified: false };
+}
+
 /**
  * Classifies an article's headline and summary into a public safety category and severity level.
  * Supports both Bangla and English news content with smart combination resolution.
@@ -674,6 +1053,19 @@ export const classifyNewsText = (title: string, summary: string = ''): Classifie
   if (resolvedCategory === 'THEFT_DACOITY') resolvedCategory = 'THEFT_ROBBERY';
   if (resolvedCategory === 'TEEN_GANG') resolvedCategory = 'YOUTH_GANG_ACTIVITY';
   if (resolvedCategory === 'DRUG_ACTIVITY') resolvedCategory = 'DRUG_RELATED_CRIME';
+
+  // Evaluate ground-reality physical safety disqualification
+  const disqualification = checkGroundRealityDisqualification(combinedText);
+  if (disqualification.isDisqualified) {
+    return {
+      isSafetyRelated: false,
+      category: resolvedCategory || 'ROAD_ACCIDENT',
+      severity: 'LOW',
+      confidence: 0.0,
+      matchedKeywords,
+      disqualifiedReason: disqualification.reason,
+    };
+  }
 
   if (!resolvedCategory) {
     return {
