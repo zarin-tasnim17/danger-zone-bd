@@ -459,6 +459,10 @@ export const installBrowserGlobals = (
     webkitAudioContext: g.webkitAudioContext,
     hasNotification: 'Notification' in g,
     notification: g.Notification,
+    hasScreen: 'screen' in g,
+    screen: g.screen,
+    hasDevicePixelRatio: 'devicePixelRatio' in g,
+    devicePixelRatio: g.devicePixelRatio,
   };
 
   const localStorage = new MemoryStorage();
@@ -506,6 +510,17 @@ export const installBrowserGlobals = (
   MockNotification.permission = options.notificationPermission ?? 'default';
   MockAudioContext.reset();
 
+  const mockScreen = {
+    deviceXDPI: 96,
+    logicalXDPI: 96,
+    width: 1920,
+    height: 1080,
+    availWidth: 1920,
+    availHeight: 1080,
+    colorDepth: 24,
+    pixelDepth: 24,
+  };
+
   const windowObj: Record<string, unknown> = {
     location: {
       origin,
@@ -521,6 +536,8 @@ export const installBrowserGlobals = (
     AudioContext: MockAudioContext,
     webkitAudioContext: MockAudioContext,
     Notification: MockNotification,
+    screen: mockScreen,
+    devicePixelRatio: 1,
     addEventListener: windowEvents.addEventListener,
     removeEventListener: windowEvents.removeEventListener,
     dispatchEvent: windowEvents.dispatchEvent,
@@ -533,6 +550,8 @@ export const installBrowserGlobals = (
   g.AudioContext = MockAudioContext;
   g.webkitAudioContext = MockAudioContext;
   g.Notification = MockNotification;
+  g.screen = mockScreen;
+  g.devicePixelRatio = 1;
 
   let currentVisibilityState: DocumentVisibilityState = 'visible';
 
@@ -548,9 +567,16 @@ export const installBrowserGlobals = (
     addEventListener: documentEvents.addEventListener,
     removeEventListener: documentEvents.removeEventListener,
     dispatchEvent: documentEvents.dispatchEvent,
-    createElement: () => ({}),
+    createElement: () => ({
+      style: {},
+      className: '',
+      setAttribute: () => {},
+      appendChild: () => {},
+    }),
+    documentElement: { style: {} },
   };
 
+  windowObj.document = docObj;
   g.document = docObj;
   g.localStorage = localStorage;
   g.sessionStorage = sessionStorage;
@@ -570,6 +596,7 @@ export const installBrowserGlobals = (
       value: {
         onLine: options.online ?? true,
         userAgent: 'DangerZoneBD-WebAudit/1.0',
+        platform: 'Win32',
         serviceWorker: mockServiceWorker,
         geolocation: mockGeolocation,
         permissions: mockPermissions,
@@ -615,6 +642,8 @@ export const installBrowserGlobals = (
       restoreKey('AudioContext', prev.hasAudioContext, prev.audioContext);
       restoreKey('webkitAudioContext', prev.hasWebkitAudioContext, prev.webkitAudioContext);
       restoreKey('Notification', prev.hasNotification, prev.notification);
+      restoreKey('screen', prev.hasScreen, prev.screen);
+      restoreKey('devicePixelRatio', prev.hasDevicePixelRatio, prev.devicePixelRatio);
 
       if (navigatorDesc) {
         try {
