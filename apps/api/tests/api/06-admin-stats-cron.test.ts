@@ -132,6 +132,88 @@ describe('API Functional: Admin Moderation, Analytics, Stats & Cron (EP-032..EP-
     assert.ok(Array.isArray(trends.timeline));
   });
 
+  it('EP-048 & EP-049 GET /api/v1/admin/users discovery, search by email/phone/anonId/UUID, flexible ban by handle, and GET /api/v1/admin/reports', async () => {
+    const admin = await createPrivilegedActor(server.baseUrl, tracker, { role: 'ADMIN' });
+    const targetCitizen = await createDeviceActor(server.baseUrl, tracker, { email: `searchable-${Date.now()}@test.safety` });
+
+    // 1. List users via GET /api/v1/admin/users
+    const listRes = assertSuccessEnvelope(
+      await admin.client.get('/api/v1/admin/users?page=1&limit=20'),
+      200
+    );
+    assert.ok(Array.isArray(listRes.users));
+    assert.ok(listRes.pagination.total >= 1);
+    // Never leak passwordHash
+    for (const u of listRes.users) {
+      assert.equal('passwordHash' in u, false, 'passwordHash must never be exposed');
+    }
+
+    // 2. Search by email
+    const searchEmailRes = assertSuccessEnvelope(
+      await admin.client.get(`/api/v1/admin/users?search=${encodeURIComponent(targetCitizen.email)}`),
+      200
+    );
+    assert.ok(searchEmailRes.users.some((u: any) => u.id === targetCitizen.id));
+
+    // 3. Search by anonymousId
+    const searchAnonRes = assertSuccessEnvelope(
+      await admin.client.get(`/api/v1/admin/users?search=${encodeURIComponent(targetCitizen.anonymousId)}`),
+      200
+    );
+    assert.ok(searchAnonRes.users.some((u: any) => u.id === targetCitizen.id));
+
+    // 4. Search by UUID
+    const searchUuidRes = assertSuccessEnvelope(
+      await admin.client.get(`/api/v1/admin/users?search=${targetCitizen.id}`),
+      200
+    );
+    assert.ok(searchUuidRes.users.some((u: any) => u.id === targetCitizen.id));
+
+    // 5. Flexible ban using email identifier instead of raw UUID
+    const banByEmail = assertSuccessEnvelope(
+      await admin.client.post(`/api/v1/admin/users/${encodeURIComponent(targetCitizen.email)}/ban`, {
+        reason: 'Spam activity identified via email handle',
+      }),
+      200
+    );
+    assert.equal(banByEmail.user.isBanned, true);
+    assert.equal(banByEmail.user.id, targetCitizen.id);
+
+    // 6. Flexible unban using anonymousId identifier
+    const unbanByAnon = assertSuccessEnvelope(
+      await admin.client.post(`/api/v1/admin/users/${encodeURIComponent(targetCitizen.anonymousId)}/unban`, {
+        reason: 'Restored after verification via device anonymousId',
+      }),
+      200
+    );
+    assert.equal(unbanByAnon.user.isBanned, false);
+    assert.equal(unbanByAnon.user.id, targetCitizen.id);
+
+    // 7. GET /api/v1/admin/reports returns reports populated with reporter user details
+    const rep = assertSuccessEnvelope(
+      await targetCitizen.client.post('/api/v1/reports', {
+        category: 'THEFT',
+        severity: 'LOW',
+        latitude: 23.755,
+        longitude: 90.385,
+        description: 'Test incident to verify admin reports reporter linkage',
+      }),
+      201
+    );
+    tracker.trackReport(rep.id);
+
+    const adminReports = assertSuccessEnvelope(
+      await admin.client.get(`/api/v1/admin/reports?userId=${targetCitizen.id}`),
+      200
+    );
+    assert.ok(Array.isArray(adminReports.reports));
+    const matched = adminReports.reports.find((r: any) => r.id === rep.id);
+    assert.ok(matched, 'Report must be found in admin reports');
+    assert.equal(matched.user?.id, targetCitizen.id);
+    assert.equal(matched.user?.email, targetCitizen.email);
+    assert.equal(typeof matched.user?.trustScore, 'number');
+  });
+
   it('EP-041 GET /api/v1/stats reflects live aggregate counts cleanly', async () => {
     const publicClient = new ApiClient(server.baseUrl, nextTestIp());
     const stats = assertSuccessEnvelope(await publicClient.get('/api/v1/stats'), 200);
