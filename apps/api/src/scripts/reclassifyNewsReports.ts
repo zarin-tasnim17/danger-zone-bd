@@ -10,7 +10,7 @@ export async function reclassifyAllNewsReports() {
       sourceUrl: { not: null },
     },
     include: {
-      newsArticle: true,
+      newsArticles: true,
     },
   });
 
@@ -20,7 +20,7 @@ export async function reclassifyAllNewsReports() {
 
   for (const report of reports) {
     // Determine the original headline
-    const article = report.newsArticle;
+    const article = report.newsArticles?.[0];
     const rawHeadline = article?.title || report.description || '';
     
     // Clean description of bracketed crawler prefix

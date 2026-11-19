@@ -5,10 +5,11 @@ import { resolveLocationFromText } from './geocodingService';
 import { classifyNewsText } from './newsClassifierService';
 import { isForeignIncident } from './internationalIncidentFilter';
 import { crossVerifyCitizenReports } from './newsVerificationService';
-import { findDuplicateActiveReport } from './incidentDeduplicationService';
+import { findDuplicateActiveReport, normalizeCanonicalUrl, cleanIncidentTitle } from './incidentDeduplicationService';
 import { emitNewReport } from '../sockets';
 import { broadcastPlatformStats } from './statsService';
 import { setReportLocation } from '../db/spatialUtils';
+import { newsObservabilityService, CrawlRunRecorder } from './newsObservabilityService';
 
 const parser = new Parser({
   headers: {
@@ -17,21 +18,103 @@ const parser = new Parser({
   timeout: 10000,
 });
 
-export const PUBLIC_NEWS_FEEDS = [
+export interface FeedConfig {
+  name: string;
+  category: ReportCategory;
+  categoryHint: ReportCategory;
+  url: string;
+  timeoutMs?: number;
+}
+
+export const buildGoogleNewsRssUrl = (query: string, lang: 'bn' | 'en' = 'en'): string => {
+  const encodedQuery = encodeURIComponent(query);
+  if (lang === 'bn') {
+    return `https://news.google.com/rss/search?q=${encodedQuery}&hl=bn&gl=BD&ceid=BD:bn`;
+  }
+  return `https://news.google.com/rss/search?q=${encodedQuery}&hl=en-BD&gl=BD&ceid=BD:en`;
+};
+
+export const DEDICATED_CATEGORY_FEEDS: FeedConfig[] = [
   {
-    name: 'Google News BD Crime',
-    url: 'https://news.google.com/rss/search?q=(crime+OR+mugging+OR+robbery+OR+%22road+accident%22)+bangladesh+-saudi+-india+-overseas+when:1d&hl=en-BD&gl=BD&ceid=BD:en',
+    name: 'Google News BD Theft',
+    category: 'THEFT',
+    categoryHint: 'THEFT',
+    url: buildGoogleNewsRssUrl('(theft OR burglary OR stolen OR "চুরি" OR "চোর" OR "সিঁধেল চুরি") bangladesh -saudi -india -overseas when:1d'),
+    timeoutMs: 10000,
   },
   {
-    name: 'Google News BD Safety (Bangla)',
-    // Explicitly scope to Bangladesh and exclude expatriate/overseas indicators
-    url: 'https://news.google.com/rss/search?q=(%E0%A6%9B%E0%A6%BF%E0%A6%A8%E0%A6%A4%E0%A6%BE%E0%A6%87+OR+%E0%A6%A1%E0%A6%BE%E0%A6%95%E0%A6%BE%E0%A6%A4%E0%A6%BF+OR+%E0%A6%B8%E0%A6%82%E0%A6%98%E0%A6%B0%E0%A7%8D%E0%A6%B7+OR+%22%E0%A6%B8%E0%A7%9C%E0%A6%95+%E0%A6%A6%E0%A7%81%E0%A6%B0%E0%A7%8D%E0%A6%98%E0%A6%9F%E0%A6%A8%E0%A6%BE%22)+%E0%A6%AC%E0%A6%BE%E0%A6%82%E0%A6%B2%E0%A6%BE%E0%A6%A6%E0%A7%87%E0%A6%B6+-%E0%A6%B8%E0%A7%8C%E0%A6%A6%E0%A6%BF+-%E0%A6%AD%E0%A6%BE%E0%A6%B0%E0%A6%A4+-%E0%A6%AA%E0%A7%8D%E0%A6%B0%E0%A6%AC%E0%A6%BE%E0%A6%B8%E0%A7%80+when:1d&hl=bn&gl=BD&ceid=BD:bn',
+    name: 'Google News BD Robbery',
+    category: 'ROBBERY',
+    categoryHint: 'ROBBERY',
+    url: buildGoogleNewsRssUrl('(robbery OR dacoity OR "ডাকাত" OR "ডাকাতি" OR "সশস্ত্র ডাকাত" OR "লুণ্ঠন") bangladesh -saudi -india -overseas when:1d'),
+    timeoutMs: 10000,
   },
   {
-    name: 'The Daily Star Law & Crime',
-    url: 'https://www.thedailystar.net/law-our-rights/rss.xml',
+    name: 'Google News BD Theft & Robbery',
+    category: 'THEFT_ROBBERY',
+    categoryHint: 'THEFT_ROBBERY',
+    url: buildGoogleNewsRssUrl('("theft and robbery" OR "burglary and robbery" OR "চুরি ও ডাকাতি" OR "চুরি ডাকাতি") bangladesh -saudi -india -overseas when:1d'),
+    timeoutMs: 10000,
+  },
+  {
+    name: 'Google News BD Snatching',
+    category: 'SNATCHING',
+    categoryHint: 'SNATCHING',
+    url: buildGoogleNewsRssUrl('(snatching OR mugging OR "ছিনতাই" OR "ছিনতাইকারী" OR "ব্যাগ টান") bangladesh -saudi -india -overseas when:1d'),
+    timeoutMs: 10000,
+  },
+  {
+    name: 'Google News BD Armed Assault',
+    category: 'ARMED_ASSAULT',
+    categoryHint: 'ARMED_ASSAULT',
+    url: buildGoogleNewsRssUrl('(assault OR "armed assault" OR "knife attack" OR gunfire OR "কুপিয়ে জখম" OR "ছুরিকাঘাত" OR "গুলিবিদ্ধ" OR "সংঘর্ষ") bangladesh -saudi -india -overseas when:1d'),
+    timeoutMs: 10000,
+  },
+  {
+    name: 'Google News BD Snatching & Armed Assault',
+    category: 'SNATCHING_ARMED_ASSAULT',
+    categoryHint: 'SNATCHING_ARMED_ASSAULT',
+    url: buildGoogleNewsRssUrl('("armed mugging" OR "violent snatching" OR "ছিনতাই ও হামলা" OR "ছিনতাইকালে কুপিয়ে" OR "ছিনতাইকালে গুলি") bangladesh -saudi -india -overseas when:1d'),
+    timeoutMs: 10000,
+  },
+  {
+    name: 'Google News BD Extortion',
+    category: 'EXTORTION',
+    categoryHint: 'EXTORTION',
+    url: buildGoogleNewsRssUrl('(extortion OR "illegal toll" OR "protection money" OR "চাঁদাবাজি" OR "চাঁদা দাবি" OR "চাঁদাবাজ") bangladesh -saudi -india -overseas when:1d'),
+    timeoutMs: 10000,
+  },
+  {
+    name: 'Google News BD Youth Gang Activity',
+    category: 'YOUTH_GANG_ACTIVITY',
+    categoryHint: 'YOUTH_GANG_ACTIVITY',
+    url: buildGoogleNewsRssUrl('("youth gang" OR "teen gang" OR "teenage gang" OR "juvenile delinquency" OR "কিশোর গ্যাং" OR "কিশোর অপরাধী") bangladesh -saudi -india -overseas when:1d'),
+    timeoutMs: 10000,
+  },
+  {
+    name: 'Google News BD Drug-Related Crime',
+    category: 'DRUG_RELATED_CRIME',
+    categoryHint: 'DRUG_RELATED_CRIME',
+    url: buildGoogleNewsRssUrl('(narcotics OR "yaba" OR phensedyl OR "মাদক" OR "ইয়াবা" OR "গাঁজা" OR "ফেনসিডিল" OR "মাদক কারবারি") bangladesh -saudi -india -overseas when:1d'),
+    timeoutMs: 10000,
+  },
+  {
+    name: 'Google News BD Unlit & Hazardous Road',
+    category: 'UNLIT_ROAD',
+    categoryHint: 'UNLIT_ROAD',
+    url: buildGoogleNewsRssUrl('("unlit road" OR "dark street" OR "street light off" OR "broken road" OR "pothole hazard" OR "অন্ধকার রাস্তা" OR "সড়ক বাতি নেই" OR "ভাঙা রাস্তা") bangladesh -saudi -india -overseas when:1d'),
+    timeoutMs: 10000,
+  },
+  {
+    name: 'Google News BD Road Accident',
+    category: 'ROAD_ACCIDENT',
+    categoryHint: 'ROAD_ACCIDENT',
+    url: buildGoogleNewsRssUrl('("road accident" OR "bus accident" OR "সড়ক দুর্ঘটনা" OR "বাস উল্টে" OR "মুখোমুখি সংঘর্ষ") bangladesh -saudi -india -overseas when:1d'),
+    timeoutMs: 10000,
   },
 ];
+
+export const PUBLIC_NEWS_FEEDS: FeedConfig[] = [...DEDICATED_CATEGORY_FEEDS];
 
 const NEWS_BOT_EMAIL = 'news-crawler-bot@safety.bd';
 let cachedBotUserId: string | null = null;
@@ -71,6 +154,7 @@ export interface RawNewsItem {
   pubDate?: string | Date;
   contentSnippet?: string;
   sourceName: string;
+  categoryHint?: ReportCategory;
 }
 
 /**
@@ -142,7 +226,8 @@ export const calculateNewsReportExpiry = (
  * 7. Broadcasts real-time NEW_REPORT event.
  */
 export const processAndIngestNewsItems = async (
-  items: RawNewsItem[]
+  items: RawNewsItem[],
+  runRecorder?: CrawlRunRecorder
 ): Promise<{ ingested: number; skipped: number; verifiedMatches: number }> => {
   const botUserId = await getOrCreateNewsBotUser();
   const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
@@ -151,24 +236,38 @@ export const processAndIngestNewsItems = async (
   let skipped = 0;
   let verifiedMatches = 0;
 
+  if (runRecorder) {
+    runRecorder.recordDiscoveredArticles(items.length);
+  }
+
   // Batch deduplication check in a single query
-  const allGuids = items.map((i) => i.guid || i.link).filter(Boolean);
+  const allGuids = items.map((i) => i.guid || normalizeCanonicalUrl(i.link)).filter(Boolean);
+  const allUrls = items.map((i) => normalizeCanonicalUrl(i.link)).filter(Boolean);
   const existingArticles = await prisma.newsArticle.findMany({
-    where: { guid: { in: allGuids } },
-    select: { guid: true },
+    where: {
+      OR: [
+        { guid: { in: allGuids } },
+        { sourceUrl: { in: allUrls } },
+      ],
+    },
+    select: { guid: true, sourceUrl: true },
   });
   const existingGuidSet = new Set(existingArticles.map((a) => a.guid));
+  const existingUrlSet = new Set(existingArticles.map((a) => a.sourceUrl).filter(Boolean));
 
   for (const item of items) {
-    const guid = item.guid || item.link;
+    const canonicalUrl = normalizeCanonicalUrl(item.link);
+    const guid = item.guid || canonicalUrl;
     if (!guid || !item.title) {
       skipped++;
+      if (runRecorder) runRecorder.recordDuplicateRejection();
       continue;
     }
 
-    // 1. Deduplication check
-    if (existingGuidSet.has(guid)) {
+    // 1. Deduplication check (check both GUID and normalized canonical URL)
+    if (existingGuidSet.has(guid) || existingUrlSet.has(canonicalUrl)) {
       skipped++;
+      if (runRecorder) runRecorder.recordDuplicateRejection();
       continue;
     }
 
@@ -191,7 +290,12 @@ export const processAndIngestNewsItems = async (
 
     // 4. Bilingual classification
     const classification = classifyNewsText(item.title, item.contentSnippet || '');
-    if (!classification.isSafetyRelated) {
+    const isSafetyRelated = classification.isSafetyRelated || !!item.categoryHint;
+    const finalCategory = classification.isSafetyRelated
+      ? classification.category
+      : (item.categoryHint || classification.category);
+
+    if (!isSafetyRelated) {
       skipped++;
       continue;
     }
@@ -200,23 +304,26 @@ export const processAndIngestNewsItems = async (
     const geocode = await resolveLocationFromText(item.title, item.contentSnippet || '');
     if (!geocode) {
       // Cannot plot on map without verified Bangladesh coordinates
+      if (runRecorder) runRecorder.recordGeocodingFailure();
       skipped++;
       continue;
     }
 
+    if (runRecorder) runRecorder.recordGeocodingSuccess();
+
     // 5. Expiration: Category-specific active lifecycle
-    const expiresAt = calculateNewsReportExpiry(classification.category, publishedAt);
+    const expiresAt = calculateNewsReportExpiry(finalCategory, publishedAt);
 
     // 6. Clean headline and content
-    const cleanTitle = item.title.replace(/^\[(?:Google News[^\]]*|The Daily Star[^\]]*)\]\s*/i, '').trim();
-    const cleanDesc = (item.contentSnippet || item.title).replace(/^\[(?:Google News[^\]]*|The Daily Star[^\]]*)\]\s*/i, '').trim();
+    const cleanTitle = cleanIncidentTitle(item.title);
+    const cleanDesc = cleanIncidentTitle(item.contentSnippet || item.title);
 
     // 7. Cross-Outlet Semantic Deduplication:
     // If another news agency already reported on this exact same accident/crime in this area,
     // consolidate under the existing report instead of scattering duplicate pins across the map.
     const duplicateMatch = await findDuplicateActiveReport({
       title: cleanTitle,
-      category: classification.category,
+      category: finalCategory,
       latitude: geocode.latitude,
       longitude: geocode.longitude,
     });
@@ -227,19 +334,19 @@ export const processAndIngestNewsItems = async (
         `[News Crawler] 🔄 Consolidated duplicate story from "${item.sourceName}": "${cleanTitle.substring(0, 60)}..." -> Merged with Report ${existingReport.id} (Shared: ${sharedTokens.join(', ')})`
       );
 
-      // Create NewsArticle record (unlinked via null reportId to prevent unique constraint conflict)
+      // Create NewsArticle record linked to existingReport.id (multi-source consolidation)
       await prisma.newsArticle.create({
         data: {
           guid,
           title: item.title,
-          sourceUrl: item.link,
+          sourceUrl: canonicalUrl,
           sourceName: item.sourceName,
           publishedAt,
-          category: classification.category,
+          category: finalCategory,
           severity: classification.severity,
           latitude: geocode.latitude,
           longitude: geocode.longitude,
-          reportId: null,
+          reportId: existingReport.id,
         },
       });
 
@@ -251,9 +358,38 @@ export const processAndIngestNewsItems = async (
         updatedSources = `${currentSources}, ${cleanOutlet}`.replace(/^,\s*/, '');
       }
 
+      // Preserve structured citations array
+      const existingCitations: any[] = Array.isArray(existingReport.citations)
+        ? (existingReport.citations as any[])
+        : existingReport.sourceUrl
+          ? [
+              {
+                sourceName: (existingReport.sourceName || 'Press').replace(/^Google News BD[^:]*:\s*/i, '').trim(),
+                sourceUrl: existingReport.sourceUrl,
+                title: cleanIncidentTitle(existingReport.description?.split('\n')[0] || ''),
+              },
+            ]
+          : [];
+
+      const newCitation = {
+        sourceName: cleanOutlet || item.sourceName,
+        sourceUrl: canonicalUrl,
+        title: cleanTitle,
+        publishedAt: publishedAt.toISOString(),
+      };
+
+      if (!existingCitations.some((c) => c.sourceUrl === canonicalUrl)) {
+        existingCitations.push(newCitation);
+      }
+
+      // Advance verificationStage to CORROBORATED (preserving ADMIN_VERIFIED if already verified)
+      const nextStage = existingReport.verificationStage === 'ADMIN_VERIFIED'
+        ? 'ADMIN_VERIFIED'
+        : 'CORROBORATED';
+
       // If existing report was previously misclassified (e.g. ARMED_ASSAULT instead of ROAD_ACCIDENT), fix it:
       const updatedCategory =
-        existingReport.category === 'ARMED_ASSAULT' && classification.category === 'ROAD_ACCIDENT'
+        existingReport.category === 'ARMED_ASSAULT' && finalCategory === 'ROAD_ACCIDENT'
           ? 'ROAD_ACCIDENT'
           : existingReport.category;
 
@@ -263,6 +399,8 @@ export const processAndIngestNewsItems = async (
           category: updatedCategory,
           sourceName: updatedSources,
           upvotes: { increment: 2 }, // Multi-press verification confidence boost
+          verificationStage: nextStage,
+          citations: existingCitations,
         },
       });
 
@@ -276,22 +414,35 @@ export const processAndIngestNewsItems = async (
       });
 
       existingGuidSet.add(guid);
+      existingUrlSet.add(canonicalUrl);
       skipped++;
+      if (runRecorder) runRecorder.recordDuplicateRejection();
       continue;
     }
+
+    const initialCitations = [
+      {
+        sourceName: item.sourceName.replace(/^Google News BD[^:]*:\s*/i, '').trim() || item.sourceName,
+        sourceUrl: canonicalUrl,
+        title: cleanTitle,
+        publishedAt: publishedAt.toISOString(),
+      },
+    ];
 
     // Atomically create report, populate PostGIS location, and persist news article metadata
     const report = await prisma.$transaction(async (tx) => {
       const createdReport = await tx.report.create({
         data: {
           userId: botUserId,
-          category: classification.category,
+          category: finalCategory,
           severity: classification.severity,
           latitude: geocode.latitude,
           longitude: geocode.longitude,
           description: cleanDesc,
-          sourceUrl: item.link,
+          sourceUrl: canonicalUrl,
           sourceName: item.sourceName,
+          verificationStage: 'CLASSIFIED',
+          citations: initialCitations,
           expiresAt,
         },
       });
@@ -302,10 +453,10 @@ export const processAndIngestNewsItems = async (
         data: {
           guid,
           title: item.title,
-          sourceUrl: item.link,
+          sourceUrl: canonicalUrl,
           sourceName: item.sourceName,
           publishedAt,
-          category: classification.category,
+          category: finalCategory,
           severity: classification.severity,
           latitude: geocode.latitude,
           longitude: geocode.longitude,
@@ -317,7 +468,9 @@ export const processAndIngestNewsItems = async (
     });
 
     existingGuidSet.add(guid);
+    existingUrlSet.add(canonicalUrl);
     ingested++;
+    if (runRecorder) runRecorder.recordNewIncident();
 
     // 7. Cross-Verification with active citizen reports
     const verifyResult = await crossVerifyCitizenReports({
@@ -326,10 +479,24 @@ export const processAndIngestNewsItems = async (
       latitude: report.latitude,
       longitude: report.longitude,
       sourceName: item.sourceName,
-      sourceUrl: item.link,
+      sourceUrl: canonicalUrl,
       title: item.title,
     });
     verifiedMatches += verifyResult.matchedCount;
+    if (runRecorder && verifyResult.matchedCount > 0) {
+      runRecorder.recordVerifiedMatches(verifyResult.matchedCount);
+      // Automatically advance verificationStage to CORROBORATED when citizen report matches
+      await prisma.report.update({
+        where: { id: report.id },
+        data: { verificationStage: 'CORROBORATED' },
+      });
+      if (verifyResult.verifiedReportIds.length > 0) {
+        await prisma.report.updateMany({
+          where: { id: { in: verifyResult.verifiedReportIds } },
+          data: { verificationStage: 'CORROBORATED' },
+        });
+      }
+    }
 
     // 8. Real-time broadcast
     emitNewReport({
@@ -376,44 +543,89 @@ const safeString = (val: any): string => {
   return String(val).trim();
 };
 
-export const crawlAllNewsFeeds = async (): Promise<{
+export const crawlAllNewsFeeds = async (
+  feeds: FeedConfig[] = PUBLIC_NEWS_FEEDS
+): Promise<{
   feedsChecked: number;
   totalIngested: number;
   totalSkipped: number;
   totalVerifiedMatches: number;
+  runId: string;
+  durationMs: number;
 }> => {
+  const runRecorder = newsObservabilityService.startRun();
   let totalIngested = 0;
   let totalSkipped = 0;
   let totalVerifiedMatches = 0;
   let feedsChecked = 0;
 
-  for (const feedConfig of PUBLIC_NEWS_FEEDS) {
+  for (const feedConfig of feeds) {
+    feedsChecked++;
+    const feedStartTime = Date.now();
+    const timeoutMs = feedConfig.timeoutMs || 10000;
+
     try {
-      feedsChecked++;
-      const feed = await parser.parseURL(feedConfig.url);
+      const parsePromise = parser.parseURL(feedConfig.url);
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error(`Feed fetch timed out after ${timeoutMs}ms`)), timeoutMs);
+      });
 
-      const items: RawNewsItem[] = (feed.items || []).map((item) => ({
-        guid: safeString(item.guid || item.link || item.title),
-        title: safeString(item.title),
-        link: safeString(item.link),
-        pubDate: item.pubDate ? new Date(item.pubDate) : new Date(),
-        contentSnippet: safeString(item.contentSnippet || item.content),
-        sourceName: feedConfig.name,
-      }));
+      const feed = await Promise.race([parsePromise, timeoutPromise]);
+      const latencyMs = Date.now() - feedStartTime;
 
-      const result = await processAndIngestNewsItems(items);
+      const items: RawNewsItem[] = (feed.items || []).map((item) => {
+        const rawLink = safeString(item.link);
+        const canonicalLink = normalizeCanonicalUrl(rawLink);
+        return {
+          guid: safeString(item.guid || canonicalLink || item.title),
+          title: safeString(item.title),
+          link: canonicalLink,
+          pubDate: item.pubDate ? new Date(item.pubDate) : new Date(),
+          contentSnippet: safeString(item.contentSnippet || item.content),
+          sourceName: feedConfig.name,
+          categoryHint: feedConfig.categoryHint || feedConfig.category,
+        };
+      });
+
+      const result = await processAndIngestNewsItems(items, runRecorder);
       totalIngested += result.ingested;
       totalSkipped += result.skipped;
       totalVerifiedMatches += result.verifiedMatches;
-    } catch (feedErr) {
-      console.warn(`[News Crawler] Failed to fetch feed "${feedConfig.name}":`, feedErr);
+
+      runRecorder.recordFeedExecution({
+        feedName: feedConfig.name,
+        category: feedConfig.category,
+        url: feedConfig.url,
+        status: 'SUCCESS',
+        latencyMs,
+        itemsFetched: items.length,
+      });
+    } catch (feedErr: any) {
+      const latencyMs = Date.now() - feedStartTime;
+      const isTimeout = feedErr?.message?.includes('timed out');
+      console.warn(`[News Crawler] Failed to fetch feed "${feedConfig.name}":`, feedErr?.message || feedErr);
+
+      runRecorder.recordFeedExecution({
+        feedName: feedConfig.name,
+        category: feedConfig.category,
+        url: feedConfig.url,
+        status: isTimeout ? 'TIMEOUT' : 'FAILED',
+        latencyMs,
+        itemsFetched: 0,
+        errorMessage: feedErr?.message || String(feedErr),
+      });
+      // Isolated failure handling: continuing crawl loop without aborting
     }
   }
+
+  const completedRun = runRecorder.complete();
 
   return {
     feedsChecked,
     totalIngested,
     totalSkipped,
     totalVerifiedMatches,
+    runId: completedRun.runId,
+    durationMs: completedRun.durationMs,
   };
 };

@@ -1,134 +1,32 @@
 {
-  "profile": "regression",
-  "startedAt": "2026-11-15T09:14:47.220Z",
-  "finishedAt": "2026-11-15T09:16:01.425Z",
-  "totalDurationMs": 74203.88,
+  "profile": "validation",
+  "startedAt": "2026-11-19T09:34:38.474Z",
+  "finishedAt": "2026-11-19T09:34:57.257Z",
+  "totalDurationMs": 18781.04,
   "summary": {
-    "total": 20,
-    "passed": 20,
+    "total": 3,
+    "passed": 3,
     "failed": 0,
     "skipped": 0
   },
   "cases": [
     {
-      "name": "[BACKEND-001] Unauthenticated calls to /api/v1/cron/news-crawl must NOT exhaust authenticated cron rate-limit quota on same IP",
-      "file": "tests\\regression\\01-confirmed-defects-regression.test.ts",
+      "name": "Enforces .strict() mass-assignment/unknown-field rejection on strict schemas",
+      "file": "tests\\validation\\01-schema-strictness-boundaries.test.ts",
       "status": "PASS",
-      "durationMs": 3622.2
+      "durationMs": 2745.94
     },
     {
-      "name": "[BACKEND-002] /auth/login should not leak refreshToken in JSON, /auth/refresh must rotate refreshToken, and /auth/logout must work with expired accessToken",
-      "file": "tests\\regression\\01-confirmed-defects-regression.test.ts",
+      "name": "PostGIS geofence validation: rejects unclosed, self-intersecting, >25 km² polygons, and >5 zones per user",
+      "file": "tests\\validation\\01-schema-strictness-boundaries.test.ts",
       "status": "PASS",
-      "durationMs": 4668.6
+      "durationMs": 10569.05
     },
     {
-      "name": "[BACKEND-003] JWT_SECRET and JWT_REFRESH_SECRET in .env must be >= 32 characters without hardcoded fallbacks",
-      "file": "tests\\regression\\01-confirmed-defects-regression.test.ts",
+      "name": "Report, Media & GPS header boundaries (lat/lng extremes, 5MB limit, MIME types, incomplete GPS headers)",
+      "file": "tests\\validation\\01-schema-strictness-boundaries.test.ts",
       "status": "PASS",
-      "durationMs": 0.5
-    },
-    {
-      "name": "[BACKEND-004] POST /api/v1/reports must reject empty string \"\" and >1000-char description with 400",
-      "file": "tests\\regression\\01-confirmed-defects-regression.test.ts",
-      "status": "PASS",
-      "durationMs": 1874.1
-    },
-    {
-      "name": "[BACKEND-005] POST /api/v1/reports/:id/updates must reject whitespace-only content with 400",
-      "file": "tests\\regression\\01-confirmed-defects-regression.test.ts",
-      "status": "PASS",
-      "durationMs": 3122.35
-    },
-    {
-      "name": "[BACKEND-006] GET /api/v1/safe-zones must return 400 for non-numeric spatial parameters (?lat=abc&lng=def)",
-      "file": "tests\\regression\\01-confirmed-defects-regression.test.ts",
-      "status": "PASS",
-      "durationMs": 5.14
-    },
-    {
-      "name": "[BACKEND-007] Missing resource IDs on /reports/:id/vote, /alerts/zones/:id, and /users/verify/:id/approve must return 404 (not 400)",
-      "file": "tests\\regression\\01-confirmed-defects-regression.test.ts",
-      "status": "PASS",
-      "durationMs": 3481.46
-    },
-    {
-      "name": "[BACKEND-008] Repeat sign-in on POST /api/v1/auth/device for existing anonymousId should return 200 OK instead of 201 Created",
-      "file": "tests\\regression\\01-confirmed-defects-regression.test.ts",
-      "status": "PASS",
-      "durationMs": 1649.11
-    },
-    {
-      "name": "[BACKEND-009] API contract consistency: /media/webhook uses {success,data}, /admin/logs rejects limit>100, and /safe-zones distanceMeters is a number",
-      "file": "tests\\regression\\01-confirmed-defects-regression.test.ts",
-      "status": "PASS",
-      "durationMs": 2634.51
-    },
-    {
-      "name": "[BACKEND-010] Admin verification rejection must record a distinct rejection ModerationLog.action instead of VERIFY_USER",
-      "file": "tests\\regression\\01-confirmed-defects-regression.test.ts",
-      "status": "PASS",
-      "durationMs": 5010.71
-    },
-    {
-      "name": "[BACKEND-011] POST /api/v1/reports and POST /api/v1/reports/:id/vote must NOT expose reporter userId PII in response JSON",
-      "file": "tests\\regression\\01-confirmed-defects-regression.test.ts",
-      "status": "PASS",
-      "durationMs": 5243.14
-    },
-    {
-      "name": "[BACKEND-012] GET /api/v1/reports must reject inverted bounds (minLng >= maxLng or minLat >= maxLat) with 400",
-      "file": "tests\\regression\\01-confirmed-defects-regression.test.ts",
-      "status": "PASS",
-      "durationMs": 9.73
-    },
-    {
-      "name": "[BACKEND-013] POST /api/v1/admin/users/:id/ban must forbid self-banning and peer-ADMIN suspension (403)",
-      "file": "tests\\regression\\01-confirmed-defects-regression.test.ts",
-      "status": "PASS",
-      "durationMs": 3539.88
-    },
-    {
-      "name": "[BACKEND-014] POST /api/v1/alerts/zones must reject topologically invalid self-intersecting polygons (ST_IsValid) with 400",
-      "file": "tests\\regression\\01-confirmed-defects-regression.test.ts",
-      "status": "PASS",
-      "durationMs": 2187.37
-    },
-    {
-      "name": "[BACKEND-001] POST /cron/news-crawl ordering, unref cleanup timer, and all newly added route rate limiters enforce 429",
-      "file": "tests\\regression\\02-post-fix-edge-cases-regression.test.ts",
-      "status": "PASS",
-      "durationMs": 10552.61
-    },
-    {
-      "name": "[BACKEND-002] Login omits accessToken & refreshToken JSON, /refresh rotates DB row & cookie, expired-access /logout revokes DB row & clears cookies",
-      "file": "tests\\regression\\02-post-fix-edge-cases-regression.test.ts",
-      "status": "PASS",
-      "durationMs": 4334
-    },
-    {
-      "name": "[BACKEND-003] Booting env.ts fails closed when JWT_SECRET or JWT_REFRESH_SECRET is empty or < 32 chars",
-      "file": "tests\\regression\\02-post-fix-edge-cases-regression.test.ts",
-      "status": "PASS",
-      "durationMs": 1117.68
-    },
-    {
-      "name": "[BACKEND-004 & BACKEND-005] Report description & update content enforce exact whitespace/1000-char boundaries",
-      "file": "tests\\regression\\02-post-fix-edge-cases-regression.test.ts",
-      "status": "PASS",
-      "durationMs": 6607.57
-    },
-    {
-      "name": "[BACKEND-006 & BACKEND-012] Strict spatial coordinate bounds, trailing garbage, and inverted bounding box checks",
-      "file": "tests\\regression\\02-post-fix-edge-cases-regression.test.ts",
-      "status": "PASS",
-      "durationMs": 14.64
-    },
-    {
-      "name": "[BACKEND-009 & BACKEND-010] Envelopes (/health*, /), strict /admin/logs & /analytics/trends params, legacy approve UUID validation & action filter",
-      "file": "tests\\regression\\02-post-fix-edge-cases-regression.test.ts",
-      "status": "PASS",
-      "durationMs": 8113.41
+      "durationMs": 3198.21
     }
   ]
 }

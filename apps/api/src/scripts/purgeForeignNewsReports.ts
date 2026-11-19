@@ -9,7 +9,7 @@ export async function purgeAllForeignReports() {
       sourceUrl: { not: null },
     },
     include: {
-      newsArticle: true,
+      newsArticles: true,
     },
   });
 
@@ -18,7 +18,7 @@ export async function purgeAllForeignReports() {
   let purgedCount = 0;
 
   for (const report of reports) {
-    const articleTitle = report.newsArticle?.title || '';
+    const articleTitle = report.newsArticles?.[0]?.title || '';
     const desc = report.description || '';
 
     const check = isForeignIncident(articleTitle || desc, desc);
@@ -29,9 +29,9 @@ export async function purgeAllForeignReports() {
       );
 
       // Delete child NewsArticle first if exists
-      if (report.newsArticle) {
-        await prisma.newsArticle.delete({
-          where: { id: report.newsArticle.id },
+      if (report.newsArticles && report.newsArticles.length > 0) {
+        await prisma.newsArticle.deleteMany({
+          where: { reportId: report.id },
         });
       }
 

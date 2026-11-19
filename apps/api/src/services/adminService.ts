@@ -1,4 +1,4 @@
-import { ModerationAction } from '@prisma/client';
+import { ModerationAction, ReportCategory, ReportSeverity } from '@prisma/client';
 import { prisma } from '../db/prisma';
 import { emitReportPurged } from '../sockets';
 import { broadcastPlatformStats } from './statsService';
@@ -327,4 +327,104 @@ export const getHazardTrends = async () => {
     },
     timeline: timelineFormatted
   };
+};
+
+/**
+ * Promotes a report to ADMIN_VERIFIED stage and records an immutable entry in ModerationLog.
+ */
+export const verifyReport = async (
+  adminId: string,
+  targetReportId: string,
+  reason: string = 'Incident verified by administrator'
+) => {
+  const targetReport = await prisma.report.findUnique({
+    where: { id: targetReportId },
+  });
+
+  if (!targetReport) {
+    const error: any = new Error('Report not found');
+    error.statusCode = 404;
+    throw error;
+  }
+
+  if (targetReport.status === 'PURGED') {
+    const error: any = new Error('Cannot verify a purged report');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const [updatedReport, log] = await prisma.$transaction([
+    prisma.report.update({
+      where: { id: targetReportId },
+      data: { verificationStage: 'ADMIN_VERIFIED' },
+    }),
+    prisma.moderationLog.create({
+      data: {
+        adminId,
+        targetReportId,
+        action: 'VERIFY_INCIDENT',
+        reason,
+      },
+    }),
+  ]);
+
+  return { report: updatedReport, log };
+};
+
+/**
+ * Reclassifies a report's category and/or severity with an immutable audit log entry.
+ */
+export const reclassifyReport = async (
+  adminId: string,
+  targetReportId: string,
+  params: {
+    category?: ReportCategory;
+    severity?: ReportSeverity;
+    reason?: string;
+  }
+) => {
+  const targetReport = await prisma.report.findUnique({
+    where: { id: targetReportId },
+  });
+
+  if (!targetReport) {
+    const error: any = new Error('Report not found');
+    error.statusCode = 404;
+    throw error;
+  }
+
+  if (targetReport.status === 'PURGED') {
+    const error: any = new Error('Cannot reclassify a purged report');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  if (!params.category && !params.severity) {
+    const error: any = new Error('At least one of category or severity must be provided');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const dataToUpdate: any = {};
+  if (params.category) dataToUpdate.category = params.category;
+  if (params.severity) dataToUpdate.severity = params.severity;
+
+  const reason = params.reason || `Report reclassified: ${JSON.stringify(dataToUpdate)}`;
+
+  const [updatedReport, log] = await prisma.$transaction([
+    prisma.report.update({
+      where: { id: targetReportId },
+      data: dataToUpdate,
+    }),
+    prisma.moderationLog.create({
+      data: {
+        adminId,
+        targetReportId,
+        action: 'RECLASSIFY_REPORT',
+        reason,
+      },
+    }),
+  ]);
+
+  return { report: updatedReport, log };
 };

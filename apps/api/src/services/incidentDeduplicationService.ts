@@ -2,6 +2,96 @@ import { prisma } from '../db/prisma';
 import { Report, ReportCategory } from '@prisma/client';
 import { LOCAL_LANDMARK_MAP, findLandmarkInText } from './geocodingService';
 
+const TRACKING_PARAMS = new Set([
+  'utm_source',
+  'utm_medium',
+  'utm_campaign',
+  'utm_term',
+  'utm_content',
+  'fbclid',
+  'gclid',
+  'ref',
+  'ocid',
+  'ved',
+  'source',
+]);
+
+/**
+ * Normalizes raw news URLs by stripping tracking parameters, standardizing protocol to HTTPS,
+ * removing www. subdomain, lowercasing domain, and trimming trailing slashes while preserving root /.
+ */
+export function normalizeCanonicalUrl(rawUrl: string): string {
+  if (!rawUrl || typeof rawUrl !== 'string') return '';
+  const trimmed = rawUrl.trim();
+  if (!trimmed) return '';
+
+  try {
+    let urlToParse = trimmed;
+    if (!/^[a-zA-Z][a-zA-Z\d+\-.]*:\/\//.test(urlToParse)) {
+      urlToParse = `https://${urlToParse}`;
+    }
+
+    const parsed = new URL(urlToParse);
+    parsed.protocol = 'https:';
+    parsed.hostname = parsed.hostname.toLowerCase().replace(/^www\./, '');
+
+    const keysToDelete: string[] = [];
+    parsed.searchParams.forEach((_, key) => {
+      const lower = key.toLowerCase();
+      if (TRACKING_PARAMS.has(lower) || lower.startsWith('utm_')) {
+        keysToDelete.push(key);
+      }
+    });
+    for (const k of keysToDelete) {
+      parsed.searchParams.delete(k);
+    }
+
+    let pathname = parsed.pathname.replace(/\/+$/, '');
+    if (pathname.length === 0) {
+      pathname = '/';
+    }
+    parsed.pathname = pathname;
+
+    const qs = parsed.searchParams.toString();
+    const hash = parsed.hash || '';
+    return `${parsed.protocol}//${parsed.hostname}${parsed.pathname}${qs ? '?' + qs : ''}${hash}`;
+  } catch {
+    return trimmed;
+  }
+}
+
+const OUTLET_SUFFIX_PATTERN =
+  /\s*[-–—|]\s*(?:the daily star|daily star|prothom alo|প্রথম আলো|dhaka post|ঢাকা পোস্ট|সমকাল|samakal|কালের কণ্ঠ|kalerkantho|যুগান্তর|jugantor|ইত্তেফাক|ittefaq|bdnews24|banglanews24|jagonews24|bangladesh pratidin|বাংলাদেশ প্রতিদিন|মানবজমিন|ইনকিলাব|বণিক বার্তা|সারাবাংলা|বাংলা ট্রিবিউন|bangla tribune|সময় টিভি|somoy tv|যমুনা টিভি|jamuna tv|ডিবিসি নিউজ|dbc news|চ্যানেল ২৪|channel 24|bd bulletin|cvoice24|daily observer|ajker patrika|the business standard|risingbd)[^$]*$/i;
+
+/**
+ * Cleans raw news headlines by stripping feed aggregator prefixes, trailing outlet credits,
+ * and punctuation markers (Bengali Double Dari, Dari, En-dash, Em-dash).
+ */
+export function cleanIncidentTitle(rawTitle: string): string {
+  if (!rawTitle || typeof rawTitle !== 'string') return '';
+  let title = rawTitle.trim();
+  if (!title) return '';
+
+  // 1. Strip leading feed aggregator prefixes: [Google News ...], [The Daily Star], [Press: ...]
+  title = title.replace(/^\[(?:google news[^\]]*|the daily star[^\]]*|press:[^\]]*)\]\s*/i, '');
+
+  // 2. Strip trailing publisher credits like "- The Daily Star", "| প্রথম আলো"
+  title = title.replace(OUTLET_SUFFIX_PATTERN, '');
+
+  // 3. Strip Bengali Double Dari (॥, \u0965), Dari (।, \u0964), En-dash (–, \u2013), Em-dash (—, \u2014), pipes (|), dashes
+  title = title.replace(/[॥।–—|]/g, ' ');
+
+  // 4. Collapse consecutive whitespace
+  title = title.replace(/\s+/g, ' ').trim();
+
+  // 5. If title consists only of punctuation/symbols/dashes after cleaning, return empty string
+  if (!/[a-zA-Z0-9\u0980-\u09FF]/.test(title)) {
+    return '';
+  }
+
+  return title;
+}
+
 const BENGALI_STOPWORDS = new Set([
   'ও',
   'এবং',
@@ -125,7 +215,7 @@ function normalizeDigits(text: string): string {
  * different languages (e.g. The Daily Star in English vs Jagonews24 in Bangla)
  * resolve to the exact same canonical tokens.
  */
-const BILINGUAL_CONCEPT_MAP: Record<string, string> = {
+const RAW_BILINGUAL_CONCEPT_MAP: Record<string, string> = {
   // Vehicles
   'ট্রাক': 'truck',
   'ট্রাকের': 'truck',
@@ -207,6 +297,11 @@ const BILINGUAL_CONCEPT_MAP: Record<string, string> = {
   'dacoity': 'robbery',
   'লুণ্ঠন': 'robbery',
   'লুণ্ঠিত': 'robbery',
+  'লুট': 'robbery',
+  'লুটপাট': 'robbery',
+  'লুটের': 'robbery',
+  'টাকা': 'money',
+  'money': 'money',
   'looted': 'robbery',
   'চুরি': 'theft',
   'theft': 'theft',
@@ -217,6 +312,20 @@ const BILINGUAL_CONCEPT_MAP: Record<string, string> = {
   'ছিনতাইকারী': 'snatching',
   'snatching': 'snatching',
   'mugging': 'snatching',
+  'mugged': 'snatching',
+  'mugger': 'snatching',
+  'overpass': 'overpass',
+  'ওভারব্রিজ': 'overpass',
+  'ওভারব্রিজের': 'overpass',
+  'flyover': 'overpass',
+  'ফ্লাইওভার': 'overpass',
+  'pedestrian': 'pedestrian',
+  'পথচারী': 'pedestrian',
+  'পথচারীর': 'pedestrian',
+  'পথচারীকে': 'pedestrian',
+  'knife': 'stabbing',
+  'ছুরি': 'stabbing',
+  'ছুরিকাঘাতে': 'stabbing',
   'গ্রেপ্তার': 'arrest',
   'গ্রেফতার': 'arrest',
   'আটক': 'arrest',
@@ -246,7 +355,77 @@ const BILINGUAL_CONCEPT_MAP: Record<string, string> = {
   'gang': 'teengang',
   'চাঁদাবাজি': 'extortion',
   'extortion': 'extortion',
+
+  // Locations & Landmarks
+  'ফার্মগেট': 'farmgate',
+  'farmgate': 'farmgate',
+  'মিরপুর': 'mirpur',
+  'mirpur': 'mirpur',
+  'উত্তরা': 'uttara',
+  'uttara': 'uttara',
+  'ধানমন্ডি': 'dhanmondi',
+  'dhanmondi': 'dhanmondi',
+  'যাত্রাবাড়ী': 'jatrabari',
+  'jatrabari': 'jatrabari',
+  'মোহাম্মদপুর': 'mohammadpur',
+  'mohammadpur': 'mohammadpur',
+  'গুলশান': 'gulshan',
+  'gulshan': 'gulshan',
+  'বনানী': 'banani',
+  'banani': 'banani',
+  'মতিঝিল': 'motijheel',
+  'motijheel': 'motijheel',
+  'বাড্ডা': 'badda',
+  'badda': 'badda',
+  'সীতাকুণ্ড': 'sitakunda',
+  'sitakunda': 'sitakunda',
+  'গাজীপুর': 'gazipur',
+  'gazipur': 'gazipur',
+  'টঙ্গী': 'tongi',
+  'tongi': 'tongi',
+  'কেরানীগঞ্জ': 'keraniganj',
+  'keraniganj': 'keraniganj',
+  'টেকনাফ': 'teknaf',
+  'teknaf': 'teknaf',
+  'সিলেট': 'sylhet',
+  'sylhet': 'sylhet',
+  'ময়মনসিংহ': 'mymensingh',
+  'mymensingh': 'mymensingh',
+  'রাজশাহী': 'rajshahi',
+  'rajshahi': 'rajshahi',
+  'চট্টগ্রাম': 'chittagong',
+  'chittagong': 'chittagong',
+  'খুলনা': 'khulna',
+  'khulna': 'khulna',
+  'বরিশাল': 'barisal',
+  'barisal': 'barisal',
+  'রংপুর': 'rangpur',
+  'rangpur': 'rangpur',
+
+  // Drugs & Narcotics
+  'ইয়াবা': 'yaba',
+  'yaba': 'yaba',
+  'মাদক': 'drug',
+  'drug': 'drug',
+  'drugs': 'drug',
+  'narcotics': 'drug',
+  'গাঁজা': 'drug',
+  'ফেনসিডিল': 'drug',
+  'হেরোইন': 'drug',
+  'আইস': 'drug',
+  'মাদকদ্রব্য': 'drug',
 };
+
+const BILINGUAL_CONCEPT_MAP: Record<string, string> = {};
+for (const [k, v] of Object.entries(RAW_BILINGUAL_CONCEPT_MAP)) {
+  BILINGUAL_CONCEPT_MAP[k] = v;
+  BILINGUAL_CONCEPT_MAP[k.normalize('NFC')] = v;
+}
+
+const YYA_PATTERN = '(?:\u09df|\u09af\u09bc)';
+const PLURAL_PATTERN = new RegExp(`(?:গুলোর|গুলোতে|গুলো${YYA_PATTERN}|গুলো|দের|খানা|খানি|টুকু)$`);
+const CASE_PATTERN = /(?:ের|কে|তে|ে)$/;
+const YYA_INFLECTION = new RegExp(`(?:${YYA_PATTERN}ে|${YYA_PATTERN})$`);
 
 /**
  * Normalizes root words / synonyms in Bengali
@@ -254,21 +433,28 @@ const BILINGUAL_CONCEPT_MAP: Record<string, string> = {
 function stemBengaliToken(token: string): string {
   let word = token.normalize('NFC').toLowerCase();
 
-  // Strip known trailing plural/case inflections
+  // Strip known trailing plural/case inflections while preserving base vowel 'া'
   word = word
-    .replace(/(?:গুলোর|গুলোতে|গুলোয়|গুলো|দের|খানা|খানি|টুকু)$/, '')
-    .replace(/(?:ের|কে|তে|ে)$/, '')
-    .replace(/(?:য়|য়ে|ায়)$/, '');
+    .replace(PLURAL_PATTERN, '')
+    .replace(CASE_PATTERN, '')
+    .replace(YYA_INFLECTION, '');
 
-  // Normalize common synonyms / alternative spellings
-  if (word.startsWith('গ্রেপ্তা') || word.startsWith('গ্রেফতা') || word === 'আটক') return 'গ্রেপ্তার';
+  const normGari = 'গাড়ি'.normalize('NFC');
+  const normGariOld = 'গাড়ী'.normalize('NFC');
+  if (word.startsWith(normGari) || word.startsWith(normGariOld)) return normGari;
+
+  const normDhakka = 'ধাক্কা'.normalize('NFC');
+  if (word.startsWith(normDhakka)) return normDhakka;
+
+  const normChintay = 'ছিনতাই'.normalize('NFC');
+  if (word.startsWith(normChintay)) return normChintay;
+
+  if (word.startsWith('গ্রেপ্তা') || word.startsWith('গ্রেফতা') || word === 'আটক') return 'গ্রেপ্তার'.normalize('NFC');
   if (word.startsWith('পিকআপ')) return 'পিকআপ';
   if (word.startsWith('ট্রাক')) return 'ট্রাক';
   if (word.startsWith('বাস')) return 'বাস';
   if (word.startsWith('লরি')) return 'লরি';
-  if (word.startsWith('গাড়ি') || word.startsWith('গাড়ী')) return 'গাড়ি';
   if (word.startsWith('ডাকাতি')) return 'ডাকাতি';
-  if (word.startsWith('ছিনতাই')) return 'ছিনতাই';
   if (word.startsWith('লুণ্ঠ')) return 'লুণ্ঠন';
   if (word.startsWith('টাকা')) return 'টাকা';
   if (word.startsWith('মামলা')) return 'মামলা';
@@ -281,8 +467,12 @@ function stemBengaliToken(token: string): string {
  * Extracts normalized, stemmed, cross-lingual significant entity/event tokens from a news title
  */
 export function extractSignificantTokens(rawTitle: string): Set<string> {
-  const normDigits = normalizeDigits(rawTitle);
+  const cleanedTitle = cleanIncidentTitle(rawTitle);
+  const normDigits = normalizeDigits(cleanedTitle);
   let text = normDigits.normalize('NFC').toLowerCase();
+
+  // Strip zero-width non-joiner and zero-width joiner
+  text = text.replace(/[\u200C\u200D]/g, '');
 
   // Strip [Google News ...] prefixes
   text = text.replace(/^\[(?:google news[^\]]*|the daily star[^\]]*)\]\s*/i, '');
@@ -292,11 +482,15 @@ export function extractSignificantTokens(rawTitle: string): Set<string> {
     text = text.split(outlet).join(' ');
   }
 
-  // Extract canonical landmark if present (bridges English "Mymensingh" with Bangla "ময়মনসিংহ")
-  const landmark = findLandmarkInText(rawTitle);
   const significant = new Set<string>();
-  if (landmark) {
-    significant.add(landmark.locationName.toLowerCase());
+
+  // Extract identified landmark entity tokens (e.g. Uttara, Mirpur, Patenga)
+  const landmarkMatch = findLandmarkInText(rawTitle);
+  if (landmarkMatch) {
+    const locLower = landmarkMatch.locationName.toLowerCase();
+    significant.add(locLower);
+    const shortLoc = locLower.split(',')[0].trim();
+    significant.add(shortLoc);
   }
 
   // Extract standalone digits (e.g. casualty counts: '2', '3', '8')
@@ -305,8 +499,8 @@ export function extractSignificantTokens(rawTitle: string): Set<string> {
     digitMatches.forEach((d) => significant.add(d));
   }
 
-  // Strip punctuation and special characters
-  text = text.replace(/[!"#$%&'()*+,\-./:;<=>?@[\\\]^_`{|}~‘’“”।|—]/g, ' ');
+  // Strip punctuation and special characters including Double Dari, En-dash, and guillemets
+  text = text.replace(/[!"#$%&'()*+,\-./:;<=>?@[\\\]^_`{|}~‘’“”।॥|—–«»‹›]/gu, ' ');
 
   const rawWords = text.split(/\s+/).map((w) => w.trim()).filter(Boolean);
 
@@ -415,6 +609,11 @@ export function calculateStorySimilarity(
     'arson',
     'teengang',
     'extortion',
+    'yaba',
+    'drug',
+    'মাদক',
+    'ইয়াবা',
+    'ইয়াবা'.normalize('NFC'),
     'ট্রাক',
     'পিকআপ',
     'বাস',
@@ -479,12 +678,20 @@ export async function findDuplicateActiveReport(params: {
       longitude: { gte: longitude - maxDelta, lte: longitude + maxDelta },
       category: { in: allowedCategories },
     },
+    include: {
+      newsArticles: {
+        select: { title: true },
+        take: 1,
+      },
+    },
     orderBy: { createdAt: 'desc' },
     take: 20,
   });
 
   for (const candidate of candidates) {
-    const candidateTitle = candidate.description ? candidate.description.split('\n')[0] : '';
+    const candidateTitle =
+      candidate.newsArticles?.[0]?.title ||
+      (candidate.description ? cleanIncidentTitle(candidate.description.split('\n')[0]) : '');
     const sim = calculateStorySimilarity(title, candidateTitle);
 
     if (sim.isDuplicate) {

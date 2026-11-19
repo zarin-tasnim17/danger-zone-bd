@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { run } from 'node:test';
@@ -28,37 +29,54 @@ function parseArgs(): RunnerOptions {
   return { tier, mode, feature };
 }
 
+function discoverTestFiles(dirPath: string): string[] {
+  if (!fs.existsSync(dirPath)) return [];
+  const entries = fs.readdirSync(dirPath, { withFileTypes: true });
+  const files: string[] = [];
+  for (const entry of entries) {
+    if (entry.isFile() && (entry.name.endsWith('.test.ts') || entry.name.endsWith('.test.js'))) {
+      files.push(path.join(dirPath, entry.name));
+    }
+  }
+  return files.sort();
+}
+
 async function main() {
   const options = parseArgs();
   console.log(`\n===============================================================`);
-  console.log(`  Safe Routes Engine - 4-Tier E2E Test Suite Runner`);
+  console.log(`  Danger Zone BD - 4-Tier E2E Test Suite Runner`);
   console.log(`  Tier filter: ${options.tier.toUpperCase()} | Mode: ${options.mode.toUpperCase()}`);
+  if (options.feature) {
+    console.log(`  Feature filter: ${options.feature}`);
+  }
   console.log(`===============================================================\n`);
 
   process.env.TEST_MODE = options.mode;
+  process.env.NODE_ENV = 'test';
+  if (!process.env.DATABASE_URL) {
+    process.env.DATABASE_URL = 'postgresql://mock:mock@127.0.0.1:5432/dangerzone_mock';
+  }
+  if (!process.env.JWT_SECRET) {
+    process.env.JWT_SECRET = 'mock-jwt-secret-at-least-32-chars-long-danger-zone-bd';
+  }
+  if (!process.env.JWT_REFRESH_SECRET) {
+    process.env.JWT_REFRESH_SECRET = 'mock-jwt-refresh-secret-at-least-32-chars-long-danger-zone-bd';
+  }
+  if (!process.env.CRON_SECRET) {
+    process.env.CRON_SECRET = 'danger-zone-bd-cron-crawler-secret-2026';
+  }
 
   const rootDir = process.cwd();
+  const tier1Dir = path.join(rootDir, 'tests/e2e/tier1-features');
+  const tier2Dir = path.join(rootDir, 'tests/e2e/tier2-boundaries');
+  const tier3Dir = path.join(rootDir, 'tests/e2e/tier3-pairwise');
+  const tier4Dir = path.join(rootDir, 'tests/e2e/tier4-realworld');
+
   const testFilesMap: Record<string, string[]> = {
-    '1': [
-      path.join(rootDir, 'tests/e2e/tier1-features/t1-r1-routing.test.ts'),
-      path.join(rootDir, 'tests/e2e/tier1-features/t1-r2-hazards.test.ts'),
-      path.join(rootDir, 'tests/e2e/tier1-features/t1-r3-scoring.test.ts'),
-      path.join(rootDir, 'tests/e2e/tier1-features/t1-r4-modes.test.ts'),
-      path.join(rootDir, 'tests/e2e/tier1-features/t1-r5-contracts.test.ts'),
-    ],
-    '2': [
-      path.join(rootDir, 'tests/e2e/tier2-boundaries/t2-r1-routing-limits.test.ts'),
-      path.join(rootDir, 'tests/e2e/tier2-boundaries/t2-r2-spatial-corridors.test.ts'),
-      path.join(rootDir, 'tests/e2e/tier2-boundaries/t2-r3-scoring-extremes.test.ts'),
-      path.join(rootDir, 'tests/e2e/tier2-boundaries/t2-r4-modes-guidance.test.ts'),
-      path.join(rootDir, 'tests/e2e/tier2-boundaries/t2-r5-payload-schema.test.ts'),
-    ],
-    '3': [
-      path.join(rootDir, 'tests/e2e/tier3-pairwise/t3-pairwise-matrix.test.ts'),
-    ],
-    '4': [
-      path.join(rootDir, 'tests/e2e/tier4-realworld/t4-realworld-scenarios.test.ts'),
-    ],
+    '1': discoverTestFiles(tier1Dir),
+    '2': discoverTestFiles(tier2Dir),
+    '3': discoverTestFiles(tier3Dir),
+    '4': discoverTestFiles(tier4Dir),
   };
 
   let selectedFiles: string[] = [];
@@ -79,8 +97,13 @@ async function main() {
 
   if (options.feature) {
     const featLower = options.feature.toLowerCase();
-    selectedFiles = selectedFiles.filter((f) => f.toLowerCase().includes(featLower));
-    console.log(`Filtered to feature: ${options.feature} (${selectedFiles.length} file(s))`);
+    selectedFiles = selectedFiles.filter((f) => path.basename(f).toLowerCase().includes(featLower));
+    console.log(`Filtered to feature "${options.feature}": ${selectedFiles.length} file(s) matched.`);
+  }
+
+  if (selectedFiles.length === 0) {
+    console.warn(`No test files selected for execution.`);
+    process.exit(0);
   }
 
   console.log(`Running ${selectedFiles.length} test suite file(s)...`);

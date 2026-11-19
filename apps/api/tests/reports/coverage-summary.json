@@ -1,6 +1,6 @@
 {
-  "profile": "regression",
-  "generatedAt": "2026-11-15T09:16:01.425Z",
+  "profile": "validation",
+  "generatedAt": "2026-11-19T09:34:57.257Z",
   "inventoriedEndpoints": {
     "express": 43,
     "nextProxy": 3,
@@ -8,20 +8,15 @@
     "total": 47
   },
   "suiteBreakdown": {
-    "tests\\regression\\01-confirmed-defects-regression.test.ts": {
-      "total": 14,
-      "passed": 14,
-      "failed": 0
-    },
-    "tests\\regression\\02-post-fix-edge-cases-regression.test.ts": {
-      "total": 6,
-      "passed": 6,
+    "tests\\validation\\01-schema-strictness-boundaries.test.ts": {
+      "total": 3,
+      "passed": 3,
       "failed": 0
     }
   },
   "summary": {
-    "total": 20,
-    "passed": 20,
+    "total": 3,
+    "passed": 3,
     "failed": 0,
     "skipped": 0
   },

@@ -345,6 +345,54 @@ export const LOCAL_LANDMARK_MAP: Record<string, { lat: number; lng: number; stan
   'ভালুকা': { lat: 24.375, lng: 90.3778, standardName: 'Bhaluka, Mymensingh' },
 };
 
+// Augment LOCAL_LANDMARK_MAP with authoritative statutory police stations across all 64 districts
+try {
+  const fs = require('fs');
+  const path = require('path');
+  const possiblePaths = [
+    path.resolve(process.cwd(), 'bangladesh_police_stations.json'),
+    path.resolve(__dirname, '../../../../bangladesh_police_stations.json'),
+    path.resolve(__dirname, '../../../bangladesh_police_stations.json'),
+    path.resolve(__dirname, '../../bangladesh_police_stations.json'),
+  ];
+  for (const p of possiblePaths) {
+    if (fs.existsSync(p)) {
+      const content = JSON.parse(fs.readFileSync(p, 'utf-8'));
+      if (Array.isArray(content.stations)) {
+        for (const st of content.stations) {
+          if (!st.location?.latitude || !st.location?.longitude) continue;
+          const lat = st.location.latitude;
+          const lng = st.location.longitude;
+          const standardName = `${st.station_name_en.replace(/\s+(?:Thana|Model Thana|Police Station)$/i, '')}, ${st.district}`;
+
+          const enBase = st.station_name_en.toLowerCase().trim();
+          const enShort = enBase.replace(/\s+(?:thana|model thana|police station)$/i, '').trim();
+          if (enBase && !LOCAL_LANDMARK_MAP[enBase]) {
+            LOCAL_LANDMARK_MAP[enBase] = { lat, lng, standardName };
+          }
+          if (enShort && !LOCAL_LANDMARK_MAP[enShort]) {
+            LOCAL_LANDMARK_MAP[enShort] = { lat, lng, standardName };
+          }
+
+          if (st.station_name_bn) {
+            const bnNorm = normalizeBengali(st.station_name_bn).toLowerCase().trim();
+            const bnShort = bnNorm.replace(/\s+(?:থানা|মডেল থানা|পুলিশ ফাঁড়ি|পুলিশ স্টেশন)$/, '').trim();
+            if (bnNorm && !LOCAL_LANDMARK_MAP[bnNorm]) {
+              LOCAL_LANDMARK_MAP[bnNorm] = { lat, lng, standardName };
+            }
+            if (bnShort && !LOCAL_LANDMARK_MAP[bnShort]) {
+              LOCAL_LANDMARK_MAP[bnShort] = { lat, lng, standardName };
+            }
+          }
+        }
+      }
+      break;
+    }
+  }
+} catch {
+  // Graceful fallback to static dictionary
+}
+
 // In-memory cache for newly geocoded areas
 const dynamicCache = new Map<string, { lat: number; lng: number; standardName: string }>();
 

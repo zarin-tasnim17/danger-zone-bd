@@ -133,6 +133,21 @@ export type ReportSeverity = (typeof REPORT_SEVERITIES)[number];
 export const REPORT_STATUSES = ["ACTIVE", "RESOLVED", "PURGED"] as const;
 export type ReportStatus = (typeof REPORT_STATUSES)[number];
 
+export const VERIFICATION_STAGES = [
+  "INGESTED",
+  "CLASSIFIED",
+  "CORROBORATED",
+  "ADMIN_VERIFIED",
+] as const;
+export type VerificationStage = (typeof VERIFICATION_STAGES)[number];
+
+export interface Citation {
+  sourceName: string;
+  sourceUrl: string;
+  title?: string;
+  publishedAt?: string | Date;
+}
+
 export const SAFE_ZONE_TYPES = ["HOSPITAL", "POLICE_BOX", "PHARMACY"] as const;
 export type SafeZoneType = (typeof SAFE_ZONE_TYPES)[number];
 export type SafeZoneItemType = SafeZoneType | "POLICE_STATION";
@@ -202,8 +217,84 @@ export interface DangerIncident {
   verifiedCount: number;
   sourceUrl?: string | null;
   sourceName?: string | null;
+  verificationStage?: VerificationStage;
+  citations?: Citation[];
   fuzzedRadiusMeters?: number;
   isGpsVerified?: boolean;
+}
+
+const SHARED_TRACKING_PARAMS = new Set([
+  'utm_source',
+  'utm_medium',
+  'utm_campaign',
+  'utm_term',
+  'utm_content',
+  'fbclid',
+  'gclid',
+  'ref',
+  'ocid',
+  'ved',
+  'source',
+]);
+
+export function normalizeCanonicalUrl(rawUrl: string): string {
+  if (!rawUrl || typeof rawUrl !== 'string') return '';
+  const trimmed = rawUrl.trim();
+  if (!trimmed) return '';
+
+  try {
+    let urlToParse = trimmed;
+    if (!/^[a-zA-Z][a-zA-Z\d+\-.]*:\/\//.test(urlToParse)) {
+      urlToParse = `https://${urlToParse}`;
+    }
+
+    const parsed = new URL(urlToParse);
+    parsed.protocol = 'https:';
+    parsed.hostname = parsed.hostname.toLowerCase().replace(/^www\./, '');
+
+    const keysToDelete: string[] = [];
+    parsed.searchParams.forEach((_, key) => {
+      const lower = key.toLowerCase();
+      if (SHARED_TRACKING_PARAMS.has(lower) || lower.startsWith('utm_')) {
+        keysToDelete.push(key);
+      }
+    });
+    for (const k of keysToDelete) {
+      parsed.searchParams.delete(k);
+    }
+
+    let pathname = parsed.pathname.replace(/\/+$/, '');
+    if (pathname.length === 0) {
+      pathname = '/';
+    }
+    parsed.pathname = pathname;
+
+    const qs = parsed.searchParams.toString();
+    const hash = parsed.hash || '';
+    return `${parsed.protocol}//${parsed.hostname}${parsed.pathname}${qs ? '?' + qs : ''}${hash}`;
+  } catch {
+    return trimmed;
+  }
+}
+
+const SHARED_OUTLET_SUFFIX_PATTERN =
+  /\s*[-–—|]\s*(?:the daily star|daily star|prothom alo|প্রথম আলো|dhaka post|ঢাকা পোস্ট|সমকাল|samakal|কালের কণ্ঠ|kalerkantho|যুগান্তর|jugantor|ইত্তেফাক|ittefaq|bdnews24|banglanews24|jagonews24|bangladesh pratidin|বাংলাদেশ প্রতিদিন|মানবজমিন|ইনকিলাব|বণিক বার্তা|সারাবাংলা|বাংলা ট্রিবিউন|bangla tribune|সময় টিভি|somoy tv|যমুনা টিভি|jamuna tv|ডিবিসি নিউজ|dbc news|চ্যানেল ২৪|channel 24|bd bulletin|cvoice24|daily observer|ajker patrika|the business standard|risingbd)[^$]*$/i;
+
+export function cleanIncidentTitle(rawTitle: string): string {
+  if (!rawTitle || typeof rawTitle !== 'string') return '';
+  let title = rawTitle.trim();
+  if (!title) return '';
+
+  title = title.replace(/^\[(?:google news[^\]]*|the daily star[^\]]*|press:[^\]]*)\]\s*/i, '');
+  title = title.replace(SHARED_OUTLET_SUFFIX_PATTERN, '');
+  title = title.replace(/[॥।–—|]/g, ' ');
+  title = title.replace(/\s+/g, ' ').trim();
+
+  if (!/[a-zA-Z0-9\u0980-\u09FF]/.test(title)) {
+    return '';
+  }
+
+  return title;
 }
 
 export interface ApiResponse<T = any> {

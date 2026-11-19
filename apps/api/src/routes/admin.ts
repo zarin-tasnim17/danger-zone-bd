@@ -1,9 +1,12 @@
-import { Router } from 'express';
-import { ModerationAction } from '@prisma/client';
+import { Router, Request, Response } from 'express';
+import { ModerationAction, ReportCategory, ReportSeverity } from '@prisma/client';
 import { z } from 'zod';
 import { requireAuth } from '../middleware/requireAuth';
 import { requireRole } from '../middleware/requireRole';
 import { validateRequest } from '../middleware/validateRequest';
+import { successResponse } from '../utils/responseFormatter';
+import { newsObservabilityService } from '../services/newsObservabilityService';
+import { verifyReport, reclassifyReport } from '../services/adminService';
 import {
   banUserHandler,
   unbanUserHandler,
@@ -58,17 +61,72 @@ const trendsQuerySchema = z.object({
   query: z.object({}).strict(),
 });
 
+const verifyReportSchema = z.object({
+  params: z.object({
+    id: z.string().uuid({ message: 'Valid UUID is required' }),
+  }).passthrough(),
+  body: z.object({
+    reason: z
+      .string()
+      .min(3, { message: 'Reason must be at least 3 characters' })
+      .max(500, { message: 'Reason cannot exceed 500 characters' })
+      .optional(),
+  }).strict().optional(),
+});
+
+const reclassifyReportSchema = z.object({
+  params: z.object({
+    id: z.string().uuid({ message: 'Valid UUID is required' }),
+  }).passthrough(),
+  body: z
+    .object({
+      category: z.nativeEnum(ReportCategory).optional(),
+      severity: z.nativeEnum(ReportSeverity).optional(),
+      reason: z.string().max(500).optional(),
+    })
+    .strict()
+    .refine((data) => data.category !== undefined || data.severity !== undefined, {
+      message: 'At least one of category or severity must be provided',
+    }),
+});
+
 // All routes require authentication and ADMIN role
 router.use(requireAuth, requireRole(['ADMIN']));
 
 router.post('/users/:id/ban', validateRequest(reasonSchema), banUserHandler);
 router.post('/users/:id/unban', validateRequest(reasonSchema), unbanUserHandler);
 router.post('/reports/:id/purge', validateRequest(reasonSchema), purgeReportHandler);
+router.patch('/reports/:id/verify', validateRequest(verifyReportSchema), async (req: Request, res: Response, next) => {
+  try {
+    const adminId = (req as any).user.id;
+    const { id } = req.params;
+    const reason = req.body?.reason || 'Incident verified by administrator';
+    const result = await verifyReport(adminId, id, reason);
+    return successResponse(res, result, 200);
+  } catch (err) {
+    next(err);
+  }
+});
+router.patch('/reports/:id/reclassify', validateRequest(reclassifyReportSchema), async (req: Request, res: Response, next) => {
+  try {
+    const adminId = (req as any).user.id;
+    const { id } = req.params;
+    const { category, severity, reason } = req.body;
+    const result = await reclassifyReport(adminId, id, { category, severity, reason });
+    return successResponse(res, result, 200);
+  } catch (err) {
+    next(err);
+  }
+});
 router.get('/logs', validateRequest(logsQuerySchema), getLogsHandler);
 router.get('/analytics/trends', validateRequest(trendsQuerySchema), getTrendsHandler);
 router.get('/verifications', getVerificationsHandler);
 router.post('/verifications/:id/approve', validateRequest(approveSchema), approveVerificationHandler);
 router.post('/verifications/:id/reject', validateRequest(reasonSchema), rejectVerificationHandler);
 router.post('/news/crawl', triggerNewsCrawlHandler);
+router.get('/crawler-metrics', (_req: Request, res: Response) => {
+  const telemetry = newsObservabilityService.getTelemetrySummary();
+  return successResponse(res, telemetry, 200);
+});
 
 export default router;

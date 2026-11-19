@@ -448,7 +448,7 @@ async function runNewsCrawlerVerificationSuite() {
     }
     console.log('  ✅ Rejects unsupported PUT method (404)');
 
-    // 6d. Valid Bearer & x-cron-secret requests succeed (max 2 per 10 min), 3rd triggers 429
+    // 6d. Valid Bearer & x-cron-secret requests succeed (max 6 per 10 min), 7th triggers 429
     const validBearerRes = await request('/api/v1/cron/news-crawl', {
       method: 'GET',
       headers: {
@@ -471,6 +471,20 @@ async function runNewsCrawlerVerificationSuite() {
       throw new Error(`Expected 200 for valid POST x-cron-secret trigger, got ${validHeaderRes.status}`);
     }
 
+    // Requests 3, 4, 5, 6 should all succeed within the 6-req/10min operational headroom
+    for (let reqNum = 3; reqNum <= 6; reqNum++) {
+      const extraRes = await request('/api/v1/cron/news-crawl', {
+        method: 'POST',
+        headers: {
+          'x-forwarded-for': '198.51.100.6',
+          Authorization: `Bearer ${cronTestSecret}`,
+        },
+      });
+      if (extraRes.status !== 200) {
+        throw new Error(`Expected 200 for request ${reqNum} within 6-req headroom, got ${extraRes.status}`);
+      }
+    }
+
     const rateLimitedRes = await request('/api/v1/cron/news-crawl', {
       method: 'POST',
       headers: {
@@ -480,10 +494,10 @@ async function runNewsCrawlerVerificationSuite() {
     });
     if (rateLimitedRes.status !== 429 || rateLimitedRes.data?.error?.code !== 'RATE_LIMIT_EXCEEDED') {
       throw new Error(
-        `Expected 429 RATE_LIMIT_EXCEEDED on 3rd request, got status=${rateLimitedRes.status}, data=${JSON.stringify(rateLimitedRes.data)}`
+        `Expected 429 RATE_LIMIT_EXCEEDED on 7th request, got status=${rateLimitedRes.status}, data=${JSON.stringify(rateLimitedRes.data)}`
       );
     }
-    console.log('  ✅ Accepts GET/POST with valid Bearer or x-cron-secret (200) and throttles 3rd request (429)');
+    console.log('  ✅ Accepts GET/POST with valid Bearer or x-cron-secret (200) up to 6 requests and throttles 7th request (429)');
 
     console.log('\n🎉 ALL 6 TEST SUITES PASSED! 100% Free RSS News Crawler & Cross-Verification Engine is completely operational.');
   } finally {

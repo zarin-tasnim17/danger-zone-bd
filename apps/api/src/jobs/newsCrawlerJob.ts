@@ -1,12 +1,21 @@
 import cron from 'node-cron';
-import { crawlAllNewsFeeds } from '../services/newsCrawlerService';
+import { crawlAllNewsFeeds, FeedConfig, PUBLIC_NEWS_FEEDS } from '../services/newsCrawlerService';
 
 let isCrawling = false;
+let customFeeds: FeedConfig[] | null = null;
+
+export const isCrawlerBusy = (): boolean => isCrawling;
+export const resetCrawlerMutex = (): void => {
+  isCrawling = false;
+};
+export const setCustomCrawlerFeeds = (feeds: FeedConfig[] | null): void => {
+  customFeeds = feeds;
+};
 
 /**
  * Triggers the news crawler process with concurrency mutex protection.
  */
-export const triggerNewsCrawler = async () => {
+export const triggerNewsCrawler = async (feeds?: FeedConfig[]) => {
   if (isCrawling) {
     console.warn('[News Crawler Job] Crawler already in progress. Skipping duplicate run.');
     return { status: 'in_progress', ingested: 0 };
@@ -16,7 +25,8 @@ export const triggerNewsCrawler = async () => {
   console.log('\n[News Crawler Job] 🌐 Starting automated RSS news crawl for Bangladesh public safety...');
 
   try {
-    const result = await crawlAllNewsFeeds();
+    const targetFeeds = feeds || customFeeds || PUBLIC_NEWS_FEEDS;
+    const result = await crawlAllNewsFeeds(targetFeeds);
     console.log(
       `[News Crawler Job] ✅ Ingestion complete: ${result.totalIngested} new incidents added, ${result.totalVerifiedMatches} citizen reports cross-verified, ${result.totalSkipped} skipped across ${result.feedsChecked} feeds.\n`
     );
@@ -45,11 +55,13 @@ export const scheduleStartupCrawl = () => {
   }, 10000);
 };
 
+export const DEFAULT_CRAWLER_SCHEDULE = '*/10 * * * *';
+
 /**
  * Initializes the automated news crawler cron job.
- * Default schedule: Every 1 hour ('0 * * * *').
+ * Default schedule: Every 10 minutes (e.g. 'star/10 * * * *').
  */
-export const initNewsCrawlerCron = (scheduleExpression: string = '0 * * * *') => {
+export const initNewsCrawlerCron = (scheduleExpression: string = DEFAULT_CRAWLER_SCHEDULE) => {
   const task = cron.schedule(scheduleExpression, async () => {
     try {
       await triggerNewsCrawler();

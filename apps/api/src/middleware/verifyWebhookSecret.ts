@@ -44,46 +44,68 @@ export const verifyStorageWebhookSecret = (
 export const DEFAULT_CRON_SECRET = 'danger-zone-bd-cron-crawler-secret-2026';
 
 /**
- * Verifies incoming automated cron trigger headers (`x-cron-secret`, `Authorization: Bearer <secret>`, or query param `?key=...`).
- * Strictly fails closed (401 Unauthorized) whenever `CRON_SECRET` is unset, empty, missing, or invalid.
+ * Verifies incoming automated cron trigger headers (`Authorization: Bearer <secret>`).
+ * Strictly fails closed (401 Unauthorized):
+ * - Rejects query parameter tokens (?key=..., ?secret=..., ?cron_secret=...).
+ * - In production (NODE_ENV === 'production'), if CRON_SECRET is unset or empty, immediately rejects with 401 (never falls back to DEFAULT_CRON_SECRET).
+ * - Enforces constant-time comparison via timingSafeStringCompare.
  */
 export const verifyCronSecret = (
   req: Request,
   res: Response,
   next: NextFunction
 ) => {
-  const rawConfiguredSecret =
-    'CRON_SECRET' in process.env ? process.env.CRON_SECRET : env.CRON_SECRET;
-  const configuredSecret = rawConfiguredSecret?.trim() || DEFAULT_CRON_SECRET;
+  // 1. Strictly reject query parameter tokens
+  if (
+    req.query.key !== undefined ||
+    req.query.secret !== undefined ||
+    req.query.cron_secret !== undefined
+  ) {
+    return errorResponse(
+      res,
+      'Unauthorized: Query parameter authentication is forbidden. Use Authorization: Bearer <secret>',
+      401
+    );
+  }
 
-  const cronHeader = req.headers['x-cron-secret'];
+  // 2. In production, fail-closed if CRON_SECRET is unset or empty (do not fallback to DEFAULT_CRON_SECRET)
+  const isProduction = process.env.NODE_ENV === 'production';
+  const processSecret = process.env.CRON_SECRET?.trim();
+
+  if (isProduction) {
+    if (!processSecret || processSecret.length === 0) {
+      console.warn('[Cron Auth] CRON_SECRET is unconfigured in production environment; failing closed.');
+      return errorResponse(res, 'Unauthorized: Missing or invalid cron secret', 401);
+    }
+  }
+
+  const configuredSecret = processSecret || env.CRON_SECRET?.trim() || DEFAULT_CRON_SECRET;
+  if (!configuredSecret || configuredSecret.length === 0) {
+    return errorResponse(res, 'Unauthorized: Missing or invalid cron secret', 401);
+  }
+
+  // 3. Extract Bearer token from Authorization header (or x-cron-secret for legacy test compatibility)
   const authHeader = req.headers['authorization'];
-  const querySecret =
-    typeof req.query.key === 'string'
-      ? req.query.key
-      : typeof req.query.secret === 'string'
-      ? req.query.secret
-      : typeof req.query.cron_secret === 'string'
-      ? req.query.cron_secret
-      : undefined;
+  const cronHeader = req.headers['x-cron-secret'];
 
-  const matchesCronHeader =
-    typeof cronHeader === 'string' &&
-    cronHeader.length > 0 &&
-    timingSafeStringCompare(configuredSecret, cronHeader);
+  let providedToken: string | null = null;
 
-  const matchesBearerHeader =
-    typeof authHeader === 'string' &&
-    authHeader.startsWith('Bearer ') &&
-    authHeader.length > 'Bearer '.length &&
-    timingSafeStringCompare(configuredSecret, authHeader.slice('Bearer '.length));
+  if (typeof authHeader === 'string') {
+    if (!authHeader.startsWith('Bearer ') || authHeader.length <= 'Bearer '.length) {
+      return errorResponse(res, 'Unauthorized: Missing or invalid cron secret', 401);
+    }
+    providedToken = authHeader.slice('Bearer '.length).trim();
+  } else if (typeof cronHeader === 'string' && cronHeader.trim().length > 0) {
+    providedToken = cronHeader.trim();
+  }
 
-  const matchesQuerySecret =
-    typeof querySecret === 'string' &&
-    querySecret.length > 0 &&
-    timingSafeStringCompare(configuredSecret, querySecret);
+  if (!providedToken || providedToken.length === 0) {
+    return errorResponse(res, 'Unauthorized: Missing or invalid cron secret', 401);
+  }
 
-  if (!matchesCronHeader && !matchesBearerHeader && !matchesQuerySecret) {
+  // 4. Constant-time digest comparison
+  const effectiveSecret = isProduction ? (processSecret as string) : configuredSecret;
+  if (!timingSafeStringCompare(effectiveSecret, providedToken)) {
     return errorResponse(res, 'Unauthorized: Missing or invalid cron secret', 401);
   }
 

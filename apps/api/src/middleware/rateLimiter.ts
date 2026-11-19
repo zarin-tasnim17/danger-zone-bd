@@ -84,12 +84,12 @@ export const authLoginRateLimiter = createRateLimiter({
 });
 
 /**
- * Automated cron endpoint protection (Max 2 requests per 10 minutes per IP)
+ * Automated cron endpoint protection with operational headroom for 10-minute crawl schedule (Max 6 requests per 10 minutes per IP)
  */
 export const cronNewsCrawlRateLimiter = createRateLimiter({
   windowMs: 10 * 60 * 1000, // 10 minutes
-  maxRequests: 2,
-  message: 'Anti-Abuse Protection: Cron news crawler can be triggered at most 2 times every 10 minutes.',
+  maxRequests: 6,
+  message: 'Anti-Abuse Protection: Cron news crawler can be triggered at most 6 times every 10 minutes.',
   keyPrefix: 'cron-news-crawl',
 });
 
