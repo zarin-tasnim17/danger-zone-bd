@@ -153,10 +153,10 @@ export default function Navbar({
           {user?.role === "ADMIN" ? (
             <Link
               href="/admin"
-              className="bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 text-xs font-bold px-2.5 sm:px-3 py-1.5 rounded-xl inline-flex items-center gap-1.5 transition-all shadow-2xs shrink-0 whitespace-nowrap"
+              className="bg-slate-900 hover:bg-slate-950 text-white border border-slate-800 text-xs font-bold px-2.5 sm:px-3 py-1.5 rounded-xl inline-flex items-center gap-1.5 transition-all shadow-xs shrink-0 whitespace-nowrap"
               title="Open Admin Moderation Console"
             >
-              <Lock className="w-3.5 h-3.5 text-purple-600 shrink-0" />
+              <Lock className="w-3.5 h-3.5 text-red-500 shrink-0" />
               <span className="hidden sm:inline whitespace-nowrap">Admin</span>
             </Link>
           ) : (
@@ -241,6 +241,17 @@ export default function Navbar({
                 <span className="font-mono text-slate-900 font-bold">{user?.trustScore ?? 0}</span>
               </span>
             </Link>
+
+            {user?.role === "ADMIN" && (
+              <Link
+                href="/admin"
+                onClick={() => setMobileMenuOpen(false)}
+                className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-900 text-white rounded-lg text-xs font-bold"
+              >
+                <Lock className="w-3 h-3 text-red-500" />
+                <span>Admin</span>
+              </Link>
+            )}
           </div>
         </div>
       )}
