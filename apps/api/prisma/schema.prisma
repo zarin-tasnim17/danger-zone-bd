@@ -48,6 +48,13 @@ enum ReportStatus {
   PURGED
 }
 
+enum VerificationStage {
+  INGESTED
+  CLASSIFIED
+  CORROBORATED
+  ADMIN_VERIFIED
+}
+
 enum VerificationType {
   PHONE_OTP
   NID_DOCUMENT
@@ -71,6 +78,8 @@ enum ModerationAction {
   PURGE_REPORT
   VERIFY_USER
   REJECT_VERIFICATION
+  VERIFY_INCIDENT
+  RECLASSIFY_REPORT
 }
 
 model User {
@@ -149,19 +158,21 @@ model Report {
   description     String?
   upvotes         Int      @default(0)
   downvotes       Int      @default(0)
-  status          ReportStatus @default(ACTIVE)
-  expiresAt       DateTime
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  status            ReportStatus      @default(ACTIVE)
+  verificationStage VerificationStage @default(CLASSIFIED)
+  citations         Json?             @default("[]")
+  expiresAt         DateTime
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
 
-  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  votes           Vote[]
-  updates         ReportUpdate[]
-  media           ReportMedia[]
-  targetedLogs    ModerationLog[] @relation("TargetReportLogs")
-  sourceUrl       String?
-  sourceName      String?
-  newsArticle     NewsArticle?
+  user              User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  votes             Vote[]
+  updates           ReportUpdate[]
+  media             ReportMedia[]
+  targetedLogs      ModerationLog[]   @relation("TargetReportLogs")
+  sourceUrl         String?
+  sourceName        String?
+  newsArticles      NewsArticle[]
 
   @@index([location], type: Gist)
   @@index([status, expiresAt])
@@ -241,10 +252,11 @@ model NewsArticle {
   severity    ReportSeverity
   latitude    Float
   longitude   Float
-  reportId    String?        @unique
+  reportId    String?
   createdAt   DateTime       @default(now())
 
   report      Report?        @relation(fields: [reportId], references: [id], onDelete: SetNull)
 
   @@index([publishedAt])
+  @@index([reportId])
 }

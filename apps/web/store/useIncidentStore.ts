@@ -52,11 +52,17 @@ const mapBackendToFrontendIncident = (r: any): DangerIncident => {
     timestamp: r.createdAt ? new Date(r.createdAt).toISOString() : new Date().toISOString(),
     upvotes: r.upvotes || 0,
     downvotes: r.downvotes || 0,
-    status: r.sourceUrl ? "authority_verified" : "community_confirmed",
+    status: r.verificationStage === 'ADMIN_VERIFIED' || r.sourceUrl ? "authority_verified" : "community_confirmed",
     reportedBy: r.sourceName ? `Press: ${r.sourceName}` : "Citizen Report",
     verifiedCount: r.upvotes || 0,
     sourceUrl: r.sourceUrl,
     sourceName: r.sourceName,
+    verificationStage: r.verificationStage || (r.sourceUrl ? "CLASSIFIED" : "INGESTED"),
+    citations: Array.isArray(r.citations)
+      ? r.citations
+      : r.sourceUrl
+        ? [{ sourceName: r.sourceName || 'Press', sourceUrl: r.sourceUrl, title: cleanTitle }]
+        : [],
     fuzzedRadiusMeters: r.fuzzedRadiusMeters || 150,
     isGpsVerified: Boolean(r.isGpsVerified),
   };

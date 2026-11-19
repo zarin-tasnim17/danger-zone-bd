@@ -1,23 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<testsuite name="dangerzonebd-api-regression" tests="20" failures="0" skipped="0" time="74.204">
-  <testcase classname="tests\regression\01-confirmed-defects-regression.test.ts" name="[BACKEND-001] Unauthenticated calls to /api/v1/cron/news-crawl must NOT exhaust authenticated cron rate-limit quota on same IP" time="3.622"/>
-  <testcase classname="tests\regression\01-confirmed-defects-regression.test.ts" name="[BACKEND-002] /auth/login should not leak refreshToken in JSON, /auth/refresh must rotate refreshToken, and /auth/logout must work with expired accessToken" time="4.669"/>
-  <testcase classname="tests\regression\01-confirmed-defects-regression.test.ts" name="[BACKEND-003] JWT_SECRET and JWT_REFRESH_SECRET in .env must be &gt;= 32 characters without hardcoded fallbacks" time="0.001"/>
-  <testcase classname="tests\regression\01-confirmed-defects-regression.test.ts" name="[BACKEND-004] POST /api/v1/reports must reject empty string &quot;&quot; and &gt;1000-char description with 400" time="1.874"/>
-  <testcase classname="tests\regression\01-confirmed-defects-regression.test.ts" name="[BACKEND-005] POST /api/v1/reports/:id/updates must reject whitespace-only content with 400" time="3.122"/>
-  <testcase classname="tests\regression\01-confirmed-defects-regression.test.ts" name="[BACKEND-006] GET /api/v1/safe-zones must return 400 for non-numeric spatial parameters (?lat=abc&amp;lng=def)" time="0.005"/>
-  <testcase classname="tests\regression\01-confirmed-defects-regression.test.ts" name="[BACKEND-007] Missing resource IDs on /reports/:id/vote, /alerts/zones/:id, and /users/verify/:id/approve must return 404 (not 400)" time="3.481"/>
-  <testcase classname="tests\regression\01-confirmed-defects-regression.test.ts" name="[BACKEND-008] Repeat sign-in on POST /api/v1/auth/device for existing anonymousId should return 200 OK instead of 201 Created" time="1.649"/>
-  <testcase classname="tests\regression\01-confirmed-defects-regression.test.ts" name="[BACKEND-009] API contract consistency: /media/webhook uses {success,data}, /admin/logs rejects limit&gt;100, and /safe-zones distanceMeters is a number" time="2.635"/>
-  <testcase classname="tests\regression\01-confirmed-defects-regression.test.ts" name="[BACKEND-010] Admin verification rejection must record a distinct rejection ModerationLog.action instead of VERIFY_USER" time="5.011"/>
-  <testcase classname="tests\regression\01-confirmed-defects-regression.test.ts" name="[BACKEND-011] POST /api/v1/reports and POST /api/v1/reports/:id/vote must NOT expose reporter userId PII in response JSON" time="5.243"/>
-  <testcase classname="tests\regression\01-confirmed-defects-regression.test.ts" name="[BACKEND-012] GET /api/v1/reports must reject inverted bounds (minLng &gt;= maxLng or minLat &gt;= maxLat) with 400" time="0.010"/>
-  <testcase classname="tests\regression\01-confirmed-defects-regression.test.ts" name="[BACKEND-013] POST /api/v1/admin/users/:id/ban must forbid self-banning and peer-ADMIN suspension (403)" time="3.540"/>
-  <testcase classname="tests\regression\01-confirmed-defects-regression.test.ts" name="[BACKEND-014] POST /api/v1/alerts/zones must reject topologically invalid self-intersecting polygons (ST_IsValid) with 400" time="2.187"/>
-  <testcase classname="tests\regression\02-post-fix-edge-cases-regression.test.ts" name="[BACKEND-001] POST /cron/news-crawl ordering, unref cleanup timer, and all newly added route rate limiters enforce 429" time="10.553"/>
-  <testcase classname="tests\regression\02-post-fix-edge-cases-regression.test.ts" name="[BACKEND-002] Login omits accessToken &amp; refreshToken JSON, /refresh rotates DB row &amp; cookie, expired-access /logout revokes DB row &amp; clears cookies" time="4.334"/>
-  <testcase classname="tests\regression\02-post-fix-edge-cases-regression.test.ts" name="[BACKEND-003] Booting env.ts fails closed when JWT_SECRET or JWT_REFRESH_SECRET is empty or &lt; 32 chars" time="1.118"/>
-  <testcase classname="tests\regression\02-post-fix-edge-cases-regression.test.ts" name="[BACKEND-004 &amp; BACKEND-005] Report description &amp; update content enforce exact whitespace/1000-char boundaries" time="6.608"/>
-  <testcase classname="tests\regression\02-post-fix-edge-cases-regression.test.ts" name="[BACKEND-006 &amp; BACKEND-012] Strict spatial coordinate bounds, trailing garbage, and inverted bounding box checks" time="0.015"/>
-  <testcase classname="tests\regression\02-post-fix-edge-cases-regression.test.ts" name="[BACKEND-009 &amp; BACKEND-010] Envelopes (/health*, /), strict /admin/logs &amp; /analytics/trends params, legacy approve UUID validation &amp; action filter" time="8.113"/>
+<testsuite name="dangerzonebd-api-validation" tests="3" failures="0" skipped="0" time="18.781">
+  <testcase classname="tests\validation\01-schema-strictness-boundaries.test.ts" name="Enforces .strict() mass-assignment/unknown-field rejection on strict schemas" time="2.746"/>
+  <testcase classname="tests\validation\01-schema-strictness-boundaries.test.ts" name="PostGIS geofence validation: rejects unclosed, self-intersecting, &gt;25 km² polygons, and &gt;5 zones per user" time="10.569"/>
+  <testcase classname="tests\validation\01-schema-strictness-boundaries.test.ts" name="Report, Media &amp; GPS header boundaries (lat/lng extremes, 5MB limit, MIME types, incomplete GPS headers)" time="3.198"/>
 </testsuite>

@@ -4,6 +4,7 @@ export interface ClassifiedNews {
   isSafetyRelated: boolean;
   category: ReportCategory;
   severity: ReportSeverity;
+  confidence: number;
   matchedKeywords: string[];
 }
 
@@ -34,6 +35,7 @@ const CATEGORY_KEYWORDS: Record<ReportCategory, string[]> = {
     'গৃহকর্তাকে বেঁধে',
     'robbery',
     'robbers',
+    'rob',
     'armed robbery',
     'robbers looted',
     'gang robbery',
@@ -96,7 +98,12 @@ const CATEGORY_KEYWORDS: Record<ReportCategory, string[]> = {
     'gunfire',
     'armed attack',
     'shot and injured',
+    'shot',
+    'bullet',
     'bomb attack',
+    'bomb',
+    'kill',
+    'killing',
     'clash',
     'clashes',
     'violent clash',
@@ -227,6 +234,7 @@ const CATEGORY_KEYWORDS: Record<ReportCategory, string[]> = {
     'bus crash',
     'truck crash',
     'train crash',
+    'crashed into',
     'vehicle collision',
     'head-on collision',
     'head on collision',
@@ -268,13 +276,25 @@ const HIGH_SEVERITY_KEYWORDS = [
   'বন্দুক',
   'অস্ত্র',
   'অস্ত্রধারী',
-  'বোমা',
+  'আগ্নেয়াস্ত্র',
   'কোপানো',
+  'কুপিয়ে জখম',
+  'ছুরিকাঘাত',
   'খুন',
   'হত্যা',
   'ডাকাতি',
+  'বোমা',
+  'বোমা হামলা',
+  'ককটেল',
+  'ককটেল বিস্ফোরণ',
+  'বিস্ফোরণ',
+  'রক্তক্ষয়ী',
+  'রক্তক্ষয়ী সংঘর্ষ',
+  'অগ্নিসংযোগ',
   'dead',
   'killed',
+  'kill',
+  'shot',
   'murdered',
   'fatal',
   'fatality',
@@ -286,7 +306,147 @@ const HIGH_SEVERITY_KEYWORDS = [
   'robbery',
   'kidnap',
   'kidnapped',
+  'cocktail',
+  'explosion',
+  'arson',
 ];
+
+const COMPOUND_SAFETY_PHRASES = new Set([
+  'সড়ক দুর্ঘটনা',
+  'কিশোর গ্যাং',
+  'সশস্ত্র ডাকাত',
+  'ডাকাত দল',
+  'সিন্দুক ভেঙে',
+  'গৃহকর্তাকে বেঁধে',
+  'চুরি ও ডাকাতি',
+  'চুরি ডাকাতি',
+  'ব্যাগ টান',
+  'ব্যাগ ছিনতাই',
+  'মোবাইল ছিনতাই',
+  'অস্ত্রসহ হামলা',
+  'ধারালো অস্ত্র',
+  'কুপিয়ে জখম',
+  'ছুরি মেরে',
+  'গুলি বর্ষণ',
+  'বোমা হামলা',
+  'দুই পক্ষের সংঘর্ষ',
+  'দুপক্ষের সংঘর্ষ',
+  'পক্ষের সংঘর্ষ',
+  'হামলা ও সংঘর্ষ',
+  'হামলা-ভাঙচুর',
+  'ধাওয়া-পাল্টাধাওয়া',
+  'ধাওয়া পাল্টা ধাওয়া',
+  'ককটেল বিস্ফোরণ',
+  'গাড়িতে আগুন',
+  'বাসে আগুন',
+  'গাড়িতে অগ্নিসংযোগ',
+  'মুখোমুখি সংঘর্ষ',
+  'গাড়ি দুর্ঘটনা',
+  'বাস-ট্রাক',
+  'ট্রাক-পিকআপ',
+  'পিকআপ-ড্রাম',
+  'গাড়ির সংঘর্ষ',
+  'লরির সংঘর্ষ',
+  'মোটরসাইকেল দুর্ঘটনা',
+  'অটোরিকশা দুর্ঘটনা',
+  'চাপা পড়ে নিহত',
+  'চাপা দিয়ে নিহত',
+  'চাপা দিয়েছে',
+  'উল্টে খাদে',
+  'বাস উল্টে',
+  'ট্রাক উল্টে',
+  'পিকআপ উল্টে',
+  'knife attack',
+  'machete attack',
+  'armed attack',
+  'shot and injured',
+  'bomb attack',
+  'head-on collision',
+  'road crash',
+  'deadly crash',
+  'traffic accident',
+  'armed robbery',
+  'robbers looted',
+  'gang robbery',
+  'home invasion',
+  'theft and robbery',
+  'burglary and robbery',
+  'bag snatched',
+  'phone snatched',
+  'teen gang',
+  'unlit road',
+  'pothole hazard',
+].map((p) => p.normalize('NFC')));
+
+const MEDIUM_SPECIFICITY_TERMS = new Set([
+  'ছিনতাইকারী',
+  'গুলিবিদ্ধ',
+  'ইয়াবা',
+  'ডাকাতি',
+  'ডাকাত',
+  'লুণ্ঠন',
+  'লুটপাট',
+  'ছিনতাই',
+  'কোপানো',
+  'ছুরিকাঘাত',
+  'আগ্নেয়াস্ত্র',
+  'বন্দুকধারী',
+  'টিয়ারশেল',
+  'ককটেল',
+  'চাঁদাবাজ',
+  'চাঁদাবাজি',
+  'ফেনসিডিল',
+  'হেরোইন',
+  'মাদক',
+  'গাঞ্জা',
+  'আইস',
+  'গাঁজা',
+  'অস্ত্রধারী',
+  'খুন',
+  'হত্যা',
+  'snatcher',
+  'robbery',
+  'robbers',
+  'burglary',
+  'burgled',
+  'extortion',
+  'narcotics',
+  'yaba',
+  'phensedyl',
+  'heroine',
+  'dacoity',
+  'dacoits',
+  'stabbing',
+  'machete',
+  'gunfire',
+  'mugger',
+  'mugging',
+  'kidnap',
+  'kidnapped',
+].map((p) => p.normalize('NFC')));
+
+const isEnglishKeyword = (kw: string) => /^[a-zA-Z0-9\s-]+$/.test(kw);
+const escapeRegex = (str: string) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+export const getKeywordWeight = (kw: string): number => {
+  const norm = kw.normalize('NFC').trim();
+  if (norm.includes(' ') || norm.includes('-') || COMPOUND_SAFETY_PHRASES.has(norm)) {
+    return 5;
+  }
+  if (MEDIUM_SPECIFICITY_TERMS.has(norm)) {
+    return 3;
+  }
+  return 1;
+};
+
+const matchesKeyword = (text: string, kw: string): boolean => {
+  const normKw = kw.normalize('NFC').toLowerCase();
+  if (isEnglishKeyword(normKw)) {
+    const regex = new RegExp(`\\b${escapeRegex(normKw)}\\b`, 'i');
+    return regex.test(text);
+  }
+  return text.includes(normKw);
+};
 
 const MEDIUM_SEVERITY_KEYWORDS = [
   'আহত',
@@ -427,24 +587,24 @@ export const classifyNewsText = (title: string, summary: string = ''): Classifie
   const categoryScores: Partial<Record<ReportCategory, number>> = {};
 
   for (const [category, keywords] of Object.entries(CATEGORY_KEYWORDS) as [ReportCategory, string[]][]) {
-    let count = 0;
+    let score = 0;
     for (const kw of keywords) {
-      const normalizedKw = kw.normalize('NFC').toLowerCase();
-      if (combinedText.includes(normalizedKw)) {
-        count++;
+      if (matchesKeyword(combinedText, kw)) {
+        const weight = getKeywordWeight(kw);
+        score += weight;
         matchedKeywords.push(kw);
       }
     }
-    if (count > 0) {
-      categoryScores[category] = count;
+    if (score > 0) {
+      categoryScores[category] = score;
     }
   }
 
   // Distinguish vehicular collisions from violent armed/political clashes:
   // In Bengali, vehicular crashes are often titled "মুখোমুখি সংঘর্ষ" or "বাস-ট্রাক সংঘর্ষ".
   // If the story involves vehicles and NO human violent faction/weapon/protest terms, it must resolve to ROAD_ACCIDENT.
-  const hasVehicle = VEHICLE_KEYWORDS.some((vk) => combinedText.includes(vk.normalize('NFC').toLowerCase()));
-  const hasViolentFaction = VIOLENT_FACTION_KEYWORDS.some((fk) => combinedText.includes(fk.normalize('NFC').toLowerCase()));
+  const hasVehicle = VEHICLE_KEYWORDS.some((vk) => matchesKeyword(combinedText, vk));
+  const hasViolentFaction = VIOLENT_FACTION_KEYWORDS.some((fk) => matchesKeyword(combinedText, fk));
   const hasRoadCollisionTerms =
     combinedText.includes('মুখোমুখি সংঘর্ষ') ||
     combinedText.includes('সড়ক দুর্ঘটনা') ||
@@ -466,11 +626,16 @@ export const classifyNewsText = (title: string, summary: string = ''): Classifie
     combinedText.includes('collision') ||
     combinedText.includes('traffic accident') ||
     combinedText.includes('head-on collision') ||
-    combinedText.includes('road crash');
+    combinedText.includes('road crash') ||
+    combinedText.includes('crash') ||
+    combinedText.includes('crashed');
 
   if (hasVehicle && !hasViolentFaction && hasRoadCollisionTerms) {
     categoryScores['ROAD_ACCIDENT'] = (categoryScores['ROAD_ACCIDENT'] || 0) + 15;
     categoryScores['ARMED_ASSAULT'] = 0; // Clear collision with generic "সংঘর্ষ" keyword
+    if (!matchedKeywords.includes('road accident')) {
+      matchedKeywords.push('road accident');
+    }
   }
 
   // Detect Smart Combinations
@@ -515,6 +680,7 @@ export const classifyNewsText = (title: string, summary: string = ''): Classifie
       isSafetyRelated: false,
       category: 'ROAD_ACCIDENT',
       severity: 'LOW',
+      confidence: 0.0,
       matchedKeywords: [],
     };
   }
@@ -522,7 +688,7 @@ export const classifyNewsText = (title: string, summary: string = ''): Classifie
   // Determine Severity
   let severity: ReportSeverity = 'LOW';
   for (const kw of HIGH_SEVERITY_KEYWORDS) {
-    if (combinedText.includes(kw.normalize('NFC').toLowerCase())) {
+    if (matchesKeyword(combinedText, kw)) {
       severity = 'HIGH';
       break;
     }
@@ -530,17 +696,33 @@ export const classifyNewsText = (title: string, summary: string = ''): Classifie
 
   if (severity !== 'HIGH') {
     for (const kw of MEDIUM_SEVERITY_KEYWORDS) {
-      if (combinedText.includes(kw.normalize('NFC').toLowerCase())) {
+      if (matchesKeyword(combinedText, kw)) {
         severity = 'MEDIUM';
         break;
       }
     }
   }
 
+  // Calculate probabilistic confidence score (0.0 - 1.0)
+  let confidence = 0.0;
+  const rawScore = categoryScores[resolvedCategory] || 0;
+  if (rawScore >= 15) {
+    confidence = 0.95;
+  } else if (rawScore >= 10) {
+    confidence = 0.88;
+  } else if (rawScore >= 5) {
+    confidence = 0.78;
+  } else if (rawScore >= 3) {
+    confidence = 0.70;
+  } else {
+    confidence = 0.60;
+  }
+
   return {
     isSafetyRelated: true,
     category: resolvedCategory,
     severity,
+    confidence,
     matchedKeywords,
   };
 };

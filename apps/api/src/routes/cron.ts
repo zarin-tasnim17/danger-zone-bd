@@ -3,6 +3,7 @@ import { triggerNewsCrawler } from '../jobs/newsCrawlerJob';
 import { cronNewsCrawlRateLimiter } from '../middleware/rateLimiter';
 import { verifyCronSecret } from '../middleware/verifyWebhookSecret';
 import { successResponse, errorResponse } from '../utils/responseFormatter';
+import { newsObservabilityService } from '../services/newsObservabilityService';
 
 const router = Router();
 
@@ -35,5 +36,13 @@ router
   .route('/news-crawl')
   .get(verifyCronSecret, cronNewsCrawlRateLimiter, handleNewsCrawl)
   .post(verifyCronSecret, cronNewsCrawlRateLimiter, handleNewsCrawl);
+
+/**
+ * Observability endpoint to inspect crawler telemetry and feed health metrics.
+ */
+router.get('/crawler-metrics', verifyCronSecret, (_req: Request, res: Response) => {
+  const telemetry = newsObservabilityService.getTelemetrySummary();
+  return successResponse(res, telemetry, 200);
+});
 
 export default router;
