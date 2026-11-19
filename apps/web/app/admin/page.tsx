@@ -38,6 +38,15 @@ import {
   Eye,
   EyeOff,
   Mail,
+  Search,
+  Phone,
+  Smartphone,
+  Copy,
+  SlidersHorizontal,
+  ChevronLeft,
+  Users,
+  ShieldCheck,
+  UserPlus,
 } from "lucide-react";
 
 const CATEGORY_ALIAS_MAP: Record<string, string> = {
@@ -91,7 +100,24 @@ export default function AdminPage() {
   const [dataError, setDataError] = useState<string | null>(null);
   const [isLoadingTrends, setIsLoadingTrends] = useState(false);
 
-  // Action Inputs
+  // Users Directory & Moderation State
+  const [users, setUsers] = useState<any[]>([]);
+  const [usersTotal, setUsersTotal] = useState(0);
+  const [usersPage, setUsersPage] = useState(1);
+  const [usersLimit] = useState(15);
+  const [userSearchQuery, setUserSearchQuery] = useState("");
+  const [userRoleFilter, setUserRoleFilter] = useState<string>("ALL");
+  const [userStatusFilter, setUserStatusFilter] = useState<string>("ALL");
+  const [userSortBy, setUserSortBy] = useState<"createdAt" | "trustScore" | "lastReportAt">("createdAt");
+  const [isLoadingUsers, setIsLoadingUsers] = useState(false);
+
+  // Modal State for Ban/Unban
+  const [banTargetUser, setBanTargetUser] = useState<any | null>(null);
+  const [banModalAction, setBanModalAction] = useState<"ban" | "unban">("ban");
+  const [banModalReason, setBanModalReason] = useState("");
+  const [isSubmittingBan, setIsSubmittingBan] = useState(false);
+
+  // Manual Quick Action Inputs
   const [banUserId, setBanUserId] = useState("");
   const [banReason, setBanReason] = useState("");
   const [crawlStatus, setCrawlStatus] = useState<string | null>(null);
@@ -123,15 +149,53 @@ export default function AdminPage() {
     }
   }, []);
 
+  const fetchUsers = useCallback(
+    async (
+      search = userSearchQuery,
+      role = userRoleFilter,
+      status = userStatusFilter,
+      page = usersPage,
+      sortBy = userSortBy
+    ) => {
+      setIsLoadingUsers(true);
+      try {
+        const params = new URLSearchParams();
+        if (search.trim()) params.set("search", search.trim());
+        if (role !== "ALL") params.set("role", role);
+        if (status === "BANNED") params.set("isBanned", "true");
+        if (status === "ACTIVE") params.set("isBanned", "false");
+        if (status === "VERIFIED") params.set("isVerified", "true");
+        params.set("page", String(page));
+        params.set("limit", String(usersLimit));
+        params.set("sortBy", sortBy);
+        params.set("sortOrder", "desc");
+
+        const data = await apiFetch<{ users: any[]; pagination: any }>(
+          `/admin/users?${params.toString()}`
+        );
+        setUsers(data?.users || []);
+        setUsersTotal(data?.pagination?.total || 0);
+      } catch (err: any) {
+        console.warn("[Admin Users Fetch] Error:", err.message);
+      } finally {
+        setIsLoadingUsers(false);
+      }
+    },
+    [userSearchQuery, userRoleFilter, userStatusFilter, usersPage, usersLimit, userSortBy]
+  );
+
   const fetchAdminData = useCallback(async () => {
     setIsLoadingData(true);
     setDataError(null);
     try {
-      // 1. Fetch live reports
-      const reportsData = await apiFetch<any[]>(
-        "/reports?minLat=20&maxLat=27&minLng=88&maxLng=93"
-      );
-      setReports(reportsData || []);
+      // 1. Fetch live reports with populated author metadata
+      const adminReportsData = await apiFetch<{ reports: any[] }>("/admin/reports?limit=50").catch(() => null);
+      if (adminReportsData && Array.isArray(adminReportsData.reports)) {
+        setReports(adminReportsData.reports);
+      } else {
+        const reportsData = await apiFetch<any[]>("/reports?minLat=20&maxLat=27&minLng=88&maxLng=93");
+        setReports(reportsData || []);
+      }
 
       // 2. Fetch moderation audit logs
       const logsData = await apiFetch<{ logs: any[] }>("/admin/logs?page=1&limit=30");
@@ -144,6 +208,9 @@ export default function AdminPage() {
       // 4. Fetch 30-day hazard analytics and trends
       const trendsData = await apiFetch<any>("/admin/analytics/trends");
       setTrends(trendsData || null);
+
+      // 5. Fetch users directory
+      fetchUsers();
     } catch (err: any) {
       const msg =
         err?.message ||
@@ -153,7 +220,17 @@ export default function AdminPage() {
     } finally {
       setIsLoadingData(false);
     }
-  }, [isBn]);
+  }, [isBn, fetchUsers]);
+
+  // Debounced search trigger for user directory
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (user?.role === "ADMIN") {
+        fetchUsers(userSearchQuery, userRoleFilter, userStatusFilter, usersPage, userSortBy);
+      }
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [userSearchQuery, userRoleFilter, userStatusFilter, usersPage, userSortBy, user?.role, fetchUsers]);
 
   // Load Dashboard Data once authenticated as ADMIN
   useEffect(() => {
@@ -296,13 +373,48 @@ export default function AdminPage() {
     }
   };
 
-  const handleBanUser = async (action: "ban" | "unban") => {
-    const trimmedUserId = banUserId.trim();
-    if (!UUID_PATTERN.test(trimmedUserId)) {
+  const executeModalBanAction = async () => {
+    if (!banTargetUser) return;
+    if (banModalReason.trim().length < 3) {
       showToast(
         isBn
-          ? "অনুগ্রহ করে একটি বৈধ ইউজার UUID প্রদান করুন।"
-          : "Please enter a valid target user UUID.",
+          ? "মডারেশনের কারণ কমপক্ষে ৩ অক্ষরের হতে হবে।"
+          : "Moderation reason must be at least 3 characters.",
+        "warning"
+      );
+      return;
+    }
+    const reason = banModalReason.trim();
+    setIsSubmittingBan(true);
+    try {
+      await apiFetch(`/admin/users/${encodeURIComponent(banTargetUser.id)}/${banModalAction}`, {
+        method: "POST",
+        body: JSON.stringify({ reason }),
+      });
+      showToast(
+        banModalAction === "ban"
+          ? isBn ? "নাগরিক অ্যাকাউন্ট সফলভাবে স্থগিত করা হয়েছে।" : "Citizen account suspended successfully."
+          : isBn ? "নাগরিক অ্যাকাউন্ট সফলভাবে পুনরুদ্ধার করা হয়েছে।" : "Citizen account restored successfully.",
+        "success"
+      );
+      setBanTargetUser(null);
+      setBanModalReason("");
+      fetchUsers();
+      fetchAdminData();
+    } catch (err: any) {
+      showToast(err.message || `Failed to ${banModalAction} user.`, "error");
+    } finally {
+      setIsSubmittingBan(false);
+    }
+  };
+
+  const handleBanUser = async (action: "ban" | "unban") => {
+    const trimmedIdentifier = banUserId.trim();
+    if (!trimmedIdentifier) {
+      showToast(
+        isBn
+          ? "অনুগ্রহ করে টার্গেট ইউজারের UUID, ইমেইল, মোবাইল বা ডিভাইস আইডি প্রদান করুন।"
+          : "Please enter a target UUID, email, phone number, or device ID.",
         "warning"
       );
       return;
@@ -320,7 +432,7 @@ export default function AdminPage() {
     const reason = banReason.trim();
 
     try {
-      await apiFetch(`/admin/users/${trimmedUserId}/${action}`, {
+      await apiFetch(`/admin/users/${encodeURIComponent(trimmedIdentifier)}/${action}`, {
         method: "POST",
         body: JSON.stringify({ reason }),
       });
@@ -332,6 +444,7 @@ export default function AdminPage() {
       );
       setBanUserId("");
       setBanReason("");
+      fetchUsers();
       fetchAdminData();
     } catch (err: any) {
       showToast(err.message || `Failed to ${action} user.`, "error");
@@ -667,14 +780,20 @@ export default function AdminPage() {
           </button>
 
           <button
-            onClick={() => setActiveTab("users")}
+            onClick={() => {
+              setActiveTab("users");
+              fetchUsers();
+            }}
             className={`pb-3 text-xs sm:text-sm font-bold border-b-2 transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
               activeTab === "users"
                 ? "border-purple-600 text-purple-600"
                 : "border-transparent text-slate-500 hover:text-slate-900"
             }`}
           >
-            <span>{isBn ? "ইউজার ব্যান ও নিয়ন্ত্রণ" : "User Defense & Ban"}</span>
+            <span>{isBn ? "নাগরিক ডিরেক্টরি ও নিয়ন্ত্রণ" : "Citizens Directory & Moderation"}</span>
+            <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-purple-50 text-purple-700 border border-purple-200 font-mono">
+              {usersTotal || users.length}
+            </span>
           </button>
 
           <button
@@ -741,8 +860,9 @@ export default function AdminPage() {
                   <tr>
                     <th className="p-3.5">{isBn ? "বিভাগ" : "Category"}</th>
                     <th className="p-3.5">{isBn ? "তীব্রতা" : "Severity"}</th>
+                    <th className="p-3.5">{isBn ? "রিপোর্টার" : "Reporter"}</th>
                     <th className="p-3.5">{isBn ? "বিবরণ" : "Description"}</th>
-                    <th className="p-3.5">{isBn ? "ভোট সংখ্যা" : "Votes"}</th>
+                    <th className="p-3.5">{isBn ? "ভোট" : "Votes"}</th>
                     <th className="p-3.5">{isBn ? "সময়" : "Logged"}</th>
                     <th className="p-3.5 text-right">{isBn ? "পদক্ষেপ" : "Action"}</th>
                   </tr>
@@ -750,7 +870,7 @@ export default function AdminPage() {
                 <tbody className="divide-y divide-slate-100 text-slate-700">
                   {reports.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="p-8 text-center text-slate-500">
+                      <td colSpan={7} className="p-8 text-center text-slate-500">
                         {isBn ? "কোনো সক্রিয় রিপোর্ট পাওয়া যায়নি।" : "No active reports found in PostGIS database."}
                       </td>
                     </tr>
@@ -778,6 +898,31 @@ export default function AdminPage() {
                             {r.severity}
                           </span>
                         </td>
+                        <td className="p-3.5">
+                          {r.user ? (
+                            <div className="flex flex-col gap-0.5">
+                              <div className="flex items-center gap-1.5">
+                                <span className="font-semibold text-slate-900 truncate max-w-[130px]" title={r.user.email || r.user.anonymousId}>
+                                  {r.user.email ? r.user.email.split("@")[0] : r.user.anonymousId?.slice(0, 10)}
+                                </span>
+                                {r.user.isBanned && (
+                                  <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-red-100 text-red-700 border border-red-200">
+                                    BANNED
+                                  </span>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-1 text-[10px] text-slate-500 font-mono">
+                                <span>Score: {r.user.trustScore ?? 0}</span>
+                                <span>•</span>
+                                <span className="capitalize">{r.user.role?.toLowerCase()}</span>
+                              </div>
+                            </div>
+                          ) : (
+                            <span className="text-slate-400 italic text-[11px]">
+                              {r.sourceName ? r.sourceName : "Anonymous"}
+                            </span>
+                          )}
+                        </td>
                         <td className="p-3.5 max-w-xs truncate text-slate-800" title={r.description}>
                           {r.description || "—"}
                         </td>
@@ -788,14 +933,34 @@ export default function AdminPage() {
                           {new Date(r.createdAt).toLocaleTimeString()}
                         </td>
                         <td className="p-3.5 text-right">
-                          <button
-                            onClick={() => setPurgeTarget(r)}
-                            className="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 rounded-xl font-bold inline-flex items-center gap-1.5 transition-colors shadow-2xs cursor-pointer active:scale-95"
-                            title="Purge false report"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                            <span>{isBn ? "মুছুন" : "Purge"}</span>
-                          </button>
+                          <div className="flex items-center justify-end gap-1.5">
+                            {r.user && r.user.id !== user?.id && r.user.role !== "ADMIN" && !r.user.isBanned && (
+                              <button
+                                onClick={() => {
+                                  setBanTargetUser(r.user);
+                                  setBanModalAction("ban");
+                                  setBanModalReason(
+                                    isBn
+                                      ? `মিথ্যা/স্প্যাম রিপোর্ট দাখিল (#${r.id.slice(0, 8)}): ${r.description?.slice(0, 40) || ""}`
+                                      : `Fraudulent/spam hazard pin (#${r.id.slice(0, 8)}): "${r.description?.slice(0, 40) || ""}"`
+                                  );
+                                }}
+                                className="px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl font-bold inline-flex items-center gap-1 transition-colors shadow-2xs cursor-pointer active:scale-95 text-[11px]"
+                                title={isBn ? "রিপোর্টারকে ব্যান করুন" : "Ban Reporter"}
+                              >
+                                <UserX className="w-3.5 h-3.5" />
+                                <span>{isBn ? "ব্যান" : "Ban"}</span>
+                              </button>
+                            )}
+                            <button
+                              onClick={() => setPurgeTarget(r)}
+                              className="px-2.5 py-1.5 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 rounded-xl font-bold inline-flex items-center gap-1 transition-colors shadow-2xs cursor-pointer active:scale-95 text-[11px]"
+                              title="Purge false report"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                              <span>{isBn ? "মুছুন" : "Purge"}</span>
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))
@@ -807,65 +972,469 @@ export default function AdminPage() {
         )}
 
         {/* ------------------------------------------------------------- */}
-        {/* TAB 2: User Ban & Suspension */}
+        {/* TAB 2: Citizens Directory & Moderation */}
         {/* ------------------------------------------------------------- */}
         {activeTab === "users" && (
-          <div className="bg-white border border-slate-200/90 rounded-2xl shadow-xs p-6 max-w-xl space-y-4">
-            <div>
-              <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                <UserX className="w-4 h-4 text-red-600" />
-                <span>{isBn ? "অ্যাকাউন্ট সাসপেনশন ও প্রতিরোধ ব্যবস্থা" : "Account Suspension & Protection"}</span>
-              </h2>
-              <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-                {isBn
-                  ? "নিষিদ্ধ ব্যবহারকারীরা নতুন রিপোর্ট দাখিল বা ভোট দেওয়া থেকে চিরতরে অবরুদ্ধ থাকবে। প্রতিটি পদক্ষেপ অডিট লগে অপরিবর্তনীয়ভাবে সংরক্ষিত হয়।"
-                  : "Suspended citizens are blocked from submitting hazard pins, casting votes, or contributing updates. Every action is recorded in the immutable audit trail."}
-              </p>
+          <div className="space-y-4">
+            {/* User Directory Toolbar: Search & Filters */}
+            <div className="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-5 shadow-xs space-y-4">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-purple-50 text-purple-700 border border-purple-200 flex items-center justify-center shrink-0 shadow-2xs">
+                    <Users className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h2 className="text-sm font-bold text-slate-900">
+                      {isBn ? "নাগরিক ডিরেক্টরি ও সক্রিয় মডারেশন" : "Citizen Directory & Active Moderation"}
+                    </h2>
+                    <p className="text-xs text-slate-500 font-medium">
+                      {isBn
+                        ? "ইমেইল, ফোন নম্বর, অ্যানোনিমাস ডিভাইস আইডি বা ইউইউআইডি দিয়ে সহজেই খুঁজুন ও নিয়ন্ত্রণ করুন।"
+                        : "Search and moderate accounts via email, phone number, device anonymous ID, or UUID."}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => fetchUsers()}
+                    disabled={isLoadingUsers}
+                    className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl border border-slate-200 transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${isLoadingUsers ? "animate-spin" : ""}`} />
+                    <span>{isBn ? "রিফ্রেশ" : "Refresh"}</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Search Bar + Filters */}
+              <div className="flex flex-col sm:flex-row gap-3 pt-1">
+                {/* Search Input with Debounce */}
+                <div className="relative flex-1">
+                  <input
+                    type="text"
+                    value={userSearchQuery}
+                    onChange={(e) => {
+                      setUserSearchQuery(e.target.value);
+                      setUsersPage(1);
+                    }}
+                    placeholder={
+                      isBn
+                        ? "ইমেইল, মোবাইল (+880...), ডিভাইস আইডি বা ইউইউআইডি খুঁজুন..."
+                        : "Search by email, phone (+880...), device ID, or user UUID..."
+                    }
+                    className="w-full pl-9 pr-9 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-900 focus:bg-white focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 focus:outline-none transition-colors"
+                  />
+                  <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3 pointer-events-none" />
+                  {userSearchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setUserSearchQuery("");
+                        setUsersPage(1);
+                      }}
+                      className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600 p-0.5 rounded"
+                      aria-label="Clear search"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+
+                {/* Status Filter Pills */}
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {[
+                    { id: "ALL", label: isBn ? "সব নাগরিক" : "All" },
+                    { id: "ACTIVE", label: isBn ? "সক্রিয়" : "Active" },
+                    { id: "BANNED", label: isBn ? "স্থগিত / ব্যান" : "Suspended" },
+                    { id: "VERIFIED", label: isBn ? "যাচাইকৃত" : "Verified" },
+                  ].map((filter) => (
+                    <button
+                      key={filter.id}
+                      type="button"
+                      onClick={() => {
+                        setUserStatusFilter(filter.id);
+                        setUsersPage(1);
+                      }}
+                      className={`px-3 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer ${
+                        userStatusFilter === filter.id
+                          ? "bg-purple-700 text-white shadow-xs"
+                          : "bg-slate-100 hover:bg-slate-200 text-slate-600 border border-slate-200/60"
+                      }`}
+                    >
+                      {filter.label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Role Filter Select */}
+                <div className="shrink-0">
+                  <select
+                    value={userRoleFilter}
+                    onChange={(e) => {
+                      setUserRoleFilter(e.target.value);
+                      setUsersPage(1);
+                    }}
+                    className="px-3 py-2 text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded-xl focus:outline-none cursor-pointer"
+                  >
+                    <option value="ALL">{isBn ? "সকল ভূমিকা (Roles)" : "All Roles"}</option>
+                    <option value="USER">{isBn ? "সাধারণ নাগরিক (USER)" : "Citizens (USER)"}</option>
+                    <option value="VERIFIED_RESPONDER">{isBn ? "রেসপন্ডার (RESPONDER)" : "Verified Responders"}</option>
+                    <option value="ADMIN">{isBn ? "প্রশাসক (ADMIN)" : "Admins (ADMIN)"}</option>
+                  </select>
+                </div>
+              </div>
             </div>
 
-            <div className="space-y-4 pt-2">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  {isBn ? "টার্গেট ইউজার ইউইউআইডি (User UUID) *" : "Target User UUID *"}
-                </label>
-                <input
-                  id="admin-ban-user-id"
-                  type="text"
-                  value={banUserId}
-                  onChange={(e) => setBanUserId(e.target.value)}
-                  placeholder="e.g. 1960138d-8dd4-4a06-b403-19a76966fc64"
-                  className="w-full px-3.5 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-mono focus:bg-white focus:ring-1 focus:ring-purple-500 focus:outline-none transition-colors"
-                />
+            {/* Users Data Table */}
+            <div className="bg-white border border-slate-200/90 rounded-2xl shadow-xs overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200">
+                    <tr>
+                      <th className="p-3.5">{isBn ? "নাগরিক পরিচয়" : "Citizen / Identity"}</th>
+                      <th className="p-3.5">{isBn ? "যোগাযোগ ও ডিভাইস" : "Contact & Device"}</th>
+                      <th className="p-3.5">{isBn ? "ভূমিকা ও স্তর" : "Role & Verification"}</th>
+                      <th className="p-3.5">{isBn ? "ট্রাস্ট স্কোর ও রিপোর্ট" : "Trust & Reports"}</th>
+                      <th className="p-3.5">{isBn ? "অবস্থা" : "Status"}</th>
+                      <th className="p-3.5 text-right">{isBn ? "পদক্ষেপ" : "Actions"}</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-slate-700">
+                    {isLoadingUsers ? (
+                      Array.from({ length: 5 }).map((_, i) => (
+                        <tr key={i} className="animate-pulse">
+                          <td className="p-3.5">
+                            <div className="flex items-center gap-2.5">
+                              <div className="w-8 h-8 rounded-full bg-slate-200" />
+                              <div className="space-y-1.5">
+                                <div className="w-28 h-3 bg-slate-200 rounded" />
+                                <div className="w-20 h-2.5 bg-slate-100 rounded" />
+                              </div>
+                            </div>
+                          </td>
+                          <td className="p-3.5"><div className="w-24 h-3 bg-slate-200 rounded" /></td>
+                          <td className="p-3.5"><div className="w-16 h-4 bg-slate-200 rounded-full" /></td>
+                          <td className="p-3.5"><div className="w-20 h-3 bg-slate-200 rounded" /></td>
+                          <td className="p-3.5"><div className="w-14 h-4 bg-slate-200 rounded-full" /></td>
+                          <td className="p-3.5 text-right"><div className="w-16 h-7 bg-slate-200 rounded-xl ml-auto" /></td>
+                        </tr>
+                      ))
+                    ) : users.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="p-12 text-center">
+                          <div className="max-w-sm mx-auto space-y-2">
+                            <div className="w-12 h-12 rounded-2xl bg-purple-50 text-purple-600 border border-purple-200 flex items-center justify-center mx-auto">
+                              <UserX className="w-5 h-5" />
+                            </div>
+                            <h3 className="text-sm font-bold text-slate-900">
+                              {isBn ? "কোনো নাগরিক পাওয়া যায়নি" : "No citizens found"}
+                            </h3>
+                            <p className="text-xs text-slate-500">
+                              {userSearchQuery
+                                ? isBn
+                                  ? `"${userSearchQuery}" এর সাথে মেলে এমন কোনো নাগরিক খুঁজে পাওয়া যায়নি। ফিল্টার পরিবর্তন করে পুনরায় চেষ্টা করুন।`
+                                  : `No accounts matching "${userSearchQuery}". Try adjusting your search query or filters.`
+                                : isBn
+                                ? "ডাটাবেজে বর্তমানে কোনো নাগরিক তথ্য নেই।"
+                                : "No citizen records currently in database."}
+                            </p>
+                            {userSearchQuery && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setUserSearchQuery("");
+                                  setUserRoleFilter("ALL");
+                                  setUserStatusFilter("ALL");
+                                }}
+                                className="mt-2 px-3 py-1.5 bg-purple-50 hover:bg-purple-100 text-purple-700 text-xs font-bold rounded-xl border border-purple-200 transition-colors cursor-pointer"
+                              >
+                                {isBn ? "ফিল্টার রিসেট করুন" : "Reset Filters"}
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ) : (
+                      users.map((u) => {
+                        const isSelf = u.id === user?.id;
+                        const isProtectedAdmin = u.role === "ADMIN";
+                        return (
+                          <tr key={u.id} className="hover:bg-slate-50/80 transition-colors">
+                            {/* Identity */}
+                            <td className="p-3.5">
+                              <div className="flex items-center gap-2.5">
+                                <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-purple-100 to-purple-50 border border-purple-200 text-purple-700 font-bold text-xs flex items-center justify-center shrink-0 uppercase">
+                                  {u.email ? u.email.charAt(0) : "A"}
+                                </div>
+                                <div className="min-w-0">
+                                  <div className="font-bold text-slate-900 truncate max-w-[200px]" title={u.email || u.anonymousId}>
+                                    {u.email || u.anonymousId}
+                                  </div>
+                                  <div className="text-[10px] text-slate-400 font-medium">
+                                    {isBn ? "যুক্ত হয়েছেন: " : "Joined: "}
+                                    {new Date(u.createdAt).toLocaleDateString()}
+                                  </div>
+                                </div>
+                              </div>
+                            </td>
+
+                            {/* Contact & Device */}
+                            <td className="p-3.5">
+                              <div className="space-y-0.5">
+                                {u.phoneNumber ? (
+                                  <div className="flex items-center gap-1 font-mono text-[11px] text-slate-800">
+                                    <Phone className="w-3 h-3 text-emerald-600 shrink-0" />
+                                    <span>{u.phoneNumber}</span>
+                                  </div>
+                                ) : (
+                                  <span className="text-[11px] text-slate-400 italic">
+                                    {isBn ? "ফোন যাচাইহীন" : "No phone verified"}
+                                  </span>
+                                )}
+                                <div className="flex items-center gap-1 text-[10px] text-slate-500 font-mono">
+                                  <Smartphone className="w-3 h-3 text-slate-400 shrink-0" />
+                                  <span className="truncate max-w-[130px]" title={u.anonymousId}>
+                                    {u.anonymousId}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      navigator.clipboard?.writeText(u.id);
+                                      showToast(isBn ? "UUID কপি হয়েছে" : "UUID copied", "success");
+                                    }}
+                                    className="text-slate-400 hover:text-purple-600 p-0.5 rounded cursor-pointer"
+                                    title={`Copy UUID: ${u.id}`}
+                                  >
+                                    <Copy className="w-3 h-3" />
+                                  </button>
+                                </div>
+                              </div>
+                            </td>
+
+                            {/* Role & Verification */}
+                            <td className="p-3.5">
+                              <div className="flex flex-col gap-1 items-start">
+                                <span
+                                  className={`px-2 py-0.5 rounded-full text-[10px] font-black border uppercase tracking-wider ${
+                                    u.role === "ADMIN"
+                                      ? "bg-purple-50 text-purple-700 border-purple-200"
+                                      : u.role === "VERIFIED_RESPONDER"
+                                      ? "bg-sky-50 text-sky-700 border-sky-200"
+                                      : "bg-slate-100 text-slate-700 border-slate-200"
+                                  }`}
+                                >
+                                  {u.role === "ADMIN" ? "ROOT ADMIN" : u.role === "VERIFIED_RESPONDER" ? "RESPONDER" : "CITIZEN"}
+                                </span>
+                                {u.isVerified ? (
+                                  <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200">
+                                    <ShieldCheck className="w-3 h-3" />
+                                    <span>{isBn ? "যাচাইকৃত" : "Verified"}</span>
+                                  </span>
+                                ) : (
+                                  <span className="text-[10px] text-slate-400">
+                                    {isBn ? "সাধারণ" : "Unverified"}
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+
+                            {/* Trust Score & Reports */}
+                            <td className="p-3.5">
+                              <div className="space-y-1 max-w-[130px]">
+                                <div className="flex items-center justify-between text-[11px]">
+                                  <span className="text-slate-500 font-medium">{isBn ? "স্কোর:" : "Trust:"}</span>
+                                  <span className={`font-black font-mono ${
+                                    u.trustScore >= 70 ? "text-emerald-700" : u.trustScore >= 40 ? "text-amber-700" : "text-rose-700"
+                                  }`}>
+                                    {u.trustScore}
+                                  </span>
+                                </div>
+                                <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                                  <div
+                                    className={`h-full rounded-full transition-all ${
+                                      u.trustScore >= 70 ? "bg-emerald-500" : u.trustScore >= 40 ? "bg-amber-500" : "bg-rose-500"
+                                    }`}
+                                    style={{ width: `${Math.min(100, Math.max(5, u.trustScore))}%` }}
+                                  />
+                                </div>
+                                <div className="flex items-center gap-2 text-[10px] text-slate-500 font-mono">
+                                  <span>{u._count?.reports ?? 0} {isBn ? "রিপোর্ট" : "reports"}</span>
+                                  <span>•</span>
+                                  <span>{u._count?.votes ?? 0} {isBn ? "ভোট" : "votes"}</span>
+                                </div>
+                              </div>
+                            </td>
+
+                            {/* Status */}
+                            <td className="p-3.5">
+                              {u.isBanned ? (
+                                <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-[10px] font-extrabold bg-red-50 text-red-700 border border-red-200">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-red-600 animate-pulse" />
+                                  <span>{isBn ? "স্থগিত / ব্যান" : "Suspended"}</span>
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-[10px] font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-600" />
+                                  <span>{isBn ? "সক্রিয়" : "Active"}</span>
+                                </span>
+                              )}
+                            </td>
+
+                            {/* Actions */}
+                            <td className="p-3.5 text-right">
+                              {isSelf ? (
+                                <span className="px-2.5 py-1 text-[11px] font-bold text-slate-400 bg-slate-50 rounded-lg border border-slate-200">
+                                  {isBn ? "আপনি নিজে" : "Your Account"}
+                                </span>
+                              ) : isProtectedAdmin ? (
+                                <span className="px-2.5 py-1 text-[11px] font-bold text-purple-700 bg-purple-50 rounded-lg border border-purple-200">
+                                  {isBn ? "সুরক্ষিত অ্যাডমিন" : "Protected Admin"}
+                                </span>
+                              ) : u.isBanned ? (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setBanTargetUser(u);
+                                    setBanModalAction("unban");
+                                    setBanModalReason(isBn ? "নাগরিক অ্যাকাউন্টের নিষেধাজ্ঞা প্রত্যাহার" : "Account suspension lift post review");
+                                  }}
+                                  className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-xl font-bold inline-flex items-center gap-1.5 transition-colors shadow-2xs cursor-pointer active:scale-95 text-xs"
+                                >
+                                  <UserCheck className="w-3.5 h-3.5" />
+                                  <span>{isBn ? "পুনরুদ্ধার" : "Unban"}</span>
+                                </button>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setBanTargetUser(u);
+                                    setBanModalAction("ban");
+                                    setBanModalReason(isBn ? "বারংবার স্প্যাম বা ভুয়া রিপোর্ট দাখিল" : "Repeated false incident reporting");
+                                  }}
+                                  className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl font-bold inline-flex items-center gap-1.5 transition-colors shadow-2xs cursor-pointer active:scale-95 text-xs"
+                                >
+                                  <UserX className="w-3.5 h-3.5" />
+                                  <span>{isBn ? "ব্যান করুন" : "Suspend"}</span>
+                                </button>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
               </div>
 
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  {isBn ? "স্থগিতের কারণ / কেস রেফারেন্স *" : "Reason / Case Reference *"}
-                </label>
-                <input
-                  type="text"
-                  value={banReason}
-                  onChange={(e) => setBanReason(e.target.value)}
-                  placeholder={isBn ? "ধানমন্ডিতে বারবার মিথ্যা ছিনতাইয়ের রিপোর্ট" : "Repeated false mugging reports"}
-                  className="w-full px-3.5 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-900 focus:bg-white focus:ring-1 focus:ring-purple-500 focus:outline-none transition-colors"
-                />
-              </div>
+              {/* Table Footer with Pagination */}
+              {usersTotal > 0 && (
+                <div className="p-3.5 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-600 font-medium">
+                  <div>
+                    {isBn ? (
+                      <>
+                        মোট <strong className="text-slate-900 font-bold">{usersTotal}</strong> জন নাগরিকের মধ্যে{" "}
+                        <strong className="text-slate-900 font-bold">{(usersPage - 1) * usersLimit + 1}</strong> থেকে{" "}
+                        <strong className="text-slate-900 font-bold">{Math.min(usersPage * usersLimit, usersTotal)}</strong> দেখানো হচ্ছে
+                      </>
+                    ) : (
+                      <>
+                        Showing <strong className="text-slate-900 font-bold">{(usersPage - 1) * usersLimit + 1}</strong>-
+                        <strong className="text-slate-900 font-bold">{Math.min(usersPage * usersLimit, usersTotal)}</strong> of{" "}
+                        <strong className="text-slate-900 font-bold">{usersTotal}</strong> citizens
+                      </>
+                    )}
+                  </div>
 
-              <div className="flex gap-3 pt-2">
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      disabled={usersPage <= 1}
+                      onClick={() => {
+                        const prev = usersPage - 1;
+                        setUsersPage(prev);
+                        fetchUsers(userSearchQuery, userRoleFilter, userStatusFilter, prev, userSortBy);
+                      }}
+                      className="px-3 py-1.5 bg-white hover:bg-slate-100 disabled:opacity-40 text-slate-700 font-bold rounded-xl border border-slate-200 transition-colors flex items-center gap-1 cursor-pointer"
+                    >
+                      <ChevronLeft className="w-3.5 h-3.5" />
+                      <span>{isBn ? "পূর্ববর্তী" : "Previous"}</span>
+                    </button>
+                    <span className="px-2 py-1 font-mono text-[11px] font-bold text-slate-700">
+                      {usersPage} / {Math.ceil(usersTotal / usersLimit) || 1}
+                    </span>
+                    <button
+                      type="button"
+                      disabled={usersPage >= Math.ceil(usersTotal / usersLimit)}
+                      onClick={() => {
+                        const next = usersPage + 1;
+                        setUsersPage(next);
+                        fetchUsers(userSearchQuery, userRoleFilter, userStatusFilter, next, userSortBy);
+                      }}
+                      className="px-3 py-1.5 bg-white hover:bg-slate-100 disabled:opacity-40 text-slate-700 font-bold rounded-xl border border-slate-200 transition-colors flex items-center gap-1 cursor-pointer"
+                    >
+                      <span>{isBn ? "পরবর্তী" : "Next"}</span>
+                      <ChevronRight className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Quick Action Box: Direct Identifier Manual Override */}
+            <div className="bg-slate-100/70 border border-slate-200 rounded-2xl p-4 space-y-3">
+              <div className="flex items-center gap-2 text-xs font-bold text-slate-800">
+                <ShieldAlert className="w-4 h-4 text-purple-700" />
+                <span>{isBn ? "সরাসরি আইডেন্টিফায়ার অ্যাকশন (ম্যানুয়াল ওভাররাইড)" : "Direct Identifier Action (Manual Override)"}</span>
+              </div>
+              <p className="text-[11px] text-slate-500 leading-relaxed">
+                {isBn
+                  ? "ডিরেক্টরি ছাড়া কোনো নির্দিষ্ট ইমেইল, মোবাইল নম্বর, ডিভাইস অ্যানোনিমাস আইডি বা ইউইউআইডি দিয়ে তাত্ক্ষণিকভাবে অ্যাকাউন্ট নিয়ন্ত্রণ করুন:"
+                  : "Quickly ban or unban an account by typing any target Email, Phone Number, Device Anonymous ID, or raw UUID:"}
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                    {isBn ? "টার্গেট আইডেন্টিফায়ার (Email / Phone / Anon ID / UUID) *" : "Target Identifier (Email / Phone / Anon ID / UUID) *"}
+                  </label>
+                  <input
+                    id="admin-ban-user-id"
+                    type="text"
+                    value={banUserId}
+                    onChange={(e) => setBanUserId(e.target.value)}
+                    placeholder="e.g. citizen@example.com or +88017... or UUID"
+                    className="w-full px-3.5 py-2 text-xs bg-white border border-slate-200 rounded-xl text-slate-900 font-mono focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 focus:outline-none transition-colors"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                    {isBn ? "মডারেশন কারণ / রেফারেন্স *" : "Moderation Reason / Case Reference *"}
+                  </label>
+                  <input
+                    type="text"
+                    value={banReason}
+                    onChange={(e) => setBanReason(e.target.value)}
+                    placeholder={isBn ? "ধানমন্ডিতে মিথ্যা রিপোর্টিং" : "Repeated false hazard reports"}
+                    className="w-full px-3.5 py-2 text-xs bg-white border border-slate-200 rounded-xl text-slate-900 focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 focus:outline-none transition-colors"
+                  />
+                </div>
+              </div>
+              <div className="flex gap-2.5 pt-1">
                 <button
+                  type="button"
                   onClick={() => handleBanUser("ban")}
-                  className="px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 shadow-xs transition-all active:scale-95 cursor-pointer"
+                  className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 shadow-xs transition-all active:scale-95 cursor-pointer"
                 >
                   <UserX className="w-3.5 h-3.5" />
-                  <span>{isBn ? "ইউজার স্থগিত / ব্যান করুন" : "Suspend / Ban User"}</span>
+                  <span>{isBn ? "স্থগিত / ব্যান করুন" : "Suspend Account"}</span>
                 </button>
-
                 <button
+                  type="button"
                   onClick={() => handleBanUser("unban")}
-                  className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl flex items-center gap-1.5 border border-slate-200 transition-colors cursor-pointer"
+                  className="px-4 py-2 bg-white hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl flex items-center gap-1.5 border border-slate-200 transition-colors cursor-pointer"
                 >
                   <UserCheck className="w-3.5 h-3.5" />
-                  <span>{isBn ? "অ্যাকাউন্ট পুনরুদ্ধার করুন" : "Unban Account"}</span>
+                  <span>{isBn ? "অ্যাকাউন্ট পুনরুদ্ধার" : "Restore Account"}</span>
                 </button>
               </div>
             </div>
@@ -1427,6 +1996,158 @@ export default function AdminPage() {
                   <>
                     <Trash2 className="w-3.5 h-3.5" />
                     <span>{isBn ? "প্রত্যাখ্যান নিশ্চিত করুন" : "Confirm Rejection"}</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ------------------------------------------------------------- */}
+      {/* Ban / Unban User Modal Dialog */}
+      {/* ------------------------------------------------------------- */}
+      {banTargetUser && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setBanTargetUser(null);
+          }}
+        >
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-lg w-full p-6 space-y-4 animate-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <div
+                  className={`w-8 h-8 rounded-xl flex items-center justify-center ${
+                    banModalAction === "ban" ? "bg-red-50 text-red-600" : "bg-emerald-50 text-emerald-600"
+                  }`}
+                >
+                  {banModalAction === "ban" ? <UserX className="w-4 h-4" /> : <UserCheck className="w-4 h-4" />}
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900">
+                    {banModalAction === "ban"
+                      ? isBn ? "নাগরিক অ্যাকাউন্ট স্থগিত ও ব্যান" : "Suspend Citizen Account"
+                      : isBn ? "নাগরিক অ্যাকাউন্ট পুনরুদ্ধার" : "Restore Citizen Account"}
+                  </h3>
+                  <p className="text-[11px] text-slate-500 font-medium">
+                    {banModalAction === "ban"
+                      ? isBn ? "স্থগিত নাগরিকরা কোনো নতুন রিপোর্ট বা ভোট দিতে পারবেন না" : "Suspended citizens cannot submit pins or cast votes"
+                      : isBn ? "অ্যাকাউন্ট পুনরুদ্ধার করে পূর্ণ নাগরিক সুবিধা ফিরিয়ে দিন" : "Restore citizen rights to submit hazard reports"}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setBanTargetUser(null)}
+                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-colors"
+                aria-label="Close modal"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Target Identity Summary Box */}
+            <div className="p-3.5 bg-slate-50 border border-slate-200/80 rounded-xl space-y-2 text-xs">
+              <div className="flex items-center justify-between">
+                <span className="text-slate-500 font-medium">{isBn ? "নাগরিক পরিচয়:" : "Citizen Handle:"}</span>
+                <span className="font-bold text-slate-900 font-mono">{banTargetUser.email || banTargetUser.anonymousId}</span>
+              </div>
+              {banTargetUser.phoneNumber && (
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-500 font-medium">{isBn ? "মোবাইল নম্বর:" : "Mobile:"}</span>
+                  <span className="font-mono text-slate-700">{banTargetUser.phoneNumber}</span>
+                </div>
+              )}
+              <div className="flex items-center justify-between">
+                <span className="text-slate-500 font-medium">{isBn ? "ইউজার আইডি (UUID):" : "User UUID:"}</span>
+                <span className="font-mono text-[11px] text-slate-600">{banTargetUser.id}</span>
+              </div>
+              <div className="flex items-center justify-between pt-1 border-t border-slate-200/60 text-[11px]">
+                <span className="text-slate-500">{isBn ? "ট্রাস্ট স্কোর:" : "Trust Score:"}</span>
+                <span className="font-bold text-purple-700">{banTargetUser.trustScore ?? 0} / 100</span>
+              </div>
+            </div>
+
+            {/* Reason Presets */}
+            {banModalAction === "ban" && (
+              <div className="space-y-1.5">
+                <label className="block text-[11px] font-bold text-slate-700">
+                  {isBn ? "দ্রুত কারণ নির্বাচন করুন (প্রিসেট):" : "Quick Reason Presets:"}
+                </label>
+                <div className="flex flex-wrap gap-1.5">
+                  {[
+                    isBn ? "বারংবার মিথ্যা রিপোর্ট দাখিল" : "Repeated false hazard reports",
+                    isBn ? "আপত্তিকর ভাষা ও অসদাচরণ" : "Abusive language / harassment",
+                    isBn ? "জিপিএস স্পুফিং ও ভুয়া অবস্থান" : "GPS spoofing / fake location",
+                    isBn ? "স্প্যামিং ও স্বয়ংক্রিয় বোট অ্যাক্টিভিটি" : "Automated spam / bot activity",
+                  ].map((preset) => (
+                    <button
+                      key={preset}
+                      type="button"
+                      onClick={() => setBanModalReason(preset)}
+                      className="px-2.5 py-1 text-[11px] bg-slate-100 hover:bg-purple-50 hover:text-purple-700 text-slate-700 rounded-lg border border-slate-200 transition-colors cursor-pointer"
+                    >
+                      {preset}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Reason Input */}
+            <div className="space-y-1.5">
+              <label className="block text-xs font-bold text-slate-700">
+                {banModalAction === "ban"
+                  ? isBn ? "স্থগিতের সুনির্দিষ্ট কারণ (অডিট লগে সংরক্ষিত হবে) *" : "Reason for Suspension (Recorded in Audit Log) *"
+                  : isBn ? "পুনরুদ্ধারের কারণ (অডিট লগে সংরক্ষিত হবে) *" : "Reason for Restoration (Recorded in Audit Log) *"}
+              </label>
+              <textarea
+                value={banModalReason}
+                onChange={(e) => setBanModalReason(e.target.value)}
+                placeholder={
+                  banModalAction === "ban"
+                    ? isBn ? "স্থগিতের কারণ বিস্তারিত লিখুন (কমপক্ষে ৩ অক্ষর)..." : "Specify the reason for this account suspension (min 3 chars)..."
+                    : isBn ? "অ্যাকাউন্ট ফিরিয়ে দেওয়ার কারণ লিখুন..." : "Specify the reason for restoring this citizen account..."
+                }
+                rows={3}
+                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 focus:outline-none transition-colors resize-none"
+              />
+            </div>
+
+            {/* Modal Actions */}
+            <div className="flex gap-2.5 justify-end pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setBanTargetUser(null)}
+                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+              >
+                {isBn ? "বাতিল" : "Cancel"}
+              </button>
+              <button
+                type="button"
+                onClick={executeModalBanAction}
+                disabled={isSubmittingBan || banModalReason.trim().length < 3}
+                className={`px-4 py-2 rounded-xl text-xs font-bold text-white shadow-xs transition-all active:scale-95 cursor-pointer flex items-center gap-1.5 disabled:opacity-50 ${
+                  banModalAction === "ban" ? "bg-red-600 hover:bg-red-700" : "bg-emerald-600 hover:bg-emerald-700"
+                }`}
+              >
+                {isSubmittingBan ? (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    <span>{isBn ? "প্রক্রিয়াধীন..." : "Processing..."}</span>
+                  </>
+                ) : banModalAction === "ban" ? (
+                  <>
+                    <UserX className="w-3.5 h-3.5" />
+                    <span>{isBn ? "স্থগিত নিশ্চিত করুন" : "Confirm Suspension"}</span>
+                  </>
+                ) : (
+                  <>
+                    <UserCheck className="w-3.5 h-3.5" />
+                    <span>{isBn ? "পুনরুদ্ধার নিশ্চিত করুন" : "Confirm Restoration"}</span>
                   </>
                 )}
               </button>
