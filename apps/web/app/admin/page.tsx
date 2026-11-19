@@ -19,12 +19,14 @@ import AdminLogsSection from "@/components/admin/AdminLogsSection";
 import AdminPurgeModal from "@/components/admin/AdminPurgeModal";
 import AdminRejectModal from "@/components/admin/AdminRejectModal";
 import AdminShortcutsModal from "@/components/admin/AdminShortcutsModal";
+import AdminBanModal from "@/components/admin/AdminBanModal";
 import {
   AdminTab,
   AdminReport,
   AdminVerification,
   AdminLog,
   AdminTrends,
+  AdminUser,
 } from "@/components/admin/types";
 
 export default function AdminPage() {
@@ -55,6 +57,17 @@ export default function AdminPage() {
   const [rejectTarget, setRejectTarget] = useState<AdminVerification | null>(null);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
 
+  // Ban / Moderation Modal State
+  const [banModalTarget, setBanModalTarget] = useState<{
+    id: string;
+    email?: string | null;
+    anonymousId?: string;
+    role?: string;
+    trustScore?: number;
+    isBanned?: boolean;
+  } | null>(null);
+  const [banModalAction, setBanModalAction] = useState<"ban" | "unban">("ban");
+
   // Initialize Auth
   useEffect(() => {
     initAuth();
@@ -78,11 +91,19 @@ export default function AdminPage() {
     setIsLoadingData(true);
     setDataError(null);
     try {
-      // 1. Fetch live reports
-      const reportsData = await apiFetch<AdminReport[]>(
-        "/reports?minLat=20&maxLat=27&minLng=88&maxLng=93"
-      );
-      setReports(reportsData || []);
+      // 1. Fetch live reports with populated author metadata
+      const adminReportsData = await apiFetch<{ reports: AdminReport[] }>(
+        "/admin/reports?limit=50"
+      ).catch(() => null);
+
+      if (adminReportsData && Array.isArray(adminReportsData.reports)) {
+        setReports(adminReportsData.reports);
+      } else {
+        const fallbackReports = await apiFetch<AdminReport[]>(
+          "/reports?minLat=20&maxLat=27&minLng=88&maxLng=93"
+        );
+        setReports(fallbackReports || []);
+      }
 
       // 2. Fetch moderation audit logs
       const logsData = await apiFetch<{ logs: AdminLog[] }>("/admin/logs?page=1&limit=30");
@@ -131,11 +152,10 @@ export default function AdminPage() {
       fetchAdminData();
     } catch (err: any) {
       showToast(err.message || "Failed to purge report.", "error");
-      throw err;
     }
   };
 
-  // Reject KYC Verification Execution
+  // Reject Verification Execution
   const executeReject = async (reason: string) => {
     if (!rejectTarget) return;
     try {
@@ -144,26 +164,19 @@ export default function AdminPage() {
         body: JSON.stringify({ reason }),
       });
       showToast(
-        isBn
-          ? "কেওয়াইসি ভেরিফিকেশন সফলভাবে প্রত্যাখ্যান করা হয়েছে।"
-          : "Verification rejected successfully.",
+        isBn ? "কেওয়াইসি আবেদন প্রত্যাখ্যাত হয়েছে।" : "KYC application rejected.",
         "success"
       );
       setRejectTarget(null);
       fetchAdminData();
     } catch (err: any) {
       showToast(err.message || "Failed to reject verification.", "error");
-      throw err;
     }
   };
 
-  // Approve KYC Verification Execution
+  // Approve Verification Execution
   const handleApproveVerification = useCallback(
     async (verifId: string) => {
-      const msg = isBn
-        ? "আপনি কি নিশ্চিত যে এই নাগরিকের কেওয়াইসি অনুমোদন করে রেসপন্ডার পদে উন্নীত করবেন?"
-        : "Approve this citizen's KYC verification and promote role to VERIFIED_RESPONDER?";
-      if (!window.confirm(msg)) return;
       try {
         await apiFetch(`/admin/verifications/${verifId}/approve`, {
           method: "POST",
@@ -180,10 +193,10 @@ export default function AdminPage() {
     [fetchAdminData, isBn]
   );
 
-  // Ban / Unban User Execution
-  const handleBanUser = async (userId: string, reason: string, action: "ban" | "unban") => {
+  // Ban / Unban User Execution (Multi-Identifier Supported)
+  const handleBanUser = async (identifier: string, reason: string, action: "ban" | "unban") => {
     try {
-      await apiFetch(`/admin/users/${userId}/${action}`, {
+      await apiFetch(`/admin/users/${encodeURIComponent(identifier)}/${action}`, {
         method: "POST",
         body: JSON.stringify({ reason }),
       });
@@ -197,6 +210,7 @@ export default function AdminPage() {
           : "User restored successfully.",
         "success"
       );
+      setBanModalTarget(null);
       fetchAdminData();
     } catch (err: any) {
       showToast(err.message || `Failed to ${action} user.`, "error");
@@ -213,30 +227,42 @@ export default function AdminPage() {
         : "Crawling Bangladesh news feeds (Google News & Daily Star)..."
     );
     try {
-      const res = await apiFetch<any>("/admin/news/crawl", { method: "POST" });
-      setCrawlStatus(
-        isBn
-          ? `সফল: ${res?.totalIngested ?? 0} টি রিপোর্ট যুক্ত হয়েছে, ${res?.totalVerifiedMatches ?? 0} টি ক্রস-ভেরিফাই হয়েছে!`
-          : `Finished: ${res?.totalIngested ?? 0} incidents added, ${res?.totalVerifiedMatches ?? 0} cross-verified!`
-      );
+      const res = await apiFetch<{
+        message?: string;
+        createdIncidents?: number;
+        scannedFeeds?: number;
+      }>("/cron/news-crawl", {
+        method: "POST",
+      });
+      const count = res?.createdIncidents ?? 0;
+      const feeds = res?.scannedFeeds ?? 22;
+      const successMsg = isBn
+        ? `নিউজ ক্রল সম্পন্ন! ${feeds}টি ফিড থেকে ${count}টি নতুন বিপদচিহ্ন যোগ হয়েছে।`
+        : `News crawl finished! Added ${count} incidents from ${feeds} feeds.`;
+      setCrawlStatus(successMsg);
+      showToast(successMsg, "success");
       fetchAdminData();
     } catch (err: any) {
-      setCrawlStatus(isBn ? `ত্রুটি: ${err.message}` : `Error: ${err.message}`);
+      const failMsg =
+        err?.message ||
+        (isBn ? "সংবাদ ক্রল প্রক্রিয়া ব্যর্থ হয়েছে।" : "News crawler execution failed.");
+      setCrawlStatus(failMsg);
+      showToast(failMsg, "error");
     } finally {
       setIsCrawling(false);
     }
   };
 
-  // Keyboard Shortcuts: [P], [B], [A], [R], [Esc], [?]
+  // Global Keyboard Shortcuts
   useEffect(() => {
-    if (user?.role !== "ADMIN") return;
-
     const handleKeyDown = (e: KeyboardEvent) => {
-      const targetTag = (e.target as HTMLElement)?.tagName?.toLowerCase();
-      if (targetTag === "input" || targetTag === "textarea" || targetTag === "select") {
-        if (e.key === "Escape") {
-          (e.target as HTMLElement).blur();
-        }
+      if (user?.role !== "ADMIN") return;
+
+      const target = e.target as HTMLElement;
+      if (
+        ["INPUT", "TEXTAREA", "SELECT"].includes(target?.tagName) ||
+        target?.isContentEditable
+      ) {
         return;
       }
 
@@ -245,6 +271,7 @@ export default function AdminPage() {
       if (e.key === "Escape") {
         setPurgeTarget(null);
         setRejectTarget(null);
+        setBanModalTarget(null);
         setShortcutsOpen(false);
       } else if (key === "P") {
         if (reports.length > 0) {
@@ -255,10 +282,6 @@ export default function AdminPage() {
       } else if (key === "B") {
         e.preventDefault();
         setActiveTab("users");
-        setTimeout(() => {
-          const input = document.getElementById("admin-ban-user-id");
-          if (input) input.focus();
-        }, 50);
       } else if (key === "A") {
         if (verifications.length > 0) {
           e.preventDefault();
@@ -344,6 +367,10 @@ export default function AdminPage() {
               reports={reports}
               isBn={isBn}
               onSelectPurge={setPurgeTarget}
+              onSelectBanUser={(u, action) => {
+                setBanModalTarget(u);
+                setBanModalAction(action);
+              }}
             />
           )}
 
@@ -360,7 +387,11 @@ export default function AdminPage() {
             <AdminUsersSection
               logs={logs}
               isBn={isBn}
-              onBanUser={handleBanUser}
+              onSelectBanUser={(u, action) => {
+                setBanModalTarget(u);
+                setBanModalAction(action);
+              }}
+              onDirectBanIdentifier={handleBanUser}
             />
           )}
 
@@ -389,6 +420,18 @@ export default function AdminPage() {
           isBn={isBn}
           onClose={() => setRejectTarget(null)}
           onConfirm={executeReject}
+        />
+      )}
+
+      {banModalTarget && (
+        <AdminBanModal
+          user={banModalTarget}
+          action={banModalAction}
+          isBn={isBn}
+          onClose={() => setBanModalTarget(null)}
+          onConfirm={async (reason) => {
+            await handleBanUser(banModalTarget.id, reason, banModalAction);
+          }}
         />
       )}
 

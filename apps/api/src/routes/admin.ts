@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { ModerationAction, ReportCategory, ReportSeverity } from '@prisma/client';
+import { ModerationAction, ReportCategory, ReportSeverity, ReportStatus, Role } from '@prisma/client';
 import { z } from 'zod';
 import { requireAuth } from '../middleware/requireAuth';
 import { requireRole } from '../middleware/requireRole';
@@ -17,6 +17,8 @@ import {
   approveVerificationHandler,
   rejectVerificationHandler,
   triggerNewsCrawlHandler,
+  getUsersHandler,
+  getAdminReportsHandler,
 } from '../controllers/adminController';
 
 const router = Router();
@@ -34,10 +36,65 @@ const reasonSchema = z.object({
   }).passthrough(),
 });
 
+const userBanReasonSchema = z.object({
+  body: z.object({
+    reason: z
+      .string()
+      .min(3, { message: 'Reason must be at least 3 characters' })
+      .max(500, { message: 'Reason cannot exceed 500 characters' }),
+  }).strict(),
+  params: z.object({
+    id: z.string().min(1, { message: 'User identifier is required' }).max(120),
+  }).passthrough(),
+});
+
 const approveSchema = z.object({
   params: z.object({
     id: z.string().uuid({ message: 'Valid UUID is required' }),
   }).passthrough(),
+});
+
+const usersQuerySchema = z.object({
+  query: z.object({
+    search: z.string().trim().max(100).optional(),
+    role: z.nativeEnum(Role).optional(),
+    isBanned: z.enum(['true', 'false']).optional(),
+    isVerified: z.enum(['true', 'false']).optional(),
+    page: z
+      .string()
+      .trim()
+      .regex(/^[1-9]\d*$/, 'page must be a positive integer')
+      .optional(),
+    limit: z
+      .string()
+      .trim()
+      .regex(/^[1-9]\d*$/, 'limit must be a positive integer between 1 and 100')
+      .refine((val) => Number(val) >= 1 && Number(val) <= 100, 'limit must be between 1 and 100')
+      .optional(),
+    sortBy: z.enum(['createdAt', 'trustScore', 'lastReportAt']).optional(),
+    sortOrder: z.enum(['asc', 'desc']).optional(),
+  }).strict(),
+});
+
+const adminReportsQuerySchema = z.object({
+  query: z.object({
+    search: z.string().trim().max(100).optional(),
+    category: z.nativeEnum(ReportCategory).optional(),
+    severity: z.nativeEnum(ReportSeverity).optional(),
+    status: z.nativeEnum(ReportStatus).optional(),
+    userId: z.string().uuid().optional(),
+    page: z
+      .string()
+      .trim()
+      .regex(/^[1-9]\d*$/, 'page must be a positive integer')
+      .optional(),
+    limit: z
+      .string()
+      .trim()
+      .regex(/^[1-9]\d*$/, 'limit must be a positive integer between 1 and 100')
+      .refine((val) => Number(val) >= 1 && Number(val) <= 100, 'limit must be between 1 and 100')
+      .optional(),
+  }).strict(),
 });
 
 const logsQuerySchema = z.object({
@@ -93,8 +150,11 @@ const reclassifyReportSchema = z.object({
 // All routes require authentication and ADMIN role
 router.use(requireAuth, requireRole(['ADMIN']));
 
-router.post('/users/:id/ban', validateRequest(reasonSchema), banUserHandler);
-router.post('/users/:id/unban', validateRequest(reasonSchema), unbanUserHandler);
+router.get('/users', validateRequest(usersQuerySchema), getUsersHandler);
+router.post('/users/:id/ban', validateRequest(userBanReasonSchema), banUserHandler);
+router.post('/users/:id/unban', validateRequest(userBanReasonSchema), unbanUserHandler);
+
+router.get('/reports', validateRequest(adminReportsQuerySchema), getAdminReportsHandler);
 router.post('/reports/:id/purge', validateRequest(reasonSchema), purgeReportHandler);
 router.patch('/reports/:id/verify', validateRequest(verifyReportSchema), async (req: Request, res: Response, next) => {
   try {

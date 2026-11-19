@@ -14,8 +14,31 @@ export interface AdminReport {
   updatedAt?: string;
   user?: {
     id: string;
+    email?: string | null;
+    anonymousId?: string;
+    phoneNumber?: string | null;
     trustScore?: number;
     role?: string;
+    isBanned?: boolean;
+    isVerified?: boolean;
+  };
+}
+
+export interface AdminUser {
+  id: string;
+  email: string | null;
+  phoneNumber: string | null;
+  anonymousId: string;
+  role: "USER" | "VERIFIED_RESPONDER" | "ADMIN" | string;
+  isVerified: boolean;
+  trustScore: number;
+  isBanned: boolean;
+  createdAt: string;
+  updatedAt: string;
+  _count?: {
+    reports: number;
+    votes: number;
+    verifications?: number;
   };
 }
 

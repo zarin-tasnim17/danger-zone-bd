@@ -1,7 +1,26 @@
-import { ModerationAction, ReportCategory, ReportSeverity } from '@prisma/client';
+import { ModerationAction, ReportCategory, ReportSeverity, ReportStatus, Role } from '@prisma/client';
 import { prisma } from '../db/prisma';
 import { emitReportPurged } from '../sockets';
 import { broadcastPlatformStats } from './statsService';
+
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+export const findUserByIdentifier = async (identifier: string) => {
+  const trimmed = identifier.trim();
+  if (UUID_REGEX.test(trimmed)) {
+    const user = await prisma.user.findUnique({ where: { id: trimmed } });
+    if (user) return user;
+  }
+  return prisma.user.findFirst({
+    where: {
+      OR: [
+        { email: { equals: trimmed.toLowerCase(), mode: 'insensitive' } },
+        { anonymousId: trimmed },
+        { phoneNumber: trimmed },
+      ],
+    },
+  });
+};
 
 export interface ModerationLogOutput {
   id: string;
@@ -16,30 +35,34 @@ export interface ModerationLogOutput {
 const SAFE_ADMIN_USER_SELECT = {
   id: true,
   email: true,
+  phoneNumber: true,
+  anonymousId: true,
   role: true,
   isVerified: true,
   trustScore: true,
   isBanned: true,
+  lastReportAt: true,
   createdAt: true,
 } as const;
 
 /**
  * Bans a user account, revokes all active refresh tokens, and records an immutable entry in ModerationLog.
+ * Accepts either UUID, email, phone number, or anonymousId.
  */
 export const banUser = async (
   adminId: string,
-  targetUserId: string,
+  targetIdentifier: string,
   reason: string
 ) => {
-  const targetUser = await prisma.user.findUnique({
-    where: { id: targetUserId },
-  });
+  const targetUser = await findUserByIdentifier(targetIdentifier);
 
   if (!targetUser) {
     const error: any = new Error('User not found');
     error.statusCode = 404;
     throw error;
   }
+
+  const targetUserId = targetUser.id;
 
   if (targetUser.id === adminId) {
     const error: any = new Error('Administrators cannot ban their own account');
@@ -87,21 +110,22 @@ export const banUser = async (
 
 /**
  * Unbans a user account and records an immutable entry in ModerationLog.
+ * Accepts either UUID, email, phone number, or anonymousId.
  */
 export const unbanUser = async (
   adminId: string,
-  targetUserId: string,
+  targetIdentifier: string,
   reason: string
 ) => {
-  const targetUser = await prisma.user.findUnique({
-    where: { id: targetUserId },
-  });
+  const targetUser = await findUserByIdentifier(targetIdentifier);
 
   if (!targetUser) {
     const error: any = new Error('User not found');
     error.statusCode = 404;
     throw error;
   }
+
+  const targetUserId = targetUser.id;
 
   if (!targetUser.isBanned) {
     const error: any = new Error('User is not banned');
@@ -427,4 +451,199 @@ export const reclassifyReport = async (
   ]);
 
   return { report: updatedReport, log };
+};
+
+export interface GetAdminUsersParams {
+  search?: string;
+  role?: Role;
+  isBanned?: boolean;
+  isVerified?: boolean;
+  page?: number;
+  limit?: number;
+  sortBy?: 'createdAt' | 'trustScore' | 'lastReportAt';
+  sortOrder?: 'asc' | 'desc';
+}
+
+/**
+ * Retrieves paginated users list with search by email, phone, anonymousId, or UUID,
+ * with role/status filters and aggregated activity metrics.
+ */
+export const getAdminUsers = async (params: GetAdminUsersParams = {}) => {
+  const page = Math.max(1, params.page || 1);
+  const limit = Math.min(100, Math.max(1, params.limit || 20));
+  const skip = (page - 1) * limit;
+
+  const whereConditions: any[] = [];
+
+  if (params.search && params.search.trim()) {
+    const term = params.search.trim();
+    const isUuid = UUID_REGEX.test(term);
+    const searchConditions: any[] = [
+      { email: { contains: term, mode: 'insensitive' } },
+      { anonymousId: { contains: term, mode: 'insensitive' } },
+      { phoneNumber: { contains: term } },
+    ];
+    if (isUuid) {
+      searchConditions.push({ id: term });
+    }
+    whereConditions.push({ OR: searchConditions });
+  }
+
+  if (params.role) {
+    whereConditions.push({ role: params.role });
+  }
+
+  if (typeof params.isBanned === 'boolean') {
+    whereConditions.push({ isBanned: params.isBanned });
+  }
+
+  if (typeof params.isVerified === 'boolean') {
+    whereConditions.push({ isVerified: params.isVerified });
+  }
+
+  const where = whereConditions.length > 0 ? { AND: whereConditions } : {};
+
+  const validSortFields = ['createdAt', 'trustScore', 'lastReportAt'] as const;
+  const sortField = validSortFields.includes(params.sortBy as any) ? params.sortBy! : 'createdAt';
+  const sortOrder = params.sortOrder === 'asc' ? 'asc' : 'desc';
+
+  const [total, users] = await prisma.$transaction([
+    prisma.user.count({ where }),
+    prisma.user.findMany({
+      where,
+      skip,
+      take: limit,
+      orderBy: { [sortField]: sortOrder },
+      select: {
+        id: true,
+        email: true,
+        phoneNumber: true,
+        anonymousId: true,
+        role: true,
+        isVerified: true,
+        trustScore: true,
+        isBanned: true,
+        lastReportAt: true,
+        createdAt: true,
+        updatedAt: true,
+        _count: {
+          select: {
+            reports: true,
+            votes: true,
+            verifications: true,
+          },
+        },
+      },
+    }),
+  ]);
+
+  return {
+    users,
+    pagination: {
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    },
+  };
+};
+
+export interface GetAdminReportsParams {
+  search?: string;
+  category?: ReportCategory;
+  severity?: ReportSeverity;
+  status?: ReportStatus;
+  userId?: string;
+  page?: number;
+  limit?: number;
+}
+
+/**
+ * Retrieves paginated reports for moderation with rich metadata, including
+ * reporter account details, verification status, and attached evidence.
+ */
+export const getAdminReports = async (params: GetAdminReportsParams = {}) => {
+  const page = Math.max(1, params.page || 1);
+  const limit = Math.min(100, Math.max(1, params.limit || 20));
+  const skip = (page - 1) * limit;
+
+  const whereConditions: any[] = [];
+
+  if (params.category) {
+    whereConditions.push({ category: params.category });
+  }
+  if (params.severity) {
+    whereConditions.push({ severity: params.severity });
+  }
+  if (params.status) {
+    whereConditions.push({ status: params.status });
+  }
+  if (params.userId) {
+    whereConditions.push({ userId: params.userId });
+  }
+  if (params.search && params.search.trim()) {
+    whereConditions.push({
+      description: { contains: params.search.trim(), mode: 'insensitive' },
+    });
+  }
+
+  const where = whereConditions.length > 0 ? { AND: whereConditions } : {};
+
+  const [total, reports] = await prisma.$transaction([
+    prisma.report.count({ where }),
+    prisma.report.findMany({
+      where,
+      skip,
+      take: limit,
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        category: true,
+        severity: true,
+        status: true,
+        verificationStage: true,
+        description: true,
+        latitude: true,
+        longitude: true,
+        upvotes: true,
+        downvotes: true,
+        isNightReport: true,
+        isGpsVerified: true,
+        sourceName: true,
+        sourceUrl: true,
+        createdAt: true,
+        expiresAt: true,
+        userId: true,
+        user: {
+          select: {
+            id: true,
+            email: true,
+            phoneNumber: true,
+            anonymousId: true,
+            role: true,
+            trustScore: true,
+            isBanned: true,
+            isVerified: true,
+          },
+        },
+        media: {
+          select: {
+            id: true,
+            blurredUrl: true,
+            createdAt: true,
+          },
+        },
+      },
+    }),
+  ]);
+
+  return {
+    reports,
+    pagination: {
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    },
+  };
 };

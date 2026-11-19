@@ -17,12 +17,17 @@ interface AdminReportsSectionProps {
   reports: AdminReport[];
   isBn: boolean;
   onSelectPurge: (report: AdminReport) => void;
+  onSelectBanUser?: (
+    user: { id: string; email?: string | null; anonymousId?: string; role?: string; trustScore?: number; isBanned?: boolean },
+    action: "ban" | "unban"
+  ) => void;
 }
 
 export default function AdminReportsSection({
   reports,
   isBn,
   onSelectPurge,
+  onSelectBanUser,
 }: AdminReportsSectionProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [severityFilter, setSeverityFilter] = useState<string>("ALL");
@@ -118,6 +123,7 @@ export default function AdminReportsSection({
               <th className="p-3.5">{isBn ? "বিভাগ" : "Category"}</th>
               <th className="p-3.5">{isBn ? "তীব্রতা" : "Severity"}</th>
               <th className="p-3.5">{isBn ? "বিবরণ" : "Description"}</th>
+              <th className="p-3.5">{isBn ? "রিপোর্টার" : "Reporter"}</th>
               <th className="p-3.5">{isBn ? "ভোট" : "Votes"}</th>
               <th className="p-3.5">{isBn ? "সময়" : "Time"}</th>
               <th className="p-3.5 text-right">{isBn ? "পদক্ষেপ" : "Action"}</th>
@@ -126,7 +132,7 @@ export default function AdminReportsSection({
           <tbody className="divide-y divide-slate-100 text-slate-700">
             {filteredReports.length === 0 ? (
               <tr>
-                <td colSpan={6} className="p-10 text-center text-slate-500">
+                <td colSpan={7} className="p-10 text-center text-slate-500">
                   <div className="flex flex-col items-center justify-center space-y-2">
                     <ShieldAlert className="w-8 h-8 text-slate-300 stroke-[1.5]" />
                     <p className="text-xs font-medium">
@@ -177,6 +183,43 @@ export default function AdminReportsSection({
 
                   <td className="p-3.5 max-w-sm truncate text-slate-800" title={r.description || ""}>
                     {r.description || "—"}
+                  </td>
+
+                  {/* Reporter column */}
+                  <td className="p-3.5 whitespace-nowrap">
+                    {r.user ? (
+                      <div className="flex items-center gap-2">
+                        <div className="flex flex-col min-w-0">
+                          <span
+                            className="font-bold text-xs text-slate-900 truncate max-w-[120px]"
+                            title={r.user.email || r.user.anonymousId || r.user.id}
+                          >
+                            {r.user.email ? r.user.email.split("@")[0] : (r.user.anonymousId?.slice(0, 10) || "Anon")}
+                          </span>
+                          <span className="text-[10px] text-slate-400 font-mono">
+                            Trust: {r.user.trustScore ?? 50}/100
+                          </span>
+                        </div>
+                        {onSelectBanUser && r.user.role !== "ADMIN" && (
+                          <button
+                            type="button"
+                            onClick={() => onSelectBanUser(r.user!, r.user?.isBanned ? "unban" : "ban")}
+                            className={`px-2 py-0.5 text-[10px] font-bold rounded-md border transition-all cursor-pointer ${
+                              r.user.isBanned
+                                ? "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100"
+                                : "bg-red-50 text-red-700 border-red-200 hover:bg-red-100"
+                            }`}
+                            title={r.user.isBanned ? "Restore User" : "Suspend Reporter"}
+                          >
+                            {r.user.isBanned ? (isBn ? "পুনরুদ্ধার" : "Unban") : (isBn ? "ব্যান" : "Ban")}
+                          </button>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="text-slate-400 text-[11px] italic">
+                        {isBn ? "নাগরিক" : "Citizen"}
+                      </span>
+                    )}
                   </td>
 
                   <td className="p-3.5 font-medium text-slate-700 whitespace-nowrap">
@@ -253,6 +296,24 @@ export default function AdminReportsSection({
                 <p className="text-xs text-slate-700 leading-relaxed line-clamp-2">
                   {r.description}
                 </p>
+              )}
+
+              {/* Reporter in Mobile */}
+              {r.user && (
+                <div className="flex items-center justify-between py-1 px-2 rounded-lg bg-slate-50 border border-slate-100 text-[11px]">
+                  <span className="font-mono text-slate-600 truncate max-w-[160px]">
+                    Reporter: {r.user.email || r.user.anonymousId?.slice(0, 10)}
+                  </span>
+                  {onSelectBanUser && r.user.role !== "ADMIN" && (
+                    <button
+                      type="button"
+                      onClick={() => onSelectBanUser(r.user!, r.user?.isBanned ? "unban" : "ban")}
+                      className="text-[10px] font-bold text-red-600 hover:underline"
+                    >
+                      {r.user.isBanned ? "Unban" : "Ban"}
+                    </button>
+                  )}
+                </div>
               )}
 
               <div className="flex items-center justify-between pt-1 text-[11px] text-slate-500">
