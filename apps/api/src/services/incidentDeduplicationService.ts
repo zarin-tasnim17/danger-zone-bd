@@ -258,6 +258,28 @@ const RAW_BILINGUAL_CONCEPT_MAP: Record<string, string> = {
   'ট্রেন': 'train',
   'ট্রেনের': 'train',
   'train': 'train',
+  'নসিমন': 'nosimon',
+  'নসিমনের': 'nosimon',
+  'নছিমন': 'nosimon',
+  'nosimon': 'nosimon',
+  'করিমন': 'korimon',
+  'করিমনের': 'korimon',
+  'korimon': 'korimon',
+  'ভটভটি': 'bhotbhoti',
+  'ভটভটির': 'bhotbhoti',
+  'bhotbhoti': 'bhotbhoti',
+  'লেগুনা': 'leguna',
+  'লেগুনার': 'leguna',
+  'leguna': 'leguna',
+  'মাহিন্দ্রা': 'mahindra',
+  'মাহিন্দ্রার': 'mahindra',
+  'mahindra': 'mahindra',
+  'ট্রাক্টর': 'tractor',
+  'ট্রাক্টরের': 'tractor',
+  'tractor': 'tractor',
+  'অ্যাম্বুলেন্স': 'ambulance',
+  'অ্যাম্বুলেন্সের': 'ambulance',
+  'ambulance': 'ambulance',
 
   // Collision & Crash
   'সংঘর্ষ': 'collision',
@@ -544,9 +566,42 @@ function extractLocations(tokens: Set<string>): string[] {
   return locs;
 }
 
+const VEHICLE_CANONICAL_MAP: Record<string, string> = {
+  bus: 'BUS', buses: 'BUS', 'বাস': 'BUS', 'বাসের': 'BUS',
+  truck: 'TRUCK', trucks: 'TRUCK', 'ট্রাক': 'TRUCK', 'ট্রাকের': 'TRUCK', lorry: 'TRUCK', 'লরি': 'TRUCK', 'লরির': 'TRUCK',
+  pickup: 'PICKUP', 'পিকআপ': 'PICKUP', 'পিকআপের': 'PICKUP',
+  van: 'COVERED_VAN', 'covered van': 'COVERED_VAN', 'covered-van': 'COVERED_VAN', 'কাভার্ডভ্যান': 'COVERED_VAN', 'কাভার্ডভ্যানের': 'COVERED_VAN', 'ভ্যান': 'COVERED_VAN',
+  motorcycle: 'MOTORCYCLE', motorbike: 'MOTORCYCLE', bike: 'MOTORCYCLE', 'মোটরসাইকেল': 'MOTORCYCLE', 'মোটরসাইকেলের': 'MOTORCYCLE', 'বাইক': 'MOTORCYCLE', 'বাইকের': 'MOTORCYCLE',
+  cng: 'CNG', 'auto-rickshaw': 'CNG', autorickshaw: 'CNG', easybike: 'CNG', 'সিএনজি': 'CNG', 'সিএনজির': 'CNG', 'অটোরিকশা': 'CNG', 'ইজিবাইক': 'CNG', 'টমটম': 'CNG',
+  microbus: 'MICROBUS', 'মাইক্রোবাস': 'MICROBUS', 'মাইক্রোবাসের': 'MICROBUS', car: 'CAR', 'প্রাইভেটকার': 'CAR', 'কার': 'CAR',
+  train: 'TRAIN', 'ট্রেন': 'TRAIN', 'ট্রেনের': 'TRAIN',
+  nosimon: 'NOSIMON', 'নসিমন': 'NOSIMON', 'নসিমনের': 'NOSIMON', 'নছিমন': 'NOSIMON',
+  korimon: 'KORIMON', 'করিমন': 'KORIMON', 'করিমনের': 'KORIMON',
+  bhotbhoti: 'BHOTBHOTI', 'ভটভটি': 'BHOTBHOTI', 'ভটভটির': 'BHOTBHOTI',
+  leguna: 'LEGUNA', 'লেগুনা': 'LEGUNA', 'লেগুনার': 'LEGUNA',
+  mahindra: 'MAHINDRA', 'মাহিন্দ্রা': 'MAHINDRA', 'মাহিন্দ্রার': 'MAHINDRA',
+  tractor: 'TRACTOR', 'ট্রাক্টর': 'TRACTOR', 'ট্রাক্টরের': 'TRACTOR',
+  ambulance: 'AMBULANCE', 'অ্যাম্বুলেন্স': 'AMBULANCE', 'অ্যাম্বুলেন্সের': 'AMBULANCE',
+};
+
+export function extractVehicles(tokensOrText: Set<string> | string[] | string): Set<string> {
+  const vehicles = new Set<string>();
+  const tokenList: string[] = typeof tokensOrText === 'string'
+    ? Array.from(extractSignificantTokens(tokensOrText))
+    : Array.isArray(tokensOrText) ? tokensOrText : Array.from(tokensOrText);
+
+  for (const token of tokenList) {
+    const norm = token.toLowerCase().trim();
+    if (VEHICLE_CANONICAL_MAP[norm]) {
+      vehicles.add(VEHICLE_CANONICAL_MAP[norm]);
+    }
+  }
+  return vehicles;
+}
+
 /**
  * Calculates token overlap similarity between two titles.
- * Fully supports bilingual matching (English <-> Bangla).
+ * Fully supports bilingual matching (English <-> Bangla) and applies vehicle conflict penalty.
  */
 export function calculateStorySimilarity(
   title1: string,
@@ -576,6 +631,19 @@ export function calculateStorySimilarity(
     }
   }
 
+  // Vehicle Conflict Penalty:
+  // If both stories mention vehicle entities, but have completely disjoint sets of vehicles
+  // (e.g. Bus-Truck collision at 8 AM vs Covered Van-Motorcycle crash at 2 PM on the same highway)
+  const vehicles1 = extractVehicles(set1);
+  const vehicles2 = extractVehicles(set2);
+  let vehicleConflict = false;
+  if (vehicles1.size > 0 && vehicles2.size > 0) {
+    const hasSharedVehicle = Array.from(vehicles1).some((v) => vehicles2.has(v));
+    if (!hasSharedVehicle) {
+      vehicleConflict = true;
+    }
+  }
+
   const sharedTokens: string[] = [];
   for (const t of set1) {
     if (set2.has(t)) {
@@ -595,6 +663,13 @@ export function calculateStorySimilarity(
     'microbus',
     'cng',
     'motorcycle',
+    'nosimon',
+    'korimon',
+    'bhotbhoti',
+    'leguna',
+    'mahindra',
+    'tractor',
+    'ambulance',
     'collision',
     'accident',
     'killed',
@@ -626,58 +701,108 @@ export function calculateStorySimilarity(
 
   const sharedHighValue = sharedTokens.filter((st) => highValueEntities.includes(st));
 
+  let finalScore = Math.max(jaccard, overlapRatio);
+  if (vehicleConflict) {
+    finalScore = Math.max(0, finalScore - 0.40);
+  }
+
   // Incident Duplicate Criteria:
   // 1. 3 or more shared tokens and Jaccard >= 0.25
   // 2. OR 2 or more shared high-value entities (e.g. [truck, pickup] or [robbery, arrest]) and overlapRatio >= 0.35
   // 3. OR high overall overlap (>= 0.50)
-  const isDuplicate =
+  // Strictly disallowed if vehicleConflict is true
+  const isDuplicate = !vehicleConflict && (
     (sharedTokens.length >= 3 && jaccard >= 0.25) ||
     (sharedHighValue.length >= 2 && overlapRatio >= 0.35) ||
-    overlapRatio >= 0.5;
+    overlapRatio >= 0.5
+  );
 
   return {
     isDuplicate,
-    score: Math.max(jaccard, overlapRatio),
+    score: finalScore,
     sharedTokens,
   };
 }
 
 /**
  * Searches the database for an existing active report representing the same incident.
- * Checks spatial proximity (approx 3.5km), category match, and title token similarity.
+ * Checks spatial proximity (approx 3.5km, expanding to 35km for parent district centroid matches),
+ * category match, and title token similarity.
  */
 export async function findDuplicateActiveReport(params: {
   title: string;
   category: ReportCategory;
   latitude: number;
   longitude: number;
+  district?: string;
+  upazila?: string;
+  locationPrecision?: string;
   maxDistanceDegrees?: number;
   lookbackHours?: number;
-}): Promise<{ existingReport: Report; sharedTokens: string[] } | null> {
-  const { title, category, latitude, longitude } = params;
-  const maxDelta = params.maxDistanceDegrees ?? 0.035; // ~3.5 km
+}): Promise<{
+  existingReport: Report;
+  sharedTokens: string[];
+  shouldUpgradeCoords?: boolean;
+  newCoords?: { latitude: number; longitude: number; district?: string; upazila?: string };
+} | null> {
+  const { title, category, latitude, longitude, district, upazila, locationPrecision } = params;
+  let maxDelta = params.maxDistanceDegrees ?? 0.035; // ~3.5 km
   const lookbackHours = params.lookbackHours ?? 48; // 48 hours
   const cutoff = new Date(Date.now() - lookbackHours * 60 * 60 * 1000);
+
+  if (locationPrecision === 'DISTRICT' && district) {
+    maxDelta = 0.35;
+  }
 
   // Categories that can be considered compatible when matching duplicate press coverage
   const compatibleCategories: Record<string, ReportCategory[]> = {
     ROAD_ACCIDENT: ['ROAD_ACCIDENT', 'ARMED_ASSAULT'],
-    ROBBERY: ['ROBBERY', 'DACOITY', 'THEFT_ROBBERY'],
-    THEFT_ROBBERY: ['THEFT_ROBBERY', 'ROBBERY', 'THEFT'],
+    ROBBERY: ['ROBBERY', 'DACOITY', 'THEFT_ROBBERY', 'THEFT'],
+    THEFT: ['THEFT', 'THEFT_ROBBERY', 'ROBBERY'],
+    THEFT_ROBBERY: ['THEFT_ROBBERY', 'ROBBERY', 'THEFT', 'DACOITY', 'THEFT_DACOITY'],
     SNATCHING: ['SNATCHING', 'MUGGING', 'SNATCHING_ARMED_ASSAULT'],
-    ARMED_ASSAULT: ['ARMED_ASSAULT', 'ROAD_ACCIDENT'],
+    SNATCHING_ARMED_ASSAULT: ['SNATCHING_ARMED_ASSAULT', 'SNATCHING', 'ARMED_ASSAULT', 'MUGGING'],
+    ARMED_ASSAULT: ['ARMED_ASSAULT', 'SNATCHING_ARMED_ASSAULT', 'ROAD_ACCIDENT'],
+    EXTORTION: ['EXTORTION', 'YOUTH_GANG_ACTIVITY'],
+    YOUTH_GANG_ACTIVITY: ['YOUTH_GANG_ACTIVITY', 'TEEN_GANG', 'TEEN_GANG_ARMED_ASSAULT', 'EXTORTION', 'ARMED_ASSAULT'],
+    DRUG_RELATED_CRIME: ['DRUG_RELATED_CRIME', 'DRUG_ACTIVITY'],
+    UNLIT_ROAD: ['UNLIT_ROAD'],
+    // Legacy aliases
+    MUGGING: ['MUGGING', 'SNATCHING', 'SNATCHING_ARMED_ASSAULT'],
+    DACOITY: ['DACOITY', 'ROBBERY', 'THEFT_ROBBERY', 'THEFT'],
+    THEFT_DACOITY: ['THEFT_DACOITY', 'THEFT_ROBBERY', 'ROBBERY', 'THEFT'],
+    TEEN_GANG: ['TEEN_GANG', 'YOUTH_GANG_ACTIVITY', 'TEEN_GANG_ARMED_ASSAULT'],
+    TEEN_GANG_ARMED_ASSAULT: ['TEEN_GANG_ARMED_ASSAULT', 'YOUTH_GANG_ACTIVITY', 'ARMED_ASSAULT'],
+    DRUG_ACTIVITY: ['DRUG_ACTIVITY', 'DRUG_RELATED_CRIME'],
   };
 
   const allowedCategories = compatibleCategories[category] || [category];
 
+  const whereConditions: any = {
+    status: 'ACTIVE',
+    createdAt: { gte: cutoff },
+    category: { in: allowedCategories },
+  };
+
+  if (district) {
+    whereConditions.OR = [
+      {
+        latitude: { gte: latitude - maxDelta, lte: latitude + maxDelta },
+        longitude: { gte: longitude - maxDelta, lte: longitude + maxDelta },
+      },
+      {
+        district: district,
+        latitude: { gte: latitude - 0.35, lte: latitude + 0.35 },
+        longitude: { gte: longitude - 0.35, lte: longitude + 0.35 },
+      },
+    ];
+  } else {
+    whereConditions.latitude = { gte: latitude - maxDelta, lte: latitude + maxDelta };
+    whereConditions.longitude = { gte: longitude - maxDelta, lte: longitude + maxDelta };
+  }
+
   const candidates = await prisma.report.findMany({
-    where: {
-      status: 'ACTIVE',
-      createdAt: { gte: cutoff },
-      latitude: { gte: latitude - maxDelta, lte: latitude + maxDelta },
-      longitude: { gte: longitude - maxDelta, lte: longitude + maxDelta },
-      category: { in: allowedCategories },
-    },
+    where: whereConditions,
     include: {
       newsArticles: {
         select: { title: true },
@@ -685,7 +810,7 @@ export async function findDuplicateActiveReport(params: {
       },
     },
     orderBy: { createdAt: 'desc' },
-    take: 20,
+    take: 25,
   });
 
   for (const candidate of candidates) {
@@ -695,7 +820,21 @@ export async function findDuplicateActiveReport(params: {
     const sim = calculateStorySimilarity(title, candidateTitle);
 
     if (sim.isDuplicate) {
-      return { existingReport: candidate, sharedTokens: sim.sharedTokens };
+      const candidatePrecision = (candidate as any).locationPrecision || 'EXACT';
+      let shouldUpgradeCoords = false;
+      let newCoords: { latitude: number; longitude: number; district?: string; upazila?: string } | undefined = undefined;
+
+      if (candidatePrecision === 'DISTRICT' && (locationPrecision === 'UPAZILA' || locationPrecision === 'EXACT')) {
+        shouldUpgradeCoords = true;
+        newCoords = { latitude, longitude, district, upazila };
+      }
+
+      return {
+        existingReport: candidate,
+        sharedTokens: sim.sharedTokens,
+        shouldUpgradeCoords,
+        newCoords,
+      };
     }
   }
 
