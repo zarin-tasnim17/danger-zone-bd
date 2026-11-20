@@ -1,13 +1,14 @@
 import { prisma } from '../db/prisma';
 import { env } from '../config/env';
-import type {
-  SafeRouteOutput,
-  RouteAlternative,
-  LocalizedHazard,
-  NavigationStep,
-  TransportMode,
-  RouteSafetyRating,
-  OverallRouteSafetyRating,
+import {
+  isActiveThreatIncident,
+  type SafeRouteOutput,
+  type RouteAlternative,
+  type LocalizedHazard,
+  type NavigationStep,
+  type TransportMode,
+  type RouteSafetyRating,
+  type OverallRouteSafetyRating,
 } from '@repo/shared';
 
 export interface RoutePoint {
@@ -370,13 +371,12 @@ export const calculateSafeRoute = async (
 
   if (options?.injectedHazards) {
     activeCorridorReports = options.injectedHazards.filter((h) => {
-      const status = h.status || 'ACTIVE';
-      if (status !== 'ACTIVE') return false;
-      if (h.expiresAt) {
-        const exp = new Date(h.expiresAt).getTime();
-        if (exp <= now) return false;
-      }
-      return true;
+      return isActiveThreatIncident({
+        status: h.status || 'ACTIVE',
+        threatStatus: h.threatStatus || 'ACTIVE',
+        locationPrecision: h.locationPrecision,
+        expiresAt: h.expiresAt || new Date(now + 86400000),
+      }, new Date(now));
     });
   } else {
     try {
@@ -385,6 +385,8 @@ export const calculateSafeRoute = async (
         FROM "Report" r
         LEFT JOIN "User" u ON r."userId" = u.id
         WHERE r.status = 'ACTIVE'
+          AND r."threatStatus" = 'ACTIVE'
+          AND (r."locationPrecision" IS NULL OR r."locationPrecision" != 'AMBIGUOUS')
           AND r."expiresAt" > NOW()
           AND (
             r.location && ST_MakeEnvelope(${minLng}, ${minLat}, ${maxLng}, ${maxLat}, 4326)
@@ -396,6 +398,8 @@ export const calculateSafeRoute = async (
         activeCorridorReports = await prisma.report.findMany({
           where: {
             status: 'ACTIVE',
+            threatStatus: 'ACTIVE',
+            locationPrecision: { not: 'AMBIGUOUS' },
             expiresAt: { gt: new Date() },
             latitude: { gte: minLat, lte: maxLat },
             longitude: { gte: minLng, lte: maxLng },

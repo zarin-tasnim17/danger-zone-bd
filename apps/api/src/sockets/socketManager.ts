@@ -1,6 +1,6 @@
 import { Server as SocketIOServer, Socket } from 'socket.io';
 import { Server as HttpServer } from 'http';
-import { SOCKET_EVENTS } from '@repo/shared';
+import { SOCKET_EVENTS, isActiveThreatIncident } from '@repo/shared';
 import { JwtPayload } from '../utils/jwt';
 import { verifyActiveAccessToken } from '../middleware/requireAuth';
 
@@ -162,6 +162,7 @@ export interface SanitizedReportEvent {
  */
 export const emitNewReport = (report: SanitizedReportEvent) => {
   if (!io) return;
+  if (!isActiveThreatIncident(report as any)) return;
   io.to('live_reports').emit(SOCKET_EVENTS.NEW_REPORT, report);
 };
 
@@ -170,6 +171,7 @@ export const emitNewReport = (report: SanitizedReportEvent) => {
  */
 export const emitReportEnriched = (report: SanitizedReportEvent) => {
   if (!io) return;
+  if (!isActiveThreatIncident(report as any)) return;
   io.to('live_reports').emit(SOCKET_EVENTS.REPORT_ENRICHED, report);
 };
 

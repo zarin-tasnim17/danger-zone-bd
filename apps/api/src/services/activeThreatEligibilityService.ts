@@ -15,6 +15,7 @@ export interface EligibilityEvaluationInput {
   sourceUrl?: string;
   sourceName?: string;
   isWire?: boolean;
+  confidence?: number;
 }
 
 export type ConceptualEligibilityOutcome =
@@ -83,9 +84,15 @@ export function evaluateActiveThreatEligibility(
     let outcome: ConceptualEligibilityOutcome = 'NON_INCIDENT_NEWS';
     let reason = 'Article does not report an active physical safety hazard.';
 
-    if (input.disqualifiedReason === 'ARREST_FOLLOWUP') {
+    if (
+      input.disqualifiedReason === 'ARREST_FOLLOWUP' ||
+      input.disqualifiedReason === 'CASE_FILING_FOLLOWUP' ||
+      input.disqualifiedReason === 'PROBE_COMMITTEE' ||
+      input.disqualifiedReason === 'INTERROGATION_FOLLOWUP' ||
+      input.disqualifiedReason === 'GENERAL_DIARY'
+    ) {
       outcome = 'FOLLOW_UP_NEWS_ONLY';
-      reason = 'Arrest follow-up does not constitute a new physical danger.';
+      reason = 'Administrative/legal/arrest follow-up does not constitute a new physical danger.';
     } else if (input.disqualifiedReason === 'HISTORICAL_CASE_MENTION') {
       outcome = 'HISTORICAL_INCIDENT';
       reason = 'Article references a past criminal case or court proceeding.';
@@ -209,6 +216,29 @@ export function evaluateActiveThreatEligibility(
       temporalData: temporal,
       effectiveLifespanHours: lifespanHours,
       calculatedExpiry: candidateExpiry,
+    };
+  }
+
+  // DECISION 5.5 — Classification Uncertainty Staging (Pillar 1 / Feature 9)
+  // Confidence < 0.70 stages incident to threatStatus: 'UNDER_REVIEW'
+  let confidence: number;
+  if (typeof input.confidence === 'number' && !isNaN(input.confidence)) {
+    confidence = input.confidence;
+  } else if (input.confidence !== undefined) {
+    confidence = 0.0;
+  } else {
+    confidence = 1.0;
+  }
+
+  if (confidence < 0.70) {
+    return {
+      isEligibleForActiveMap: false,
+      threatStatus: 'UNDER_REVIEW',
+      conceptualOutcome: 'TEMPORARILY_UNDER_REVIEW',
+      reason: `Classification confidence (${confidence.toFixed(2)}) is below active threat threshold (0.70). Staged for review.`,
+      temporalData: temporal,
+      effectiveLifespanHours: 0,
+      calculatedExpiry: new Date(now.getTime() - 1000),
     };
   }
 

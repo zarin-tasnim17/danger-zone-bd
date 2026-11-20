@@ -157,10 +157,32 @@ export type LocationPrecision = (typeof LOCATION_PRECISIONS)[number];
 export const THREAT_STATUSES = [
   "ACTIVE",
   "RESOLVED",
+  "EXPIRED",
   "EXPIRED_UNVERIFIED",
   "UNDER_REVIEW",
 ] as const;
 export type ThreatStatus = (typeof THREAT_STATUSES)[number];
+
+export interface ActiveThreatPredicateInput {
+  status: 'ACTIVE' | 'RESOLVED' | 'PENDING' | 'REJECTED' | 'PURGED' | string;
+  threatStatus?: 'ACTIVE' | 'RESOLVED' | 'UNDER_REVIEW' | 'EXPIRED' | 'EXPIRED_UNVERIFIED' | string | null;
+  locationPrecision?: 'EXACT' | 'UPAZILA' | 'DISTRICT' | 'AMBIGUOUS' | string | null;
+  expiresAt: string | Date;
+}
+
+export function isActiveThreatIncident(
+  incident: ActiveThreatPredicateInput,
+  now: Date = new Date()
+): boolean {
+  if (!incident) return false;
+  if (incident.status !== 'ACTIVE') return false;
+  if (incident.threatStatus !== 'ACTIVE') return false;
+  if (incident.locationPrecision === 'AMBIGUOUS') return false;
+  if (!incident.expiresAt) return false;
+  const expiry = typeof incident.expiresAt === 'string' ? new Date(incident.expiresAt) : incident.expiresAt;
+  if (isNaN(expiry.getTime()) || expiry.getTime() <= now.getTime()) return false;
+  return true;
+}
 
 export interface Citation {
   sourceName: string;
@@ -245,6 +267,8 @@ export interface DangerIncident {
   citations?: Citation[];
   fuzzedRadiusMeters?: number;
   isGpsVerified?: boolean;
+  expiresAt?: string | Date;
+  rawStatus?: string;
 }
 
 const SHARED_TRACKING_PARAMS = new Set([

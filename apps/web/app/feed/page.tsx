@@ -260,10 +260,34 @@ export default function FeedPage() {
     const socket = getSocket();
     if (!socket) return;
 
-    const handleNewReport = (newReport: Incident) => {
+    const handleNewReport = (newReport: Incident & { threatStatus?: string; locationPrecision?: string; expiresAt?: string | Date }) => {
+      if (newReport.status && newReport.status !== 'ACTIVE') return;
+      if (newReport.threatStatus && newReport.threatStatus !== 'ACTIVE') return;
+      if (newReport.locationPrecision === 'AMBIGUOUS') return;
+      if (newReport.expiresAt && new Date(newReport.expiresAt).getTime() <= Date.now()) return;
       setIncidents((prev) => {
         if (prev.some((i) => i.id === newReport.id)) return prev;
         return [newReport, ...prev];
+      });
+      fetchStats();
+    };
+
+    const handleReportEnriched = (enriched: Incident & { threatStatus?: string; locationPrecision?: string; expiresAt?: string | Date }) => {
+      const isInactive =
+        enriched.status === 'RESOLVED' ||
+        enriched.status === 'PURGED' ||
+        (enriched.threatStatus && enriched.threatStatus !== 'ACTIVE') ||
+        enriched.locationPrecision === 'AMBIGUOUS' ||
+        (enriched.expiresAt && new Date(enriched.expiresAt).getTime() <= Date.now());
+
+      setIncidents((prev) => {
+        if (isInactive) {
+          return prev.filter((item) => item.id !== enriched.id);
+        }
+        if (prev.some((item) => item.id === enriched.id)) {
+          return prev.map((item) => (item.id === enriched.id ? { ...item, ...enriched } : item));
+        }
+        return [enriched, ...prev];
       });
       fetchStats();
     };
@@ -329,6 +353,7 @@ export default function FeedPage() {
     };
 
     socket.on(SOCKET_EVENTS.NEW_REPORT, handleNewReport);
+    socket.on(SOCKET_EVENTS.REPORT_ENRICHED, handleReportEnriched);
     socket.on(SOCKET_EVENTS.REPORT_VOTED, handleReportVoted);
     socket.on(SOCKET_EVENTS.REPORT_RESOLVED, handleReportResolved);
     socket.on(SOCKET_EVENTS.REPORT_PURGED, handleReportPurged);
@@ -337,6 +362,7 @@ export default function FeedPage() {
 
     return () => {
       socket.off(SOCKET_EVENTS.NEW_REPORT, handleNewReport);
+      socket.off(SOCKET_EVENTS.REPORT_ENRICHED, handleReportEnriched);
       socket.off(SOCKET_EVENTS.REPORT_VOTED, handleReportVoted);
       socket.off(SOCKET_EVENTS.REPORT_RESOLVED, handleReportResolved);
       socket.off(SOCKET_EVENTS.REPORT_PURGED, handleReportPurged);

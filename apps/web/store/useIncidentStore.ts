@@ -69,8 +69,8 @@ const mapBackendToFrontendIncident = (r: any): DangerIncident => {
       : (r.district || (r.sourceName ? r.sourceName : "Reported Hazard Zone")),
     district: r.district,
     upazila: r.upazila,
-    locationPrecision: r.locationPrecision || 'EXACT',
-    threatStatus: r.threatStatus || 'ACTIVE',
+    locationPrecision: r.locationPrecision,
+    threatStatus: r.threatStatus,
     timestamp: r.createdAt ? new Date(r.createdAt).toISOString() : new Date().toISOString(),
     upvotes: r.upvotes || 0,
     downvotes: r.downvotes || 0,
@@ -87,6 +87,8 @@ const mapBackendToFrontendIncident = (r: any): DangerIncident => {
         : [],
     fuzzedRadiusMeters: r.fuzzedRadiusMeters || 150,
     isGpsVerified: Boolean(r.isGpsVerified),
+    expiresAt: r.expiresAt ? new Date(r.expiresAt).toISOString() : undefined,
+    rawStatus: r.status,
   };
 };
 
@@ -119,7 +121,13 @@ export const useIncidentStore = create<IncidentState>((set, get) => ({
       if (Array.isArray(reports)) {
         const mapped = reports
           .map(mapBackendToFrontendIncident)
-          .filter((inc) => inc.threatStatus === 'ACTIVE');
+          .filter((inc) => {
+            if (inc.threatStatus !== 'ACTIVE') return false;
+            if (inc.locationPrecision === 'AMBIGUOUS') return false;
+            if (inc.status === 'resolved') return false;
+            if (inc.expiresAt && new Date(inc.expiresAt).getTime() <= Date.now()) return false;
+            return true;
+          });
         const existingMap = new Map(get().incidents.map((i) => [i.id, i]));
         mapped.forEach((inc) => existingMap.set(inc.id, inc));
         set({ incidents: Array.from(existingMap.values()), isLoading: false, error: null });
@@ -160,7 +168,13 @@ export const useIncidentStore = create<IncidentState>((set, get) => ({
       if (Array.isArray(reports)) {
         const mapped = reports
           .map(mapBackendToFrontendIncident)
-          .filter((inc) => inc.threatStatus === 'ACTIVE');
+          .filter((inc) => {
+            if (inc.threatStatus !== 'ACTIVE') return false;
+            if (inc.locationPrecision === 'AMBIGUOUS') return false;
+            if (inc.status === 'resolved') return false;
+            if (inc.expiresAt && new Date(inc.expiresAt).getTime() <= Date.now()) return false;
+            return true;
+          });
         // Merge with existing incidents so navigating to one local sector never deletes pins in other districts
         const existingMap = new Map(get().incidents.map((i) => [i.id, i]));
         mapped.forEach((inc) => existingMap.set(inc.id, inc));
@@ -297,8 +311,10 @@ export const useIncidentStore = create<IncidentState>((set, get) => ({
     socket.off(SOCKET_EVENTS.NEW_REPORT);
     socket.on(SOCKET_EVENTS.NEW_REPORT, (data: any) => {
       console.log("[Socket.IO] Real-time NEW_REPORT received:", data);
-      if (data.threatStatus && data.threatStatus !== 'ACTIVE') return;
+      if (data.threatStatus !== 'ACTIVE') return;
       if (data.status === 'RESOLVED' || data.status === 'PURGED') return;
+      if (data.locationPrecision === 'AMBIGUOUS') return;
+      if (data.expiresAt && new Date(data.expiresAt).getTime() <= Date.now()) return;
       const newInc = mapBackendToFrontendIncident(data);
       get().addIncident(newInc);
     });
@@ -307,7 +323,14 @@ export const useIncidentStore = create<IncidentState>((set, get) => ({
     socket.off(SOCKET_EVENTS.REPORT_ENRICHED);
     socket.on(SOCKET_EVENTS.REPORT_ENRICHED, (data: any) => {
       console.log("[Socket.IO] Real-time REPORT_ENRICHED received:", data);
-      if ((data.threatStatus && data.threatStatus !== 'ACTIVE') || data.status === 'RESOLVED') {
+      const isInactive =
+        data.threatStatus !== 'ACTIVE' ||
+        data.status === 'RESOLVED' ||
+        data.status === 'PURGED' ||
+        data.locationPrecision === 'AMBIGUOUS' ||
+        (data.expiresAt && new Date(data.expiresAt).getTime() <= Date.now());
+
+      if (isInactive) {
         set((state) => ({
           incidents: state.incidents.filter((i) => i.id !== data.id),
         }));

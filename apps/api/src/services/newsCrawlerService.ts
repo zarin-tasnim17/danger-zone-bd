@@ -8,6 +8,7 @@ import { evaluateActiveThreatEligibility } from './activeThreatEligibilityServic
 import { crossVerifyCitizenReports } from './newsVerificationService';
 import { findDuplicateActiveReport, normalizeCanonicalUrl, cleanIncidentTitle } from './incidentDeduplicationService';
 import { emitNewReport, emitReportEnriched } from '../sockets';
+import { isActiveThreatIncident } from '@repo/shared';
 import { broadcastPlatformStats } from './statsService';
 import { setReportLocation } from '../db/spatialUtils';
 import { newsObservabilityService, CrawlRunRecorder } from './newsObservabilityService';
@@ -678,6 +679,7 @@ export const processAndIngestNewsItems = async (
       sourceUrl: canonicalUrl,
       sourceName: item.sourceName,
       isWire,
+      confidence: classification.confidence,
     });
 
     if (!eligibility.isEligibleForActiveMap || !geocode) {
@@ -855,7 +857,7 @@ export const processAndIngestNewsItems = async (
       });
 
       // Emit real-time REPORT_ENRICHED event only for active ongoing threats
-      if (existingReport.status === 'ACTIVE' && (existingReport.threatStatus === 'ACTIVE' || !existingReport.threatStatus)) {
+      if (isActiveThreatIncident(existingReport as any)) {
         emitReportEnriched({
           id: existingReport.id,
           category: updatedCategory,
@@ -876,7 +878,7 @@ export const processAndIngestNewsItems = async (
           locationPrecision: newPrecision,
           district: newDistrict,
           upazila: newUpazila,
-          threatStatus: existingReport.threatStatus || 'ACTIVE',
+          threatStatus: existingReport.threatStatus,
         });
       }
 
@@ -972,28 +974,30 @@ export const processAndIngestNewsItems = async (
     }
 
     // 8. Real-time broadcast
-    emitNewReport({
-      id: report.id,
-      category: report.category,
-      severity: report.severity,
-      latitude: report.latitude,
-      longitude: report.longitude,
-      description: report.description,
-      upvotes: report.upvotes,
-      downvotes: report.downvotes,
-      status: report.status,
-      expiresAt: report.expiresAt,
-      createdAt: report.createdAt,
-      sourceUrl: report.sourceUrl,
-      sourceName: report.sourceName,
-      isGpsVerified: report.isGpsVerified,
-      verificationStage: report.verificationStage,
-      citations: report.citations,
-      locationPrecision: report.locationPrecision,
-      district: report.district,
-      upazila: report.upazila,
-      threatStatus: report.threatStatus,
-    });
+    if (isActiveThreatIncident(report as any)) {
+      emitNewReport({
+        id: report.id,
+        category: report.category,
+        severity: report.severity,
+        latitude: report.latitude,
+        longitude: report.longitude,
+        description: report.description,
+        upvotes: report.upvotes,
+        downvotes: report.downvotes,
+        status: report.status,
+        expiresAt: report.expiresAt,
+        createdAt: report.createdAt,
+        sourceUrl: report.sourceUrl,
+        sourceName: report.sourceName,
+        isGpsVerified: report.isGpsVerified,
+        verificationStage: report.verificationStage,
+        citations: report.citations,
+        locationPrecision: report.locationPrecision,
+        district: report.district,
+        upazila: report.upazila,
+        threatStatus: report.threatStatus,
+      });
+    }
   }
 
   if (ingested > 0) {
