@@ -144,6 +144,12 @@ export interface SanitizedReportEvent {
   upvotes: number;
   downvotes: number;
   status: string;
+  verificationStage?: string;
+  citations?: any;
+  locationPrecision?: string | null;
+  district?: string | null;
+  upazila?: string | null;
+  threatStatus?: string | null;
   expiresAt: Date;
   createdAt: Date;
   sourceUrl?: string | null;
@@ -157,6 +163,14 @@ export interface SanitizedReportEvent {
 export const emitNewReport = (report: SanitizedReportEvent) => {
   if (!io) return;
   io.to('live_reports').emit(SOCKET_EVENTS.NEW_REPORT, report);
+};
+
+/**
+ * Broadcast REPORT_ENRICHED when an existing incident is corroborated or updated
+ */
+export const emitReportEnriched = (report: SanitizedReportEvent) => {
+  if (!io) return;
+  io.to('live_reports').emit(SOCKET_EVENTS.REPORT_ENRICHED, report);
 };
 
 /**

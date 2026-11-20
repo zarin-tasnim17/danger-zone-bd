@@ -62,6 +62,7 @@ export const getReportsInBounds = async (bounds: BoundingBox, filters?: ReportFi
   const rawReports: any[] = await prisma.$queryRaw`
     SELECT 
       id, category, severity, "isNightReport", "isGpsVerified", latitude, longitude, description, upvotes, downvotes, status, "expiresAt", "createdAt", "sourceUrl", "sourceName",
+      "verificationStage", citations, "locationPrecision", district, upazila, "threatStatus",
       COALESCE(
         (
           SELECT json_agg(json_build_object('id', m.id, 'blurredUrl', m."blurredUrl", 'createdAt', m."createdAt"))

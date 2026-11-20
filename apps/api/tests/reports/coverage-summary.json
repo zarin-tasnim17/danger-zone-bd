@@ -1,6 +1,6 @@
 {
-  "profile": "validation",
-  "generatedAt": "2026-11-19T09:34:57.257Z",
+  "profile": "functional",
+  "generatedAt": "2026-11-19T23:17:19.636Z",
   "inventoriedEndpoints": {
     "express": 43,
     "nextProxy": 3,
@@ -8,15 +8,45 @@
     "total": 47
   },
   "suiteBreakdown": {
-    "tests\\validation\\01-schema-strictness-boundaries.test.ts": {
+    "tests\\api\\01-health-system-proxy.test.ts": {
+      "total": 8,
+      "passed": 8,
+      "failed": 0
+    },
+    "tests\\api\\02-auth-users.test.ts": {
+      "total": 5,
+      "passed": 5,
+      "failed": 0
+    },
+    "tests\\api\\03-reports-votes-updates.test.ts": {
+      "total": 4,
+      "passed": 4,
+      "failed": 0
+    },
+    "tests\\api\\04-safe-zones-routing.test.ts": {
+      "total": 2,
+      "passed": 2,
+      "failed": 0
+    },
+    "tests\\api\\05-alerts-media.test.ts": {
+      "total": 4,
+      "passed": 4,
+      "failed": 0
+    },
+    "tests\\api\\06-admin-stats-cron.test.ts": {
       "total": 3,
       "passed": 3,
+      "failed": 0
+    },
+    "tests\\api\\07-sockets-realtime.test.ts": {
+      "total": 2,
+      "passed": 2,
       "failed": 0
     }
   },
   "summary": {
-    "total": 3,
-    "passed": 3,
+    "total": 28,
+    "passed": 28,
     "failed": 0,
     "skipped": 0
   },

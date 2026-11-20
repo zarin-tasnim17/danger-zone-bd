@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8"/>
-<title>DangerZoneBD API Test Report (validation)</title>
+<title>DangerZoneBD API Test Report (functional)</title>
 <style>
   body { font-family: system-ui, sans-serif; background: #0f172a; color: #e2e8f0; margin: 2rem; }
   h1, h2 { color: #f8fafc; }
@@ -17,11 +17,11 @@
 </style>
 </head>
 <body>
-  <h1>DangerZoneBD Backend API Audit — Profile: validation</h1>
-  <p>Generated: 2026-11-19T09:34:57.257Z | Total Duration: 18781.04 ms</p>
+  <h1>DangerZoneBD Backend API Audit — Profile: functional</h1>
+  <p>Generated: 2026-11-19T23:17:19.636Z | Total Duration: 186750.46 ms</p>
   <div class="cards">
-    <div class="card">Total Cases: <strong>3</strong></div>
-    <div class="card pass">Passed: 3</div>
+    <div class="card">Total Cases: <strong>28</strong></div>
+    <div class="card pass">Passed: 28</div>
     <div class="card fail">Failed: 0</div>
     <div class="card skip">Skipped: 0</div>
   </div>
@@ -29,24 +29,199 @@
   <table>
     <thead><tr><th>Module</th><th>Case</th><th>Status</th><th>Duration</th><th>Details</th></tr></thead>
     <tbody><tr>
-        <td><code>tests\validation\01-schema-strictness-boundaries.test.ts</code></td>
-        <td>Enforces .strict() mass-assignment/unknown-field rejection on strict schemas</td>
+        <td><code>tests\api\01-health-system-proxy.test.ts</code></td>
+        <td>EP-001 GET / returns service metadata and security headers</td>
         <td class="pass">PASS</td>
-        <td>2745.94 ms</td>
+        <td>44 ms</td>
         <td></td>
       </tr>
 <tr>
-        <td><code>tests\validation\01-schema-strictness-boundaries.test.ts</code></td>
-        <td>PostGIS geofence validation: rejects unclosed, self-intersecting, >25 km² polygons, and >5 zones per user</td>
+        <td><code>tests\api\01-health-system-proxy.test.ts</code></td>
+        <td>EP-002 GET /health returns live UP liveness payload</td>
         <td class="pass">PASS</td>
-        <td>10569.05 ms</td>
+        <td>6.66 ms</td>
         <td></td>
       </tr>
 <tr>
-        <td><code>tests\validation\01-schema-strictness-boundaries.test.ts</code></td>
-        <td>Report, Media & GPS header boundaries (lat/lng extremes, 5MB limit, MIME types, incomplete GPS headers)</td>
+        <td><code>tests\api\01-health-system-proxy.test.ts</code></td>
+        <td>EP-003 GET /health/db confirms live PostgreSQL/PostGIS connectivity</td>
         <td class="pass">PASS</td>
-        <td>3198.21 ms</td>
+        <td>1122.64 ms</td>
+        <td></td>
+      </tr>
+<tr>
+        <td><code>tests\api\01-health-system-proxy.test.ts</code></td>
+        <td>EP-004 & EP-005 Versioned /api/v1/health and /api/v1/health/db match root probes</td>
+        <td class="pass">PASS</td>
+        <td>311 ms</td>
+        <td></td>
+      </tr>
+<tr>
+        <td><code>tests\api\01-health-system-proxy.test.ts</code></td>
+        <td>HTTP protocol checks: malformed JSON yields clean 400 and unknown route yields 404 without stack trace</td>
+        <td class="pass">PASS</td>
+        <td>23.32 ms</td>
+        <td></td>
+      </tr>
+<tr>
+        <td><code>tests\api\01-health-system-proxy.test.ts</code></td>
+        <td>EP-044 Next.js GET /api/health aggregates live Express backend and returns 503 when upstream unreachable</td>
+        <td class="pass">PASS</td>
+        <td>370.6 ms</td>
+        <td></td>
+      </tr>
+<tr>
+        <td><code>tests\api\01-health-system-proxy.test.ts</code></td>
+        <td>EP-045 & EP-046 Next.js GET/POST /api/cron/news-crawl fail closed on missing/bad CRON_SECRET</td>
+        <td class="pass">PASS</td>
+        <td>6.22 ms</td>
+        <td></td>
+      </tr>
+<tr>
+        <td><code>tests\api\01-health-system-proxy.test.ts</code></td>
+        <td>Error envelope sanity check on bad media webhook call</td>
+        <td class="pass">PASS</td>
+        <td>4.34 ms</td>
+        <td></td>
+      </tr>
+<tr>
+        <td><code>tests\api\02-auth-users.test.ts</code></td>
+        <td>EP-006 POST /api/v1/auth/device creates anonymous USER, sets HttpOnly cookies, and rejects mass-assignment keys via .strict()</td>
+        <td class="pass">PASS</td>
+        <td>2234.54 ms</td>
+        <td></td>
+      </tr>
+<tr>
+        <td><code>tests\api\02-auth-users.test.ts</code></td>
+        <td>EP-006 rejects empty anonymousId (400) and blocks device login on password-backed ADMIN (403)</td>
+        <td class="pass">PASS</td>
+        <td>1791.94 ms</td>
+        <td></td>
+      </tr>
+<tr>
+        <td><code>tests\api\02-auth-users.test.ts</code></td>
+        <td>EP-007 & EP-008 & EP-009 Password login -> refresh -> logout lifecycle</td>
+        <td class="pass">PASS</td>
+        <td>4104.7 ms</td>
+        <td></td>
+      </tr>
+<tr>
+        <td><code>tests\api\02-auth-users.test.ts</code></td>
+        <td>EP-010 GET /api/v1/users/me returns sanitized profile with counts and never leaks passwordHash/anonymousId</td>
+        <td class="pass">PASS</td>
+        <td>2096.02 ms</td>
+        <td></td>
+      </tr>
+<tr>
+        <td><code>tests\api\02-auth-users.test.ts</code></td>
+        <td>EP-011 & EP-012 POST /api/v1/users/verify (PHONE_OTP & NID_DOCUMENT) + legacy /users/verify/:id/approve</td>
+        <td class="pass">PASS</td>
+        <td>10563.6 ms</td>
+        <td></td>
+      </tr>
+<tr>
+        <td><code>tests\api\03-reports-votes-updates.test.ts</code></td>
+        <td>EP-013 POST /api/v1/reports creates report with hardware GPS verification and rejects >200m GPS drift</td>
+        <td class="pass">PASS</td>
+        <td>6674.69 ms</td>
+        <td></td>
+      </tr>
+<tr>
+        <td><code>tests\api\03-reports-votes-updates.test.ts</code></td>
+        <td>EP-014 & EP-015 GET /reports bounds filtering + GET /reports/:id PII sanitization & isOwner</td>
+        <td class="pass">PASS</td>
+        <td>8202.84 ms</td>
+        <td></td>
+      </tr>
+<tr>
+        <td><code>tests\api\03-reports-votes-updates.test.ts</code></td>
+        <td>EP-016 PATCH /api/v1/reports/:id/resolve works for owner and VERIFIED_RESPONDER, prevents duplicate resolve</td>
+        <td class="pass">PASS</td>
+        <td>9571.68 ms</td>
+        <td></td>
+      </tr>
+<tr>
+        <td><code>tests\api\03-reports-votes-updates.test.ts</code></td>
+        <td>EP-017, EP-018, EP-019 Votes (upvote/switch/reject invalid voteType) and Threaded Updates lifecycle</td>
+        <td class="pass">PASS</td>
+        <td>13464.66 ms</td>
+        <td></td>
+      </tr>
+<tr>
+        <td><code>tests\api\04-safe-zones-routing.test.ts</code></td>
+        <td>EP-020, EP-021, EP-022 Safe Zones public queries (default, bounds, radial, type) & Admin Create/Delete</td>
+        <td class="pass">PASS</td>
+        <td>6654.22 ms</td>
+        <td></td>
+      </tr>
+<tr>
+        <td><code>tests\api\04-safe-zones-routing.test.ts</code></td>
+        <td>EP-023 POST /api/v1/routes/safe-path rejects out-of-Bangladesh bounds, nested payloads, and detours around HIGH hazard</td>
+        <td class="pass">PASS</td>
+        <td>4767.97 ms</td>
+        <td></td>
+      </tr>
+<tr>
+        <td><code>tests\api\05-alerts-media.test.ts</code></td>
+        <td>EP-024, EP-025, EP-026, EP-027 Alert zone CRUD & push subscription lifecycle</td>
+        <td class="pass">PASS</td>
+        <td>8108.48 ms</td>
+        <td></td>
+      </tr>
+<tr>
+        <td><code>tests\api\05-alerts-media.test.ts</code></td>
+        <td>EP-028 & EP-029 Presigned URL -> Media Confirm (idempotent + strips originalUrl) & rejects multipart 415</td>
+        <td class="pass">PASS</td>
+        <td>7876.57 ms</td>
+        <td></td>
+      </tr>
+<tr>
+        <td><code>tests\api\05-alerts-media.test.ts</code></td>
+        <td>EP-030 POST /api/v1/media/mock-upload accepts valid PNG, JPEG, and WEBP magic-byte data URIs</td>
+        <td class="pass">PASS</td>
+        <td>10394.2 ms</td>
+        <td></td>
+      </tr>
+<tr>
+        <td><code>tests\api\05-alerts-media.test.ts</code></td>
+        <td>EP-031 POST /api/v1/media/webhook enforces fail-closed secret and idempotently records valid callback</td>
+        <td class="pass">PASS</td>
+        <td>4423.56 ms</td>
+        <td></td>
+      </tr>
+<tr>
+        <td><code>tests\api\06-admin-stats-cron.test.ts</code></td>
+        <td>EP-032..EP-039 Admin KYC approve/reject, ban/unban, report purge, audit logs & analytics trends</td>
+        <td class="pass">PASS</td>
+        <td>21944.51 ms</td>
+        <td></td>
+      </tr>
+<tr>
+        <td><code>tests\api\06-admin-stats-cron.test.ts</code></td>
+        <td>EP-041 GET /api/v1/stats reflects live aggregate counts cleanly</td>
+        <td class="pass">PASS</td>
+        <td>1044.17 ms</td>
+        <td></td>
+      </tr>
+<tr>
+        <td><code>tests\api\06-admin-stats-cron.test.ts</code></td>
+        <td>EP-040, EP-042, EP-043 Cron GET/POST fail-closed 401 when unset/wrong and Admin/Cron crawler handles concurrency cleanly</td>
+        <td class="pass">PASS</td>
+        <td>22324.24 ms</td>
+        <td></td>
+      </tr>
+<tr>
+        <td><code>tests\api\07-sockets-realtime.test.ts</code></td>
+        <td>Allows guest read-only socket & authenticated socketToken handshake; rejects tampered/non-string tokens</td>
+        <td class="pass">PASS</td>
+        <td>2319 ms</td>
+        <td></td>
+      </tr>
+<tr>
+        <td><code>tests\api\07-sockets-realtime.test.ts</code></td>
+        <td>Broadcasts sanitized NEW_REPORT, REPORT_VOTED, NEW_REPORT_UPDATE, REPORT_RESOLVED, REPORT_PURGED, and targeted GEOFENCE_ALERT</td>
+        <td class="pass">PASS</td>
+        <td>15045.09 ms</td>
         <td></td>
       </tr></tbody>
   </table>

@@ -138,8 +138,29 @@ export const VERIFICATION_STAGES = [
   "CLASSIFIED",
   "CORROBORATED",
   "ADMIN_VERIFIED",
+  "SINGLE_SOURCE_PRESS",
+  "PRESS_CORROBORATED",
+  "WIRE_SYNDICATED",
+  "CITIZEN_UNVERIFIED",
+  "COMMUNITY_CONFIRMED",
 ] as const;
 export type VerificationStage = (typeof VERIFICATION_STAGES)[number];
+
+export const LOCATION_PRECISIONS = [
+  "EXACT",
+  "UPAZILA",
+  "DISTRICT",
+  "AMBIGUOUS",
+] as const;
+export type LocationPrecision = (typeof LOCATION_PRECISIONS)[number];
+
+export const THREAT_STATUSES = [
+  "ACTIVE",
+  "RESOLVED",
+  "EXPIRED_UNVERIFIED",
+  "UNDER_REVIEW",
+] as const;
+export type ThreatStatus = (typeof THREAT_STATUSES)[number];
 
 export interface Citation {
   sourceName: string;
@@ -208,7 +229,10 @@ export interface DangerIncident {
   locationName: string;
   locationNameBn?: string;
   district?: string;
+  upazila?: string;
   division?: string;
+  locationPrecision?: LocationPrecision | string;
+  threatStatus?: ThreatStatus | string;
   timestamp: string;
   upvotes: number;
   downvotes: number;
@@ -312,6 +336,7 @@ export const SOCKET_EVENTS = {
   DISCONNECT: "disconnect",
   JOIN_MAP_BOUNDS: "joinMapBounds",
   NEW_REPORT: "NEW_REPORT",
+  REPORT_ENRICHED: "REPORT_ENRICHED",
   REPORT_VOTED: "REPORT_VOTED",
   REPORT_PURGED: "REPORT_PURGED",
   REPORT_EXPIRED: "REPORT_EXPIRED",

@@ -6,6 +6,7 @@ import {
   REPORT_CATEGORIES,
   REPORT_SEVERITIES,
   REPORT_STATUSES,
+  VERIFICATION_STAGES,
   type ReportCategory,
   type ReportSeverity,
   type ReportStatus,
@@ -19,12 +20,7 @@ export const reportCategorySchema = z.enum(REPORT_CATEGORIES as unknown as [stri
 export const reportSeveritySchema = z.enum(REPORT_SEVERITIES as unknown as [string, ...string[]]);
 export const reportStatusSchema = z.enum(REPORT_STATUSES as unknown as [string, ...string[]]);
 
-export const verificationStageSchema = z.enum([
-  'INGESTED',
-  'CLASSIFIED',
-  'CORROBORATED',
-  'ADMIN_VERIFIED',
-]);
+export const verificationStageSchema = z.enum(VERIFICATION_STAGES as unknown as [string, ...string[]]);
 export type VerificationStage = z.infer<typeof verificationStageSchema>;
 
 export const citationSchema = z.object({

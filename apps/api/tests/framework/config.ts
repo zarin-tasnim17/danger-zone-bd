@@ -3,6 +3,7 @@ import dotenv from 'dotenv';
 
 const apiRoot = path.resolve(__dirname, '../..');
 dotenv.config({ path: path.join(apiRoot, '.env'), override: false });
+process.env.NODE_ENV = 'test';
 
 // Ensure fallback test configuration exists for hermetic test execution
 process.env.DATABASE_URL =

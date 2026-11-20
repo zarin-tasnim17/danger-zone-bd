@@ -74,8 +74,12 @@ const CATEGORY_KEYWORDS: Record<ReportCategory, string[]> = {
     'মোবাইল ছিনতাই',
     'snatching',
     'snatcher',
+    'snatchers',
+    'snatch',
+    'snatched',
     'mugging',
     'mugger',
+    'muggers',
     'bag snatched',
     'phone snatched',
   ],
@@ -163,6 +167,12 @@ const CATEGORY_KEYWORDS: Record<ReportCategory, string[]> = {
     'mob clash',
     'riot',
     'assault',
+    'machete',
+    'machetes',
+    'stabbed',
+    'stabbing',
+    'stab',
+    'hacked',
   ],
   SNATCHING_ARMED_ASSAULT: [
     'ছিনতাই ও হামলা',
@@ -320,6 +330,13 @@ const CATEGORY_KEYWORDS: Record<ReportCategory, string[]> = {
     'plunged into ditch',
     'fatal crash',
     'crashed',
+    'collide',
+    'collided',
+    'collision',
+    'head-on',
+    'head on',
+    'hit-and-run',
+    'skidded',
   ],
   // Legacy aliases
   MUGGING: [
@@ -546,6 +563,11 @@ const matchesKeyword = (text: string, kw: string): boolean => {
   const normKw = kw.normalize('NFC').toLowerCase();
   if (isEnglishKeyword(normKw)) {
     const regex = new RegExp(`\\b${escapeRegex(normKw)}\\b`, 'i');
+    return regex.test(text);
+  }
+  // For short Bengali keywords (length <= 3, e.g. "আইস"), enforce boundary checks so "আইস" does not match "আইসিজে"
+  if (normKw.length <= 3) {
+    const regex = new RegExp(`(?:^|[\\s,।–—"\'‘“\\(\\)\\[\\]\/-])${escapeRegex(normKw)}(?:$|[\\s,।–—"\'’”\\(\\)\\[\\]\/-])`, 'u');
     return regex.test(text);
   }
   return text.includes(normKw);
@@ -979,6 +1001,22 @@ const IMMEDIATE_VIOLENT_ATTACK_PATTERNS = [
   /(?:ককটেল\s*বিস্ফোরণ|বোমা\s*হামলা|বোমা\s*বিস্ফোরণ|গুলি\s*বর্ষণ|গুলি\s*ছুড়ে|ককটেল\s*হামলা|রণক্ষেত্র|ককটেল\s*ছোড়া|অস্ত্রধারীদের\s*গুলি|cocktail\s*blast|cocktail\s*explosion|bomb\s*attack|bomb\s*blast|gunfire|shooting|bombed|explosive\s*device)/i,
 ];
 
+const FOLLOW_UP_MOURNING_PATTERNS = [
+  'জানাজা সম্পন্ন',
+  'দাফন সম্পন্ন',
+  'কবরস্থ',
+  'শোকের ছায়া',
+  'শোকের ছায়া',
+  'জানাজা শেষে',
+  'দাফন শেষে',
+  'শেষকৃত্য সম্পন্ন',
+  'memorial service',
+  'burial held',
+  'funeral prayer',
+  'funeral held',
+  'laid to rest',
+];
+
 function checkGroundRealityDisqualification(
   combinedText: string
 ): { isDisqualified: boolean; reason?: string } {
@@ -1030,6 +1068,11 @@ function checkGroundRealityDisqualification(
   // 6. Administrative Dispute Disqualification
   if (ADMINISTRATIVE_DISPUTE_KEYWORDS.some((kw) => matchesKeyword(combinedText, kw))) {
     return { isDisqualified: true, reason: 'ADMINISTRATIVE_DISPUTE' };
+  }
+
+  // 7. Mourning and Funeral Follow-Up Disqualification (retrospective burial/prayer ceremonies)
+  if (FOLLOW_UP_MOURNING_PATTERNS.some((pattern) => combinedText.includes(pattern))) {
+    return { isDisqualified: true, reason: 'MOURNING_FOLLOWUP' };
   }
 
   return { isDisqualified: false };

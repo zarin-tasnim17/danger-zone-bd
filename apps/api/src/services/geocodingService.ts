@@ -1,6 +1,22 @@
 import { isForeignIncident } from './internationalIncidentFilter';
+import upazilasData from '../data/bangladesh_upazilas.json';
 
-// Bangladesh Geocoding & Landmark Engine
+export interface UpazilaRecord {
+  id: string;
+  nameEn: string;
+  nameBn: string;
+  districtEn: string;
+  districtBn: string;
+  divisionEn: string;
+  divisionBn: string;
+  latitude: number;
+  longitude: number;
+  aliasesEn?: string[];
+  aliasesBn?: string[];
+}
+
+const ALL_UPAZILAS: UpazilaRecord[] = upazilasData as UpazilaRecord[];
+
 // Bounding box for Bangladesh: Latitude: 20.5 to 26.7, Longitude: 88.0 to 92.7
 
 /**
@@ -26,6 +42,10 @@ export interface GeocodeResult {
   locationName: string;
   latitude: number;
   longitude: number;
+  district?: string;
+  upazila?: string;
+  division?: string;
+  locationPrecision: 'EXACT' | 'UPAZILA' | 'DISTRICT';
   source: 'DICTIONARY' | 'NOMINATIM';
 }
 
@@ -505,6 +525,28 @@ const DISTRICT_NAMES = new Set([
   'sherpur', 'শেরপুর',
 ]);
 
+// Auto-populate 495 BBS Upazilas into LOCAL_LANDMARK_MAP with THANA priority (100)
+for (const u of ALL_UPAZILAS) {
+  const normEn = u.nameEn.toLowerCase();
+  const normBn = normalizeBengali(u.nameBn).toLowerCase();
+  if (!LOCAL_LANDMARK_MAP[normEn] && !DISTRICT_NAMES.has(normEn)) {
+    LOCAL_LANDMARK_MAP[normEn] = {
+      lat: u.latitude,
+      lng: u.longitude,
+      standardName: u.nameEn,
+      adminLevel: 'THANA',
+    };
+  }
+  if (!LOCAL_LANDMARK_MAP[normBn] && !DISTRICT_NAMES.has(normBn)) {
+    LOCAL_LANDMARK_MAP[normBn] = {
+      lat: u.latitude,
+      lng: u.longitude,
+      standardName: u.nameEn,
+      adminLevel: 'THANA',
+    };
+  }
+}
+
 /**
  * Returns administrative priority weight:
  * - 100: Specific locality, neighborhood, thana, police station (e.g. Mirpur, Tongi, Chauddagram)
@@ -532,6 +574,78 @@ const throttleNominatim = async () => {
   lastNominatimCallTime = Date.now();
 };
 
+const DISTRICT_TO_DIV_MAP: Record<string, string> = {
+  Dhaka: 'Dhaka', Gazipur: 'Dhaka', Narayanganj: 'Dhaka', Narsingdi: 'Dhaka',
+  Tangail: 'Dhaka', Kishoreganj: 'Dhaka', Manikganj: 'Dhaka', Munshiganj: 'Dhaka',
+  Faridpur: 'Dhaka', Gopalganj: 'Dhaka', Madaripur: 'Dhaka', Rajbari: 'Dhaka',
+  Shariatpur: 'Dhaka',
+  Chattogram: 'Chattogram', Chittagong: 'Chattogram', "Cox's Bazar": 'Chattogram', Cumilla: 'Chattogram',
+  Feni: 'Chattogram', Brahmanbaria: 'Chattogram', Noakhali: 'Chattogram',
+  Lakshmipur: 'Chattogram', Chandpur: 'Chattogram', Rangamati: 'Chattogram',
+  Khagrachhari: 'Chattogram', Bandarban: 'Chattogram',
+  Rajshahi: 'Rajshahi', Bogura: 'Rajshahi', Pabna: 'Rajshahi', Sirajganj: 'Rajshahi',
+  Naogaon: 'Rajshahi', Natore: 'Rajshahi', Chapainawabganj: 'Rajshahi', Joypurhat: 'Rajshahi',
+  Khulna: 'Khulna', Jashore: 'Khulna', Satkhira: 'Khulna', Bagerhat: 'Khulna',
+  Kushtia: 'Khulna', Jhenaidah: 'Khulna', Chuadanga: 'Khulna', Magura: 'Khulna',
+  Meherpur: 'Khulna', Narail: 'Khulna',
+  Barishal: 'Barishal', Patuakhali: 'Barishal', Bhola: 'Barishal', Pirojpur: 'Barishal',
+  Barguna: 'Barishal', Jhalakathi: 'Barishal',
+  Sylhet: 'Sylhet', Moulvibazar: 'Sylhet', Habiganj: 'Sylhet', Sunamganj: 'Sylhet',
+  Rangpur: 'Rangpur', Dinajpur: 'Rangpur', Kurigram: 'Rangpur', Gaibandha: 'Rangpur',
+  Nilphamari: 'Rangpur', Panchagarh: 'Rangpur', Thakurgaon: 'Rangpur', Lalmonirhat: 'Rangpur',
+  Mymensingh: 'Mymensingh', Jamalpur: 'Mymensingh', Netrokona: 'Mymensingh', Sherpur: 'Mymensingh',
+};
+
+const HOMONYM_CANDIDATE_DISTRICTS: Record<string, string[]> = {
+  sherpur: ['Bogura', 'Sherpur'],
+  'শেরপুর': ['Bogura', 'Sherpur'],
+  shibganj: ['Bogura', 'Chapainawabganj'],
+  'শিবগঞ্জ': ['Bogura', 'Chapainawabganj'],
+  kaliganj: ['Gazipur', 'Lalmonirhat', 'Jhenaidah', 'Satkhira'],
+  'কালীগঞ্জ': ['Gazipur', 'Lalmonirhat', 'Jhenaidah', 'Satkhira'],
+  pirganj: ['Rangpur', 'Thakurgaon'],
+  'পীরগঞ্জ': ['Rangpur', 'Thakurgaon'],
+  lohagara: ['Chattogram', 'Narail'],
+  'লোহাগাড়া': ['Chattogram', 'Narail'],
+  companiganj: ['Noakhali', 'Sylhet'],
+  'কোম্পানীগঞ্জ': ['Noakhali', 'Sylhet'],
+  kawkhali: ['Rangamati', 'Pirojpur'],
+  'কাউখালী': ['Rangamati', 'Pirojpur'],
+  kachua: ['Chandpur', 'Bagerhat'],
+  'কচুয়া': ['Chandpur', 'Bagerhat'],
+  sreepur: ['Gazipur', 'Magura'],
+  'শ্রীপুর': ['Gazipur', 'Magura'],
+  phulbari: ['Dinajpur', 'Kurigram'],
+  'ফুলবাড়ী': ['Dinajpur', 'Kurigram'],
+  daulatpur: ['Manikganj', 'Kushtia'],
+  'দৌলতপুর': ['Manikganj', 'Kushtia'],
+};
+
+const DISTRICT_BN_MAP: Record<string, string[]> = {
+  Bogura: ['বগুড়া', 'বগুড়া'],
+  Sherpur: ['শেরপুর'],
+  Chapainawabganj: ['চাঁপাইনবাবগঞ্জ', 'নবাবগঞ্জ'],
+  Gazipur: ['গাজীপুর'],
+  Lalmonirhat: ['লালমনিরহাট'],
+  Jhenaidah: ['ঝিনাইদহ'],
+  Satkhira: ['সাতক্ষীরা'],
+  Rangpur: ['রংপুর'],
+  Thakurgaon: ['ঠাকুরগাঁও'],
+  Chattogram: ['চট্টগ্রাম'],
+  Narail: ['নড়াইল', 'নড়াইল'],
+  Noakhali: ['নোয়াখালী', 'নোয়াখালী'],
+  Sylhet: ['সিলেট'],
+  Rangamati: ['রাঙ্গামাটি', 'রাঙামাটি'],
+  Pirojpur: ['পিরোজপুর'],
+  Chandpur: ['চাঁদপুর'],
+  Bagerhat: ['বাগেরহাট'],
+  Magura: ['মাগুরা'],
+  Dinajpur: ['দিনাজপুর'],
+  Kurigram: ['কুড়িগ্রাম', 'কুড়িগ্রাম'],
+  Manikganj: ['মানিকগঞ্জ'],
+  Kushtia: ['কুষ্টিয়া', 'কুষ্টিয়া'],
+};
+
 /**
  * Searches the input text for any known Bangladesh landmark or thana name.
  * Ranks by administrative hierarchy: locality/thana (100) > district centroid (50) > hospital (10),
@@ -550,32 +664,116 @@ export const findLandmarkInText = (text: string): GeocodeResult | null => {
   for (const key of keys) {
     const cleanKey = normalizeBengali(key).toLowerCase();
 
+    let isMatch = false;
+
     // For English keys (letters, digits, spaces, hyphens, apostrophes), require word boundaries
-    // so that words like "feni" won't match inside "defending", etc.
     if (/^[a-z0-9\s'-]+$/.test(cleanKey)) {
       const escaped = cleanKey.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       const regex = new RegExp(`(?:^|[^a-z0-9])${escaped}(?:$|[^a-z0-9])`, 'i');
       if (regex.test(cleanInput)) {
-        const match = LOCAL_LANDMARK_MAP[key];
-        return {
-          locationName: match.standardName,
-          latitude: match.lat,
-          longitude: match.lng,
-          source: 'DICTIONARY',
-        };
+        isMatch = true;
       }
     } else {
-      // For Bengali: grammatical inflections are attached directly (e.g. ময়মনসিংহে, চাঁদপুরে, কুয়াকাটায়, সিলেটে)
-      // substring matching is the linguistically correct approach.
-      if (cleanInput.includes(cleanKey)) {
-        const match = LOCAL_LANDMARK_MAP[key];
-        return {
-          locationName: match.standardName,
-          latitude: match.lat,
-          longitude: match.lng,
-          source: 'DICTIONARY',
-        };
+      const escaped = cleanKey.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const regex = new RegExp(`(?:^|[^\\u0980-\\u09FF])${escaped}(?:ের|ে|তে|য়|য়ে|র|এর|এ)?(?:$|[^\\u0980-\\u09FF])`);
+      if (regex.test(cleanInput)) {
+        isMatch = true;
       }
+    }
+
+    if (!isMatch) {
+      continue;
+    }
+
+    // Check for homonym disambiguation with candidate district
+    if (HOMONYM_CANDIDATE_DISTRICTS[cleanKey]) {
+      const candidates = HOMONYM_CANDIDATE_DISTRICTS[cleanKey];
+      for (const candDist of candidates) {
+        const normCand = candDist.toLowerCase();
+        const bnNames = (DISTRICT_BN_MAP[candDist] || []).map((b) => normalizeBengali(b).toLowerCase());
+        const hasMention =
+          cleanInput.includes(normCand) ||
+          bnNames.some((bn) => cleanInput.includes(bn));
+
+        if (hasMention) {
+          const uRec = ALL_UPAZILAS.find(
+            (u) =>
+              u.districtEn.toLowerCase() === candDist.toLowerCase() &&
+              (u.nameEn.toLowerCase() === cleanKey || normalizeBengali(u.nameBn).toLowerCase() === cleanKey)
+          );
+          if (uRec) {
+            return {
+              locationName: uRec.nameEn,
+              latitude: uRec.latitude,
+              longitude: uRec.longitude,
+              district: uRec.districtEn,
+              upazila: uRec.nameEn,
+              division: uRec.divisionEn,
+              locationPrecision: 'UPAZILA',
+              source: 'DICTIONARY',
+            };
+          }
+        }
+      }
+    }
+
+    if (isMatch) {
+      const match = LOCAL_LANDMARK_MAP[key];
+      const isDist = DISTRICT_NAMES.has(cleanKey) || match.adminLevel === 'DISTRICT';
+      const isThana = match.adminLevel === 'THANA';
+      const precision: 'EXACT' | 'UPAZILA' | 'DISTRICT' = isDist
+        ? 'DISTRICT'
+        : (isThana ? 'UPAZILA' : 'EXACT');
+
+      let district = isDist ? match.standardName : undefined;
+      let upazila = isThana ? match.standardName : undefined;
+      let division = DISTRICT_TO_DIV_MAP[match.standardName];
+
+      if (!district) {
+        const matchedUpazila = ALL_UPAZILAS.find(
+          (u) =>
+            u.nameEn.toLowerCase() === match.standardName.toLowerCase() ||
+            normalizeBengali(u.nameBn).toLowerCase() === cleanKey
+        );
+        if (matchedUpazila) {
+          district = matchedUpazila.districtEn;
+          upazila = matchedUpazila.nameEn;
+          division = matchedUpazila.divisionEn;
+        }
+      }
+
+      return {
+        locationName: match.standardName,
+        latitude: match.lat,
+        longitude: match.lng,
+        district,
+        upazila,
+        division,
+        locationPrecision: precision,
+        source: 'DICTIONARY',
+      };
+    }
+  }
+
+  // Check 495 Upazilas directly for places not in landmark map
+  for (const u of ALL_UPAZILAS) {
+    const normEn = u.nameEn.toLowerCase();
+    const normBn = normalizeBengali(u.nameBn).toLowerCase();
+
+    // Check English with word boundary
+    const enRegex = new RegExp(`(?:^|[^a-z0-9])${normEn.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?:$|[^a-z0-9])`, 'i');
+    const bnRegex = new RegExp(`(?:^|[^\\u0980-\\u09FF])${normBn.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?:ের|ে|তে|য়|য়ে|র|এর|এ)?(?:$|[^\\u0980-\\u09FF])`);
+    if (enRegex.test(cleanInput) || bnRegex.test(cleanInput)) {
+      return {
+        locationName: u.nameEn,
+        latitude: u.latitude,
+        longitude: u.longitude,
+        district: u.districtEn,
+        upazila: u.nameEn,
+        division: u.divisionEn,
+        locationPrecision: 'UPAZILA',
+        source: 'DICTIONARY',
+      };
     }
   }
 
@@ -587,6 +785,7 @@ export const findLandmarkInText = (text: string): GeocodeResult | null => {
         locationName: match.standardName,
         latitude: match.lat,
         longitude: match.lng,
+        locationPrecision: 'EXACT',
         source: 'DICTIONARY',
       };
     }
@@ -605,6 +804,7 @@ export const geocodeWithNominatim = async (query: string): Promise<GeocodeResult
       locationName: cached.standardName,
       latitude: cached.lat,
       longitude: cached.lng,
+      locationPrecision: 'EXACT',
       source: 'NOMINATIM',
     };
   }
@@ -653,6 +853,7 @@ export const geocodeWithNominatim = async (query: string): Promise<GeocodeResult
       locationName: resultObj.standardName,
       latitude: lat,
       longitude: lng,
+      locationPrecision: 'EXACT',
       source: 'NOMINATIM',
     };
   } catch (error) {
@@ -791,12 +992,25 @@ export function maskSecondaryPlaces(text: string): string {
     );
 }
 
+/**
+ * Neutralizes common non-geographic homonym words that coincide with upazila names
+ * (e.g. "তালা ভেঙে" = breaking lock, not Tala Upazila in Satkhira).
+ */
+export function maskFalsePositivePhrases(text: string): string {
+  if (!text) return '';
+  return text
+    .replace(/(?:দোকানের|ঘরের|গেটের|বাড়ির|আলমারির)\s+তালা/gi, ' ')
+    .replace(/তালা\s+(?:ভেঙে|ভেঙ্গে|কেটে|মেরে|খুলে|ঝুলিয়ে|ভেঙেছে)/gi, ' ');
+}
+
 function maskAllSecondaryNoise(text: string): string {
   if (!text) return '';
-  return maskSecondaryPlaces(
-    maskHighwayCorridors(
-      maskTransitDepartures(
-        maskHospitalPhrases(text)
+  return maskFalsePositivePhrases(
+    maskSecondaryPlaces(
+      maskHighwayCorridors(
+        maskTransitDepartures(
+          maskHospitalPhrases(text)
+        )
       )
     )
   );

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-12T14:26:51.109Z",
+  "generatedAt": "2026-11-19T22:49:52.305Z",
   "targetRequestsPerEndpoint": 40,
   "concurrency": 8,
   "benchmarks": [
@@ -9,13 +9,13 @@
       "concurrency": 8,
       "successCount": 40,
       "errorCount": 0,
-      "minMs": 9.41,
-      "p50Ms": 13,
-      "p90Ms": 30.78,
-      "p95Ms": 31.01,
-      "p99Ms": 31.32,
-      "maxMs": 31.32,
-      "rps": 478.71
+      "minMs": 7.95,
+      "p50Ms": 12.74,
+      "p90Ms": 17.01,
+      "p95Ms": 17.53,
+      "p99Ms": 19,
+      "maxMs": 19,
+      "rps": 565.29
     },
     {
       "endpoint": "GET /api/v1/stats",
@@ -23,13 +23,13 @@
       "concurrency": 8,
       "successCount": 40,
       "errorCount": 0,
-      "minMs": 550.59,
-      "p50Ms": 588.39,
-      "p90Ms": 929.39,
-      "p95Ms": 932.43,
-      "p99Ms": 933.31,
-      "maxMs": 933.31,
-      "rps": 12.18
+      "minMs": 772.95,
+      "p50Ms": 1030.77,
+      "p90Ms": 1684.06,
+      "p95Ms": 1747.78,
+      "p99Ms": 1859.2,
+      "maxMs": 1859.2,
+      "rps": 6.39
     },
     {
       "endpoint": "GET /api/v1/reports (Dhaka bounds)",
@@ -37,13 +37,13 @@
       "concurrency": 8,
       "successCount": 40,
       "errorCount": 0,
-      "minMs": 493.57,
-      "p50Ms": 504.95,
-      "p90Ms": 514.55,
-      "p95Ms": 518.05,
-      "p99Ms": 685.44,
-      "maxMs": 685.44,
-      "rps": 14.74
+      "minMs": 1148.12,
+      "p50Ms": 1368.02,
+      "p90Ms": 1478.94,
+      "p95Ms": 1491.33,
+      "p99Ms": 1559.49,
+      "maxMs": 1559.49,
+      "rps": 5.48
     },
     {
       "endpoint": "GET /api/v1/safe-zones (Dhaka bounds)",
@@ -51,13 +51,13 @@
       "concurrency": 8,
       "successCount": 40,
       "errorCount": 0,
-      "minMs": 312.27,
-      "p50Ms": 322.51,
-      "p90Ms": 329.31,
-      "p95Ms": 330.66,
-      "p99Ms": 331.89,
-      "maxMs": 331.89,
-      "rps": 24.7
+      "minMs": 459.11,
+      "p50Ms": 482.66,
+      "p90Ms": 562.48,
+      "p95Ms": 567.21,
+      "p99Ms": 578.37,
+      "maxMs": 578.37,
+      "rps": 14.96
     },
     {
       "endpoint": "POST /api/v1/routes/safe-path",
@@ -65,13 +65,13 @@
       "concurrency": 8,
       "successCount": 40,
       "errorCount": 0,
-      "minMs": 400.65,
-      "p50Ms": 417.79,
-      "p90Ms": 426.36,
-      "p95Ms": 427.31,
-      "p99Ms": 429.66,
-      "maxMs": 429.66,
-      "rps": 19.11
+      "minMs": 822.3,
+      "p50Ms": 940.38,
+      "p90Ms": 1556.08,
+      "p95Ms": 1620.14,
+      "p99Ms": 1700,
+      "maxMs": 1700,
+      "rps": 7.32
     }
   ]
 }
