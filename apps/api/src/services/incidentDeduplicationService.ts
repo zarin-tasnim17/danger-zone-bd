@@ -99,6 +99,9 @@ export function cleanIncidentTitle(rawTitle: string): string {
   let title = rawTitle.trim();
   if (!title) return '';
 
+  // Normalize decomposed Bengali Ya + Nukta (\u09af\u09bc) to atomic Yya (\u09df)
+  title = title.replace(/\u09af\u09bc/g, '\u09df');
+
   // 1. Strip leading feed aggregator prefixes: [Google News ...], [The Daily Star], [Press: ...]
   title = title.replace(/^\[(?:google news[^\]]*|the daily star[^\]]*|press:[^\]]*)\]\s*/i, '');
 
@@ -300,6 +303,9 @@ const RAW_BILINGUAL_CONCEPT_MAP: Record<string, string> = {
   'leguna': 'leguna',
   'মাহিন্দ্রা': 'mahindra',
   'মাহিন্দ্রার': 'mahindra',
+  'মাহিন্দ্র': 'mahindra',
+  'মাহিন্দ্রর': 'mahindra',
+  'মাহিন্দ্রকে': 'mahindra',
   'mahindra': 'mahindra',
   'ট্রাক্টর': 'tractor',
   'ট্রাক্টরের': 'tractor',
@@ -349,10 +355,10 @@ const RAW_BILINGUAL_CONCEPT_MAP: Record<string, string> = {
   'করিমনকে': 'korimon',
 
   // Collision & Crash (Expanded Bengali & English)
-  'সংঘর্ষ': 'collision',
-  'সংঘর্ষে': 'collision',
-  'সংঘর্ষের': 'collision',
-  'সংঘর্ষটিতে': 'collision',
+  'সংঘর্ষ': 'clash',
+  'সংঘর্ষে': 'clash',
+  'সংঘর্ষের': 'clash',
+  'সংঘর্ষটিতে': 'clash',
   'মুখোমুখি': 'collision',
   'ধাক্কা': 'collision',
   'ধাক্কায়': 'collision',
@@ -412,6 +418,37 @@ const RAW_BILINGUAL_CONCEPT_MAP: Record<string, string> = {
   'confrontation': 'clash',
   'turf war': 'clash',
   'chase and counter-chase': 'clash',
+
+  // Political & Student Factions
+  'ছাত্রলীগ': 'CHHATRA_LEAGUE',
+  'ছাত্রলীগের': 'CHHATRA_LEAGUE',
+  'bcl': 'CHHATRA_LEAGUE',
+  'chhatra league': 'CHHATRA_LEAGUE',
+  'ছাত্রদল': 'CHHATRA_DAL',
+  'ছাত্রদলের': 'CHHATRA_DAL',
+  'jcd': 'CHHATRA_DAL',
+  'chhatra dal': 'CHHATRA_DAL',
+  'আওয়ামী লীগ': 'AWAMI_LEAGUE',
+  'আওয়ামী লীগ': 'AWAMI_LEAGUE',
+  'আওয়ামী': 'AWAMI_LEAGUE',
+  'আওয়ামী': 'AWAMI_LEAGUE',
+  'আওয়ামী লীগের': 'AWAMI_LEAGUE',
+  'আওয়ামী লীগের': 'AWAMI_LEAGUE',
+  'awami league': 'AWAMI_LEAGUE',
+  'al': 'AWAMI_LEAGUE',
+  'বিএনপি': 'BNP',
+  'বিএনপির': 'BNP',
+  'bnp': 'BNP',
+  'জামায়াত': 'JAMAAT',
+  'জামায়াত': 'JAMAAT',
+  'জামায়াতের': 'JAMAAT',
+  'জামায়াতের': 'JAMAAT',
+  'jamaat': 'JAMAAT',
+  'শিবির': 'SHIBIR',
+  'শিবিরের': 'SHIBIR',
+  'shibir': 'SHIBIR',
+  'যুবলীগ': 'JUBO_LEAGUE',
+  'jubo league': 'JUBO_LEAGUE',
 
   // Mob Beating & Lynching
   'গণপিটুনি': 'mob_beating',
@@ -665,7 +702,7 @@ function stemBengaliToken(token: string): string {
 export function extractSignificantTokens(rawTitle: string): Set<string> {
   const cleanedTitle = cleanIncidentTitle(rawTitle);
   const normDigits = normalizeDigits(cleanedTitle);
-  let text = normDigits.normalize('NFC').toLowerCase();
+  let text = normDigits.normalize('NFC').toLowerCase().replace(/\u09af\u09bc/g, '\u09df');
 
   // Strip zero-width non-joiner and zero-width joiner
   text = text.replace(/[\u200C\u200D]/g, '');
@@ -695,10 +732,28 @@ export function extractSignificantTokens(rawTitle: string): Set<string> {
     digitMatches.forEach((d) => significant.add(d));
   }
 
+  // Check multi-word entries in BILINGUAL_CONCEPT_MAP (e.g. 'mob beating', 'mass beating', 'beaten to death', 'battery-run rickshaw', 'chase and counter-chase')
+  const normalizedSpacedText = text
+    .replace(/[!"#$%&'()*+,\-./:;<=>?@[\\\]^_`{|}~‘’“”।॥|—–«»‹›]/gu, ' ')
+    .replace(/\s+/g, ' ');
+
+  for (const [phrase, concept] of Object.entries(BILINGUAL_CONCEPT_MAP)) {
+    if (phrase.includes(' ') || phrase.includes('-')) {
+      const normPhrase = phrase.toLowerCase().normalize('NFC').replace(/\u09af\u09bc/g, '\u09df');
+      const spacedPhrase = normPhrase.replace(/[\-–—_]/g, ' ').replace(/\s+/g, ' ').trim();
+      if (text.includes(normPhrase) || normalizedSpacedText.includes(spacedPhrase)) {
+        significant.add(concept);
+      }
+    }
+  }
+
   // Strip punctuation and special characters including Double Dari, En-dash, and guillemets
   text = text.replace(/[!"#$%&'()*+,\-./:;<=>?@[\\\]^_`{|}~‘’“”।॥|—–«»‹›]/gu, ' ');
 
   const rawWords = text.split(/\s+/).map((w) => w.trim()).filter(Boolean);
+
+  const hasVehicles = extractVehicles(rawTitle).size > 0;
+  const hasFactions = extractFactions(rawTitle).size > 0;
 
   for (const w of rawWords) {
     if (BENGALI_STOPWORDS.has(w)) continue;
@@ -709,6 +764,15 @@ export function extractSignificantTokens(rawTitle: string): Set<string> {
       significant.add(canonicalConcept);
     }
 
+    if (w.startsWith('সংঘর্ষ')) {
+      if (hasVehicles) significant.add('collision');
+      if (hasFactions || !hasVehicles) significant.add('clash');
+      if (!hasVehicles && !hasFactions) {
+        significant.add('collision');
+        significant.add('clash');
+      }
+    }
+
     const stemmed = stemBengaliToken(w);
     if (stemmed.length >= 1 && !BENGALI_STOPWORDS.has(stemmed)) {
       significant.add(stemmed);
@@ -716,7 +780,26 @@ export function extractSignificantTokens(rawTitle: string): Set<string> {
       if (conceptFromStemmed) {
         significant.add(conceptFromStemmed);
       }
+      if (stemmed.startsWith('সংঘর্ষ')) {
+        if (hasVehicles) significant.add('collision');
+        if (hasFactions || !hasVehicles) significant.add('clash');
+        if (!hasVehicles && !hasFactions) {
+          significant.add('collision');
+          significant.add('clash');
+        }
+      }
     }
+  }
+
+  // Inject extracted factions and weapons into significant tokens
+  const factions = extractFactions(rawTitle);
+  for (const f of factions) {
+    significant.add(f);
+  }
+
+  const weapons = extractWeapons(rawTitle);
+  for (const w of weapons) {
+    significant.add(w);
   }
 
   return significant;
@@ -753,16 +836,16 @@ const VEHICLE_CANONICAL_MAP: Record<string, string> = {
   korimon: 'KORIMON', 'করিমন': 'KORIMON', 'করিমনের': 'KORIMON', 'করিমনকে': 'KORIMON',
   bhotbhoti: 'BHOTBHOTI', 'ভটভটি': 'BHOTBHOTI', 'ভটভটির': 'BHOTBHOTI',
   leguna: 'LEGUNA', 'লেগুনা': 'LEGUNA', 'লেগুনার': 'LEGUNA', 'লেগুনায়': 'LEGUNA',
-  mahindra: 'MAHINDRA', 'মাহিন্দ্রা': 'MAHINDRA', 'মাহিন্দ্রার': 'MAHINDRA',
+  mahindra: 'MAHINDRA', 'মাহিন্দ্রা': 'MAHINDRA', 'মাহিন্দ্রার': 'MAHINDRA', 'মাহিন্দ্র': 'MAHINDRA', 'মাহিন্দ্রর': 'MAHINDRA', 'মাহিন্দ্রকে': 'MAHINDRA',
   tractor: 'TRACTOR', 'ট্রাক্টর': 'TRACTOR', 'ট্রাক্টরের': 'TRACTOR',
   ambulance: 'AMBULANCE', 'অ্যাম্বুলেন্স': 'AMBULANCE', 'অ্যাম্বুলেন্সের': 'AMBULANCE',
 };
 
 export function extractVehicles(tokensOrText: Set<string> | string[] | string): Set<string> {
   const vehicles = new Set<string>();
-  const text = typeof tokensOrText === 'string' ? tokensOrText.toLowerCase().normalize('NFC') : '';
+  const text = typeof tokensOrText === 'string' ? tokensOrText.toLowerCase().normalize('NFC').replace(/\u09af\u09bc/g, '\u09df') : '';
   const tokenList: string[] = typeof tokensOrText === 'string'
-    ? Array.from(extractSignificantTokens(tokensOrText))
+    ? text.replace(/[!"#$%&'()*+,\-./:;<=>?@[\\\]^_`{|}~‘’“”।॥|—–«»‹›]/gu, ' ').split(/\s+/).filter(Boolean)
     : Array.isArray(tokensOrText) ? tokensOrText : Array.from(tokensOrText);
 
   if (text) {
@@ -774,7 +857,7 @@ export function extractVehicles(tokensOrText: Set<string> | string[] | string): 
   }
 
   for (const token of tokenList) {
-    const norm = token.toLowerCase().trim();
+    const norm = token.toLowerCase().trim().replace(/\u09af\u09bc/g, '\u09df');
     if (VEHICLE_CANONICAL_MAP[norm]) {
       vehicles.add(VEHICLE_CANONICAL_MAP[norm]);
     }
@@ -814,9 +897,9 @@ export const WEAPON_CANONICAL_MAP: Record<string, string> = {
 
 export function extractWeapons(tokensOrText: Set<string> | string[] | string): Set<string> {
   const weapons = new Set<string>();
-  const text = typeof tokensOrText === 'string' ? tokensOrText.toLowerCase().normalize('NFC') : '';
+  const text = typeof tokensOrText === 'string' ? tokensOrText.toLowerCase().normalize('NFC').replace(/\u09af\u09bc/g, '\u09df') : '';
   const tokenList: string[] = typeof tokensOrText === 'string'
-    ? Array.from(extractSignificantTokens(tokensOrText))
+    ? text.replace(/[!"#$%&'()*+,\-./:;<=>?@[\\\]^_`{|}~‘’“”।॥|—–«»‹›]/gu, ' ').split(/\s+/).filter(Boolean)
     : Array.isArray(tokensOrText) ? tokensOrText : Array.from(tokensOrText);
 
   if (text) {
@@ -828,7 +911,7 @@ export function extractWeapons(tokensOrText: Set<string> | string[] | string): S
   }
 
   for (const token of tokenList) {
-    const norm = token.toLowerCase().trim();
+    const norm = token.toLowerCase().trim().replace(/\u09af\u09bc/g, '\u09df');
     if (WEAPON_CANONICAL_MAP[norm]) {
       weapons.add(WEAPON_CANONICAL_MAP[norm]);
     }
@@ -870,9 +953,9 @@ export const FACTION_CANONICAL_MAP: Record<string, string> = {
 
 export function extractFactions(tokensOrText: Set<string> | string[] | string): Set<string> {
   const factions = new Set<string>();
-  const text = typeof tokensOrText === 'string' ? tokensOrText.toLowerCase().normalize('NFC') : '';
+  const text = typeof tokensOrText === 'string' ? tokensOrText.toLowerCase().normalize('NFC').replace(/\u09af\u09bc/g, '\u09df') : '';
   const tokenList: string[] = typeof tokensOrText === 'string'
-    ? Array.from(extractSignificantTokens(tokensOrText))
+    ? text.replace(/[!"#$%&'()*+,\-./:;<=>?@[\\\]^_`{|}~‘’“”।॥|—–«»‹›]/gu, ' ').split(/\s+/).filter(Boolean)
     : Array.isArray(tokensOrText) ? tokensOrText : Array.from(tokensOrText);
 
   if (text) {
@@ -884,7 +967,7 @@ export function extractFactions(tokensOrText: Set<string> | string[] | string): 
   }
 
   for (const token of tokenList) {
-    const norm = token.toLowerCase().trim();
+    const norm = token.toLowerCase().trim().replace(/\u09af\u09bc/g, '\u09df');
     if (FACTION_CANONICAL_MAP[norm]) {
       factions.add(FACTION_CANONICAL_MAP[norm]);
     }
@@ -931,14 +1014,14 @@ function parseCountValue(raw: string): number | undefined {
 
 export function extractCasualtySignature(text: string): CasualtySignature {
   if (!text) return {};
-  const norm = normalizeDigits(text).normalize('NFC').toLowerCase();
+  const norm = normalizeDigits(text).normalize('NFC').toLowerCase().replace(/\u09af\u09bc/g, '\u09df');
   const signature: CasualtySignature = {};
 
   const numTokens = '(\\d+|এক|দুই|তিন|চার|পাঁচ|ছয়|ছয়|সাত|আট|নয়|নয়|দশ|one|two|three|four|five|six|seven|eight|nine|ten)';
 
   // 1. Killed extraction
   const killedRegexes = [
-    new RegExp(`(?:^|[\\s,।–—])${numTokens}\\s*(?:জনের?\\s*)?(?:প্রাণহানি|নিহত|মৃত্যু|লাশ|মরদেহ|dead|killed|dies|deaths?|fatalities)`, 'u'),
+    new RegExp(`(?:^|[\\s,।–—])${numTokens}\\s*(?:জন(?:ের)?|জনে)?\\s*(?:প্রাণহানি|নিহত|মৃত্যু|লাশ|মরদেহ|dead|killed|dies|deaths?|fatalities)`, 'u'),
     new RegExp(`(?:নিহত|প্রাণহানি|মৃত্যু|killed|dead|deaths?)\\s*[:\\s]\\s*(?:অন্তত\\s*)?${numTokens}`, 'u'),
   ];
 
@@ -955,7 +1038,7 @@ export function extractCasualtySignature(text: string): CasualtySignature {
 
   // 2. Injured extraction
   const injuredRegexes = [
-    new RegExp(`(?:^|[\\s,।–—])${numTokens}\\s*(?:জনের?\\s*)?(?:আহত|জখম|দগ্ধ|গুলিবিদ্ধ|injured|hurt|wounded|burned)`, 'u'),
+    new RegExp(`(?:^|[\\s,।–—])${numTokens}\\s*(?:জন(?:ের)?|জনে)?\\s*(?:আহত|জখম|দগ্ধ|গুলিবিদ্ধ|injured|hurt|wounded|burned)`, 'u'),
     new RegExp(`(?:আহত|জখম|injured|wounded)\\s*[:\\s]\\s*(?:অন্তত\\s*)?${numTokens}`, 'u'),
   ];
 
@@ -1114,6 +1197,7 @@ export function calculateStorySimilarity(
     'bhotbhoti',
     'leguna',
     'mahindra',
+    'MAHINDRA',
     'tractor',
     'ambulance',
     'collision',

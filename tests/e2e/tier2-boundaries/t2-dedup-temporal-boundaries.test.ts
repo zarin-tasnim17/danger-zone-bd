@@ -2,6 +2,9 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   calculateStorySimilarity,
+  extractVehicles,
+  extractWeapons,
+  extractCasualtySignature,
 } from '../../../apps/api/src/services/incidentDeduplicationService';
 
 describe('Tier 2: Boundary & Corner Cases - Deduplication Temporal & Spatial Boundaries', () => {
@@ -36,8 +39,14 @@ describe('Tier 2: Boundary & Corner Cases - Deduplication Temporal & Spatial Bou
     const minorCrash = 'সীতাকুণ্ডে বাস দুর্ঘটনায় ১ জন নিহত';
     const massDisaster = 'সীতাকুণ্ডে বাস খাদে পড়ে ১০ জন নিহত';
 
+    const cas1 = extractCasualtySignature(minorCrash);
+    const cas2 = extractCasualtySignature(massDisaster);
+    assert.strictEqual(cas1.killed, 1, 'Minor crash must extract 1 fatality');
+    assert.strictEqual(cas2.killed, 10, 'Mass disaster must extract 10 fatalities');
+
     const sim = calculateStorySimilarity(minorCrash, massDisaster);
-    // Even if location and vehicle match, casualty mismatch prevents blind merge
+    // Even if location and vehicle match, casualty mismatch strictly prevents duplicate merge
+    assert.strictEqual(sim.isDuplicate, false, '1 fatality vs 10 fatalities must reject duplicate merge');
     assert.ok(
       !sim.sharedTokens.includes('10') || !sim.sharedTokens.includes('1'),
       'Casualty counts 1 and 10 must not be conflated'
@@ -74,5 +83,42 @@ describe('Tier 2: Boundary & Corner Cases - Deduplication Temporal & Spatial Bou
     assert.ok(sim.sharedTokens.includes('bus'));
     assert.ok(sim.sharedTokens.includes('truck'));
     assert.ok(sim.sharedTokens.includes('collision'));
+  });
+
+  it('T2-DEDUP-06: Cross-lingual student & political clashes bridge canonical factions and concept clash', () => {
+    const bengaliClash = 'সীতাকুণ্ডে ছাত্রলীগ ও ছাত্রদলের মধ্যে সংঘর্ষ';
+    const englishClash = 'BCL, Chhatra Dal clash in Sitakunda';
+
+    const sim = calculateStorySimilarity(bengaliClash, englishClash);
+    assert.strictEqual(sim.isDuplicate, true, 'Cross-lingual student clash with shared factions must consolidate');
+    assert.ok(sim.sharedTokens.includes('clash'), 'Shared tokens must bridge to clash concept');
+    assert.ok(sim.sharedTokens.includes('CHHATRA_LEAGUE'), 'Shared tokens must include CHHATRA_LEAGUE');
+    assert.ok(sim.sharedTokens.includes('CHHATRA_DAL'), 'Shared tokens must include CHHATRA_DAL');
+  });
+
+  it('T2-DEDUP-07: Multi-word concepts (mob beating, battery-run rickshaw) extracted and bridged across languages', () => {
+    const bengaliMob = 'উত্তরায় ছিনতাইকারী সন্দেহে যুবককে গণপিটুনি';
+    const englishMob = 'Youth subjected to mob beating in Uttara on suspicion of mugging';
+
+    const sim = calculateStorySimilarity(bengaliMob, englishMob);
+    assert.strictEqual(sim.isDuplicate, true, 'Cross-lingual mob beating report must merge');
+    assert.ok(sim.sharedTokens.includes('mob_beating'), 'Shared tokens must include canonical mob_beating concept');
+  });
+
+  it('T2-DEDUP-08: Unicode decomposed Ya + Nukta (\\u09af\\u09bc) normalizes to atomic Yya (\\u09df) for weapon extraction', () => {
+    // Construct text with explicit decomposed Ya (\u09af) + Nukta (\u09bc) in দেশীয় অস্ত্র
+    const decomposedTitle = 'দেশী\u09af\u09bc অস্ত্রসহ ৩ জন আটক';
+    const weapons = extractWeapons(decomposedTitle);
+    assert.ok(weapons.has('INDIGENOUS_WEAPON'), 'Decomposed Nukta weapon string must resolve to INDIGENOUS_WEAPON');
+  });
+
+  it('T2-DEDUP-09: Southwestern rural transport variant মাহিন্দ্র extracts canonical MAHINDRA vehicle', () => {
+    const crashMahindra = 'সাতক্ষীরায় মাহিন্দ্র উল্টে নিহত ১';
+    const vehicles = extractVehicles(crashMahindra);
+    assert.ok(vehicles.has('MAHINDRA'), 'Southwestern spelling মাহিন্দ্র must extract MAHINDRA vehicle');
+
+    const crashBus = 'সাতক্ষীরায় বাস খাদে পড়ে নিহত ১';
+    const sim = calculateStorySimilarity(crashMahindra, crashBus);
+    assert.strictEqual(sim.isDuplicate, false, 'Vehicle conflict (MAHINDRA vs BUS) must strictly prevent duplicate merge');
   });
 });
