@@ -1,6 +1,6 @@
 {
-  "profile": "functional",
-  "generatedAt": "2026-11-19T23:17:19.636Z",
+  "profile": "regression",
+  "generatedAt": "2026-11-20T09:24:59.205Z",
   "inventoriedEndpoints": {
     "express": 43,
     "nextProxy": 3,
@@ -8,45 +8,25 @@
     "total": 47
   },
   "suiteBreakdown": {
-    "tests\\api\\01-health-system-proxy.test.ts": {
-      "total": 8,
-      "passed": 8,
+    "tests\\regression\\01-confirmed-defects-regression.test.ts": {
+      "total": 14,
+      "passed": 14,
       "failed": 0
     },
-    "tests\\api\\02-auth-users.test.ts": {
-      "total": 5,
-      "passed": 5,
+    "tests\\regression\\02-post-fix-edge-cases-regression.test.ts": {
+      "total": 6,
+      "passed": 6,
       "failed": 0
     },
-    "tests\\api\\03-reports-votes-updates.test.ts": {
-      "total": 4,
-      "passed": 4,
-      "failed": 0
-    },
-    "tests\\api\\04-safe-zones-routing.test.ts": {
-      "total": 2,
-      "passed": 2,
-      "failed": 0
-    },
-    "tests\\api\\05-alerts-media.test.ts": {
-      "total": 4,
-      "passed": 4,
-      "failed": 0
-    },
-    "tests\\api\\06-admin-stats-cron.test.ts": {
-      "total": 3,
-      "passed": 3,
-      "failed": 0
-    },
-    "tests\\api\\07-sockets-realtime.test.ts": {
-      "total": 2,
-      "passed": 2,
+    "tests\\regression\\03-screenshot-and-threat-eligibility.test.ts": {
+      "total": 6,
+      "passed": 6,
       "failed": 0
     }
   },
   "summary": {
-    "total": 28,
-    "passed": 28,
+    "total": 26,
+    "passed": 26,
     "failed": 0,
     "skipped": 0
   },
