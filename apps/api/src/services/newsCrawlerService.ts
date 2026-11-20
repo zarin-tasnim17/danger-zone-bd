@@ -11,7 +11,7 @@ import { emitNewReport, emitReportEnriched } from '../sockets';
 import { isActiveThreatIncident } from '@repo/shared';
 import { broadcastPlatformStats } from './statsService';
 import { setReportLocation } from '../db/spatialUtils';
-import { newsObservabilityService, CrawlRunRecorder } from './newsObservabilityService';
+import { newsObservabilityService, CrawlRunRecorder, CrawlerRunTelemetry } from './newsObservabilityService';
 import {
   isWireSyndicatedStory,
   resolvePublisherDomain,
@@ -651,6 +651,7 @@ export const processAndIngestNewsItems = async (
       console.log(
         `[News Crawler] 🌍 Skipping overseas incident: "${item.title.substring(0, 65)}..." (Matched: ${foreignCheck.matchedTerm})`
       );
+      if (runRecorder) runRecorder.recordForeignArticleFiltered();
       skipped++;
       continue;
     }
@@ -658,6 +659,9 @@ export const processAndIngestNewsItems = async (
     // 4. Content-Based Bilingual Classification (Strict Decoupling from Feed categoryHint)
     const classification = classifyNewsText(item.title, item.contentSnippet || '');
     const finalCategory = classification.category;
+    if (!classification.isSafetyRelated || classification.disqualifiedReason) {
+      if (runRecorder) runRecorder.recordDisqualifiedNonIncident();
+    }
 
     // 5. Domestic Geocoding resolution (Headline priority + victim residence exclusion)
     const geocode = await resolveLocationFromText(item.title, item.contentSnippet || '');
@@ -684,6 +688,9 @@ export const processAndIngestNewsItems = async (
 
     if (!eligibility.isEligibleForActiveMap || !geocode) {
       if (runRecorder && !geocode) runRecorder.recordGeocodingFailure();
+      if (runRecorder && classification.isSafetyRelated && !classification.disqualifiedReason) {
+        runRecorder.recordStagedUnderReview();
+      }
       // Stage non-active / historical / follow-up / unresolvable article without creating live map pin
       try {
         await prisma.newsArticle.create({
@@ -903,7 +910,7 @@ export const processAndIngestNewsItems = async (
         existingGuidSet.add(guid);
         existingUrlSet.add(canonicalUrl);
         skipped++;
-        if (runRecorder) runRecorder.recordDuplicateRejection();
+        if (runRecorder) runRecorder.recordDuplicateConsolidated();
         return;
       }
 
@@ -1056,6 +1063,7 @@ export const crawlAllNewsFeeds = async (
   totalVerifiedMatches: number;
   runId: string;
   durationMs: number;
+  telemetry: CrawlerRunTelemetry;
 }> => {
   const runRecorder = newsObservabilityService.startRun();
   let totalIngested = 0;
@@ -1068,6 +1076,16 @@ export const crawlAllNewsFeeds = async (
     const safety = await validateUrlForSafeFetch(feedConfig.url);
     if (!safety.isSafe) {
       console.warn(`[News Crawler] Blocked unsafe feed URL "${feedConfig.name}" (${feedConfig.url}): ${safety.reason}`);
+      feedsChecked++;
+      runRecorder.recordFeedExecution({
+        feedName: feedConfig.name,
+        category: feedConfig.category,
+        url: feedConfig.url,
+        status: 'FAILED',
+        latencyMs: 0,
+        itemsFetched: 0,
+        errorMessage: safety.reason || 'Blocked unsafe feed URL',
+      });
       return;
     }
 
@@ -1075,19 +1093,20 @@ export const crawlAllNewsFeeds = async (
     const feedStartTime = Date.now();
     const timeoutMs = feedConfig.timeoutMs || 10000;
 
+    let timeoutPromiseHandle: NodeJS.Timeout | undefined;
+
     try {
       const parsePromise = (async () => {
-        // Try fetching raw text first to sanitize XML (handles The Daily Star encoding artifacts)
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
         try {
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
           const resp = await fetch(feedConfig.url, {
             signal: controller.signal,
             headers: {
               'User-Agent': 'DangerZoneBD-PublicSafetyNewsCrawler/1.0 (contact@dangerzonebd.org)',
             },
           });
-          clearTimeout(timeoutId);
 
           if (resp.status === 429) {
             if (feedConfig.url.includes('news.google.com')) {
@@ -1112,19 +1131,22 @@ export const crawlAllNewsFeeds = async (
           const cleanXml = sanitizeXmlString(rawText);
           return await parser.parseString(cleanXml);
         } catch (fetchErr: any) {
-          if (fetchErr.name === 'AbortError') {
+          if (fetchErr.name === 'AbortError' || fetchErr.name === 'TimeoutError' || fetchErr.message?.includes('timed out')) {
             throw new Error(`Feed fetch timed out after ${timeoutMs}ms`);
           }
-          if (fetchErr.message?.includes('429')) {
+          if (fetchErr.message?.includes('HTTP 429') || fetchErr.message?.startsWith('HTTP ')) {
+            // Do NOT re-query on explicit HTTP error codes (404, 500, etc.)
             throw fetchErr;
           }
-          // Fallback to parser.parseURL in environments or mocks that mock parser directly
+          // Fallback to parser.parseURL only for non-HTTP fetch failures (e.g. mock test harnesses)
           return await parser.parseURL(feedConfig.url);
+        } finally {
+          clearTimeout(timeoutId);
         }
       })();
 
       const timeoutPromise = new Promise<never>((_, reject) => {
-        setTimeout(() => reject(new Error(`Feed fetch timed out after ${timeoutMs}ms`)), timeoutMs);
+        timeoutPromiseHandle = setTimeout(() => reject(new Error(`Feed fetch timed out after ${timeoutMs}ms`)), timeoutMs);
       });
 
       const feed = await Promise.race([parsePromise, timeoutPromise]);
@@ -1179,17 +1201,26 @@ export const crawlAllNewsFeeds = async (
         errorMessage: feedErr?.message || String(feedErr),
       });
       // Isolated failure handling: continuing crawl loop without aborting
+    } finally {
+      if (timeoutPromiseHandle) {
+        clearTimeout(timeoutPromiseHandle);
+      }
     }
   };
 
   if (feeds !== PUBLIC_NEWS_FEEDS) {
-    // Custom/targeted feeds (e.g. hermetic test mode)
+    // Custom/targeted feeds (e.g. hermetic test mode or targeted test calls)
     for (const feedConfig of feeds) {
-      await fetchAndProcessSingleFeed(feedConfig);
+      try {
+        await fetchAndProcessSingleFeed(feedConfig);
+      } catch (err: any) {
+        console.warn(`[News Crawler] Isolated feed failure for "${feedConfig.name}":`, err?.message || err);
+      }
     }
   } else {
-    // Production scheduled crawl:
-    // 1. Direct Publisher RSS Feeds (Dhaka Tribune, Dainik Azadi, Jagonews24, Prothom Alo, Daily Star)
+    // Production uncapped nationwide scheduled crawl (52 total feeds across 64 districts):
+
+    // 1. Direct Publisher RSS Feeds (10 feeds in parallel)
     console.log('[News Crawler] 📰 Ingesting direct publisher feeds in parallel...');
     const directFeedConfigs: FeedConfig[] = DIRECT_PUBLISHER_FEEDS.map((df: DirectFeedDefinition) => ({
       name: df.name,
@@ -1201,19 +1232,39 @@ export const crawlAllNewsFeeds = async (
 
     await Promise.allSettled(directFeedConfigs.map((df) => fetchAndProcessSingleFeed(df)));
 
-    // 2. Google News Regional Discovery with Circuit Breaker and 10-Cluster Rotation
+    // 2. All 22 Dedicated English & Bengali Category Feeds
     if (checkGoogleNewsCircuit()) {
-      const [clusterA, clusterB] = getNextClusterPair();
-      console.log(`[News Crawler] 🌐 Executing Google News Regional Discovery for clusters: ${clusterA} + ${clusterB}`);
-      const clusterFeeds = [...buildClusterFeeds(clusterA), ...buildClusterFeeds(clusterB)];
-
-      for (const cFeed of clusterFeeds) {
-        await sleepJitter(1500, 2500);
-        await fetchAndProcessSingleFeed(cFeed);
+      console.log('[News Crawler] 🌐 Ingesting all 22 dedicated category feeds (EN + BN)...');
+      for (const catFeed of PUBLIC_NEWS_FEEDS) {
+        try {
+          await sleepJitter(1000, 2000);
+          await fetchAndProcessSingleFeed(catFeed);
+        } catch (err: any) {
+          console.warn(`[News Crawler] Isolated feed failure for "${catFeed.name}":`, err?.message || err);
+        }
       }
     } else {
       console.log(
-        `[News Crawler] 🔌 Google News Circuit Breaker is OPEN (cooldown until ${new Date(circuitBreaker.openUntil).toISOString()}). Direct publisher feeds completed successfully.`
+        `[News Crawler] 🔌 Google News Circuit Breaker is OPEN (cooldown until ${new Date(circuitBreaker.openUntil).toISOString()}). Skipping category feeds.`
+      );
+    }
+
+    // 3. All 10 Nationwide Regional Clusters (Uncapped 64-District Coverage, 20 feeds)
+    if (checkGoogleNewsCircuit()) {
+      console.log('[News Crawler] 🌐 Ingesting all 10 nationwide regional clusters (uncapped 64 districts)...');
+      const allClusterFeeds = NATIONWIDE_CLUSTERS.flatMap((c) => buildClusterFeeds(c.id));
+
+      for (const cFeed of allClusterFeeds) {
+        try {
+          await sleepJitter(1000, 2000);
+          await fetchAndProcessSingleFeed(cFeed);
+        } catch (err: any) {
+          console.warn(`[News Crawler] Isolated feed failure for "${cFeed.name}":`, err?.message || err);
+        }
+      }
+    } else {
+      console.log(
+        `[News Crawler] 🔌 Google News Circuit Breaker is OPEN (cooldown until ${new Date(circuitBreaker.openUntil).toISOString()}). Skipping regional cluster feeds.`
       );
     }
   }
@@ -1227,5 +1278,6 @@ export const crawlAllNewsFeeds = async (
     totalVerifiedMatches,
     runId: completedRun.runId,
     durationMs: completedRun.durationMs,
+    telemetry: runRecorder.toTelemetry(),
   };
 };

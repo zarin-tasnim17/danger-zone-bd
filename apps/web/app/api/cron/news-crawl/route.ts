@@ -64,7 +64,7 @@ export async function GET(request: Request) {
 
     const targetUrl = rawTarget.replace(/\/+$/, '').replace(/\/api\/v1$/, '');
 
-    console.log(`[Vercel Cron] 🌐 Triggering automated hourly news crawl on ${targetUrl}...`);
+    console.log(`[Vercel Cron] 🌐 Triggering automated 10-minute news crawl on ${targetUrl}...`);
 
     const res = await fetch(`${targetUrl}/api/v1/cron/news-crawl`, {
       method: 'POST',

@@ -159,6 +159,36 @@ export const crawlerMetricsSchema = z.object({
 });
 export type CrawlerMetricsContract = z.infer<typeof crawlerMetricsSchema>;
 
+/**
+ * Interface Contract #4: CrawlerRunTelemetry
+ */
+export const crawlerRunTelemetrySchema = z.object({
+  crawlRunId: z.string().min(1),
+  startedAt: z.union([z.date(), z.string()]),
+  completedAt: z.union([z.date(), z.string()]),
+  durationMs: z.number().nonnegative(),
+  feedsProcessed: z.number().int().nonnegative(),
+  feedsFailed: z.number().int().nonnegative(),
+  totalArticlesDiscovered: z.number().int().nonnegative(),
+  foreignArticlesFiltered: z.number().int().nonnegative(),
+  disqualifiedNonIncidents: z.number().int().nonnegative(),
+  stagedUnderReview: z.number().int().nonnegative(),
+  duplicatesConsolidated: z.number().int().nonnegative(),
+  newIncidentsCreated: z.number().int().nonnegative(),
+  errorSummaries: z.array(
+    z.object({
+      feedUrl: z.string().min(1),
+      error: z.string().min(1),
+      isTimeout: z.boolean(),
+    })
+  ),
+});
+export type CrawlerRunTelemetryContract = z.infer<typeof crawlerRunTelemetrySchema>;
+
+export function assertValidCrawlerRunTelemetry(telemetry: unknown): CrawlerRunTelemetryContract {
+  return crawlerRunTelemetrySchema.parse(telemetry);
+}
+
 // ============================================================================
 // PROJECT.md § M1 ↔ M2: Contract Functions
 // ============================================================================

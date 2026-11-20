@@ -1,4 +1,5 @@
 import { ReportCategory } from '@prisma/client';
+import crypto from 'node:crypto';
 
 export interface FeedExecutionMetric {
   feedName: string;
@@ -10,22 +11,46 @@ export interface FeedExecutionMetric {
   errorMessage?: string;
 }
 
+export interface CrawlerRunTelemetry {
+  crawlRunId: string; // UUID
+  startedAt: Date;
+  completedAt: Date;
+  durationMs: number;
+  feedsProcessed: number;
+  feedsFailed: number;
+  totalArticlesDiscovered: number;
+  foreignArticlesFiltered: number;
+  disqualifiedNonIncidents: number;
+  stagedUnderReview: number;
+  duplicatesConsolidated: number;
+  newIncidentsCreated: number;
+  errorSummaries: Array<{ feedUrl: string; error: string; isTimeout: boolean }>;
+}
+
 export interface CrawlRunMetric {
   runId: string;
+  crawlRunId?: string;
   startTime: string;
   endTime?: string;
+  startedAt?: Date;
+  completedAt?: Date;
   durationMs: number;
   status: 'SUCCESS' | 'PARTIAL' | 'FAILED' | 'IN_PROGRESS';
   feedsChecked: number;
   feedsSuccess: number;
   feedsFailed: number;
   articlesDiscovered: number;
+  foreignArticlesFiltered?: number;
+  disqualifiedNonIncidents?: number;
+  stagedUnderReview?: number;
   duplicateRejections: number;
+  duplicatesConsolidated?: number;
   newIncidentsCreated: number;
   geocodingSuccessCount: number;
   geocodingFailureCount: number;
   verifiedMatchesCount: number;
   feedDetails: FeedExecutionMetric[];
+  errorSummaries?: Array<{ feedUrl: string; error: string; isTimeout: boolean }>;
 }
 
 export interface FeedHealthSummary {
@@ -78,24 +103,36 @@ export class NewsObservabilityService {
    * Starts tracking a new crawl execution run.
    */
   public startRun(runId?: string): CrawlRunRecorder {
-    const id = runId || `crawl_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
-    const startIso = new Date().toISOString();
+    const isUuid = (str: string) =>
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+    const generatedUuid = crypto.randomUUID();
+    const crawlRunId = runId && isUuid(runId) ? runId : generatedUuid;
+    const id = runId || crawlRunId;
+    const startDate = new Date();
+    const startIso = startDate.toISOString();
 
     const currentRun: CrawlRunMetric = {
       runId: id,
+      crawlRunId,
       startTime: startIso,
+      startedAt: startDate,
       durationMs: 0,
       status: 'IN_PROGRESS',
       feedsChecked: 0,
       feedsSuccess: 0,
       feedsFailed: 0,
       articlesDiscovered: 0,
+      foreignArticlesFiltered: 0,
+      disqualifiedNonIncidents: 0,
+      stagedUnderReview: 0,
       duplicateRejections: 0,
+      duplicatesConsolidated: 0,
       newIncidentsCreated: 0,
       geocodingSuccessCount: 0,
       geocodingFailureCount: 0,
       verifiedMatchesCount: 0,
       feedDetails: [],
+      errorSummaries: [],
     };
 
     this.runs.unshift(currentRun);
@@ -104,7 +141,7 @@ export class NewsObservabilityService {
     }
     this.totalRuns++;
 
-    return new CrawlRunRecorder(this, currentRun);
+    return new CrawlRunRecorder(this, currentRun, crawlRunId, startDate);
   }
 
   /**
@@ -209,16 +246,47 @@ export class NewsObservabilityService {
 }
 
 /**
+ * Standalone converter from CrawlRunMetric to CrawlerRunTelemetry conforming to Interface Contract #4.
+ */
+export const toCrawlerRunTelemetry = (metric: CrawlRunMetric): CrawlerRunTelemetry => {
+  const startedAt = metric.startedAt || new Date(metric.startTime);
+  const completedAt = metric.completedAt || (metric.endTime ? new Date(metric.endTime) : new Date());
+  return {
+    crawlRunId: metric.crawlRunId || crypto.randomUUID(),
+    startedAt,
+    completedAt,
+    durationMs: metric.durationMs,
+    feedsProcessed: metric.feedsChecked,
+    feedsFailed: metric.feedsFailed,
+    totalArticlesDiscovered: metric.articlesDiscovered,
+    foreignArticlesFiltered: metric.foreignArticlesFiltered || 0,
+    disqualifiedNonIncidents: metric.disqualifiedNonIncidents || 0,
+    stagedUnderReview: metric.stagedUnderReview || 0,
+    duplicatesConsolidated: metric.duplicatesConsolidated || metric.duplicateRejections,
+    newIncidentsCreated: metric.newIncidentsCreated,
+    errorSummaries: metric.errorSummaries || [],
+  };
+};
+
+/**
  * Helper class to record metrics during a single crawl run.
  */
 export class CrawlRunRecorder {
   private startTimeMs: number;
+  private foreignArticlesFiltered = 0;
+  private disqualifiedNonIncidents = 0;
+  private stagedUnderReview = 0;
+  private duplicatesConsolidated = 0;
+  private errorSummaries: Array<{ feedUrl: string; error: string; isTimeout: boolean }> = [];
+  private completedDate?: Date;
 
   constructor(
     private service: NewsObservabilityService,
-    public readonly run: CrawlRunMetric
+    public readonly run: CrawlRunMetric,
+    public readonly crawlRunId: string = run.crawlRunId || crypto.randomUUID(),
+    public readonly startDate: Date = run.startedAt || new Date()
   ) {
-    this.startTimeMs = Date.now();
+    this.startTimeMs = this.startDate.getTime();
   }
 
   public recordFeedExecution(feedMetric: FeedExecutionMetric) {
@@ -227,6 +295,12 @@ export class CrawlRunRecorder {
       this.run.feedsSuccess++;
     } else {
       this.run.feedsFailed++;
+      const isTimeout = feedMetric.status === 'TIMEOUT';
+      this.recordErrorSummary({
+        feedUrl: feedMetric.url,
+        error: feedMetric.errorMessage || `Feed fetch ${feedMetric.status.toLowerCase()}`,
+        isTimeout,
+      });
     }
     this.run.feedDetails.push(feedMetric);
   }
@@ -235,8 +309,31 @@ export class CrawlRunRecorder {
     this.run.articlesDiscovered += count;
   }
 
+  public recordForeignArticleFiltered(count: number = 1) {
+    this.foreignArticlesFiltered += count;
+    this.run.foreignArticlesFiltered = this.foreignArticlesFiltered;
+  }
+
+  public recordDisqualifiedNonIncident(count: number = 1) {
+    this.disqualifiedNonIncidents += count;
+    this.run.disqualifiedNonIncidents = this.disqualifiedNonIncidents;
+  }
+
+  public recordStagedUnderReview(count: number = 1) {
+    this.stagedUnderReview += count;
+    this.run.stagedUnderReview = this.stagedUnderReview;
+  }
+
+  public recordDuplicateConsolidated(count: number = 1) {
+    this.duplicatesConsolidated += count;
+    this.run.duplicatesConsolidated = this.duplicatesConsolidated;
+    this.run.duplicateRejections += count;
+  }
+
   public recordDuplicateRejection(count: number = 1) {
     this.run.duplicateRejections += count;
+    this.duplicatesConsolidated += count;
+    this.run.duplicatesConsolidated = this.duplicatesConsolidated;
   }
 
   public recordNewIncident(count: number = 1) {
@@ -255,9 +352,46 @@ export class CrawlRunRecorder {
     this.run.verifiedMatchesCount += count;
   }
 
+  public recordErrorSummary(summary: { feedUrl: string; error: string; isTimeout: boolean }) {
+    const existing = this.errorSummaries.find(
+      (e) => e.feedUrl === summary.feedUrl && e.error === summary.error
+    );
+    if (!existing) {
+      this.errorSummaries.push(summary);
+      this.run.errorSummaries = this.errorSummaries;
+    }
+  }
+
+  public toTelemetry(): CrawlerRunTelemetry {
+    const completedAt = this.completedDate || new Date();
+    const durationMs = this.run.durationMs || Math.max(0, completedAt.getTime() - this.startDate.getTime());
+    return {
+      crawlRunId: this.crawlRunId,
+      startedAt: this.startDate,
+      completedAt,
+      durationMs,
+      feedsProcessed: this.run.feedsChecked,
+      feedsFailed: this.run.feedsFailed,
+      totalArticlesDiscovered: this.run.articlesDiscovered,
+      foreignArticlesFiltered: this.foreignArticlesFiltered,
+      disqualifiedNonIncidents: this.disqualifiedNonIncidents,
+      stagedUnderReview: this.stagedUnderReview,
+      duplicatesConsolidated: this.duplicatesConsolidated,
+      newIncidentsCreated: this.run.newIncidentsCreated,
+      errorSummaries: [...this.errorSummaries],
+    };
+  }
+
   public complete(statusOverride?: 'SUCCESS' | 'PARTIAL' | 'FAILED'): CrawlRunMetric {
-    this.run.endTime = new Date().toISOString();
+    this.completedDate = new Date();
+    this.run.completedAt = this.completedDate;
+    this.run.endTime = this.completedDate.toISOString();
     this.run.durationMs = Date.now() - this.startTimeMs;
+    this.run.foreignArticlesFiltered = this.foreignArticlesFiltered;
+    this.run.disqualifiedNonIncidents = this.disqualifiedNonIncidents;
+    this.run.stagedUnderReview = this.stagedUnderReview;
+    this.run.duplicatesConsolidated = this.duplicatesConsolidated;
+    this.run.errorSummaries = [...this.errorSummaries];
 
     if (statusOverride) {
       this.run.status = statusOverride;
