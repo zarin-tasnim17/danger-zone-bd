@@ -577,6 +577,72 @@ for (const u of ALL_UPAZILAS) {
   }
 }
 
+const HOMONYM_CANDIDATE_DISTRICTS: Record<string, string[]> = {
+  sherpur: ['Bogura', 'Sherpur'],
+  'শেরপুর': ['Bogura', 'Sherpur'],
+  shibganj: ['Bogura', 'Chapainawabganj'],
+  'শিবগঞ্জ': ['Bogura', 'Chapainawabganj'],
+  kaliganj: ['Gazipur', 'Lalmonirhat', 'Jhenaidah', 'Satkhira'],
+  'কালীগঞ্জ': ['Gazipur', 'Lalmonirhat', 'Jhenaidah', 'Satkhira'],
+  pirganj: ['Rangpur', 'Thakurgaon'],
+  'পীরগঞ্জ': ['Rangpur', 'Thakurgaon'],
+  lohagara: ['Chattogram', 'Narail'],
+  'লোহাগাড়া': ['Chattogram', 'Narail'],
+  'লোহাগাড়া': ['Chattogram', 'Narail'],
+  companiganj: ['Noakhali', 'Sylhet'],
+  'কোম্পানীগঞ্জ': ['Noakhali', 'Sylhet'],
+  kawkhali: ['Rangamati', 'Pirojpur'],
+  'কাউখালী': ['Rangamati', 'Pirojpur'],
+  kachua: ['Chandpur', 'Bagerhat'],
+  'কচুয়া': ['Chandpur', 'Bagerhat'],
+  'কচুয়া': ['Chandpur', 'Bagerhat'],
+  sreepur: ['Gazipur', 'Magura'],
+  'শ্রীপুর': ['Gazipur', 'Magura'],
+  phulbari: ['Dinajpur', 'Kurigram'],
+  'ফুলবাড়ী': ['Dinajpur', 'Kurigram'],
+  'ফুলবাড়ী': ['Dinajpur', 'Kurigram'],
+  daulatpur: ['Manikganj', 'Kushtia'],
+  'দৌলতপুর': ['Manikganj', 'Kushtia'],
+  nawabganj: ['Dhaka', 'Dinajpur'],
+  'নবাবগঞ্জ': ['Dhaka', 'Dinajpur'],
+  durgapur: ['Rajshahi', 'Netrokona'],
+  'দুর্গাপুর': ['Rajshahi', 'Netrokona'],
+};
+
+const NORMALIZED_HOMONYM_MAP: Record<string, string[]> = {};
+for (const [key, val] of Object.entries(HOMONYM_CANDIDATE_DISTRICTS)) {
+  NORMALIZED_HOMONYM_MAP[key.toLowerCase()] = val;
+  NORMALIZED_HOMONYM_MAP[normalizeBengali(key).toLowerCase()] = val;
+}
+
+const DISTRICT_BN_MAP: Record<string, string[]> = {
+  Bogura: ['বগুড়া', 'বগুড়া'],
+  Sherpur: ['শেরপুর'],
+  Chapainawabganj: ['চাঁপাইনবাবগঞ্জ', 'নবাবগঞ্জ'],
+  Dhaka: ['ঢাকা'],
+  Dinajpur: ['দিনাজপুর'],
+  Rajshahi: ['রাজশাহী'],
+  Netrokona: ['নেত্রকোনা', 'নেত্রকোণা'],
+  Gazipur: ['গাজীপুর'],
+  Lalmonirhat: ['লালমনিরহাট'],
+  Jhenaidah: ['ঝিনাইদহ'],
+  Satkhira: ['সাতক্ষীরা'],
+  Rangpur: ['রংপুর'],
+  Thakurgaon: ['ঠাকুরগাঁও'],
+  Chattogram: ['চট্টগ্রাম'],
+  Narail: ['নড়াইল', 'নড়াইল'],
+  Noakhali: ['নোয়াখালী', 'নোয়াখালী'],
+  Sylhet: ['সিলেট'],
+  Rangamati: ['রাঙ্গামাটি', 'রাঙামাটি'],
+  Pirojpur: ['পিরোজপুর'],
+  Chandpur: ['চাঁদপুর'],
+  Bagerhat: ['বাগেরহাট'],
+  Magura: ['মাগুরা'],
+  Kurigram: ['কুড়িগ্রাম', 'কুড়িগ্রাম'],
+  Manikganj: ['মানিকগঞ্জ'],
+  Kushtia: ['কুষ্টিয়া', 'কুষ্টিয়া'],
+};
+
 /**
  * Returns administrative priority weight:
  * - 100: Specific locality, neighborhood, thana, police station (e.g. Mirpur, Tongi, Chauddagram)
@@ -587,6 +653,10 @@ export function getAdminPriority(key: string): number {
   const normKey = normalizeBengali(key).toLowerCase().trim();
   const entry = LOCAL_LANDMARK_MAP[normKey] || LOCAL_LANDMARK_MAP[key];
   if (entry?.adminLevel === 'HOSPITAL') return 10;
+  // Multi-district homonym upazilas represent specific upazila/thana inquiries;
+  // prioritize them over broad district centroids so that "বগুড়ার শেরপুরে" evaluates
+  // Sherpur upazila with Bogura district context before returning Bogra district centroid.
+  if (NORMALIZED_HOMONYM_MAP[normKey]) return 100;
   if (DISTRICT_NAMES.has(normKey) || entry?.adminLevel === 'DISTRICT') return 50;
   return 100;
 }
@@ -624,56 +694,6 @@ const DISTRICT_TO_DIV_MAP: Record<string, string> = {
   Rangpur: 'Rangpur', Dinajpur: 'Rangpur', Kurigram: 'Rangpur', Gaibandha: 'Rangpur',
   Nilphamari: 'Rangpur', Panchagarh: 'Rangpur', Thakurgaon: 'Rangpur', Lalmonirhat: 'Rangpur',
   Mymensingh: 'Mymensingh', Jamalpur: 'Mymensingh', Netrokona: 'Mymensingh', Sherpur: 'Mymensingh',
-};
-
-const HOMONYM_CANDIDATE_DISTRICTS: Record<string, string[]> = {
-  sherpur: ['Bogura', 'Sherpur'],
-  'শেরপুর': ['Bogura', 'Sherpur'],
-  shibganj: ['Bogura', 'Chapainawabganj'],
-  'শিবগঞ্জ': ['Bogura', 'Chapainawabganj'],
-  kaliganj: ['Gazipur', 'Lalmonirhat', 'Jhenaidah', 'Satkhira'],
-  'কালীগঞ্জ': ['Gazipur', 'Lalmonirhat', 'Jhenaidah', 'Satkhira'],
-  pirganj: ['Rangpur', 'Thakurgaon'],
-  'পীরগঞ্জ': ['Rangpur', 'Thakurgaon'],
-  lohagara: ['Chattogram', 'Narail'],
-  'লোহাগাড়া': ['Chattogram', 'Narail'],
-  companiganj: ['Noakhali', 'Sylhet'],
-  'কোম্পানীগঞ্জ': ['Noakhali', 'Sylhet'],
-  kawkhali: ['Rangamati', 'Pirojpur'],
-  'কাউখালী': ['Rangamati', 'Pirojpur'],
-  kachua: ['Chandpur', 'Bagerhat'],
-  'কচুয়া': ['Chandpur', 'Bagerhat'],
-  sreepur: ['Gazipur', 'Magura'],
-  'শ্রীপুর': ['Gazipur', 'Magura'],
-  phulbari: ['Dinajpur', 'Kurigram'],
-  'ফুলবাড়ী': ['Dinajpur', 'Kurigram'],
-  daulatpur: ['Manikganj', 'Kushtia'],
-  'দৌলতপুর': ['Manikganj', 'Kushtia'],
-};
-
-const DISTRICT_BN_MAP: Record<string, string[]> = {
-  Bogura: ['বগুড়া', 'বগুড়া'],
-  Sherpur: ['শেরপুর'],
-  Chapainawabganj: ['চাঁপাইনবাবগঞ্জ', 'নবাবগঞ্জ'],
-  Gazipur: ['গাজীপুর'],
-  Lalmonirhat: ['লালমনিরহাট'],
-  Jhenaidah: ['ঝিনাইদহ'],
-  Satkhira: ['সাতক্ষীরা'],
-  Rangpur: ['রংপুর'],
-  Thakurgaon: ['ঠাকুরগাঁও'],
-  Chattogram: ['চট্টগ্রাম'],
-  Narail: ['নড়াইল', 'নড়াইল'],
-  Noakhali: ['নোয়াখালী', 'নোয়াখালী'],
-  Sylhet: ['সিলেট'],
-  Rangamati: ['রাঙ্গামাটি', 'রাঙামাটি'],
-  Pirojpur: ['পিরোজপুর'],
-  Chandpur: ['চাঁদপুর'],
-  Bagerhat: ['বাগেরহাট'],
-  Magura: ['মাগুরা'],
-  Dinajpur: ['দিনাজপুর'],
-  Kurigram: ['কুড়িগ্রাম', 'কুড়িগ্রাম'],
-  Manikganj: ['মানিকগঞ্জ'],
-  Kushtia: ['কুষ্টিয়া', 'কুষ্টিয়া'],
 };
 
 /**
@@ -716,15 +736,28 @@ export const findLandmarkInText = (text: string): GeocodeResult | null => {
     }
 
     // Check for homonym disambiguation with candidate district
-    if (HOMONYM_CANDIDATE_DISTRICTS[cleanKey]) {
-      const candidates = HOMONYM_CANDIDATE_DISTRICTS[cleanKey];
+    if (NORMALIZED_HOMONYM_MAP[cleanKey]) {
+      const candidates = NORMALIZED_HOMONYM_MAP[cleanKey];
       let matchedCandidate: string | null = null;
       for (const candDist of candidates) {
         const normCand = candDist.toLowerCase();
         const bnNames = (DISTRICT_BN_MAP[candDist] || []).map((b) => normalizeBengali(b).toLowerCase());
-        const hasMention =
-          cleanInput.includes(normCand) ||
-          bnNames.some((bn) => cleanInput.includes(bn));
+
+        // Prevent self-matching: when the candidate district name is identical to the homonym itself
+        // (e.g. 'Sherpur' district for 'Sherpur' upazila), require explicit district markers
+        // (e.g. 'শেরপুর জেলা', 'শেরপুর জেলায়', 'sherpur district') so that standalone "শেরপুরে সংঘর্ষ"
+        // does not falsely treat "শেরপুরে" as district context.
+        const isSelfDistrict = candDist.toLowerCase() === cleanKey || bnNames.some((bn) => bn === cleanKey);
+        let hasMention = false;
+        if (isSelfDistrict) {
+          hasMention =
+            cleanInput.includes(`${normCand} district`) ||
+            bnNames.some((bn) => cleanInput.includes(`${bn} জেলা`) || cleanInput.includes(`${bn} জেলায়`));
+        } else {
+          hasMention =
+            cleanInput.includes(normCand) ||
+            bnNames.some((bn) => cleanInput.includes(bn));
+        }
 
         if (hasMention) {
           matchedCandidate = candDist;
@@ -745,16 +778,26 @@ export const findLandmarkInText = (text: string): GeocodeResult | null => {
               source: 'DICTIONARY',
             };
           }
+          return {
+            locationName: candDist,
+            latitude: LOCAL_LANDMARK_MAP[cleanKey]?.lat ?? 25.0205,
+            longitude: LOCAL_LANDMARK_MAP[cleanKey]?.lng ?? 90.0153,
+            district: candDist,
+            upazila: undefined,
+            division: DISTRICT_TO_DIV_MAP[candDist],
+            locationPrecision: 'DISTRICT',
+            source: 'DICTIONARY',
+          };
         }
       }
 
       // In homonym resolution, if an upazila name exists in multiple districts and no district context is found in text, set locationPrecision: 'AMBIGUOUS'
       if (!matchedCandidate) {
-        const match = LOCAL_LANDMARK_MAP[key];
+        const match = LOCAL_LANDMARK_MAP[key] || LOCAL_LANDMARK_MAP[cleanKey];
         return {
-          locationName: match.standardName,
-          latitude: match.lat,
-          longitude: match.lng,
+          locationName: match?.standardName ?? cleanKey,
+          latitude: match?.lat ?? 23.8103,
+          longitude: match?.lng ?? 90.4125,
           district: undefined,
           upazila: undefined,
           division: undefined,
@@ -1136,13 +1179,15 @@ export function maskArrestAndCaseVenue(text: string): string {
   return text
     // "ফেনীতে খালেদা জিয়ার গাড়িবহরে হামলা, মামলার" or "[Place]-এ হামলা মামলার"
     .replace(
-      /(?:[^\s,।–—]+(?:\s*-[^\s,।–—]+)?)\s*(?:-এ|-এতে|এ|তে)?\s*(?:[\u0980-\u09FF\w\s()]+?)?\s*(?:হামলা|হত্যা|খুন|ডাকাতি|নাশকতা),?\s*মামলার/gi,
+      /(?:[^\s,।–—]+(?:\s*-[^\s,।–—]+)?)\s*(?:-এ|-এতে|এ|তে)?\s*(?:[^\s,।–—]+\s+){0,4}(?:হামলা|হত্যা|খুন|ডাকাতি|নাশকতা),?\s*মামলার/gi,
       ' '
     )
     // "[Place] থেকে গ্রেফতার" or "[Place] এ/তে/এতে গ্রেফতার" or "[Place] গ্রেফতার"
     // e.g. "গাজীপুরে গ্রেফতার ২", "গাজীপুর থেকে গ্রেফতার", "গাজীপুর-এ আটক", "গাজীপুরে ২ জন আটক"
+    // Restricts bridging to explicit count/suspect/operation qualifiers so unpunctuated headlines
+    // (e.g. "নরসিংদীতে ছিনতাই গাজীপুরে গ্রেফতার ২") do not wipe out earlier incident clauses.
     .replace(
-      /(?:[^\s,।–—]+)\s*(?:থেকে|হতে|-এ|-এতে|এ|তে|য়|য়ে)?(?:\s+[^\s,।–—]+){0,3}\s+(?:গ্রেফতার|গ্রেপ্তার|আটক|গ্রেফতারের|আটকের)(?:\s*(?:হয়েছে|হয়েছেন|করা\s*হয়েছে|করা\s*হয়|হয়|[০-৯\d]+(?:\s*জন)?))?/gi,
+      /(?:[^\s,।–—]+)\s*(?:থেকে|হতে|-এ|-এতে|এ|তে|য়|য়ে)?(?:\s+(?:[০-৯\d]+(?:\s*জন(?:কে)?)?|(?:মামলার\s+)?(?:পলাতক|সন্দেহভাজন|প্রধান)?\s*(?:আসামি|আসামিকে|ডাকাত|ডাকাতকে|সন্ত্রাসী|সন্ত্রাসীকে|মাদক\s*কারবারি|কারবারি|চোর|চোরকে|যুবক|যুবককে|সদস্য|সদস্যকে|কর্মী|কর্মীকে)|পুলিশের\s*হাতে|র‌্যাবের\s*হাতে|অভিযান\s*চালিয়ে)){0,2}\s+(?:গ্রেফতার|গ্রেপ্তার|আটক|গ্রেফতারের|আটকের)(?:\s*(?:হয়েছে|হয়েছেন|করা\s*হয়েছে|করা\s*হয়|হয়|[০-৯\d]+(?:\s*জন)?))?/gi,
       ' '
     )
     // English arrest patterns: e.g. "2 arrested in Gazipur", "held in Gazipur", "nabbed from Gazipur"
