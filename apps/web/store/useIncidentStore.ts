@@ -117,7 +117,9 @@ export const useIncidentStore = create<IncidentState>((set, get) => ({
       });
       const reports = await apiFetch<any[]>(`/reports?${query.toString()}`);
       if (Array.isArray(reports)) {
-        const mapped = reports.map(mapBackendToFrontendIncident);
+        const mapped = reports
+          .map(mapBackendToFrontendIncident)
+          .filter((inc) => inc.threatStatus === 'ACTIVE');
         const existingMap = new Map(get().incidents.map((i) => [i.id, i]));
         mapped.forEach((inc) => existingMap.set(inc.id, inc));
         set({ incidents: Array.from(existingMap.values()), isLoading: false, error: null });
@@ -156,7 +158,9 @@ export const useIncidentStore = create<IncidentState>((set, get) => ({
 
       const reports = await apiFetch<any[]>(`/reports?${query.toString()}`);
       if (Array.isArray(reports)) {
-        const mapped = reports.map(mapBackendToFrontendIncident);
+        const mapped = reports
+          .map(mapBackendToFrontendIncident)
+          .filter((inc) => inc.threatStatus === 'ACTIVE');
         // Merge with existing incidents so navigating to one local sector never deletes pins in other districts
         const existingMap = new Map(get().incidents.map((i) => [i.id, i]));
         mapped.forEach((inc) => existingMap.set(inc.id, inc));
@@ -293,6 +297,8 @@ export const useIncidentStore = create<IncidentState>((set, get) => ({
     socket.off(SOCKET_EVENTS.NEW_REPORT);
     socket.on(SOCKET_EVENTS.NEW_REPORT, (data: any) => {
       console.log("[Socket.IO] Real-time NEW_REPORT received:", data);
+      if (data.threatStatus && data.threatStatus !== 'ACTIVE') return;
+      if (data.status === 'RESOLVED' || data.status === 'PURGED') return;
       const newInc = mapBackendToFrontendIncident(data);
       get().addIncident(newInc);
     });
@@ -301,6 +307,12 @@ export const useIncidentStore = create<IncidentState>((set, get) => ({
     socket.off(SOCKET_EVENTS.REPORT_ENRICHED);
     socket.on(SOCKET_EVENTS.REPORT_ENRICHED, (data: any) => {
       console.log("[Socket.IO] Real-time REPORT_ENRICHED received:", data);
+      if ((data.threatStatus && data.threatStatus !== 'ACTIVE') || data.status === 'RESOLVED') {
+        set((state) => ({
+          incidents: state.incidents.filter((i) => i.id !== data.id),
+        }));
+        return;
+      }
       const enrichedInc = mapBackendToFrontendIncident(data);
       set((state) => ({
         incidents: state.incidents.some((i) => i.id === enrichedInc.id)

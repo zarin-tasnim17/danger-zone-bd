@@ -360,6 +360,10 @@ export default function MapClient() {
   // Filter incidents based on active global filter states
   const filteredIncidents = useMemo(() => {
     return incidents.filter((incident: DangerIncident) => {
+      // Strictly enforce active threat status: exclude resolved, historical, or review items from map
+      if (incident.threatStatus && incident.threatStatus !== "ACTIVE") {
+        return false;
+      }
       if (
         selectedSeverity !== "all" &&
         incident.severity.toUpperCase() !== selectedSeverity.toUpperCase()

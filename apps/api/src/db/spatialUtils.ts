@@ -34,10 +34,12 @@ export const getFuzzedCoordinates = (
 
 export const getReportsInBounds = async (bounds: BoundingBox, filters?: ReportFilterOptions) => {
   // PostGIS ST_MakeEnvelope signature: ST_MakeEnvelope(xmin, ymin, xmax, ymax, srid)
-  // Base conditions: active, within envelope, and not yet expired in real time
+  // Base conditions: active, within envelope, threatStatus active, and not yet expired in real time
   const whereConditions: Prisma.Sql[] = [
     Prisma.sql`status = 'ACTIVE'`,
     Prisma.sql`"expiresAt" > NOW()`,
+    Prisma.sql`("threatStatus" = 'ACTIVE' OR "threatStatus" IS NULL)`,
+    Prisma.sql`("locationPrecision" IS NULL OR "locationPrecision" != 'AMBIGUOUS')`,
     Prisma.sql`location && ST_MakeEnvelope(
       ${bounds.minLng}, ${bounds.minLat},
       ${bounds.maxLng}, ${bounds.maxLat},
