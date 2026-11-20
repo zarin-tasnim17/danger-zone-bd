@@ -25,7 +25,7 @@ export const triggerNewsCrawler = async (feeds?: FeedConfig[]) => {
   console.log('\n[News Crawler Job] 🌐 Starting automated RSS news crawl for Bangladesh public safety...');
 
   try {
-    const targetFeeds = feeds || customFeeds || PUBLIC_NEWS_FEEDS;
+    const targetFeeds = feeds || (customFeeds !== null ? customFeeds : PUBLIC_NEWS_FEEDS);
     const result = await crawlAllNewsFeeds(targetFeeds);
     console.log(
       `[News Crawler Job] ✅ Ingestion complete: ${result.totalIngested} new incidents added, ${result.totalVerifiedMatches} citizen reports cross-verified, ${result.totalSkipped} skipped across ${result.feedsChecked} feeds.\n`

@@ -998,7 +998,7 @@ const POLITICAL_VENUE_PATTERNS = [
 ];
 
 const IMMEDIATE_VIOLENT_ATTACK_PATTERNS = [
-  /(?:ককটেল\s*বিস্ফোরণ|বোমা\s*হামলা|বোমা\s*বিস্ফোরণ|গুলি\s*বর্ষণ|গুলি\s*ছুড়ে|ককটেল\s*হামলা|রণক্ষেত্র|ককটেল\s*ছোড়া|অস্ত্রধারীদের\s*গুলি|cocktail\s*blast|cocktail\s*explosion|bomb\s*attack|bomb\s*blast|gunfire|shooting|bombed|explosive\s*device)/i,
+  /(?:ককটেল\s*বিস্ফোরণ|বোমা\s*হামলা|বোমা\s*বিস্ফোরণ|গুলি\s*বর্ষণ|গুলি\s*ছুড়ে|ককটেল\s*হামলা|রণক্ষেত্র|ককটেল\s*ছোড়া|অস্ত্রধারীদের\s*গুলি|রক্তক্ষয়ী\s*সংঘর্ষ|ধারালো\s*অস্ত্র|রামদা|কুপিয়ে|cocktail\s*blast|cocktail\s*explosion|bomb\s*attack|bomb\s*blast|gunfire|shooting|bombed|explosive\s*device|armed\s*clash|machete)/i,
 ];
 
 const ARREST_FOLLOWUP_PATTERNS = [
@@ -1052,6 +1052,8 @@ const FOLLOW_UP_MOURNING_PATTERNS = [
 function checkGroundRealityDisqualification(
   combinedText: string
 ): { isDisqualified: boolean; reason?: string } {
+  const isImmediateAttack = IMMEDIATE_VIOLENT_ATTACK_PATTERNS.some((pat) => pat.test(combinedText));
+
   // Retrospective legal / trial detection
   const isJudicialRetrospective = RETROSPECTIVE_JUDICIAL_PATTERNS.some((pat) =>
     pat.test(combinedText)
@@ -1060,12 +1062,12 @@ function checkGroundRealityDisqualification(
   // Active physical attack directed at venue (not a past trial/verdict)
   const isCourtVenueAttack =
     COURT_VENUE_PATTERNS.some((p) => p.test(combinedText)) &&
-    IMMEDIATE_VIOLENT_ATTACK_PATTERNS.some((p) => p.test(combinedText)) &&
+    isImmediateAttack &&
     !isJudicialRetrospective;
 
   const isPoliticalVenueAttack =
     POLITICAL_VENUE_PATTERNS.some((p) => p.test(combinedText)) &&
-    IMMEDIATE_VIOLENT_ATTACK_PATTERNS.some((p) => p.test(combinedText)) &&
+    isImmediateAttack &&
     !isJudicialRetrospective;
 
   // 1. Bail Hearing Disqualification (Bail hearings are strictly legal proceedings)
@@ -1097,9 +1099,11 @@ function checkGroundRealityDisqualification(
     }
   }
 
-  // 6. Administrative Dispute Disqualification
+  // 6. Administrative Dispute Disqualification (unless an active violent attack/clash with weapons is underway)
   if (ADMINISTRATIVE_DISPUTE_KEYWORDS.some((kw) => matchesKeyword(combinedText, kw))) {
-    return { isDisqualified: true, reason: 'ADMINISTRATIVE_DISPUTE' };
+    if (!isImmediateAttack) {
+      return { isDisqualified: true, reason: 'ADMINISTRATIVE_DISPUTE' };
+    }
   }
 
   // 7. Mourning and Funeral Follow-Up Disqualification (retrospective burial/prayer ceremonies)
@@ -1116,7 +1120,6 @@ function checkGroundRealityDisqualification(
 
   // 9. Historical Case Reference Disqualification (e.g. "গাড়িবহরে হামলা মামলার পলাতক আসামি গ্রেফতার")
   const isHistoricalCase = HISTORICAL_CASE_PATTERNS.some((pat) => pat.test(combinedText));
-  const isImmediateAttack = IMMEDIATE_VIOLENT_ATTACK_PATTERNS.some((pat) => pat.test(combinedText));
   if (isHistoricalCase && !isImmediateAttack) {
     return { isDisqualified: true, reason: 'HISTORICAL_CASE_MENTION' };
   }

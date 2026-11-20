@@ -1,9 +1,18 @@
+import dotenv from 'dotenv';
+import path from 'path';
+dotenv.config({ path: path.resolve(process.cwd(), 'apps/api/.env') });
+dotenv.config({ path: path.resolve(process.cwd(), '.env') });
+
 import assert from 'node:assert/strict';
 import { classifyNewsText } from '../services/newsClassifierService';
 import { isForeignIncident } from '../services/internationalIncidentFilter';
 import { resolveLocationFromText } from '../services/geocodingService';
 import { findDuplicateActiveReport, extractVehicles } from '../services/incidentDeduplicationService';
 import { isWireSyndicatedStory, resolvePublisherDomain } from '../services/publisherRegistry';
+import { extractIncidentTemporalData } from '../services/temporalExtractionService';
+import { evaluateActiveThreatEligibility } from '../services/activeThreatEligibilityService';
+import { validateUrlForSafeFetch, sanitizeXmlPayload } from '../utils/ssrfFilter';
+import { LocationPrecision } from '@prisma/client';
 import {
   NATIONWIDE_CLUSTERS,
   CLUSTER_ROTATION_SCHEDULE,
@@ -176,6 +185,91 @@ async function runScenarioVerification() {
   assert.strictEqual(boguraShibganj.upazila, 'Shibganj');
   assert.strictEqual(chapaiShibganj.upazila, 'Shibganj');
   console.log('  ✔ Bengali district context successfully disambiguates homonym upazilas (Bogura vs Chapainawabganj)');
+
+  // Scenario K: Screenshot Cases A & B Ground-Reality Disqualification & True Positive Admission
+  console.log('\nTesting Scenario K: Screenshot Cases A & B Disqualification & True Positive Admission...');
+  // Case A: 2017 Khaleda Zia convoy case arrest
+  const exAHeadline = 'ফেনীতে খালেদা জিয়ার গাড়িবহরে হামলা, মামলার পলাতক আসামি গ্রেফতার | জাতীয় | বাংলাদেশ সংবাদ সংস্থা (বাসস)';
+  const exASnippet = '২০১৭ সালের ৩১ অক্টোবর ফেনীতে বিএনপি চেয়ারপারসন বেগম খালেদা জিয়ার গাড়িবহরে হামলা মামলার এক পলাতক আসামিকে গ্রেফতার করেছে পুলিশ।';
+  const exAClass = classifyNewsText(exAHeadline, exASnippet);
+  assert.strictEqual(exAClass.isSafetyRelated, false, 'Arrest follow-up must be disqualified from violent threat category');
+  assert.ok(['ARREST_FOLLOWUP', 'HISTORICAL_CASE_MENTION'].includes(exAClass.disqualifiedReason!));
+  const exATemp = extractIncidentTemporalData(exAHeadline, exASnippet);
+  assert.strictEqual(exATemp.isHistorical, true, 'Case from 2017 must be identified as historical');
+  const exAElig = evaluateActiveThreatEligibility({
+    title: exAHeadline,
+    summary: exASnippet,
+    category: exAClass.category || 'ARMED_ASSAULT',
+    severity: 'LOW',
+    isSafetyRelated: exAClass.isSafetyRelated,
+    disqualifiedReason: exAClass.disqualifiedReason,
+    publishedAt: new Date(),
+    geocode: { district: 'Feni', precision: LocationPrecision.DISTRICT, lat: 23.0159, lng: 91.3976, source: 'test' },
+  });
+  assert.strictEqual(exAElig.isEligibleForActiveMap, false, 'Example A must NOT be eligible for active map pin');
+  assert.strictEqual(exAElig.threatStatus, 'RESOLVED');
+  console.log('  ✔ Example A (Feni 2017 case arrest) successfully disqualified as HISTORICAL_INCIDENT / RESOLVED');
+
+  // Case B: Rajshahi University student standoff
+  const exBHeadline = 'ছাত্রলীগ অভিযোগে শিক্ষার্থীকে মারধর, ৪ ঘণ্টা অবরুদ্ধ ছাত্রদল নেতারা';
+  const exBSnippet = 'রাজশাহী বিশ্ববিদ্যালয়ে শিক্ষার্থীকে মারধরের পর চার ঘণ্টা অবরুদ্ধ করে রাখা হয় ছাত্রদল নেতাদের। পরে প্রক্টরিয়াল বডির উপস্থিতিতে পরিস্থিতি নিয়ন্ত্রণে আসে।';
+  const exBClass = classifyNewsText(exBHeadline, exBSnippet);
+  assert.strictEqual(exBClass.isSafetyRelated, false, 'Resolved altercation must be disqualified');
+  assert.ok(['RESOLVED_ALTERCATION', 'UNARMED_SCUFFLE'].includes(exBClass.disqualifiedReason!));
+  const exBElig = evaluateActiveThreatEligibility({
+    title: exBHeadline,
+    summary: exBSnippet,
+    category: 'ARMED_ASSAULT',
+    severity: 'LOW',
+    isSafetyRelated: exBClass.isSafetyRelated,
+    disqualifiedReason: exBClass.disqualifiedReason,
+    publishedAt: new Date(),
+    geocode: { district: 'Rajshahi', precision: LocationPrecision.UPAZILA, lat: 24.3745, lng: 88.6042, source: 'test' },
+  });
+  assert.strictEqual(exBElig.isEligibleForActiveMap, false, 'Example B must NOT be eligible for active map pin');
+  assert.strictEqual(exBElig.threatStatus, 'RESOLVED');
+  console.log('  ✔ Example B (Rajshahi university standoff) successfully disqualified as RESOLVED_INCIDENT');
+
+  // True Positive: Deadly violent clash with ramda & weapons
+  const tpHeadline = 'রাজশাহীতে ধারালো অস্ত্র ও রামদা নিয়ে দুই পক্ষের রক্তক্ষয়ী সংঘর্ষ, নিহত ১, আহত ১০';
+  const tpSnippet = 'আজ সকালে রাজশাহীর বাঘায় জমি সংক্রান্ত বিরোধের জেরে দেশীয় ধারালো অস্ত্র ও রামদা নিয়ে সংঘর্ষে জড়িয়ে পড়ে দুই পক্ষ।';
+  const tpClass = classifyNewsText(tpHeadline, tpSnippet);
+  assert.strictEqual(tpClass.isSafetyRelated, true, 'Genuine armed clash must NOT be disqualified');
+  assert.strictEqual(tpClass.category, 'ARMED_ASSAULT');
+  const tpElig = evaluateActiveThreatEligibility({
+    title: tpHeadline,
+    summary: tpSnippet,
+    category: tpClass.category,
+    severity: 'CRITICAL',
+    isSafetyRelated: true,
+    sourceUrl: 'https://www.prothomalo.com/bangladesh/district/tp-clash',
+    sourceName: 'Prothom Alo',
+    publishedAt: new Date(),
+    geocode: { district: 'Rajshahi', upazila: 'Bagha', precision: LocationPrecision.UPAZILA, lat: 24.195, lng: 88.756, source: 'test' },
+  });
+  assert.strictEqual(tpElig.isEligibleForActiveMap, true, 'True positive clash MUST be admitted to active map');
+  assert.strictEqual(tpElig.threatStatus, 'ACTIVE');
+  assert.strictEqual(tpElig.effectiveLifespanHours, 48);
+  console.log('  ✔ True positive armed clash admitted to active map with ACTIVE status and 48h lifespan');
+
+  // Scenario L: SSRF Protection & Feed XML Sanitization Boundary Security
+  console.log('\nTesting Scenario L: SSRF Protection & Feed XML Sanitization Security...');
+  const loopbackCheck = await validateUrlForSafeFetch('http://127.0.0.1:8080/feed.xml');
+  const metadataCheck = await validateUrlForSafeFetch('http://169.254.169.254/latest/meta-data/');
+  const rfc1918Check = await validateUrlForSafeFetch('http://192.168.1.1/feed.rss');
+  const fileProtoCheck = await validateUrlForSafeFetch('file:///etc/passwd');
+  const publicFeedCheck = await validateUrlForSafeFetch('https://www.thedailystar.net/rss');
+  assert.strictEqual(loopbackCheck.isSafe, false, 'Must block loopback IP');
+  assert.strictEqual(metadataCheck.isSafe, false, 'Must block cloud metadata IP');
+  assert.strictEqual(rfc1918Check.isSafe, false, 'Must block RFC 1918 private subnets');
+  assert.strictEqual(fileProtoCheck.isSafe, false, 'Must block non-HTTP/HTTPS protocol');
+  assert.strictEqual(publicFeedCheck.isSafe, true, 'Must permit legitimate public publisher feed');
+
+  const xxeSample = '<?xml version="1.0"?><!DOCTYPE rss [<!ENTITY xxe SYSTEM "file:///etc/passwd">]><rss version="2.0"><channel><title>News</title></channel></rss>';
+  const sanitizedXxe = sanitizeXmlPayload(xxeSample);
+  assert.strictEqual(sanitizedXxe.includes('<!DOCTYPE'), false, 'XXE DOCTYPE must be stripped');
+  assert.strictEqual(sanitizedXxe.includes('file:///etc/passwd'), false, 'Payload entity must be stripped');
+  console.log('  ✔ SSRF validation and XXE/Billion-laughs XML sanitization verified');
 
   console.log('\n===============================================================');
   console.log('  ALL SCENARIOS VERIFIED SUCCESSFULLY (0 FAILURES)');
