@@ -19,9 +19,13 @@ export type TemporalCertainty =
   | 'CONTEXTUAL_RESOLVED_AFTERMATH'
   | 'UNKNOWN';
 
+export type TimeOfDay = 'MORNING' | 'AFTERNOON' | 'EVENING' | 'NIGHT';
+
 export interface TemporalExtractionResult {
   hasExplicitTime: boolean;
   estimatedIncidentDate: Date | null;
+  occurrenceDate?: string; // YYYY-MM-DD in Bangladesh local time (UTC+6)
+  timeOfDay?: TimeOfDay;
   temporalCertainty: TemporalCertainty;
   isHistorical: boolean;
   isRecentOrToday: boolean;
@@ -32,6 +36,35 @@ export interface TemporalExtractionResult {
 
 // Bangladesh Timezone: UTC+6
 const BD_TIMEZONE_OFFSET_MS = 6 * 60 * 60 * 1000;
+
+export function toBangladeshDateString(d: Date): string {
+  const bdTime = new Date(d.getTime() + BD_TIMEZONE_OFFSET_MS);
+  return bdTime.toISOString().slice(0, 10);
+}
+
+export function extractTimeOfDay(text: string): TimeOfDay | undefined {
+  if (!text) return undefined;
+  const norm = text.normalize('NFC').toLowerCase();
+
+  // MORNING: সকাল, সকালে, ভোর, ভোরে, morning, dawn
+  if (/(?:সকালে?|ভোরে?|\b(?:morning|dawn|early morning)\b)/u.test(norm)) {
+    return 'MORNING';
+  }
+  // AFTERNOON: দুপুর, দুপুরে, midday, noon, afternoon
+  if (/(?:দুপুরে?|\b(?:afternoon|midday|noon)\b)/u.test(norm)) {
+    return 'AFTERNOON';
+  }
+  // EVENING: বিকাল, বিকালে, বিকেল, বিকেলে, সন্ধ্যা, সন্ধ্যায়, evening, dusk
+  if (/(?:বিক[লে]ে?|সন্ধ্যা(?:য়|য়)?|\b(?:evening|dusk|late afternoon)\b)/u.test(norm)) {
+    return 'EVENING';
+  }
+  // NIGHT: রাত, রাতে, মধ্যরাত, গভীর রাতে, গত রাতে, night, midnight, tonight, last night
+  if (/(?:রাতে?|মধ্যরাতে?|গভীর\s*রাতে?|\b(?:night|midnight|tonight|last\s+night)\b)/u.test(norm)) {
+    return 'NIGHT';
+  }
+
+  return undefined;
+}
 
 const HISTORICAL_YEAR_PATTERNS = [
   // 1971 liberation war or retrospective years (1971 to 2024)
@@ -95,6 +128,7 @@ export function extractIncidentTemporalData(
 ): TemporalExtractionResult {
   const combined = `${title} ${summary}`.normalize('NFC');
   const matchedExpressions: string[] = [];
+  const timeOfDay = extractTimeOfDay(combined);
 
   // 1. Check Historical Years & References (Decades-old, 1971, 2017, etc.)
   for (const pat of HISTORICAL_YEAR_PATTERNS) {
@@ -104,6 +138,8 @@ export function extractIncidentTemporalData(
       return {
         hasExplicitTime: true,
         estimatedIncidentDate: new Date('2020-01-01T00:00:00.000Z'), // Explicitly historical
+        occurrenceDate: '2020-01-01',
+        timeOfDay,
         temporalCertainty: 'EXPLICIT_HISTORICAL_YEAR',
         isHistorical: true,
         isRecentOrToday: false,
@@ -122,6 +158,7 @@ export function extractIncidentTemporalData(
       return {
         hasExplicitTime: true,
         estimatedIncidentDate: null, // Underlying incident occurred long ago
+        timeOfDay,
         temporalCertainty: 'CONTEXTUAL_HISTORICAL_CASE',
         isHistorical: true,
         isRecentOrToday: false,
@@ -140,6 +177,7 @@ export function extractIncidentTemporalData(
       return {
         hasExplicitTime: false,
         estimatedIncidentDate: null,
+        timeOfDay,
         temporalCertainty: 'CONTEXTUAL_ARREST_FOLLOWUP',
         isHistorical: true,
         isRecentOrToday: false,
@@ -158,6 +196,8 @@ export function extractIncidentTemporalData(
       return {
         hasExplicitTime: true,
         estimatedIncidentDate: publishedAt,
+        occurrenceDate: toBangladeshDateString(publishedAt),
+        timeOfDay,
         temporalCertainty: 'CONTEXTUAL_RESOLVED_AFTERMATH',
         isHistorical: false,
         isRecentOrToday: true,
@@ -176,6 +216,8 @@ export function extractIncidentTemporalData(
       return {
         hasExplicitTime: true,
         estimatedIncidentDate: new Date(publishedAt.getTime()),
+        occurrenceDate: toBangladeshDateString(publishedAt),
+        timeOfDay,
         temporalCertainty: 'EXPLICIT_TODAY',
         isHistorical: false,
         isRecentOrToday: true,
@@ -195,6 +237,8 @@ export function extractIncidentTemporalData(
       return {
         hasExplicitTime: true,
         estimatedIncidentDate: estimated,
+        occurrenceDate: toBangladeshDateString(estimated),
+        timeOfDay,
         temporalCertainty: 'EXPLICIT_YESTERDAY',
         isHistorical: false,
         isRecentOrToday: true,
@@ -210,11 +254,23 @@ export function extractIncidentTemporalData(
     const match = combined.match(pat);
     if (match) {
       matchedExpressions.push(match[0]);
-      // Estimate 3 days back by default
-      const estimated = new Date(publishedAt.getTime() - 3 * 24 * 60 * 60 * 1000);
+      let dayOffset = 3;
+      if (/(\d+|দুই|তিন|চার|পাঁচ|ছয়|সাত)\s*দিন\s*আগে|\b(\d+)\s+days?\s+ago\b/u.test(combined)) {
+        const daysMatch = combined.match(/(\d+|দুই|তিন|চার|পাঁচ|ছয়|সাত)\s*দিন\s*আগে|\b(\d+)\s+days?\s+ago\b/u);
+        const rawVal = daysMatch?.[1] || daysMatch?.[2];
+        const numWords: Record<string, number> = { 'দুই': 2, 'তিন': 3, 'চার': 4, 'পাঁচ': 5, 'ছয়': 6, 'সাত': 7 };
+        if (rawVal) {
+          dayOffset = parseInt(rawVal, 10) || numWords[rawVal] || 3;
+        }
+      } else if (/(?:গত\s*পরশু|পরশু\s*দিন)/u.test(combined)) {
+        dayOffset = 2;
+      }
+      const estimated = new Date(publishedAt.getTime() - dayOffset * 24 * 60 * 60 * 1000);
       return {
         hasExplicitTime: true,
         estimatedIncidentDate: estimated,
+        occurrenceDate: toBangladeshDateString(estimated),
+        timeOfDay,
         temporalCertainty: 'EXPLICIT_RELATIVE_DAYS',
         isHistorical: true, // Events > 48h ago are past incidents
         isRecentOrToday: false,
@@ -230,6 +286,7 @@ export function extractIncidentTemporalData(
   return {
     hasExplicitTime: false,
     estimatedIncidentDate: null,
+    timeOfDay,
     temporalCertainty: 'UNKNOWN',
     isHistorical: false,
     isRecentOrToday: false,

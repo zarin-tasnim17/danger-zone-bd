@@ -852,7 +852,106 @@ export const PUBLISHER_REGISTRY: Record<string, PublisherEntry> = {
     geographicCoverage: { divisions: ['ALL'], districts: ['ALL_64'] },
     enabled: true,
   },
+  'reuters.com': {
+    domain: 'reuters.com',
+    name: 'Reuters',
+    tier: 4,
+    qualityWeight: 0.50,
+    sourceType: 'WIRE',
+    language: 'both',
+    isWireAgency: true,
+    discoveryMethods: ['GOOGLE_NEWS_PUBLISHER'],
+    geographicCoverage: { divisions: ['ALL'], districts: ['ALL_64'] },
+    enabled: true,
+  },
+  'apnews.com': {
+    domain: 'apnews.com',
+    name: 'Associated Press (AP)',
+    tier: 4,
+    qualityWeight: 0.50,
+    sourceType: 'WIRE',
+    language: 'both',
+    isWireAgency: true,
+    discoveryMethods: ['GOOGLE_NEWS_PUBLISHER'],
+    geographicCoverage: { divisions: ['ALL'], districts: ['ALL_64'] },
+    enabled: true,
+  },
+  'afp.com': {
+    domain: 'afp.com',
+    name: 'Agence France-Presse (AFP)',
+    tier: 4,
+    qualityWeight: 0.50,
+    sourceType: 'WIRE',
+    language: 'both',
+    isWireAgency: true,
+    discoveryMethods: ['GOOGLE_NEWS_PUBLISHER'],
+    geographicCoverage: { divisions: ['ALL'], districts: ['ALL_64'] },
+    enabled: true,
+  },
 };
+
+export type WireAgency = 'BSS' | 'UNB' | 'REUTERS' | 'AP' | 'AFP';
+
+export interface WireSyndicationResult {
+  isWire: boolean;
+  agency?: WireAgency;
+}
+
+const WIRE_PATTERNS: Array<{ agency: WireAgency; patterns: RegExp[]; domains: string[] }> = [
+  {
+    agency: 'BSS',
+    domains: ['bssnews.net'],
+    patterns: [
+      /\b(?:bss|bangladesh\s+sangbad\s+sangstha)\b/i,
+      /(?:বাসস|বাংলাদেশ\s+সংবাদ\s+সংস্থা)/u,
+      /\(বাসস\)/u,
+      /—\s*বাসস/u,
+      /বাসস\s*:/u,
+    ],
+  },
+  {
+    agency: 'UNB',
+    domains: ['unb.com.bd'],
+    patterns: [
+      /\b(?:unb|united\s+news\s+of\s+bangladesh)\b/i,
+      /(?:ইউএনবি|ইউনাইটেড\s+নিউজ\s+অব\s+বাংলাদেশ)/u,
+      /\(ইউএনবি\)/u,
+      /—\s*ইউএনবি/u,
+      /ইউএনবি\s*:/u,
+    ],
+  },
+  {
+    agency: 'REUTERS',
+    domains: ['reuters.com'],
+    patterns: [
+      /\breuters\b/i,
+      /(?:রয়টার্স|রয়টার্স)/u,
+      /\(রয়টার্স\)/u,
+      /\(রয়টার্স\)/u,
+      /—\s*(?:রয়টার্স|রয়টার্স)/u,
+    ],
+  },
+  {
+    agency: 'AP',
+    domains: ['apnews.com'],
+    patterns: [
+      /\b(?:associated\s+press|a\.p\.)\b/i,
+      /(?:^|[\s(\[—–])AP(?:[\s)\]:—–,.]|$)/,
+      /(?:এপি|অ্যাসোসিয়েটেড\s+প্রেস)/u,
+      /\(এপি\)/u,
+    ],
+  },
+  {
+    agency: 'AFP',
+    domains: ['afp.com'],
+    patterns: [
+      /\b(?:afp|agence\s+france[-\s]?presse)\b/i,
+      /(?:^|[\s(\[—–])AFP(?:[\s)\]:—–,.]|$)/,
+      /(?:এএফপি|এজেন্স\s+ফ্রান্স[-\s]?প্রেস)/u,
+      /\(এএফপি\)/u,
+    ],
+  },
+];
 
 /**
  * Resolves publisher entry from a URL hostname or outlet name
@@ -899,33 +998,49 @@ export function getPublisherMetadata(urlOrDomain: string): PublisherEntry | null
 }
 
 /**
- * Detects if a story originates from a wire agency (BSS, UNB) based on URL, source name, or title/body dispatches
+ * Detects if a story originates from a wire agency (BSS, UNB, Reuters, AP, AFP) based on URL, source name, or title/body dispatches
  */
 export function isWireSyndicatedStory(
   sourceUrl?: string,
   sourceName?: string,
-  content?: string
-): { isWire: boolean; agency?: 'BSS' | 'UNB' } {
+  content?: string,
+  title?: string
+): WireSyndicationResult {
   const normUrl = (sourceUrl || '').toLowerCase();
   const normName = (sourceName || '').toLowerCase();
-  const normContent = (content || '').toLowerCase();
+  const combinedText = `${title || ''} ${content || ''}`.normalize('NFC');
 
-  if (normUrl.includes('bssnews.net') || normName.includes('bss') || normName.includes('বাসস')) {
-    return { isWire: true, agency: 'BSS' };
-  }
-  if (normUrl.includes('unb.com.bd') || normName.includes('unb') || normName.includes('ইউএনবি')) {
-    return { isWire: true, agency: 'UNB' };
-  }
-
-  // Check content wire dispatches (e.g. "(BSS) -", "— বাসস", "UNB -", "বাসস:")
-  if (/\b(?:bss|বাসস)\b/i.test(normContent)) {
-    return { isWire: true, agency: 'BSS' };
-  }
-  if (/\b(?:unb|ইউএনবি)\b/i.test(normContent)) {
-    return { isWire: true, agency: 'UNB' };
+  for (const wire of WIRE_PATTERNS) {
+    if (wire.domains.some((d) => normUrl.includes(d))) {
+      return { isWire: true, agency: wire.agency };
+    }
+    if (wire.patterns.some((p) => p.test(normName))) {
+      return { isWire: true, agency: wire.agency };
+    }
+    if (wire.patterns.some((p) => p.test(combinedText))) {
+      return { isWire: true, agency: wire.agency };
+    }
   }
 
   return { isWire: false };
+}
+
+export function calculateIndependentSourceCount(citations: any[]): number {
+  if (!Array.isArray(citations) || citations.length === 0) return 0;
+  const distinctSources = new Set<string>();
+
+  for (const c of citations) {
+    if (c.isWire && c.wireAgency) {
+      distinctSources.add(`wire:${c.wireAgency}`);
+    } else if (c.isWire) {
+      distinctSources.add('wire:generic');
+    } else {
+      const domain = resolvePublisherDomain(c.sourceUrl, c.sourceName);
+      distinctSources.add(`pub:${domain !== 'unknown' ? domain : c.sourceName}`);
+    }
+  }
+
+  return distinctSources.size;
 }
 
 export interface DirectFeedDefinition {

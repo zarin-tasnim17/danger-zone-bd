@@ -189,6 +189,32 @@ export interface Citation {
   sourceUrl: string;
   title?: string;
   publishedAt?: string | Date;
+  isWire?: boolean;
+  wireAgency?: 'BSS' | 'UNB' | 'REUTERS' | 'AP' | 'AFP' | string | null;
+}
+
+export type TimeOfDay = 'MORNING' | 'AFTERNOON' | 'EVENING' | 'NIGHT';
+
+export interface EventFingerprint {
+  category: ReportCategory;
+  temporalWindow: {
+    occurrenceDate?: string; // YYYY-MM-DD
+    timeOfDay?: TimeOfDay;
+    publishedAt: Date;
+  };
+  administrativeLocation: {
+    district?: string;
+    upazila?: string;
+    latitude: number;
+    longitude: number;
+  };
+  entities: Set<string>; // vehicles, weapons, factions
+  casualtySignature?: {
+    killed?: number;
+    injured?: number;
+  };
+  isWireSyndicated: boolean;
+  wireAgency?: 'BSS' | 'UNB' | 'REUTERS' | 'AP' | 'AFP' | null;
 }
 
 export const SAFE_ZONE_TYPES = ["HOSPITAL", "POLICE_BOX", "PHARMACY"] as const;
