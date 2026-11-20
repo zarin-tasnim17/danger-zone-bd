@@ -998,7 +998,39 @@ const POLITICAL_VENUE_PATTERNS = [
 ];
 
 const IMMEDIATE_VIOLENT_ATTACK_PATTERNS = [
-  /(?:ককটেল\s*বিস্ফোরণ|বোমা\s*হামলা|বোমা\s*বিস্ফোরণ|গুলি\s*বর্ষণ|গুলি\s*ছুড়ে|ককটেল\s*হামলা|রণক্ষেত্র|ককটেল\s*ছোড়া|অস্ত্রধারীদের\s*গুলি|cocktail\s*blast|cocktail\s*explosion|bomb\s*attack|bomb\s*blast|gunfire|shooting|bombed|explosive\s*device)/i,
+  /(?:ককটেল\s*বিস্ফোরণ|বোমা\s*হামলা|বোমা\s*বিস্ফোরণ|গুলি\s*বর্ষণ|গুলি\s*ছুড়ে|ককটেল\s*হামলা|রণক্ষেত্র|ককটেল\s*ছোড়া|অস্ত্রধারীদের\s*গুলি|রক্তক্ষয়ী\s*সংঘর্ষ|ধারালো\s*অস্ত্র|রামদা|কুপিয়ে|cocktail\s*blast|cocktail\s*explosion|bomb\s*attack|bomb\s*blast|gunfire|shooting|bombed|explosive\s*device|armed\s*clash|machete)/i,
+];
+
+const ARREST_FOLLOWUP_PATTERNS = [
+  /(?:পলাতক\s*আসামি|আসামি|আসামিকে)\s*(?:গ্রেফতার|গ্রেপ্তার|আটক|গ্রেফতারের|ধরা)/u,
+  /(?:গ্রেফতার|গ্রেপ্তার|আটক)\s*(?:হয়েছে|হয়েছেন|করা\s*হয়েছে|করা\s*হয়)/u,
+  /(?:র‌্যাব|র‍্যাব|পুলিশ|ডিবি|গোয়েন্দা\s*পুলিশ)[\s\S]{0,25}?(?:গ্রেফতার|গ্রেপ্তার|আটক)\s*করেছে/u,
+  /\b(?:fugitive(?:\s+accused)?\s+(?:arrested|nabbed|detained|held)|accused\s+(?:arrested|nabbed|held)|suspects?\s+arrested|arrest\s+of\s+accused)\b/i,
+];
+
+const ACTIVE_ARREST_CLASH_PATTERNS = [
+  /(?:গ্রেফতারকালে\s*হামলা|গ্রেপ্তারকালে\s*হামলা|গ্রেফতারকালে\s*সংঘর্ষ|বন্দুকযুদ্ধ|গুলির\s*লড়াই|গুলি\s*বিনিময়|shootout\s+during\s+arrest|clashed\s+with\s+police\s+during\s+arrest)/u,
+];
+
+const HISTORICAL_CASE_PATTERNS = [
+  /(?:হামলা|হত্যা|খুন|ডাকাতি|লুটপাট|নাশকতা)\s*মামলার\s*(?:পলাতক\s*আসামি|আসামি|তদন্ত|অভিযোগপত্র|চার্জশিট|হাজিরা|রায়|শুনানি|আদেশ|নথি)/u,
+  /(?:গাড়িবহরে\s*হামলা,\s*মামলার|গাড়িবহরে\s*হামলা\s*মামলার)/u,
+  /\b(?:case\s+filed\s+over\s+past|accused\s+in(?:\s+the)?\s+\w+\s+case|lawsuit\s+over\s+past)\b/i,
+];
+
+const POLITICAL_REACTION_PATTERNS = [
+  /(?:হামলায়\s*জড়িতদের\s*আইনের\s*আওতায়\s*আনা\s*হবে|হামলার\s*ঘটনায়\s*(?:রাষ্ট্রপতির|প্রধানমন্ত্রীর|জরুরি|পদক্ষেপ|তদন্ত)|হামলার\s*নিন্দা|হামলার\s*তীব্র\s*নিন্দা|নিন্দা\s*ও\s*প্রতিবাদ)/u,
+  /\b(?:condemns?\s+(?:the\s+)?attack|vows?\s+action\s+against\s+attackers|demands?\s+justice)\b/i,
+];
+
+const RETROSPECTIVE_SUMMARY_PATTERNS = [
+  /(?:\d+\s*দিনে\s*[\s\S]{0,30}?(?:হামলা|আগুন|সংঘর্ষ|নিহত|গুলিবিদ্ধ)|এক\s*মাসে\s*[\s\S]{0,30}?(?:হামলা|হত্যা|খুন)|বছরের\s*খতিয়ান|crime\s+statistics|monthly\s+review)/u,
+  /\b(?:in\s+\d+\s+days\s+.*(?:attacks?|killed|shot)|monthly\s+crime\s+statistics)\b/i,
+];
+
+const CAMPUS_STANDOFF_RESOLVED_PATTERNS = [
+  /(?:৪\s*ঘণ্টা\s*অবরুদ্ধ|ঘণ্টা\s*অবরুদ্ধ|অবরুদ্ধ\s*মুক্ত|পরিস্থিতি\s*শান্ত|পরিস্থিতি\s*স্বাভাবিক|মীমাংসা\s*হয়েছে|প্রভোস্টের\s*হস্তক্ষেপে\s*শান্ত)/u,
+  /\b(?:situation\s+calmed\s+down|standoff\s+ended|confined\s+for\s+\d+\s+hours\s+then\s+freed)\b/i,
 ];
 
 const FOLLOW_UP_MOURNING_PATTERNS = [
@@ -1020,6 +1052,8 @@ const FOLLOW_UP_MOURNING_PATTERNS = [
 function checkGroundRealityDisqualification(
   combinedText: string
 ): { isDisqualified: boolean; reason?: string } {
+  const isImmediateAttack = IMMEDIATE_VIOLENT_ATTACK_PATTERNS.some((pat) => pat.test(combinedText));
+
   // Retrospective legal / trial detection
   const isJudicialRetrospective = RETROSPECTIVE_JUDICIAL_PATTERNS.some((pat) =>
     pat.test(combinedText)
@@ -1028,12 +1062,12 @@ function checkGroundRealityDisqualification(
   // Active physical attack directed at venue (not a past trial/verdict)
   const isCourtVenueAttack =
     COURT_VENUE_PATTERNS.some((p) => p.test(combinedText)) &&
-    IMMEDIATE_VIOLENT_ATTACK_PATTERNS.some((p) => p.test(combinedText)) &&
+    isImmediateAttack &&
     !isJudicialRetrospective;
 
   const isPoliticalVenueAttack =
     POLITICAL_VENUE_PATTERNS.some((p) => p.test(combinedText)) &&
-    IMMEDIATE_VIOLENT_ATTACK_PATTERNS.some((p) => p.test(combinedText)) &&
+    isImmediateAttack &&
     !isJudicialRetrospective;
 
   // 1. Bail Hearing Disqualification (Bail hearings are strictly legal proceedings)
@@ -1065,14 +1099,46 @@ function checkGroundRealityDisqualification(
     }
   }
 
-  // 6. Administrative Dispute Disqualification
+  // 6. Administrative Dispute Disqualification (unless an active violent attack/clash with weapons is underway)
   if (ADMINISTRATIVE_DISPUTE_KEYWORDS.some((kw) => matchesKeyword(combinedText, kw))) {
-    return { isDisqualified: true, reason: 'ADMINISTRATIVE_DISPUTE' };
+    if (!isImmediateAttack) {
+      return { isDisqualified: true, reason: 'ADMINISTRATIVE_DISPUTE' };
+    }
   }
 
   // 7. Mourning and Funeral Follow-Up Disqualification (retrospective burial/prayer ceremonies)
   if (FOLLOW_UP_MOURNING_PATTERNS.some((pattern) => combinedText.includes(pattern))) {
     return { isDisqualified: true, reason: 'MOURNING_FOLLOWUP' };
+  }
+
+  // 8. Arrest Follow-Up Disqualification (unless active shootout/violence occurred during the arrest)
+  const isArrestFollowup = ARREST_FOLLOWUP_PATTERNS.some((pat) => pat.test(combinedText));
+  const hasActiveArrestClash = ACTIVE_ARREST_CLASH_PATTERNS.some((pat) => pat.test(combinedText));
+  if (isArrestFollowup && !hasActiveArrestClash) {
+    return { isDisqualified: true, reason: 'ARREST_FOLLOWUP' };
+  }
+
+  // 9. Historical Case Reference Disqualification (e.g. "গাড়িবহরে হামলা মামলার পলাতক আসামি গ্রেফতার")
+  const isHistoricalCase = HISTORICAL_CASE_PATTERNS.some((pat) => pat.test(combinedText));
+  if (isHistoricalCase && !isImmediateAttack) {
+    return { isDisqualified: true, reason: 'HISTORICAL_CASE_MENTION' };
+  }
+
+  // 10. Political Reaction / Ministerial Statement Disqualification
+  const isPoliticalReaction = POLITICAL_REACTION_PATTERNS.some((pat) => pat.test(combinedText));
+  if (isPoliticalReaction && !isImmediateAttack) {
+    return { isDisqualified: true, reason: 'POLITICAL_STATEMENT' };
+  }
+
+  // 11. Retrospective Crime Statistics / Multi-day Summary Disqualification
+  if (RETROSPECTIVE_SUMMARY_PATTERNS.some((pat) => pat.test(combinedText))) {
+    return { isDisqualified: true, reason: 'RETROSPECTIVE_SUMMARY' };
+  }
+
+  // 12. Resolved Campus / Institutional Standoff Disqualification
+  const isCampusResolved = CAMPUS_STANDOFF_RESOLVED_PATTERNS.some((pat) => pat.test(combinedText));
+  if (isCampusResolved && !isImmediateAttack) {
+    return { isDisqualified: true, reason: 'RESOLVED_ALTERCATION' };
   }
 
   return { isDisqualified: false };
@@ -1192,6 +1258,67 @@ export const classifyNewsText = (title: string, summary: string = ''): Classifie
       matchedKeywords,
       disqualifiedReason: disqualification.reason,
     };
+  }
+
+  // Verify ARMED_ASSAULT weapon evidence:
+  // If an incident resolves to ARMED_ASSAULT but only has generic beating (মারধর, মারপিট)
+  // without deadly weapons (firearms, sharp cutting blades, explosives) or organized mass casualties,
+  // disqualify as UNARMED_SCUFFLE
+  if (resolvedCategory === 'ARMED_ASSAULT') {
+    const hasDeadlyWeapon =
+      combinedText.includes('অস্ত্র') ||
+      combinedText.includes('আগ্নেয়াস্ত্র') ||
+      combinedText.includes('বন্দুক') ||
+      combinedText.includes('গুলি') ||
+      combinedText.includes('গুলিবিদ্ধ') ||
+      combinedText.includes('কোপানো') ||
+      combinedText.includes('কুপিয়ে') ||
+      combinedText.includes('ছুরিকাঘাত') ||
+      combinedText.includes('ছুরি') ||
+      combinedText.includes('চাপাতি') ||
+      combinedText.includes('রামদা') ||
+      combinedText.includes('টেঁটা') ||
+      combinedText.includes('বোমা') ||
+      combinedText.includes('ককটেল') ||
+      combinedText.includes('টিয়ারশেল') ||
+      combinedText.includes('লাঠিসোঁটা') ||
+      combinedText.includes('দেশীয় অস্ত্র') ||
+      combinedText.includes('রক্তক্ষয়ী') ||
+      combinedText.includes('সংঘর্ষে আহত') ||
+      combinedText.includes('সংঘর্ষে নিহত') ||
+      combinedText.includes('রণক্ষেত্র') ||
+      combinedText.includes('gunfire') ||
+      combinedText.includes('shooting') ||
+      combinedText.includes('shot') ||
+      combinedText.includes('stabbed') ||
+      combinedText.includes('stabbing') ||
+      combinedText.includes('machete') ||
+      combinedText.includes('bomb') ||
+      combinedText.includes('blast') ||
+      combinedText.includes('armed');
+
+    if (!hasDeadlyWeapon) {
+      const isInstitutionalOrScuffle =
+        combinedText.includes('হল') ||
+        combinedText.includes('হলে') ||
+        combinedText.includes('ক্যাম্পাস') ||
+        combinedText.includes('বিশ্ববিদ্যালয়') ||
+        combinedText.includes('শিক্ষার্থী') ||
+        combinedText.includes('ছাত্র') ||
+        combinedText.includes('মারধর') ||
+        combinedText.includes('হাতাহাতি');
+
+      if (isInstitutionalOrScuffle) {
+        return {
+          isSafetyRelated: false,
+          category: 'ARMED_ASSAULT',
+          severity: 'LOW',
+          confidence: 0.0,
+          matchedKeywords,
+          disqualifiedReason: 'UNARMED_SCUFFLE',
+        };
+      }
+    }
   }
 
   if (!resolvedCategory) {

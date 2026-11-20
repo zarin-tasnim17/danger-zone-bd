@@ -729,6 +729,13 @@ export const findLandmarkInText = (text: string): GeocodeResult | null => {
       let upazila = isThana ? match.standardName : undefined;
       let division = DISTRICT_TO_DIV_MAP[match.standardName];
 
+      if (match.standardName && match.standardName.includes(', ')) {
+        const [locPart, distPart] = match.standardName.split(', ');
+        district = distPart.trim();
+        upazila = locPart.trim();
+        division = DISTRICT_TO_DIV_MAP[district] || division;
+      }
+
       if (!district) {
         const matchedUpazila = ALL_UPAZILAS.find(
           (u) =>
@@ -1003,13 +1010,41 @@ export function maskFalsePositivePhrases(text: string): string {
     .replace(/তালা\s+(?:ভেঙে|ভেঙ্গে|কেটে|মেরে|খুলে|ঝুলিয়ে|ভেঙেছে)/gi, ' ');
 }
 
+/**
+ * Masks locations associated with past case titles or arrest actions:
+ * e.g. "ফেনীতে খালেদা জিয়ার গাড়িবহরে হামলা, মামলার পলাতক আসামি গ্রেফতার"
+ * Here, "ফেনীতে" describes the past 2017 case ("ফেনীতে খালেদা জিয়ার গাড়িবহরে হামলা মামলার"),
+ * and NOT a current physical assault scene.
+ */
+export function maskArrestAndCaseVenue(text: string): string {
+  if (!text) return '';
+  return text
+    // "ফেনীতে খালেদা জিয়ার গাড়িবহরে হামলা, মামলার" or "[Place]-এ হামলা মামলার"
+    .replace(
+      /(?:[^\s,।–—]+(?:\s*-[^\s,।–—]+)?)\s*(?:-এ|-এতে|এ|তে)?\s*(?:[\u0980-\u09FF\w\s,()]+?)?\s*(?:হামলা|হত্যা|খুন|ডাকাতি|নাশকতা)\s*মামলার/gi,
+      ' '
+    )
+    // "[Place] থেকে গ্রেফতার" or "[Place] থেকে আটক"
+    .replace(
+      /(?:[^\s,।–—]+)\s*(?:থেকে|হতে)\s*(?:[\u0980-\u09FF\w\s,()]+?)?(?:গ্রেফতার|গ্রেপ্তার|আটক|গ্রেফতারের)/gi,
+      ' '
+    )
+    // "[Place]-এর আদালতে" or "[Place] কোর্টে"
+    .replace(
+      /(?:[^\s,।–—]+)\s*(?:আদালতে|আদালতের|কোর্টে|ট্রাইব্যুনালে)/gi,
+      ' '
+    );
+}
+
 function maskAllSecondaryNoise(text: string): string {
   if (!text) return '';
-  return maskFalsePositivePhrases(
-    maskSecondaryPlaces(
-      maskHighwayCorridors(
-        maskTransitDepartures(
-          maskHospitalPhrases(text)
+  return maskArrestAndCaseVenue(
+    maskFalsePositivePhrases(
+      maskSecondaryPlaces(
+        maskHighwayCorridors(
+          maskTransitDepartures(
+            maskHospitalPhrases(text)
+          )
         )
       )
     )

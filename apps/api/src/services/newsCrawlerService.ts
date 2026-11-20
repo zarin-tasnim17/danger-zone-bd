@@ -4,6 +4,7 @@ import { ReportCategory } from '@prisma/client';
 import { resolveLocationFromText } from './geocodingService';
 import { classifyNewsText } from './newsClassifierService';
 import { isForeignIncident } from './internationalIncidentFilter';
+import { evaluateActiveThreatEligibility } from './activeThreatEligibilityService';
 import { crossVerifyCitizenReports } from './newsVerificationService';
 import { findDuplicateActiveReport, normalizeCanonicalUrl, cleanIncidentTitle } from './incidentDeduplicationService';
 import { emitNewReport, emitReportEnriched } from '../sockets';
@@ -16,6 +17,11 @@ import {
   DIRECT_PUBLISHER_FEEDS,
   type DirectFeedDefinition,
 } from './publisherRegistry';
+import {
+  validateUrlForSafeFetch,
+  sanitizeXmlPayload,
+  MAX_FEED_RESPONSE_BYTES,
+} from '../utils/ssrfFilter';
 
 const parser = new Parser({
   headers: {
@@ -462,10 +468,7 @@ export const sleepJitter = async (minMs = 1500, maxMs = 2500): Promise<void> => 
 };
 
 export const sanitizeXmlString = (xml: string): string => {
-  if (!xml) return '';
-  return xml
-    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '')
-    .trim();
+  return sanitizeXmlPayload(xml);
 };
 
 const NEWS_BOT_EMAIL = 'news-crawler-bot@safety.bd';
@@ -653,10 +656,6 @@ export const processAndIngestNewsItems = async (
 
     // 4. Content-Based Bilingual Classification (Strict Decoupling from Feed categoryHint)
     const classification = classifyNewsText(item.title, item.contentSnippet || '');
-    if (!classification.isSafetyRelated) {
-      skipped++;
-      continue;
-    }
     const finalCategory = classification.category;
 
     // 5. Domestic Geocoding resolution (Headline priority + victim residence exclusion)
@@ -666,9 +665,24 @@ export const processAndIngestNewsItems = async (
     const wireAgency = wireInfo.agency || null;
     const initialVerificationStage: any = isWire ? 'WIRE_SYNDICATED' : 'SINGLE_SOURCE_PRESS';
 
-    if (!geocode) {
-      if (runRecorder) runRecorder.recordGeocodingFailure();
-      // Stage unresolvable article without creating Report pin
+    // 6. Strict 6-Stage Active Threat Eligibility Evaluation
+    const eligibility = evaluateActiveThreatEligibility({
+      title: item.title,
+      summary: item.contentSnippet || '',
+      category: finalCategory,
+      severity: classification.severity,
+      isSafetyRelated: classification.isSafetyRelated,
+      disqualifiedReason: classification.disqualifiedReason,
+      geocode,
+      publishedAt,
+      sourceUrl: canonicalUrl,
+      sourceName: item.sourceName,
+      isWire,
+    });
+
+    if (!eligibility.isEligibleForActiveMap || !geocode) {
+      if (runRecorder && !geocode) runRecorder.recordGeocodingFailure();
+      // Stage non-active / historical / follow-up / unresolvable article without creating live map pin
       try {
         await prisma.newsArticle.create({
           data: {
@@ -679,8 +693,8 @@ export const processAndIngestNewsItems = async (
             publishedAt,
             category: finalCategory,
             severity: classification.severity,
-            latitude: 0,
-            longitude: 0,
+            latitude: geocode?.latitude || 0,
+            longitude: geocode?.longitude || 0,
             reportId: null,
             isWireSyndicated: isWire,
             wireAgency,
@@ -689,7 +703,7 @@ export const processAndIngestNewsItems = async (
         existingGuidSet.add(guid);
         existingUrlSet.add(canonicalUrl);
       } catch {
-        // Skip on error
+        // Skip on duplicate error
       }
       skipped++;
       continue;
@@ -697,10 +711,10 @@ export const processAndIngestNewsItems = async (
 
     if (runRecorder) runRecorder.recordGeocodingSuccess();
 
-    // 5. Expiration: Category-specific active lifecycle
-    const expiresAt = calculateNewsReportExpiry(finalCategory, publishedAt);
+    // 7. Expiration: Category-specific active lifecycle
+    const expiresAt = eligibility.calculatedExpiry;
 
-    // 6. Clean headline and content
+    // 8. Clean headline and content
     const cleanTitle = cleanIncidentTitle(item.title);
     const cleanDesc = cleanIncidentTitle(item.contentSnippet || item.title);
 
@@ -840,29 +854,31 @@ export const processAndIngestNewsItems = async (
         },
       });
 
-      // Emit real-time REPORT_ENRICHED event
-      emitReportEnriched({
-        id: existingReport.id,
-        category: updatedCategory,
-        severity: existingReport.severity,
-        latitude: newLat,
-        longitude: newLng,
-        description: existingReport.description,
-        upvotes: (existingReport.upvotes || 0) + 2,
-        downvotes: existingReport.downvotes || 0,
-        status: existingReport.status,
-        expiresAt: existingReport.expiresAt,
-        createdAt: existingReport.createdAt,
-        sourceUrl: existingReport.sourceUrl,
-        sourceName: updatedSources,
-        isGpsVerified: existingReport.isGpsVerified,
-        verificationStage: nextStage,
-        citations: existingCitations,
-        locationPrecision: newPrecision,
-        district: newDistrict,
-        upazila: newUpazila,
-        threatStatus: existingReport.threatStatus || 'ACTIVE',
-      });
+      // Emit real-time REPORT_ENRICHED event only for active ongoing threats
+      if (existingReport.status === 'ACTIVE' && (existingReport.threatStatus === 'ACTIVE' || !existingReport.threatStatus)) {
+        emitReportEnriched({
+          id: existingReport.id,
+          category: updatedCategory,
+          severity: existingReport.severity,
+          latitude: newLat,
+          longitude: newLng,
+          description: existingReport.description,
+          upvotes: (existingReport.upvotes || 0) + 2,
+          downvotes: existingReport.downvotes || 0,
+          status: existingReport.status,
+          expiresAt: existingReport.expiresAt,
+          createdAt: existingReport.createdAt,
+          sourceUrl: existingReport.sourceUrl,
+          sourceName: updatedSources,
+          isGpsVerified: existingReport.isGpsVerified,
+          verificationStage: nextStage,
+          citations: existingCitations,
+          locationPrecision: newPrecision,
+          district: newDistrict,
+          upazila: newUpazila,
+          threatStatus: existingReport.threatStatus || 'ACTIVE',
+        });
+      }
 
       existingGuidSet.add(guid);
       existingUrlSet.add(canonicalUrl);
@@ -1023,6 +1039,13 @@ export const crawlAllNewsFeeds = async (
   let feedsChecked = 0;
 
   const fetchAndProcessSingleFeed = async (feedConfig: FeedConfig) => {
+    // SSRF boundary validation before any network connection
+    const safety = await validateUrlForSafeFetch(feedConfig.url);
+    if (!safety.isSafe) {
+      console.warn(`[News Crawler] Blocked unsafe feed URL "${feedConfig.name}" (${feedConfig.url}): ${safety.reason}`);
+      return;
+    }
+
     feedsChecked++;
     const feedStartTime = Date.now();
     const timeoutMs = feedConfig.timeoutMs || 10000;
@@ -1050,7 +1073,17 @@ export const crawlAllNewsFeeds = async (
           if (!resp.ok) {
             throw new Error(`HTTP ${resp.status} ${resp.statusText}`);
           }
+
+          const contentLength = Number(resp.headers.get('content-length'));
+          if (contentLength && contentLength > MAX_FEED_RESPONSE_BYTES) {
+            throw new Error(`Feed response size ${contentLength} bytes exceeds limit ${MAX_FEED_RESPONSE_BYTES} bytes`);
+          }
+
           const rawText = await resp.text();
+          if (rawText.length > MAX_FEED_RESPONSE_BYTES) {
+            throw new Error(`Feed response text length ${rawText.length} exceeds limit ${MAX_FEED_RESPONSE_BYTES} bytes`);
+          }
+
           const cleanXml = sanitizeXmlString(rawText);
           return await parser.parseString(cleanXml);
         } catch (fetchErr: any) {

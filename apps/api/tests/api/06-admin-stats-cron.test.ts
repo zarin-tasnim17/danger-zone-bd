@@ -5,6 +5,7 @@ import { TestDataTracker, prisma } from '../framework/dbTracker';
 import { ApiClient } from '../framework/apiClient';
 import { createDeviceActor, createPrivilegedActor, nextTestIp } from '../framework/authHelpers';
 import { assertErrorEnvelope, assertStatus, assertSuccessEnvelope } from '../framework/assertions';
+import { setCustomCrawlerFeeds } from '../../src/jobs/newsCrawlerJob';
 
 describe('API Functional: Admin Moderation, Analytics, Stats & Cron (EP-032..EP-043)', () => {
   let server: TestServerHandle;
@@ -245,9 +246,15 @@ describe('API Functional: Admin Moderation, Analytics, Stats & Cron (EP-032..EP-
       const beforeSet = new Set(beforeArticles.map((a) => a.id));
 
       const admin = await createPrivilegedActor(server.baseUrl, tracker, { role: 'ADMIN' });
-      const adminCrawlRes = await admin.client.post('/api/v1/admin/news/crawl', {}, { timeoutMs: 60000 });
-      assertStatus(adminCrawlRes, 200, 'POST /admin/news/crawl');
-      assert.ok(['success', 'in_progress'].includes(adminCrawlRes.body?.data?.status));
+      // Hermetic test isolation: avoid fetching external live news feeds into test database
+      setCustomCrawlerFeeds([]);
+      try {
+        const adminCrawlRes = await admin.client.post('/api/v1/admin/news/crawl', {}, { timeoutMs: 60000 });
+        assertStatus(adminCrawlRes, 200, 'POST /admin/news/crawl');
+        assert.ok(['success', 'in_progress'].includes(adminCrawlRes.body?.data?.status));
+      } finally {
+        setCustomCrawlerFeeds(null);
+      }
 
       const afterArticles = await prisma.newsArticle.findMany({
         select: { id: true, reportId: true },

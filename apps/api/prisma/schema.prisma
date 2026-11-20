@@ -180,10 +180,10 @@ model Report {
   status            ReportStatus      @default(ACTIVE)
   verificationStage VerificationStage @default(CLASSIFIED)
   citations         Json?             @default("[]")
-  locationPrecision LocationPrecision? @default(EXACT)
+  locationPrecision LocationPrecision? @default(AMBIGUOUS)
   district          String?
   upazila           String?
-  threatStatus      ThreatStatus?      @default(ACTIVE)
+  threatStatus      ThreatStatus?      @default(UNDER_REVIEW)
   expiresAt         DateTime
   createdAt         DateTime          @default(now())
   updatedAt         DateTime          @updatedAt

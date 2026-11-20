@@ -315,7 +315,10 @@ export const resolveReport = async (reportId: string, userId: string, userRole: 
 
   const updated = await prisma.report.update({
     where: { id: reportId },
-    data: { status: 'RESOLVED' }
+    data: { 
+      status: 'RESOLVED',
+      threatStatus: 'RESOLVED',
+    }
   });
 
   emitReportResolved({

@@ -79,6 +79,11 @@ export default function IncidentFeed({ onIncidentSelect }: { onIncidentSelect?: 
 
   const filtered = useMemo(() => {
     return incidents.filter((item) => {
+      // Exclude resolved, historical, or non-active items from live threat feed
+      if (item.threatStatus && item.threatStatus !== "ACTIVE") {
+        return false;
+      }
+
       // Feed-specific tab filter
       if (feedTab === "critical") {
         const isCrit = item.severity.toUpperCase() === "HIGH" || item.severity.toLowerCase() === "critical";

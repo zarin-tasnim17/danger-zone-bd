@@ -20,6 +20,7 @@ import {
   nonExistentUuid,
 } from '../framework/fixtures';
 import { assertSuccessEnvelope } from '../framework/assertions';
+import { setCustomCrawlerFeeds } from '../../src/jobs/newsCrawlerJob';
 
 /**
  * Confirmed Backend Defects Regression Suite (`BACKEND-001` .. `BACKEND-010`).
@@ -53,14 +54,19 @@ describe('Confirmed Defects Regression Suite (BACKEND-001..BACKEND-010)', () => 
       await unauth.get('/api/v1/cron/news-crawl');
 
       const authed = new ApiClient(server.baseUrl, sameIp);
-      const res = await authed.get('/api/v1/cron/news-crawl', {
-        headers: { 'x-cron-secret': 'regression-cron-secret-32chars-val' },
-      });
-      assert.equal(
-        res.status,
-        200,
-        `Expected valid cron secret to succeed (200) rather than pre-auth 429 DoS; got ${res.status}`
-      );
+      setCustomCrawlerFeeds([]);
+      try {
+        const res = await authed.get('/api/v1/cron/news-crawl', {
+          headers: { 'x-cron-secret': 'regression-cron-secret-32chars-val' },
+        });
+        assert.equal(
+          res.status,
+          200,
+          `Expected valid cron secret to succeed (200) rather than pre-auth 429 DoS; got ${res.status}`
+        );
+      } finally {
+        setCustomCrawlerFeeds(null);
+      }
     } finally {
       if (prevSecret === undefined) delete process.env.CRON_SECRET;
       else process.env.CRON_SECRET = prevSecret;
