@@ -1,6 +1,31 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<testsuite name="dangerzonebd-api-validation" tests="3" failures="0" skipped="0" time="18.781">
-  <testcase classname="tests\validation\01-schema-strictness-boundaries.test.ts" name="Enforces .strict() mass-assignment/unknown-field rejection on strict schemas" time="2.746"/>
-  <testcase classname="tests\validation\01-schema-strictness-boundaries.test.ts" name="PostGIS geofence validation: rejects unclosed, self-intersecting, &gt;25 km² polygons, and &gt;5 zones per user" time="10.569"/>
-  <testcase classname="tests\validation\01-schema-strictness-boundaries.test.ts" name="Report, Media &amp; GPS header boundaries (lat/lng extremes, 5MB limit, MIME types, incomplete GPS headers)" time="3.198"/>
+<testsuite name="dangerzonebd-api-functional" tests="28" failures="0" skipped="0" time="186.750">
+  <testcase classname="tests\api\01-health-system-proxy.test.ts" name="EP-001 GET / returns service metadata and security headers" time="0.044"/>
+  <testcase classname="tests\api\01-health-system-proxy.test.ts" name="EP-002 GET /health returns live UP liveness payload" time="0.007"/>
+  <testcase classname="tests\api\01-health-system-proxy.test.ts" name="EP-003 GET /health/db confirms live PostgreSQL/PostGIS connectivity" time="1.123"/>
+  <testcase classname="tests\api\01-health-system-proxy.test.ts" name="EP-004 &amp; EP-005 Versioned /api/v1/health and /api/v1/health/db match root probes" time="0.311"/>
+  <testcase classname="tests\api\01-health-system-proxy.test.ts" name="HTTP protocol checks: malformed JSON yields clean 400 and unknown route yields 404 without stack trace" time="0.023"/>
+  <testcase classname="tests\api\01-health-system-proxy.test.ts" name="EP-044 Next.js GET /api/health aggregates live Express backend and returns 503 when upstream unreachable" time="0.371"/>
+  <testcase classname="tests\api\01-health-system-proxy.test.ts" name="EP-045 &amp; EP-046 Next.js GET/POST /api/cron/news-crawl fail closed on missing/bad CRON_SECRET" time="0.006"/>
+  <testcase classname="tests\api\01-health-system-proxy.test.ts" name="Error envelope sanity check on bad media webhook call" time="0.004"/>
+  <testcase classname="tests\api\02-auth-users.test.ts" name="EP-006 POST /api/v1/auth/device creates anonymous USER, sets HttpOnly cookies, and rejects mass-assignment keys via .strict()" time="2.235"/>
+  <testcase classname="tests\api\02-auth-users.test.ts" name="EP-006 rejects empty anonymousId (400) and blocks device login on password-backed ADMIN (403)" time="1.792"/>
+  <testcase classname="tests\api\02-auth-users.test.ts" name="EP-007 &amp; EP-008 &amp; EP-009 Password login -&gt; refresh -&gt; logout lifecycle" time="4.105"/>
+  <testcase classname="tests\api\02-auth-users.test.ts" name="EP-010 GET /api/v1/users/me returns sanitized profile with counts and never leaks passwordHash/anonymousId" time="2.096"/>
+  <testcase classname="tests\api\02-auth-users.test.ts" name="EP-011 &amp; EP-012 POST /api/v1/users/verify (PHONE_OTP &amp; NID_DOCUMENT) + legacy /users/verify/:id/approve" time="10.564"/>
+  <testcase classname="tests\api\03-reports-votes-updates.test.ts" name="EP-013 POST /api/v1/reports creates report with hardware GPS verification and rejects &gt;200m GPS drift" time="6.675"/>
+  <testcase classname="tests\api\03-reports-votes-updates.test.ts" name="EP-014 &amp; EP-015 GET /reports bounds filtering + GET /reports/:id PII sanitization &amp; isOwner" time="8.203"/>
+  <testcase classname="tests\api\03-reports-votes-updates.test.ts" name="EP-016 PATCH /api/v1/reports/:id/resolve works for owner and VERIFIED_RESPONDER, prevents duplicate resolve" time="9.572"/>
+  <testcase classname="tests\api\03-reports-votes-updates.test.ts" name="EP-017, EP-018, EP-019 Votes (upvote/switch/reject invalid voteType) and Threaded Updates lifecycle" time="13.465"/>
+  <testcase classname="tests\api\04-safe-zones-routing.test.ts" name="EP-020, EP-021, EP-022 Safe Zones public queries (default, bounds, radial, type) &amp; Admin Create/Delete" time="6.654"/>
+  <testcase classname="tests\api\04-safe-zones-routing.test.ts" name="EP-023 POST /api/v1/routes/safe-path rejects out-of-Bangladesh bounds, nested payloads, and detours around HIGH hazard" time="4.768"/>
+  <testcase classname="tests\api\05-alerts-media.test.ts" name="EP-024, EP-025, EP-026, EP-027 Alert zone CRUD &amp; push subscription lifecycle" time="8.108"/>
+  <testcase classname="tests\api\05-alerts-media.test.ts" name="EP-028 &amp; EP-029 Presigned URL -&gt; Media Confirm (idempotent + strips originalUrl) &amp; rejects multipart 415" time="7.877"/>
+  <testcase classname="tests\api\05-alerts-media.test.ts" name="EP-030 POST /api/v1/media/mock-upload accepts valid PNG, JPEG, and WEBP magic-byte data URIs" time="10.394"/>
+  <testcase classname="tests\api\05-alerts-media.test.ts" name="EP-031 POST /api/v1/media/webhook enforces fail-closed secret and idempotently records valid callback" time="4.424"/>
+  <testcase classname="tests\api\06-admin-stats-cron.test.ts" name="EP-032..EP-039 Admin KYC approve/reject, ban/unban, report purge, audit logs &amp; analytics trends" time="21.945"/>
+  <testcase classname="tests\api\06-admin-stats-cron.test.ts" name="EP-041 GET /api/v1/stats reflects live aggregate counts cleanly" time="1.044"/>
+  <testcase classname="tests\api\06-admin-stats-cron.test.ts" name="EP-040, EP-042, EP-043 Cron GET/POST fail-closed 401 when unset/wrong and Admin/Cron crawler handles concurrency cleanly" time="22.324"/>
+  <testcase classname="tests\api\07-sockets-realtime.test.ts" name="Allows guest read-only socket &amp; authenticated socketToken handshake; rejects tampered/non-string tokens" time="2.319"/>
+  <testcase classname="tests\api\07-sockets-realtime.test.ts" name="Broadcasts sanitized NEW_REPORT, REPORT_VOTED, NEW_REPORT_UPDATE, REPORT_RESOLVED, REPORT_PURGED, and targeted GEOFENCE_ALERT" time="15.045"/>
 </testsuite>
