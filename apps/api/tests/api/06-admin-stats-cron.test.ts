@@ -245,7 +245,7 @@ describe('API Functional: Admin Moderation, Analytics, Stats & Cron (EP-032..EP-
       const beforeSet = new Set(beforeArticles.map((a) => a.id));
 
       const admin = await createPrivilegedActor(server.baseUrl, tracker, { role: 'ADMIN' });
-      const adminCrawlRes = await admin.client.post('/api/v1/admin/news/crawl', {});
+      const adminCrawlRes = await admin.client.post('/api/v1/admin/news/crawl', {}, { timeoutMs: 60000 });
       assertStatus(adminCrawlRes, 200, 'POST /admin/news/crawl');
       assert.ok(['success', 'in_progress'].includes(adminCrawlRes.body?.data?.status));
 

@@ -6,10 +6,16 @@ import { classifyNewsText } from './newsClassifierService';
 import { isForeignIncident } from './internationalIncidentFilter';
 import { crossVerifyCitizenReports } from './newsVerificationService';
 import { findDuplicateActiveReport, normalizeCanonicalUrl, cleanIncidentTitle } from './incidentDeduplicationService';
-import { emitNewReport } from '../sockets';
+import { emitNewReport, emitReportEnriched } from '../sockets';
 import { broadcastPlatformStats } from './statsService';
 import { setReportLocation } from '../db/spatialUtils';
 import { newsObservabilityService, CrawlRunRecorder } from './newsObservabilityService';
+import {
+  isWireSyndicatedStory,
+  resolvePublisherDomain,
+  DIRECT_PUBLISHER_FEEDS,
+  type DirectFeedDefinition,
+} from './publisherRegistry';
 
 const parser = new Parser({
   headers: {
@@ -279,6 +285,189 @@ export const PUBLIC_NEWS_FEEDS: FeedConfig[] = [
   ...DEDICATED_CATEGORY_FEEDS_BN,
 ];
 
+// ============================================================================
+// NATIONWIDE GEOGRAPHIC CLUSTERS (64 DISTRICTS, 10 CLUSTERS)
+// ============================================================================
+
+export interface NationwideCluster {
+  id: string;
+  name: string;
+  districtsEn: string[];
+  districtsBn: string[];
+}
+
+export const NATIONWIDE_CLUSTERS: NationwideCluster[] = [
+  {
+    id: 'C1',
+    name: 'Dhaka North / Industrial',
+    districtsEn: ['Gazipur', 'Narayanganj', 'Narsingdi', 'Tangail', 'Manikganj'],
+    districtsBn: ['গাজীপুর', 'নারায়ণগঞ্জ', 'নরসিংদী', 'টাঙ্গাইল', 'মানিকগঞ্জ'],
+  },
+  {
+    id: 'C2',
+    name: 'Dhaka South / Padma',
+    districtsEn: ['Dhaka', 'Munshiganj', 'Faridpur', 'Gopalganj', 'Madaripur', 'Shariatpur', 'Rajbari', 'Kishoreganj'],
+    districtsBn: ['ঢাকা', 'মুন্সীগঞ্জ', 'ফরিদপুর', 'গোপালগঞ্জ', 'মাদারীপুর', 'শরীয়তপুর', 'রাজবাড়ী', 'কিশোরগঞ্জ'],
+  },
+  {
+    id: 'C3',
+    name: 'Chattogram Urban & Coast',
+    districtsEn: ['Chattogram', "Cox's Bazar", 'Feni', 'Noakhali', 'Lakshmipur', 'Chandpur'],
+    districtsBn: ['চট্টগ্রাম', 'কক্সবাজার', 'ফেনী', 'নোয়াখালী', 'লক্ষ্মীপুর', 'চাঁদপুর'],
+  },
+  {
+    id: 'C4',
+    name: 'Chattogram Hill & Cumilla',
+    districtsEn: ['Cumilla', 'Brahmanbaria', 'Bandarban', 'Rangamati', 'Khagrachhari'],
+    districtsBn: ['কুমিল্লা', 'ব্রাহ্মণবাড়িয়া', 'বান্দরবান', 'রাঙ্গামাটি', 'খাগড়াছড়ি'],
+  },
+  {
+    id: 'C5',
+    name: 'Sylhet',
+    districtsEn: ['Sylhet', 'Moulvibazar', 'Habiganj', 'Sunamganj'],
+    districtsBn: ['সিলেট', 'মৌলভীবাজার', 'হবিগঞ্জ', 'সুনামগঞ্জ'],
+  },
+  {
+    id: 'C6',
+    name: 'Mymensingh',
+    districtsEn: ['Mymensingh', 'Jamalpur', 'Netrokona', 'Sherpur'],
+    districtsBn: ['ময়মনসিংহ', 'জামালপুর', 'নেত্রকোণা', 'শেরপুর'],
+  },
+  {
+    id: 'C7',
+    name: 'Rajshahi',
+    districtsEn: ['Rajshahi', 'Bogura', 'Pabna', 'Sirajganj', 'Naogaon', 'Natore', 'Chapainawabganj', 'Joypurhat'],
+    districtsBn: ['রাজশাহী', 'বগুড়া', 'পাবনা', 'সিরাজগঞ্জ', 'নওগাঁ', 'নাটোর', 'চাঁপাইনবাবগঞ্জ', 'জয়পুরহাট'],
+  },
+  {
+    id: 'C8',
+    name: 'Rangpur',
+    districtsEn: ['Rangpur', 'Dinajpur', 'Kurigram', 'Gaibandha', 'Nilphamari', 'Lalmonirhat', 'Panchagarh', 'Thakurgaon'],
+    districtsBn: ['রংপুর', 'দিনাজপুর', 'কুড়িগ্রাম', 'গাইবান্ধা', 'নীলফামারী', 'লালমনিরহাট', 'পঞ্চগড়', 'ঠাকুরগাঁও'],
+  },
+  {
+    id: 'C9',
+    name: 'Khulna',
+    districtsEn: ['Khulna', 'Jashore', 'Kushtia', 'Satkhira', 'Bagerhat', 'Jhenaidah', 'Magura', 'Narail', 'Chuadanga', 'Meherpur'],
+    districtsBn: ['খুলনা', 'যশোর', 'কুষ্টিয়া', 'সাতক্ষীরা', 'বাগেরহাট', 'ঝিনাইদহ', 'মাগুরা', 'নড়াইল', 'চুয়াডাঙ্গা', 'মেহেরপুর'],
+  },
+  {
+    id: 'C10',
+    name: 'Barishal',
+    districtsEn: ['Barishal', 'Patuakhali', 'Bhola', 'Pirojpur', 'Barguna', 'Jhalakathi'],
+    districtsBn: ['বরিশাল', 'পটুয়াখালী', 'ভোলা', 'পিরোজপুর', 'বরগুনা', 'ঝালকাঠি'],
+  },
+];
+
+export const CLUSTER_ROTATION_SCHEDULE: [string, string][] = [
+  ['C1', 'C2'],
+  ['C3', 'C4'],
+  ['C5', 'C6'],
+  ['C7', 'C8'],
+  ['C9', 'C10'],
+];
+
+let clusterRotationIndex = 0;
+export const getNextClusterPair = (): [string, string] => {
+  const pair = CLUSTER_ROTATION_SCHEDULE[clusterRotationIndex % CLUSTER_ROTATION_SCHEDULE.length];
+  clusterRotationIndex = (clusterRotationIndex + 1) % CLUSTER_ROTATION_SCHEDULE.length;
+  return pair;
+};
+export const getClusterRotationIndex = (): number => clusterRotationIndex;
+export const resetClusterRotationIndex = (): void => {
+  clusterRotationIndex = 0;
+};
+
+export const buildClusterFeeds = (clusterId: string): FeedConfig[] => {
+  const cluster = NATIONWIDE_CLUSTERS.find((c) => c.id === clusterId);
+  if (!cluster) return [];
+
+  const enDistricts = cluster.districtsEn.join(' OR ');
+  const bnDistricts = cluster.districtsBn.map((d) => `"${d}"`).join(' OR ');
+
+  const enQuery = `(${enDistricts}) (accident OR collision OR killed OR injured OR assault OR robbery OR theft OR violence OR "youth gang" OR extortion) bangladesh -court -bail -verdict -remand -corruption -politics when:2d`;
+  const bnQuery = `(${bnDistricts}) (দুর্ঘটনা OR সংঘর্ষ OR নিহত OR আহত OR ছিনতাই OR ডাকাতি OR চুরি OR হামলা OR "কিশোর গ্যাং" OR চাঁদাবাজি) বাংলাদেশ -আদালত -জামিন -রিমান্ড -দুদক -দুর্নীতি when:2d`;
+
+  return [
+    {
+      name: `Google News BD ${cluster.name} (EN)`,
+      category: 'ROAD_ACCIDENT' as ReportCategory,
+      categoryHint: 'ROAD_ACCIDENT' as ReportCategory,
+      url: buildGoogleNewsRssUrl(enQuery, 'en'),
+      timeoutMs: 10000,
+    },
+    {
+      name: `Google News BD ${cluster.name} (BN)`,
+      category: 'ROAD_ACCIDENT' as ReportCategory,
+      categoryHint: 'ROAD_ACCIDENT' as ReportCategory,
+      url: buildGoogleNewsRssUrl(bnQuery, 'bn'),
+      timeoutMs: 10000,
+    },
+  ];
+};
+
+export interface CircuitBreakerState {
+  state: 'CLOSED' | 'OPEN' | 'HALF_OPEN';
+  openUntil: number;
+  consecutiveFailures: number;
+}
+
+export const circuitBreaker: CircuitBreakerState = {
+  state: 'CLOSED',
+  openUntil: 0,
+  consecutiveFailures: 0,
+};
+
+export const checkGoogleNewsCircuit = (): boolean => {
+  const now = Date.now();
+  if (circuitBreaker.state === 'OPEN') {
+    if (now >= circuitBreaker.openUntil) {
+      circuitBreaker.state = 'HALF_OPEN';
+      return true;
+    }
+    return false;
+  }
+  return true;
+};
+
+export const recordGoogleNewsSuccess = (): void => {
+  if (circuitBreaker.state === 'OPEN') {
+    const now = Date.now();
+    if (now < circuitBreaker.openUntil) {
+      // Cooldown in progress, do not reset early
+      return;
+    }
+  }
+  circuitBreaker.state = 'CLOSED';
+  circuitBreaker.consecutiveFailures = 0;
+};
+
+export const recordGoogleNewsFailure = (isRateLimit: boolean): void => {
+  circuitBreaker.consecutiveFailures++;
+  if (isRateLimit || circuitBreaker.consecutiveFailures >= 3) {
+    circuitBreaker.state = 'OPEN';
+    circuitBreaker.openUntil = Date.now() + 30 * 60 * 1000; // 30 minutes cooldown
+    console.warn(
+      `[News Crawler] ⚠️ Google News circuit breaker OPEN until ${new Date(circuitBreaker.openUntil).toISOString()} (RateLimit: ${isRateLimit})`
+    );
+  }
+};
+
+export const sleepJitter = async (minMs = 1500, maxMs = 2500): Promise<void> => {
+  if (process.env.NODE_ENV === 'test' || process.env.HERMETIC_TEST_MODE === 'true' || process.env.NODE_TEST_CONTEXT) {
+    return;
+  }
+  const delay = Math.floor(minMs + Math.random() * (maxMs - minMs));
+  await new Promise((r) => setTimeout(r, delay));
+};
+
+export const sanitizeXmlString = (xml: string): string => {
+  if (!xml) return '';
+  return xml
+    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '')
+    .trim();
+};
+
 const NEWS_BOT_EMAIL = 'news-crawler-bot@safety.bd';
 let cachedBotUserId: string | null = null;
 
@@ -472,9 +661,36 @@ export const processAndIngestNewsItems = async (
 
     // 5. Domestic Geocoding resolution (Headline priority + victim residence exclusion)
     const geocode = await resolveLocationFromText(item.title, item.contentSnippet || '');
+    const wireInfo = isWireSyndicatedStory(canonicalUrl, item.sourceName, item.contentSnippet || item.title);
+    const isWire = wireInfo.isWire;
+    const wireAgency = wireInfo.agency || null;
+    const initialVerificationStage: any = isWire ? 'WIRE_SYNDICATED' : 'SINGLE_SOURCE_PRESS';
+
     if (!geocode) {
-      // Cannot plot on map without verified Bangladesh coordinates
       if (runRecorder) runRecorder.recordGeocodingFailure();
+      // Stage unresolvable article without creating Report pin
+      try {
+        await prisma.newsArticle.create({
+          data: {
+            guid,
+            title: item.title,
+            sourceUrl: canonicalUrl,
+            sourceName: item.sourceName,
+            publishedAt,
+            category: finalCategory,
+            severity: classification.severity,
+            latitude: 0,
+            longitude: 0,
+            reportId: null,
+            isWireSyndicated: isWire,
+            wireAgency,
+          },
+        });
+        existingGuidSet.add(guid);
+        existingUrlSet.add(canonicalUrl);
+      } catch {
+        // Skip on error
+      }
       skipped++;
       continue;
     }
@@ -496,6 +712,9 @@ export const processAndIngestNewsItems = async (
       category: finalCategory,
       latitude: geocode.latitude,
       longitude: geocode.longitude,
+      district: geocode.district,
+      upazila: geocode.upazila,
+      locationPrecision: geocode.locationPrecision,
     });
 
     if (duplicateMatch) {
@@ -517,6 +736,8 @@ export const processAndIngestNewsItems = async (
           latitude: geocode.latitude,
           longitude: geocode.longitude,
           reportId: existingReport.id,
+          isWireSyndicated: isWire,
+          wireAgency,
         },
       });
 
@@ -548,14 +769,28 @@ export const processAndIngestNewsItems = async (
         publishedAt: publishedAt.toISOString(),
       };
 
+      const incomingDomain = resolvePublisherDomain(canonicalUrl, item.sourceName);
+      const priorDomains = existingCitations.map((c) => resolvePublisherDomain(c.sourceUrl, c.sourceName));
+      const isDifferentPublisher = incomingDomain !== 'unknown' && !priorDomains.includes(incomingDomain);
+
       if (!existingCitations.some((c) => c.sourceUrl === canonicalUrl)) {
         existingCitations.push(newCitation);
       }
 
-      // Advance verificationStage to CORROBORATED (preserving ADMIN_VERIFIED if already verified)
-      const nextStage = existingReport.verificationStage === 'ADMIN_VERIFIED'
-        ? 'ADMIN_VERIFIED'
-        : 'CORROBORATED';
+      // Stage promotion logic:
+      let nextStage: any = existingReport.verificationStage;
+      if (existingReport.verificationStage === 'ADMIN_VERIFIED') {
+        nextStage = 'ADMIN_VERIFIED';
+      } else if (isWire) {
+        // Wire stories never advance to corroborated stage
+        nextStage = existingReport.verificationStage;
+      } else {
+        if (isDifferentPublisher) {
+          nextStage = 'PRESS_CORROBORATED';
+        } else if (existingReport.verificationStage === 'CLASSIFIED') {
+          nextStage = 'CORROBORATED';
+        }
+      }
 
       // If existing report was misclassified as ROAD_ACCIDENT, but a corroborating outlet confirms
       // a specific crime or violent clash (ARMED_ASSAULT, THEFT, ROBBERY, etc.), elevate to specific category:
@@ -563,6 +798,22 @@ export const processAndIngestNewsItems = async (
         existingReport.category === 'ROAD_ACCIDENT' && finalCategory !== 'ROAD_ACCIDENT'
           ? finalCategory
           : existingReport.category;
+
+      // Coordinate upgrade logic:
+      let newLat = existingReport.latitude;
+      let newLng = existingReport.longitude;
+      let newPrecision = existingReport.locationPrecision || 'UPAZILA';
+      let newDistrict = existingReport.district;
+      let newUpazila = existingReport.upazila;
+
+      if (duplicateMatch.shouldUpgradeCoords && duplicateMatch.newCoords) {
+        newLat = duplicateMatch.newCoords.latitude;
+        newLng = duplicateMatch.newCoords.longitude;
+        newPrecision = 'UPAZILA';
+        if (duplicateMatch.newCoords.district) newDistrict = duplicateMatch.newCoords.district;
+        if (duplicateMatch.newCoords.upazila) newUpazila = duplicateMatch.newCoords.upazila;
+        await setReportLocation(prisma, existingReport.id, newLat, newLng);
+      }
 
       await prisma.report.update({
         where: { id: existingReport.id },
@@ -572,6 +823,11 @@ export const processAndIngestNewsItems = async (
           upvotes: { increment: 2 }, // Multi-press verification confidence boost
           verificationStage: nextStage,
           citations: existingCitations,
+          latitude: newLat,
+          longitude: newLng,
+          locationPrecision: newPrecision,
+          district: newDistrict,
+          upazila: newUpazila,
         },
       });
 
@@ -582,6 +838,30 @@ export const processAndIngestNewsItems = async (
           userId: botUserId,
           content: `অতিরিক্ত প্রেস নিশ্চিতকরণ (${cleanOutlet || item.sourceName}): "${cleanTitle}"`,
         },
+      });
+
+      // Emit real-time REPORT_ENRICHED event
+      emitReportEnriched({
+        id: existingReport.id,
+        category: updatedCategory,
+        severity: existingReport.severity,
+        latitude: newLat,
+        longitude: newLng,
+        description: existingReport.description,
+        upvotes: (existingReport.upvotes || 0) + 2,
+        downvotes: existingReport.downvotes || 0,
+        status: existingReport.status,
+        expiresAt: existingReport.expiresAt,
+        createdAt: existingReport.createdAt,
+        sourceUrl: existingReport.sourceUrl,
+        sourceName: updatedSources,
+        isGpsVerified: existingReport.isGpsVerified,
+        verificationStage: nextStage,
+        citations: existingCitations,
+        locationPrecision: newPrecision,
+        district: newDistrict,
+        upazila: newUpazila,
+        threatStatus: existingReport.threatStatus || 'ACTIVE',
       });
 
       existingGuidSet.add(guid);
@@ -612,9 +892,13 @@ export const processAndIngestNewsItems = async (
           description: cleanDesc,
           sourceUrl: canonicalUrl,
           sourceName: item.sourceName,
-          verificationStage: 'CLASSIFIED',
+          verificationStage: initialVerificationStage,
           citations: initialCitations,
           expiresAt,
+          locationPrecision: geocode.locationPrecision || 'UPAZILA',
+          district: geocode.district,
+          upazila: geocode.upazila,
+          threatStatus: 'ACTIVE',
         },
       });
 
@@ -632,6 +916,8 @@ export const processAndIngestNewsItems = async (
           latitude: geocode.latitude,
           longitude: geocode.longitude,
           reportId: createdReport.id,
+          isWireSyndicated: isWire,
+          wireAgency,
         },
       });
 
@@ -656,15 +942,15 @@ export const processAndIngestNewsItems = async (
     verifiedMatches += verifyResult.matchedCount;
     if (runRecorder && verifyResult.matchedCount > 0) {
       runRecorder.recordVerifiedMatches(verifyResult.matchedCount);
-      // Automatically advance verificationStage to CORROBORATED when citizen report matches
+      // Automatically advance verificationStage to COMMUNITY_CONFIRMED when citizen report matches
       await prisma.report.update({
         where: { id: report.id },
-        data: { verificationStage: 'CORROBORATED' },
+        data: { verificationStage: 'COMMUNITY_CONFIRMED' },
       });
       if (verifyResult.verifiedReportIds.length > 0) {
         await prisma.report.updateMany({
           where: { id: { in: verifyResult.verifiedReportIds } },
-          data: { verificationStage: 'CORROBORATED' },
+          data: { verificationStage: 'COMMUNITY_CONFIRMED' },
         });
       }
     }
@@ -685,6 +971,12 @@ export const processAndIngestNewsItems = async (
       sourceUrl: report.sourceUrl,
       sourceName: report.sourceName,
       isGpsVerified: report.isGpsVerified,
+      verificationStage: report.verificationStage,
+      citations: report.citations,
+      locationPrecision: report.locationPrecision,
+      district: report.district,
+      upazila: report.upazila,
+      threatStatus: report.threatStatus,
     });
   }
 
@@ -730,13 +1022,49 @@ export const crawlAllNewsFeeds = async (
   let totalVerifiedMatches = 0;
   let feedsChecked = 0;
 
-  for (const feedConfig of feeds) {
+  const fetchAndProcessSingleFeed = async (feedConfig: FeedConfig) => {
     feedsChecked++;
     const feedStartTime = Date.now();
     const timeoutMs = feedConfig.timeoutMs || 10000;
 
     try {
-      const parsePromise = parser.parseURL(feedConfig.url);
+      const parsePromise = (async () => {
+        // Try fetching raw text first to sanitize XML (handles The Daily Star encoding artifacts)
+        try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+          const resp = await fetch(feedConfig.url, {
+            signal: controller.signal,
+            headers: {
+              'User-Agent': 'DangerZoneBD-PublicSafetyNewsCrawler/1.0 (contact@dangerzonebd.org)',
+            },
+          });
+          clearTimeout(timeoutId);
+
+          if (resp.status === 429) {
+            if (feedConfig.url.includes('news.google.com')) {
+              recordGoogleNewsFailure(true);
+            }
+            throw new Error(`HTTP 429 Too Many Requests from ${feedConfig.url}`);
+          }
+          if (!resp.ok) {
+            throw new Error(`HTTP ${resp.status} ${resp.statusText}`);
+          }
+          const rawText = await resp.text();
+          const cleanXml = sanitizeXmlString(rawText);
+          return await parser.parseString(cleanXml);
+        } catch (fetchErr: any) {
+          if (fetchErr.name === 'AbortError') {
+            throw new Error(`Feed fetch timed out after ${timeoutMs}ms`);
+          }
+          if (fetchErr.message?.includes('429')) {
+            throw fetchErr;
+          }
+          // Fallback to parser.parseURL in environments or mocks that mock parser directly
+          return await parser.parseURL(feedConfig.url);
+        }
+      })();
+
       const timeoutPromise = new Promise<never>((_, reject) => {
         setTimeout(() => reject(new Error(`Feed fetch timed out after ${timeoutMs}ms`)), timeoutMs);
       });
@@ -744,7 +1072,7 @@ export const crawlAllNewsFeeds = async (
       const feed = await Promise.race([parsePromise, timeoutPromise]);
       const latencyMs = Date.now() - feedStartTime;
 
-      const items: RawNewsItem[] = (feed.items || []).map((item) => {
+      const items: RawNewsItem[] = (feed.items || []).map((item: any) => {
         const rawLink = safeString(item.link);
         const canonicalLink = normalizeCanonicalUrl(rawLink);
         return {
@@ -771,7 +1099,14 @@ export const crawlAllNewsFeeds = async (
         latencyMs,
         itemsFetched: items.length,
       });
+
+      if (feedConfig.url.includes('news.google.com')) {
+        recordGoogleNewsSuccess();
+      }
     } catch (feedErr: any) {
+      if (feedConfig.url.includes('news.google.com')) {
+        recordGoogleNewsFailure(false);
+      }
       const latencyMs = Date.now() - feedStartTime;
       const isTimeout = feedErr?.message?.includes('timed out');
       console.warn(`[News Crawler] Failed to fetch feed "${feedConfig.name}":`, feedErr?.message || feedErr);
@@ -786,6 +1121,42 @@ export const crawlAllNewsFeeds = async (
         errorMessage: feedErr?.message || String(feedErr),
       });
       // Isolated failure handling: continuing crawl loop without aborting
+    }
+  };
+
+  if (feeds !== PUBLIC_NEWS_FEEDS) {
+    // Custom/targeted feeds (e.g. hermetic test mode)
+    for (const feedConfig of feeds) {
+      await fetchAndProcessSingleFeed(feedConfig);
+    }
+  } else {
+    // Production scheduled crawl:
+    // 1. Direct Publisher RSS Feeds (Dhaka Tribune, Dainik Azadi, Jagonews24, Prothom Alo, Daily Star)
+    console.log('[News Crawler] 📰 Ingesting direct publisher feeds in parallel...');
+    const directFeedConfigs: FeedConfig[] = DIRECT_PUBLISHER_FEEDS.map((df: DirectFeedDefinition) => ({
+      name: df.name,
+      category: 'ROAD_ACCIDENT' as ReportCategory,
+      categoryHint: 'ROAD_ACCIDENT' as ReportCategory,
+      url: df.url,
+      timeoutMs: 12000,
+    }));
+
+    await Promise.allSettled(directFeedConfigs.map((df) => fetchAndProcessSingleFeed(df)));
+
+    // 2. Google News Regional Discovery with Circuit Breaker and 10-Cluster Rotation
+    if (checkGoogleNewsCircuit()) {
+      const [clusterA, clusterB] = getNextClusterPair();
+      console.log(`[News Crawler] 🌐 Executing Google News Regional Discovery for clusters: ${clusterA} + ${clusterB}`);
+      const clusterFeeds = [...buildClusterFeeds(clusterA), ...buildClusterFeeds(clusterB)];
+
+      for (const cFeed of clusterFeeds) {
+        await sleepJitter(1500, 2500);
+        await fetchAndProcessSingleFeed(cFeed);
+      }
+    } else {
+      console.log(
+        `[News Crawler] 🔌 Google News Circuit Breaker is OPEN (cooldown until ${new Date(circuitBreaker.openUntil).toISOString()}). Direct publisher feeds completed successfully.`
+      );
     }
   }
 
