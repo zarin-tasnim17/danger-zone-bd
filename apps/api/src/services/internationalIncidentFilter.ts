@@ -424,8 +424,17 @@ export function isForeignIncident(title: string, snippet: string = ''): ForeignC
       }
     }
 
+    const isEnglish = /^[a-zA-Z0-9\s'-]+$/.test(normKeyword);
+    const escapedKw = normKeyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
     // 1. Primary check: Headline explicitly mentions a foreign country, territory or city
-    if (normTitle.includes(normKeyword)) {
+    const titleMatched = isEnglish
+      ? new RegExp(`\\b${escapedKw}\\b`, 'i').test(normTitle)
+      : (normKeyword.length <= 3
+          ? new RegExp(`(?:^|[\\s,।–—"\'‘“\\(\\)\\[\\]\\/-])${escapedKw}(?:$|[\\s,।–—"\'’”\\(\\)\\[\\]\\/-])`, 'u').test(normTitle)
+          : normTitle.includes(normKeyword));
+
+    if (titleMatched) {
       return {
         isForeign: true,
         matchedTerm: keyword,
@@ -435,10 +444,15 @@ export function isForeignIncident(title: string, snippet: string = ''): ForeignC
 
     // 2. Incident-association check in lead snippet:
     // Matches if the foreign term appears in close proximity to incident verbs
-    const incidentActionRegex = new RegExp(
-      `(?:${normKeyword})[\\s\\S]{0,35}(?:সড়ক দুর্ঘটনা|সড়ক দুর্ঘটনায়|সড়কে নিহত|দুর্ঘটনা|নিহত|আহত|হামলা|ছিনতাই|আগুনে|দাফন|লাশ|গুলি|গুলিবিদ্ধ|dead|killed|crash|accident|shot|injured)`,
-      'i'
-    );
+    const incidentActionRegex = isEnglish
+      ? new RegExp(
+          `\\b${escapedKw}\\b[\\s\\S]{0,35}(?:সড়ক দুর্ঘটনা|সড়ক দুর্ঘটনায়|সড়কে নিহত|দুর্ঘটনা|নিহত|আহত|হামলা|ছিনতাই|আগুনে|দাফন|লাশ|গুলি|গুলিবিদ্ধ|dead|killed|crash|accident|shot|injured)`,
+          'i'
+        )
+      : new RegExp(
+          `(?:${escapedKw})[\\s\\S]{0,35}(?:সড়ক দুর্ঘটনা|সড়ক দুর্ঘটনায়|সড়কে নিহত|দুর্ঘটনা|নিহত|আহত|হামলা|ছিনতাই|আগুনে|দাফন|লাশ|গুলি|গুলিবিদ্ধ|dead|killed|crash|accident|shot|injured)`,
+          'i'
+        );
 
     if (incidentActionRegex.test(combined)) {
       return {
