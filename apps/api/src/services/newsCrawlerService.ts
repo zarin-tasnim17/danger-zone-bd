@@ -17,6 +17,11 @@ import {
   DIRECT_PUBLISHER_FEEDS,
   type DirectFeedDefinition,
 } from './publisherRegistry';
+import {
+  validateUrlForSafeFetch,
+  sanitizeXmlPayload,
+  MAX_FEED_RESPONSE_BYTES,
+} from '../utils/ssrfFilter';
 
 const parser = new Parser({
   headers: {
@@ -463,10 +468,7 @@ export const sleepJitter = async (minMs = 1500, maxMs = 2500): Promise<void> => 
 };
 
 export const sanitizeXmlString = (xml: string): string => {
-  if (!xml) return '';
-  return xml
-    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '')
-    .trim();
+  return sanitizeXmlPayload(xml);
 };
 
 const NEWS_BOT_EMAIL = 'news-crawler-bot@safety.bd';
@@ -1037,6 +1039,13 @@ export const crawlAllNewsFeeds = async (
   let feedsChecked = 0;
 
   const fetchAndProcessSingleFeed = async (feedConfig: FeedConfig) => {
+    // SSRF boundary validation before any network connection
+    const safety = await validateUrlForSafeFetch(feedConfig.url);
+    if (!safety.isSafe) {
+      console.warn(`[News Crawler] Blocked unsafe feed URL "${feedConfig.name}" (${feedConfig.url}): ${safety.reason}`);
+      return;
+    }
+
     feedsChecked++;
     const feedStartTime = Date.now();
     const timeoutMs = feedConfig.timeoutMs || 10000;
@@ -1064,7 +1073,17 @@ export const crawlAllNewsFeeds = async (
           if (!resp.ok) {
             throw new Error(`HTTP ${resp.status} ${resp.statusText}`);
           }
+
+          const contentLength = Number(resp.headers.get('content-length'));
+          if (contentLength && contentLength > MAX_FEED_RESPONSE_BYTES) {
+            throw new Error(`Feed response size ${contentLength} bytes exceeds limit ${MAX_FEED_RESPONSE_BYTES} bytes`);
+          }
+
           const rawText = await resp.text();
+          if (rawText.length > MAX_FEED_RESPONSE_BYTES) {
+            throw new Error(`Feed response text length ${rawText.length} exceeds limit ${MAX_FEED_RESPONSE_BYTES} bytes`);
+          }
+
           const cleanXml = sanitizeXmlString(rawText);
           return await parser.parseString(cleanXml);
         } catch (fetchErr: any) {
