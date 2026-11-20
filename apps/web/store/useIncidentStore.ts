@@ -38,6 +38,22 @@ interface IncidentState {
 const mapBackendToFrontendIncident = (r: any): DangerIncident => {
   const cleanTitle = cleanIncidentTitle(r.description ? r.description.split("\n")[0] : `${r.category} Incident`);
   const cleanDesc = r.description ? cleanIncidentTitle(r.description) : "No description provided.";
+
+  let status: any = "unverified";
+  if (r.verificationStage === 'ADMIN_VERIFIED') {
+    status = "authority_verified";
+  } else if (
+    r.verificationStage === 'PRESS_CORROBORATED' ||
+    r.verificationStage === 'CORROBORATED' ||
+    r.verificationStage === 'COMMUNITY_CONFIRMED'
+  ) {
+    status = "community_confirmed";
+  } else if (r.status === 'RESOLVED') {
+    status = "resolved";
+  } else {
+    status = "unverified";
+  }
+
   return {
     id: r.id,
     title: cleanTitle,
@@ -48,16 +64,22 @@ const mapBackendToFrontendIncident = (r: any): DangerIncident => {
       lat: r.latitude,
       lng: r.longitude,
     },
-    locationName: r.sourceName ? r.sourceName : "Reported Hazard Zone",
+    locationName: r.upazila
+      ? `${r.upazila}, ${r.district || ''}`.replace(/,\s*$/, '')
+      : (r.district || (r.sourceName ? r.sourceName : "Reported Hazard Zone")),
+    district: r.district,
+    upazila: r.upazila,
+    locationPrecision: r.locationPrecision || 'EXACT',
+    threatStatus: r.threatStatus || 'ACTIVE',
     timestamp: r.createdAt ? new Date(r.createdAt).toISOString() : new Date().toISOString(),
     upvotes: r.upvotes || 0,
     downvotes: r.downvotes || 0,
-    status: r.verificationStage === 'ADMIN_VERIFIED' || r.sourceUrl ? "authority_verified" : "community_confirmed",
+    status,
     reportedBy: r.sourceName ? `Press: ${r.sourceName}` : "Citizen Report",
     verifiedCount: r.upvotes || 0,
     sourceUrl: r.sourceUrl,
     sourceName: r.sourceName,
-    verificationStage: r.verificationStage || (r.sourceUrl ? "CLASSIFIED" : "INGESTED"),
+    verificationStage: r.verificationStage || (r.sourceUrl ? "SINGLE_SOURCE_PRESS" : "INGESTED"),
     citations: Array.isArray(r.citations)
       ? r.citations
       : r.sourceUrl
@@ -273,6 +295,18 @@ export const useIncidentStore = create<IncidentState>((set, get) => ({
       console.log("[Socket.IO] Real-time NEW_REPORT received:", data);
       const newInc = mapBackendToFrontendIncident(data);
       get().addIncident(newInc);
+    });
+
+    // Listen for enriched / corroborated incidents (multi-press or coordinate upgrades)
+    socket.off(SOCKET_EVENTS.REPORT_ENRICHED);
+    socket.on(SOCKET_EVENTS.REPORT_ENRICHED, (data: any) => {
+      console.log("[Socket.IO] Real-time REPORT_ENRICHED received:", data);
+      const enrichedInc = mapBackendToFrontendIncident(data);
+      set((state) => ({
+        incidents: state.incidents.some((i) => i.id === enrichedInc.id)
+          ? state.incidents.map((i) => (i.id === enrichedInc.id ? enrichedInc : i))
+          : [enrichedInc, ...state.incidents],
+      }));
     });
 
     // Listen for real-time vote updates

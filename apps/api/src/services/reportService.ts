@@ -148,6 +148,9 @@ export const createReport = async (
         latitude: payload.latitude,
         longitude: payload.longitude,
         description: payload.description,
+        locationPrecision: 'EXACT',
+        verificationStage: 'CITIZEN_UNVERIFIED',
+        threatStatus: 'ACTIVE',
         expiresAt
       }
     });
@@ -175,6 +178,12 @@ export const createReport = async (
     upvotes: report.upvotes,
     downvotes: report.downvotes,
     status: report.status,
+    verificationStage: (report as any).verificationStage || 'CITIZEN_UNVERIFIED',
+    citations: (report as any).citations || [],
+    locationPrecision: (report as any).locationPrecision || 'EXACT',
+    district: (report as any).district || null,
+    upazila: (report as any).upazila || null,
+    threatStatus: (report as any).threatStatus || 'ACTIVE',
     isGpsVerified: report.isGpsVerified,
     expiresAt: report.expiresAt,
     createdAt: report.createdAt
@@ -222,6 +231,12 @@ export const fetchReportById = async (reportId: string, viewerUserId?: string) =
       upvotes: true,
       downvotes: true,
       status: true,
+      verificationStage: true,
+      citations: true,
+      locationPrecision: true,
+      district: true,
+      upazila: true,
+      threatStatus: true,
       expiresAt: true,
       createdAt: true,
       media: {
