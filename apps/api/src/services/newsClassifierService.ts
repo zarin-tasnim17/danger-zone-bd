@@ -92,6 +92,11 @@ const CATEGORY_KEYWORDS: Record<ReportCategory, string[]> = {
     'ছুরি মেরে',
     'গুলিবিদ্ধ',
     'গুলি বর্ষণ',
+    'গুলিবর্ষণ',
+    'বন্দুকযুদ্ধ',
+    'গুলি বিনিময়',
+    'গোলাগুলি',
+    'গুলির লড়াই',
     'আগ্নেয়াস্ত্র',
     'বন্দুকধারী',
     'বোমা হামলা',
@@ -144,6 +149,8 @@ const CATEGORY_KEYWORDS: Record<ReportCategory, string[]> = {
     'stabbing',
     'machete attack',
     'gunfire',
+    'shootout',
+    'gunfight',
     'armed attack',
     'shot and injured',
     'shot',
@@ -368,6 +375,11 @@ const HIGH_SEVERITY_KEYWORDS = [
   'গুলিবিদ্ধ',
   'গুলি',
   'বন্দুক',
+  'বন্দুকযুদ্ধ',
+  'গোলাগুলি',
+  'গুলিবর্ষণ',
+  'shootout',
+  'gunfight',
   'অস্ত্র',
   'অস্ত্রধারী',
   'আগ্নেয়াস্ত্র',
@@ -434,6 +446,8 @@ const COMPOUND_SAFETY_PHRASES = new Set([
   'কুপিয়ে জখম',
   'ছুরি মেরে',
   'গুলি বর্ষণ',
+  'গুলি বিনিময়',
+  'গুলির লড়াই',
   'বোমা হামলা',
   'দুই পক্ষের সংঘর্ষ',
   'দুপক্ষের সংঘর্ষ',
@@ -511,6 +525,9 @@ const MEDIUM_SPECIFICITY_TERMS = new Set([
   'ছুরিকাঘাত',
   'আগ্নেয়াস্ত্র',
   'বন্দুকধারী',
+  'বন্দুকযুদ্ধ',
+  'গোলাগুলি',
+  'গুলিবর্ষণ',
   'টিয়ারশেল',
   'ককটেল',
   'চাঁদাবাজ',
@@ -539,6 +556,8 @@ const MEDIUM_SPECIFICITY_TERMS = new Set([
   'stabbing',
   'machete',
   'gunfire',
+  'shootout',
+  'gunfight',
   'mugger',
   'mugging',
   'kidnap',
@@ -1026,7 +1045,7 @@ const ARREST_FOLLOWUP_PATTERNS = [
 
 const ACTIVE_ARREST_CLASH_PATTERNS = [
   /(?:গ্রেফতারকালে|গ্রেপ্তারকালে|গ্রেফতার\s*অভিযানে|গ্রেপ্তার\s*অভিযানে|অভিযানকালে)[\s\S]{0,35}?(?:হামলা|সংঘর্ষ|ককটেল|গুলি|গুলিবিদ্ধ|গোলাগুলি|আহত|রণক্ষেত্র)/u,
-  /(?:বন্দুকযুদ্ধ|গুলির\s*লড়াই|গুলি\s*বিনিময়|গোলাগুলি|crossfire|gunfight|shootout)/u,
+  /(?:বন্দুকযুদ্ধ|গুলির\s*লড়াই|গুলি\s*বিনিময়|গোলাগুলি|গুলিবর্ষণ|crossfire|gunfight|shootout)/u,
   /\b(?:shootout|gunfight|gunfire|come\s+under\s+fire|come\s+under\s+gunfire|under\s+gunfire|attacked\s+during|clashed\s+with\s+police)\b/i,
 ];
 
@@ -1162,36 +1181,34 @@ function checkGroundRealityDisqualification(
   // 8. Case Filing Follow-Up Disqualification (Feature 8)
   const isCaseFilingTitle = CASE_FILING_PATTERNS.some((p) => p.test(title));
   const isCaseFiling = CASE_FILING_PATTERNS.some((p) => p.test(combinedText));
-  if ((isCaseFilingTitle || isCaseFiling) && !isImmediateAttack) {
+  if ((isCaseFilingTitle || (isCaseFiling && !isImmediateAttack)) && !isCourtVenueAttack) {
     return { isDisqualified: true, reason: 'CASE_FILING_FOLLOWUP' };
   }
 
   // 9. Administrative Probe / Inquiry Committee Disqualification (Feature 8)
   const isProbeTitle = PROBE_COMMITTEE_PATTERNS.some((p) => p.test(title));
   const isProbe = PROBE_COMMITTEE_PATTERNS.some((p) => p.test(combinedText));
-  if ((isProbeTitle || isProbe) && !isImmediateAttack) {
+  if (isProbeTitle || (isProbe && !isImmediateAttack)) {
     return { isDisqualified: true, reason: 'PROBE_COMMITTEE' };
   }
 
   // 10. Interrogation / Questioning Follow-Up Disqualification (Feature 8)
   const isInterrogationTitle = INTERROGATION_PATTERNS.some((p) => p.test(title));
   const isInterrogation = INTERROGATION_PATTERNS.some((p) => p.test(combinedText));
-  if ((isInterrogationTitle || isInterrogation) && !isImmediateAttack) {
+  if (isInterrogationTitle || (isInterrogation && !isImmediateAttack)) {
     return { isDisqualified: true, reason: 'INTERROGATION_FOLLOWUP' };
   }
 
   // 11. General Diary (GD) Disqualification (Feature 8)
   const isGDTitle = GENERAL_DIARY_PATTERNS.some((p) => p.test(title));
   const isGD = GENERAL_DIARY_PATTERNS.some((p) => p.test(combinedText));
-  if ((isGDTitle || isGD) && !isImmediateAttack) {
+  if (isGDTitle || (isGD && !isImmediateAttack)) {
     return { isDisqualified: true, reason: 'GENERAL_DIARY' };
   }
 
   // 12. Arrest Follow-Up Disqualification (Feature 7) (unless active shootout/violence occurred during the arrest or live contraband interdiction)
   const isArrestFollowup = ARREST_FOLLOWUP_PATTERNS.some((pat) => pat.test(combinedText));
-  const hasActiveArrestClash =
-    ACTIVE_ARREST_CLASH_PATTERNS.some((pat) => pat.test(combinedText)) ||
-    (isImmediateAttack && !isJudicialRetrospective);
+  const hasActiveArrestClash = ACTIVE_ARREST_CLASH_PATTERNS.some((pat) => pat.test(combinedText));
   const isBorderOrContrabandSeizure =
     /(?:বিজিবির\s*অভিযানে|সীমান্তে[\s\S]{0,35}?(?:অভিযানে|বিজিবি)|পাচারকালে|চোরাচালানকালে|smuggling\s+in\s+progress|border\s+(?:guard|drive|seizure))/u.test(combinedText) &&
     /(?:উদ্ধার|জব্দ|seized|recovered)/u.test(combinedText);
@@ -1369,6 +1386,11 @@ export const classifyNewsText = (title: string, summary: string = ''): Classifie
       combinedText.includes('সংঘর্ষে নিহত') ||
       combinedText.includes('রণক্ষেত্র') ||
       combinedText.includes('gunfire') ||
+      combinedText.includes('shootout') ||
+      combinedText.includes('gunfight') ||
+      combinedText.includes('বন্দুকযুদ্ধ') ||
+      combinedText.includes('গোলাগুলি') ||
+      combinedText.includes('গুলিবর্ষণ') ||
       combinedText.includes('shooting') ||
       combinedText.includes('shot') ||
       combinedText.includes('stabbed') ||

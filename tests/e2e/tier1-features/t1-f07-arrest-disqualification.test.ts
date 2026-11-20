@@ -94,4 +94,70 @@ describe('Tier 1: Feature Coverage - F07: Arrest & Detainee Disqualification Exp
       );
     }
   });
+
+  it('T1-F07-06: Arrest follow-ups citing past violent crimes are disqualified even with violent attack nouns', () => {
+    const arrestFollowUpsWithViolentNouns = [
+      {
+        title: 'যাত্রাবাড়ীতে বাসে বোমা হামলা: ৩ আসামি গ্রেফতার',
+        summary: 'বাসে বোমা হামলার ঘটনায় জড়িত থাকার অভিযোগে তিন আসামিকে গ্রেফতার করেছে পুলিশ।',
+      },
+      {
+        title: 'মিরপুরে ককটেল হামলার ঘটনায় দুই সন্ত্রাসী গ্রেফতার',
+        summary: 'গতকালের ককটেল হামলার ঘটনায় পুলিশ অভিযান চালিয়ে দুই সন্ত্রাসীকে গ্রেফতার করেছে।',
+      },
+      {
+        title: 'Uttara shooting incident: DB police nab 3 extortionists',
+        summary: 'Detectives nabbed three members of the extortion gang from their hideout.',
+      },
+    ];
+
+    for (const item of arrestFollowUpsWithViolentNouns) {
+      const result = classifyNewsText(item.title, item.summary);
+      assert.strictEqual(
+        result.isSafetyRelated,
+        false,
+        `Headline "${item.title}" reporting arrest of violent suspects must return isSafetyRelated: false`
+      );
+      assert.strictEqual(
+        result.disqualifiedReason,
+        'ARREST_FOLLOWUP',
+        `Expected disqualifiedReason: 'ARREST_FOLLOWUP' for "${item.title}"`
+      );
+    }
+  });
+
+  it('T1-F07-07: Armed raids and live shootouts during police operations qualify as ARMED_ASSAULT', () => {
+    const liveShootoutHeadlines = [
+      {
+        title: 'টঙ্গীতে যৌথবাহিনীর অভিযানে সন্ত্রাসীদের সঙ্গে বন্দুকযুদ্ধ',
+        summary: 'সন্ত্রাসীদের গোপন আস্তানায় অভিযানকালে গোলাগুলি শুরু হয়।',
+      },
+      {
+        title: 'RAB drive in Tongi turns into fierce gunfight with criminal gang',
+        summary: 'Gunmen opened fire and blasted cocktails at the elite force during the raid, triggering a shootout.',
+      },
+      {
+        title: 'কক্সবাজারে বিজিবির টহল দলের ওপর চোরাকারবারিদের গুলি, পাল্টা গুলিতে নিহত ১',
+        summary: 'সীমান্তে চোরাকারবারিরা বিজিবি টহল দলকে লক্ষ্য করে গুলিবর্ষণ করলে বিজিবি পাল্টা গুলি চালায়।',
+      },
+    ];
+
+    for (const item of liveShootoutHeadlines) {
+      const result = classifyNewsText(item.title, item.summary);
+      assert.strictEqual(
+        result.isSafetyRelated,
+        true,
+        `Breaking gunfight/shootout "${item.title}" must qualify with isSafetyRelated: true`
+      );
+      assert.strictEqual(
+        result.category,
+        'ARMED_ASSAULT',
+        `Expected category: 'ARMED_ASSAULT' for "${item.title}", got: '${result.category}'`
+      );
+      assert.ok(
+        result.confidence >= 0.70,
+        `Confidence for "${item.title}" must be >= 0.70, got: ${result.confidence}`
+      );
+    }
+  });
 });

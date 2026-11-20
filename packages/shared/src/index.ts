@@ -167,7 +167,7 @@ export interface ActiveThreatPredicateInput {
   status: 'ACTIVE' | 'RESOLVED' | 'PENDING' | 'REJECTED' | 'PURGED' | string;
   threatStatus?: 'ACTIVE' | 'RESOLVED' | 'UNDER_REVIEW' | 'EXPIRED' | 'EXPIRED_UNVERIFIED' | string | null;
   locationPrecision?: 'EXACT' | 'UPAZILA' | 'DISTRICT' | 'AMBIGUOUS' | string | null;
-  expiresAt: string | Date;
+  expiresAt: string | Date | number;
 }
 
 export function isActiveThreatIncident(
@@ -178,8 +178,8 @@ export function isActiveThreatIncident(
   if (incident.status !== 'ACTIVE') return false;
   if (incident.threatStatus !== 'ACTIVE') return false;
   if (incident.locationPrecision === 'AMBIGUOUS') return false;
-  if (!incident.expiresAt) return false;
-  const expiry = typeof incident.expiresAt === 'string' ? new Date(incident.expiresAt) : incident.expiresAt;
+  if (incident.expiresAt === undefined || incident.expiresAt === null) return false;
+  const expiry = incident.expiresAt instanceof Date ? incident.expiresAt : new Date(incident.expiresAt);
   if (isNaN(expiry.getTime()) || expiry.getTime() <= now.getTime()) return false;
   return true;
 }

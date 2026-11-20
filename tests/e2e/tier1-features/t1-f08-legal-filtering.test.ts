@@ -94,4 +94,43 @@ describe('Tier 1: Feature Coverage - F08: Legal & Administrative Follow-up Filte
       );
     }
   });
+
+  it('T1-F08-06: Case filing and probe titles over violent crimes are strictly disqualified despite attack nouns', () => {
+    const legalTitlesWithViolentNouns = [
+      {
+        title: 'যাত্রাবাড়ীতে বাসে বোমা হামলার ঘটনায় মামলা দায়ের',
+        summary: 'বাসে বোমা হামলার ঘটনায় ৫০ জনকে আসামি করে মামলা দায়ের করা হয়েছে।',
+        expectedReason: 'CASE_FILING_FOLLOWUP',
+      },
+      {
+        title: 'Case filed over shooting and bomb attack in Uttara',
+        summary: 'A case was filed with Uttara police station following the bomb attack.',
+        expectedReason: 'CASE_FILING_FOLLOWUP',
+      },
+      {
+        title: 'যাত্রাবাড়ীতে অগ্নিকাণ্ড ও বোমা হামলার ঘটনায় তদন্ত কমিটি গঠন',
+        summary: 'ঘটনার কারণ অনুসন্ধানে তদন্ত কমিটি গঠন করেছে কর্তৃপক্ষ।',
+        expectedReason: 'PROBE_COMMITTEE',
+      },
+      {
+        title: 'মিরপুরে ককটেল হামলার ঘটনায় থানায় সাধারণ ডায়েরি (জিডি)',
+        summary: 'ঘটনার প্রেক্ষিতে রমনা থানায় একটি সাধারণ ডায়েরি বা জিডি অন্তর্ভুক্ত করা হয়েছে।',
+        expectedReason: 'GENERAL_DIARY',
+      },
+    ];
+
+    for (const item of legalTitlesWithViolentNouns) {
+      const result = classifyNewsText(item.title, item.summary);
+      assert.strictEqual(
+        result.isSafetyRelated,
+        false,
+        `Title-level legal follow-up "${item.title}" must be disqualified (isSafetyRelated: false)`
+      );
+      assert.strictEqual(
+        result.disqualifiedReason,
+        item.expectedReason,
+        `Expected disqualifiedReason: '${item.expectedReason}' for "${item.title}", got: '${result.disqualifiedReason}'`
+      );
+    }
+  });
 });

@@ -124,4 +124,27 @@ describe('Tier 1: Feature Coverage - F09: Classification Uncertainty Staging', (
     assert.strictEqual(result.isEligibleForActiveMap, false);
     assert.strictEqual(result.effectiveLifespanHours, 0);
   });
+
+  it('T1-F09-06: Unscored or missing confidence defaults to 0.0 and stages to UNDER_REVIEW, not ACTIVE', () => {
+    const missingConfidenceInput: EligibilityEvaluationInput = {
+      ...baseQualifyingInput,
+      confidence: undefined,
+    };
+
+    const result = evaluateActiveThreatEligibility(missingConfidenceInput);
+    assert.strictEqual(
+      result.threatStatus,
+      'UNDER_REVIEW',
+      `Omitted confidence must stage to threatStatus: 'UNDER_REVIEW', got: '${result.threatStatus}'`
+    );
+    assert.strictEqual(
+      result.isEligibleForActiveMap,
+      false,
+      'Omitted confidence must not be eligible for active map'
+    );
+    assert.strictEqual(
+      result.conceptualOutcome,
+      'TEMPORARILY_UNDER_REVIEW'
+    );
+  });
 });

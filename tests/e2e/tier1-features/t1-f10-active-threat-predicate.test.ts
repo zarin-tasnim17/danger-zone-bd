@@ -141,5 +141,31 @@ describe('Tier 1: Feature Coverage - F10: Authoritative Active Threat Eligibilit
       false,
       'Past expiry ISO string must return false'
     );
+
+    // Case 4: Future expiry timestamp (numeric ms format)
+    const futureNumericIncident = {
+      status: 'ACTIVE',
+      threatStatus: 'ACTIVE',
+      locationPrecision: 'UPAZILA',
+      expiresAt: now.getTime() + 3600 * 1000,
+    };
+    assert.strictEqual(
+      fn(futureNumericIncident, now),
+      true,
+      'Future expiry numeric timestamp must return true'
+    );
+
+    // Case 5: Past expiry timestamp (numeric ms format)
+    const pastNumericIncident = {
+      status: 'ACTIVE',
+      threatStatus: 'ACTIVE',
+      locationPrecision: 'UPAZILA',
+      expiresAt: now.getTime() - 1000,
+    };
+    assert.strictEqual(
+      fn(pastNumericIncident, now),
+      false,
+      'Past expiry numeric timestamp must return false'
+    );
   });
 });

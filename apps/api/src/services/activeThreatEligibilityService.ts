@@ -16,6 +16,7 @@ export interface EligibilityEvaluationInput {
   sourceName?: string;
   isWire?: boolean;
   confidence?: number;
+  expiresAt?: Date | string | number;
 }
 
 export type ConceptualEligibilityOutcome =
@@ -204,7 +205,14 @@ export function evaluateActiveThreatEligibility(
   // Calculate Category-Specific Expiration
   const lifespanHours = getCategoryActiveLifespanHours(input.category);
   const baseTime = temporal.estimatedIncidentDate || publishedAt;
-  const candidateExpiry = new Date(baseTime.getTime() + lifespanHours * 60 * 60 * 1000);
+  let candidateExpiry = new Date(baseTime.getTime() + lifespanHours * 60 * 60 * 1000);
+
+  if (input.expiresAt !== undefined && input.expiresAt !== null) {
+    const expiry = input.expiresAt instanceof Date ? input.expiresAt : new Date(input.expiresAt);
+    if (!isNaN(expiry.getTime())) {
+      candidateExpiry = expiry;
+    }
+  }
 
   // If incident occurred more than lifespanHours ago, it has already expired
   if (candidateExpiry.getTime() <= now.getTime()) {
@@ -224,10 +232,8 @@ export function evaluateActiveThreatEligibility(
   let confidence: number;
   if (typeof input.confidence === 'number' && !isNaN(input.confidence)) {
     confidence = input.confidence;
-  } else if (input.confidence !== undefined) {
-    confidence = 0.0;
   } else {
-    confidence = 1.0;
+    confidence = 0.0;
   }
 
   if (confidence < 0.70) {
@@ -253,3 +259,5 @@ export function evaluateActiveThreatEligibility(
     calculatedExpiry: candidateExpiry,
   };
 }
+
+export { isActiveThreatIncident, type ActiveThreatPredicateInput } from '@repo/shared';
