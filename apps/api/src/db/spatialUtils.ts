@@ -118,3 +118,5 @@ export const isWithinDistance = async (
   `;
   return result[0]?.isWithin ?? false;
 };
+
+export { validateCoordinateHierarchy } from '../services/geocodingService';

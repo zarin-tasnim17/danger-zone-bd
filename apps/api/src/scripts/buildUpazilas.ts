@@ -409,7 +409,14 @@ const UPAZILAS_DEF: Record<string, [string, string][]> = {
 };
 
 export function buildUpazilasDataset() {
-  const rootDir = process.cwd();
+  let rootDir = process.cwd();
+  if (!fs.existsSync(path.resolve(rootDir, 'bangladesh_police_stations.json'))) {
+    const parent = path.resolve(rootDir, '../..');
+    if (fs.existsSync(path.resolve(parent, 'bangladesh_police_stations.json'))) {
+      rootDir = parent;
+    }
+  }
+
   const policeStationsPath = path.resolve(rootDir, 'bangladesh_police_stations.json');
   let policeStations: any[] = [];
   if (fs.existsSync(policeStationsPath)) {
@@ -426,12 +433,43 @@ export function buildUpazilasDataset() {
     const content = fs.readFileSync(districtCentersPath, 'utf8');
     const match = content.match(/export const DISTRICT_CENTERS: Record<string, { latitude: number; longitude: number }> = {([\s\S]*?)};/);
     if (match) {
-      const entries = match[1].matchAll(/([a-zA-Z\s'-]+):\s*{\s*latitude:\s*([\d.]+),\s*longitude:\s*([\d.]+)\s*}/g);
-      for (const entry of entries) {
-        const dist = entry[1].trim().replace(/^['"]|['"]$/g, '');
-        districtCenters[dist] = { latitude: parseFloat(entry[2]), longitude: parseFloat(entry[3]) };
+      const lines = match[1].split(/\r?\n/);
+      for (const rawLine of lines) {
+        const line = rawLine.trim();
+        if (line.startsWith('//') || !line.includes('{')) continue;
+        const lineMatch = line.match(/^(?:"([^"]+)"|'([^']+)'|([a-zA-Z\s'-]+))\s*:\s*{\s*latitude:\s*([\d.]+),\s*longitude:\s*([\d.]+)\s*}/);
+        if (lineMatch) {
+          const dist = (lineMatch[1] || lineMatch[2] || lineMatch[3]).trim();
+          if (dist) {
+            districtCenters[dist] = {
+              latitude: parseFloat(lineMatch[4]),
+              longitude: parseFloat(lineMatch[5]),
+            };
+          }
+        }
       }
     }
+  }
+
+  // Ensure all 64 districts are present and verify key centers
+  const REQUIRED_KEY_DISTRICTS = [
+    "Cox's Bazar",
+    'Chattogram',
+    'Rajshahi',
+    'Khulna',
+    'Barishal',
+    'Sylhet',
+    'Rangpur',
+    'Mymensingh',
+    'Dhaka',
+  ];
+  for (const kd of REQUIRED_KEY_DISTRICTS) {
+    if (!districtCenters[kd]) {
+      throw new Error(`CRITICAL: District center for '${kd}' was not extracted from ${districtCentersPath}`);
+    }
+  }
+  if (Object.keys(districtCenters).length < 64) {
+    throw new Error(`CRITICAL: Expected 64 districts in districtCenters, found ${Object.keys(districtCenters).length}`);
   }
 
   const upazilaRecords: any[] = [];
@@ -472,6 +510,15 @@ export function buildUpazilasDataset() {
 
       uIdx++;
 
+      const aliasesEn = [nameEn, `${nameEn} Upazila`, `${nameEn} Thana`];
+      const aliasesBn = [nameBn, `${nameBn} উপজেলা`, `${nameBn} থানা`];
+
+      if (id === 'coxsbazar-chakaria') {
+        if (!aliasesBn.includes('চকরিয়া')) aliasesBn.push('চকরিয়া');
+        if (!aliasesBn.includes('চকরিয়া উপজেলা')) aliasesBn.push('চকরিয়া উপজেলা');
+        if (!aliasesBn.includes('চকরিয়া থানা')) aliasesBn.push('চকরিয়া থানা');
+      }
+
       upazilaRecords.push({
         id,
         nameEn,
@@ -482,8 +529,8 @@ export function buildUpazilasDataset() {
         divisionBn,
         latitude: lat,
         longitude: lng,
-        aliasesEn: [nameEn, `${nameEn} Upazila`, `${nameEn} Thana`],
-        aliasesBn: [nameBn, `${nameBn} উপজেলা`, `${nameBn} থানা`],
+        aliasesEn,
+        aliasesBn,
       });
     }
   }
