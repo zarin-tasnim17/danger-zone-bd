@@ -48,11 +48,30 @@ enum ReportStatus {
   PURGED
 }
 
+enum LocationPrecision {
+  EXACT
+  UPAZILA
+  DISTRICT
+  AMBIGUOUS
+}
+
+enum ThreatStatus {
+  ACTIVE
+  RESOLVED
+  EXPIRED_UNVERIFIED
+  UNDER_REVIEW
+}
+
 enum VerificationStage {
   INGESTED
   CLASSIFIED
   CORROBORATED
   ADMIN_VERIFIED
+  SINGLE_SOURCE_PRESS
+  PRESS_CORROBORATED
+  WIRE_SYNDICATED
+  CITIZEN_UNVERIFIED
+  COMMUNITY_CONFIRMED
 }
 
 enum VerificationType {
@@ -161,6 +180,10 @@ model Report {
   status            ReportStatus      @default(ACTIVE)
   verificationStage VerificationStage @default(CLASSIFIED)
   citations         Json?             @default("[]")
+  locationPrecision LocationPrecision? @default(EXACT)
+  district          String?
+  upazila           String?
+  threatStatus      ThreatStatus?      @default(ACTIVE)
   expiresAt         DateTime
   createdAt         DateTime          @default(now())
   updatedAt         DateTime          @updatedAt
@@ -253,6 +276,8 @@ model NewsArticle {
   latitude    Float
   longitude   Float
   reportId    String?
+  isWireSyndicated Boolean?      @default(false)
+  wireAgency  String?
   createdAt   DateTime       @default(now())
 
   report      Report?        @relation(fields: [reportId], references: [id], onDelete: SetNull)
