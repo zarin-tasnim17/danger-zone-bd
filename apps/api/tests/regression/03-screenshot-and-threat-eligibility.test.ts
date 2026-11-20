@@ -263,4 +263,30 @@ describe('Screenshot Inaccuracies & Active Threat Eligibility Regression Suite',
     assert.ok(!sanitized.includes('file:///etc/shadow'), 'Local system references must be stripped');
     assert.ok(sanitized.includes('<rss version="2.0">'), 'Valid RSS XML structure must be preserved');
   });
+
+  it('Dhaka Metropolitan landmark disambiguation preserves Dhaka district over distant namesake upazilas', async () => {
+    const mirpur = await resolveLocationFromText('মিরপুরে প্রকাশ্য দিবালোকে ছিনতাই', '');
+    assert.ok(mirpur, 'Mirpur should be geocoded');
+    assert.equal(mirpur.district, 'Dhaka', `Expected Dhaka, got ${mirpur.district}`);
+    assert.equal(mirpur.upazila, 'Mirpur');
+    assert.equal(mirpur.division, 'Dhaka');
+
+    const mohammadpur = await resolveLocationFromText('মোহাম্মদপুরে অস্ত্রের মুখে ডাকাতি', '');
+    assert.ok(mohammadpur, 'Mohammadpur should be geocoded');
+    assert.equal(mohammadpur.district, 'Dhaka', `Expected Dhaka, got ${mohammadpur.district}`);
+    assert.equal(mohammadpur.upazila, 'Mohammadpur');
+    assert.equal(mohammadpur.division, 'Dhaka');
+  });
+
+  it('Temporal extraction identifies relative days and historical case mentions', () => {
+    const relativeRes = extractIncidentTemporalData('৩ দিন আগে ঘটে যাওয়া ডাকাতির ঘটনা', '');
+    assert.equal(relativeRes.isHistorical, true, 'Event from 3 days ago must be marked historical');
+
+    const lastWeekRes = extractIncidentTemporalData('গত সপ্তাহে বাসে হামলার ঘটনা', '');
+    assert.equal(lastWeekRes.isHistorical, true, 'Event from last week must be marked historical');
+
+    const todayRes = extractIncidentTemporalData('আজ সকালে গুলশানে সশস্ত্র ছিনতাই', '');
+    assert.equal(todayRes.isRecentOrToday, true, 'Event from today must be marked recent');
+    assert.equal(todayRes.isHistorical, false);
+  });
 });

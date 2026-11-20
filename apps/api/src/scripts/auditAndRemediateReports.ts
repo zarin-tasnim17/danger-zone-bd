@@ -7,6 +7,7 @@ import { classifyNewsText } from '../services/newsClassifierService';
 import { extractIncidentTemporalData } from '../services/temporalExtractionService';
 import { evaluateActiveThreatEligibility } from '../services/activeThreatEligibilityService';
 import { isForeignIncident } from '../services/internationalIncidentFilter';
+import { GeocodeResult } from '../services/geocodingService';
 import { ReportStatus, ThreatStatus, LocationPrecision } from '@prisma/client';
 
 export interface AuditRecordSummary {
@@ -83,17 +84,18 @@ export async function auditAllReports(applyUpdates: boolean = false): Promise<{
     }
 
     // Classify text
-    const classification = classifyNewsText(`${headline} ${rep.description || ''}`, rep.category);
+    const classification = classifyNewsText(headline, rep.description || '');
 
     // Build geocode
-    const geocode = rep.district
+    const geocode: GeocodeResult | null = rep.district
       ? {
+          locationName: rep.upazila ? `${rep.upazila}, ${rep.district}` : rep.district,
           district: rep.district,
           upazila: rep.upazila || undefined,
-          precision: rep.locationPrecision || LocationPrecision.DISTRICT,
-          lat: rep.latitude,
-          lng: rep.longitude,
-          source: 'database_record' as const,
+          locationPrecision: (rep.locationPrecision as 'EXACT' | 'UPAZILA' | 'DISTRICT') || 'DISTRICT',
+          latitude: rep.latitude,
+          longitude: rep.longitude,
+          source: 'DICTIONARY',
         }
       : null;
 
@@ -103,8 +105,8 @@ export async function auditAllReports(applyUpdates: boolean = false): Promise<{
         summary: rep.description || undefined,
         category: classification.category || rep.category,
         severity: rep.severity,
-        isSafetyRelated: !classification.isDisqualified,
-        disqualifiedReason: classification.disqualifierReason,
+        isSafetyRelated: classification.isSafetyRelated,
+        disqualifiedReason: classification.disqualifiedReason,
         geocode,
         publishedAt: pubDate,
         sourceUrl: rep.sourceUrl || undefined,

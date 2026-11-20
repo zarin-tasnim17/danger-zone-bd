@@ -25,7 +25,8 @@ export const triggerNewsCrawler = async (feeds?: FeedConfig[]) => {
   console.log('\n[News Crawler Job] 🌐 Starting automated RSS news crawl for Bangladesh public safety...');
 
   try {
-    const targetFeeds = feeds || (customFeeds !== null ? customFeeds : PUBLIC_NEWS_FEEDS);
+    const defaultFeeds = process.env.NODE_ENV === 'test' ? [] : PUBLIC_NEWS_FEEDS;
+    const targetFeeds = feeds || (customFeeds !== null ? customFeeds : defaultFeeds);
     const result = await crawlAllNewsFeeds(targetFeeds);
     console.log(
       `[News Crawler Job] ✅ Ingestion complete: ${result.totalIngested} new incidents added, ${result.totalVerifiedMatches} citizen reports cross-verified, ${result.totalSkipped} skipped across ${result.feedsChecked} feeds.\n`
@@ -45,6 +46,7 @@ export const triggerNewsCrawler = async (feeds?: FeedConfig[]) => {
  * incoming traffic always sees fresh news without waiting for the next cron tick.
  */
 export const scheduleStartupCrawl = () => {
+  if (process.env.NODE_ENV === 'test') return;
   setTimeout(async () => {
     try {
       console.log('[News Crawler] 🚀 Executing initial startup news crawl check...');

@@ -729,6 +729,13 @@ export const findLandmarkInText = (text: string): GeocodeResult | null => {
       let upazila = isThana ? match.standardName : undefined;
       let division = DISTRICT_TO_DIV_MAP[match.standardName];
 
+      if (match.standardName && match.standardName.includes(', ')) {
+        const [locPart, distPart] = match.standardName.split(', ');
+        district = distPart.trim();
+        upazila = locPart.trim();
+        division = DISTRICT_TO_DIV_MAP[district] || division;
+      }
+
       if (!district) {
         const matchedUpazila = ALL_UPAZILAS.find(
           (u) =>

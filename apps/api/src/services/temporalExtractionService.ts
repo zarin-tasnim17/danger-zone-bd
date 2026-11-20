@@ -70,7 +70,7 @@ const RESOLVED_AFTERMATH_PATTERNS = [
 
 const TODAY_PATTERNS = [
   /(?:^|[\s,।–—])(আজ|আজকে|আজকের|আজ\s*সকালে|আজ\s*ভোরে|আজ\s*দুপুরে|আজ\s*বিকেলে|আজ\s*সন্ধ্যায়|আজ\s*রাতে|আজ\s*গভীর\s*রাতে)(?:$|[\s,।–—])/u,
-  /(?:কয়েক\s*ঘণ্টা\s*আগে|\d+\s*ঘণ্টা\s*আগে)/u,
+  /(?:কয়েক\s*ঘণ্টা\s*আগে|[\d০-৯]+\s*ঘণ্টা\s*আগে)/u,
   /\b(?:today|this\s+morning|this\s+afternoon|this\s+evening|earlier\s+today|tonight|\d+\s+hours?\s+ago|hours\s+ago)\b/i,
 ];
 
@@ -81,7 +81,7 @@ const YESTERDAY_PATTERNS = [
 
 const RELATIVE_DAYS_PATTERNS = [
   /(?:গত\s*পরশু|পরশু\s*দিন)/u,
-  /(?:(\d+|দুই|তিন|চার|পাঁচ|ছয়|সাত)\s*দিন\s*আগে|কয়েক\s*দিন\s*আগে|গত\s*সপ্তাহে|গত\s*মাসে)/u,
+  /(?:([\d০-৯]+|দুই|তিন|চার|পাঁচ|ছয়|সাত)\s*দিন\s*আগে|কয়েক\s*দিন\s*আগে|গত\s*সপ্তাহে|গত\s*মাসে)/u,
   /\b(?:(\d+)\s+days?\s+ago|several\s+days\s+ago|last\s+week|earlier\s+this\s+week)\b/i,
 ];
 

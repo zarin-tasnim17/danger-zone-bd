@@ -204,7 +204,14 @@ async function runScenarioVerification() {
     isSafetyRelated: exAClass.isSafetyRelated,
     disqualifiedReason: exAClass.disqualifiedReason,
     publishedAt: new Date(),
-    geocode: { district: 'Feni', precision: LocationPrecision.DISTRICT, lat: 23.0159, lng: 91.3976, source: 'test' },
+    geocode: {
+      locationName: 'Feni',
+      district: 'Feni',
+      locationPrecision: 'DISTRICT',
+      latitude: 23.0159,
+      longitude: 91.3976,
+      source: 'DICTIONARY',
+    },
   });
   assert.strictEqual(exAElig.isEligibleForActiveMap, false, 'Example A must NOT be eligible for active map pin');
   assert.strictEqual(exAElig.threatStatus, 'RESOLVED');
@@ -224,7 +231,14 @@ async function runScenarioVerification() {
     isSafetyRelated: exBClass.isSafetyRelated,
     disqualifiedReason: exBClass.disqualifiedReason,
     publishedAt: new Date(),
-    geocode: { district: 'Rajshahi', precision: LocationPrecision.UPAZILA, lat: 24.3745, lng: 88.6042, source: 'test' },
+    geocode: {
+      locationName: 'Rajshahi University',
+      district: 'Rajshahi',
+      locationPrecision: 'UPAZILA',
+      latitude: 24.3745,
+      longitude: 88.6042,
+      source: 'DICTIONARY',
+    },
   });
   assert.strictEqual(exBElig.isEligibleForActiveMap, false, 'Example B must NOT be eligible for active map pin');
   assert.strictEqual(exBElig.threatStatus, 'RESOLVED');
@@ -240,12 +254,20 @@ async function runScenarioVerification() {
     title: tpHeadline,
     summary: tpSnippet,
     category: tpClass.category,
-    severity: 'CRITICAL',
+    severity: 'HIGH',
     isSafetyRelated: true,
     sourceUrl: 'https://www.prothomalo.com/bangladesh/district/tp-clash',
     sourceName: 'Prothom Alo',
     publishedAt: new Date(),
-    geocode: { district: 'Rajshahi', upazila: 'Bagha', precision: LocationPrecision.UPAZILA, lat: 24.195, lng: 88.756, source: 'test' },
+    geocode: {
+      locationName: 'Bagha, Rajshahi',
+      district: 'Rajshahi',
+      upazila: 'Bagha',
+      locationPrecision: 'UPAZILA',
+      latitude: 24.195,
+      longitude: 88.756,
+      source: 'DICTIONARY',
+    },
   });
   assert.strictEqual(tpElig.isEligibleForActiveMap, true, 'True positive clash MUST be admitted to active map');
   assert.strictEqual(tpElig.threatStatus, 'ACTIVE');

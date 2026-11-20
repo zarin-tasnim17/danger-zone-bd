@@ -14,6 +14,7 @@ import {
 import { TEST_CONFIG } from '../framework/config';
 import { nonExistentUuid } from '../framework/fixtures';
 import { assertErrorEnvelope, assertSuccessEnvelope } from '../framework/assertions';
+import { setCustomCrawlerFeeds } from '../../src/jobs/newsCrawlerJob';
 
 const execFileAsync = promisify(execFile);
 
@@ -47,12 +48,17 @@ describe('Post-Fix Edge Cases & Coverage Expansion Suite (BACKEND-001..BACKEND-0
         const res = await unauthCron.post('/api/v1/cron/news-crawl', {});
         assert.equal(res.status, 401);
       }
-      const authedCron = await new ApiClient(server.baseUrl, cronIp).post(
-        '/api/v1/cron/news-crawl',
-        {},
-        { headers: { 'x-cron-secret': 'post-fix-cron-secret-32chars-val!' } }
-      );
-      assert.equal(authedCron.status, 200);
+      setCustomCrawlerFeeds([]);
+      try {
+        const authedCron = await new ApiClient(server.baseUrl, cronIp).post(
+          '/api/v1/cron/news-crawl',
+          {},
+          { headers: { 'x-cron-secret': 'post-fix-cron-secret-32chars-val!' } }
+        );
+        assert.equal(authedCron.status, 200);
+      } finally {
+        setCustomCrawlerFeeds(null);
+      }
     } finally {
       if (prevSecret === undefined) delete process.env.CRON_SECRET;
       else process.env.CRON_SECRET = prevSecret;

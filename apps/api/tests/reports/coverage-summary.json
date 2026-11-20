@@ -1,6 +1,6 @@
 {
   "profile": "regression",
-  "generatedAt": "2026-11-20T09:24:59.205Z",
+  "generatedAt": "2026-11-20T10:36:47.782Z",
   "inventoriedEndpoints": {
     "express": 43,
     "nextProxy": 3,
@@ -19,14 +19,14 @@
       "failed": 0
     },
     "tests\\regression\\03-screenshot-and-threat-eligibility.test.ts": {
-      "total": 6,
-      "passed": 6,
+      "total": 8,
+      "passed": 8,
       "failed": 0
     }
   },
   "summary": {
-    "total": 26,
-    "passed": 26,
+    "total": 28,
+    "passed": 28,
     "failed": 0,
     "skipped": 0
   },
