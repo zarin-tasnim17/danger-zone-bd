@@ -100,3 +100,25 @@ export function buildHardwareGpsHeaders(
     "x-gps-source": "hardware",
   };
 }
+
+/**
+ * Standard ray-casting point-in-polygon algorithm to check if a point [lng, lat]
+ * falls inside a closed polygon ring [ [lng, lat], ... ].
+ */
+export function isPointInPolygon(
+  point: [number, number],
+  polygon: [number, number][]
+): boolean {
+  if (!polygon || polygon.length < 3) return false;
+  const [x, y] = point; // [lng, lat]
+  let inside = false;
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const [xi, yi] = polygon[i];
+    const [xj, yj] = polygon[j];
+    const intersect =
+      yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi;
+    if (intersect) inside = !inside;
+  }
+  return inside;
+}
+

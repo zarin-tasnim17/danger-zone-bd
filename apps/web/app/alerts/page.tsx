@@ -31,7 +31,9 @@ import {
   ShieldCheck,
   X,
 } from "lucide-react";
-import type { AlertZoneItem } from "@/components/alerts/PolygonDrawerMap";
+import { useIncidentStore } from "@/store/useIncidentStore";
+import { isPointInPolygon } from "@/lib/gpsVerification";
+import type { AlertZoneItem, ZoneIncidentMarkerItem } from "@/components/alerts/PolygonDrawerMap";
 
 // Dynamically import Leaflet map with ssr: false to prevent window reference errors
 const PolygonDrawerMap = dynamic(
@@ -82,6 +84,7 @@ export default function AlertsPage() {
   const { user, initAuth } = useAuthStore();
   const { language } = useLanguageStore();
   const isBn = language === "bn";
+  const { incidents, fetchAllIncidents, initSocketListeners } = useIncidentStore();
 
   const [zones, setZones] = useState<AlertZone[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -178,8 +181,10 @@ export default function AlertsPage() {
       await initAuth();
       if (isCancelled) return;
 
-      await fetchZones();
+      await Promise.all([fetchZones(), fetchAllIncidents()]);
       if (isCancelled) return;
+
+      initSocketListeners();
 
       // Connect Socket.IO only after initAuth() finishes so the handshake carries socketToken
       const socket = getSocket();
@@ -196,7 +201,7 @@ export default function AlertsPage() {
         boundSocket.off("GEOFENCE_ALERT", handleGeofenceAlert);
       }
     };
-  }, [initAuth, fetchZones]);
+  }, [initAuth, fetchZones, fetchAllIncidents, initSocketListeners]);
 
   // Compute live area
   const areaKm2 = useMemo(() => {
@@ -212,6 +217,97 @@ export default function AlertsPage() {
       activeCoords[0][1] === activeCoords[activeCoords.length - 1][1]
     );
   }, [activeCoords]);
+
+  // Filter active incidents that fall inside the user's active geofences
+  const activeZoneIncidents = useMemo(() => {
+    if (!zones.length || !incidents.length) return [];
+
+    const results: ZoneIncidentMarkerItem[] = [];
+
+    // Filter by selectedZoneId if one is explicitly selected, otherwise evaluate across all active zones
+    const relevantZones = selectedZoneId
+      ? zones.filter((z) => z.id === selectedZoneId)
+      : zones;
+
+    for (const zone of relevantZones) {
+      let ring: [number, number][] = [];
+      if (zone.area?.coordinates?.[0]) {
+        ring = zone.area.coordinates[0];
+      } else if (zone.coordinates) {
+        ring = zone.coordinates;
+      }
+      if (ring.length < 3) continue;
+
+      for (const inc of incidents) {
+        if (
+          !inc.coordinates ||
+          typeof inc.coordinates.lat !== "number" ||
+          typeof inc.coordinates.lng !== "number"
+        ) {
+          continue;
+        }
+        // point-in-polygon checks [longitude, latitude]
+        const pt: [number, number] = [inc.coordinates.lng, inc.coordinates.lat];
+        if (isPointInPolygon(pt, ring)) {
+          if (!results.some((r) => r.id === inc.id && r.zoneName === zone.name)) {
+            results.push({
+              id: inc.id,
+              title: inc.title || `${inc.category} Incident`,
+              description: inc.description || "",
+              category: inc.category,
+              severity: inc.severity,
+              coordinates: inc.coordinates,
+              zoneName: zone.name,
+            });
+          }
+        }
+      }
+    }
+
+    return results;
+  }, [zones, selectedZoneId, incidents]);
+
+  // Combined incident stream: existing active incidents inside perimeter + live socket triggers
+  const allGeofenceIncidents = useMemo(() => {
+    const map = new Map<string, any>();
+
+    // 1. Existing verified active incidents inside the perimeter
+    activeZoneIncidents.forEach((item) => {
+      map.set(item.id, {
+        id: item.id,
+        title: item.title,
+        description: item.description,
+        category: item.category,
+        severity: item.severity,
+        coordinates: item.coordinates,
+        zoneName: item.zoneName,
+        isLiveStream: false,
+        receivedAt: (item as any).timestamp
+          ? new Date((item as any).timestamp).toLocaleTimeString()
+          : undefined,
+      });
+    });
+
+    // 2. Real-time GEOFENCE_ALERT socket notifications
+    liveAlerts.forEach((item) => {
+      const id = item.data?.reportId || item.id || `live-${Math.random()}`;
+      map.set(id, {
+        id,
+        title: item.title || (isBn ? "বলয়ের ভেতরে জরুরি বিপদ!" : "Hazard Inside Alert Zone!"),
+        description: item.body || item.message || item.description || "",
+        category: item.data?.category || item.category || "GENERAL",
+        severity: item.data?.severity || item.severity || "HIGH",
+        coordinates: item.data
+          ? { lat: item.data.latitude, lng: item.data.longitude }
+          : item.coordinates,
+        zoneName: item.data?.zones?.[0] || item.zoneName || "Active Zone",
+        isLiveStream: true,
+        receivedAt: item.receivedAt || new Date().toLocaleTimeString(),
+      });
+    });
+
+    return Array.from(map.values());
+  }, [activeZoneIncidents, liveAlerts, isBn]);
 
   // Add Point via map click
   const handleAddMapPoint = (point: [number, number]) => {
@@ -850,20 +946,25 @@ export default function AlertsPage() {
                 savedZones={zones}
                 selectedZoneId={selectedZoneId}
                 onSelectZone={(z) => {
-                  setSelectedZoneId(z.id);
-                  let coords: [number, number][] = [];
-                  if (z.area?.coordinates?.[0]) coords = z.area.coordinates[0];
-                  else if (z.coordinates) coords = z.coordinates;
-                  if (coords.length > 0) {
-                    const sumLng = coords.reduce((sum, c) => sum + c[0], 0);
-                    const sumLat = coords.reduce((sum, c) => sum + c[1], 0);
-                    setMapCenterTarget([sumLat / coords.length, sumLng / coords.length]);
+                  if (selectedZoneId === z.id) {
+                    setSelectedZoneId(null);
+                  } else {
+                    setSelectedZoneId(z.id);
+                    let coords: [number, number][] = [];
+                    if (z.area?.coordinates?.[0]) coords = z.area.coordinates[0];
+                    else if (z.coordinates) coords = z.coordinates;
+                    if (coords.length > 0) {
+                      const sumLng = coords.reduce((sum, c) => sum + c[0], 0);
+                      const sumLat = coords.reduce((sum, c) => sum + c[1], 0);
+                      setMapCenterTarget([sumLat / coords.length, sumLng / coords.length]);
+                    }
                   }
                 }}
                 flyToCenter={mapCenterTarget}
                 userLocationMarker={userGpsLocation}
                 onLocateMe={handleGeolocate}
                 isLocating={isLocatingUser}
+                zoneIncidents={activeZoneIncidents}
               />
 
               {/* Warnings and Status Banners */}
@@ -1009,11 +1110,15 @@ export default function AlertsPage() {
                       <div
                         key={zone.id}
                         onClick={() => {
-                          setSelectedZoneId(zone.id);
-                          if (rawCoords.length > 0) {
-                            const sumLng = rawCoords.reduce((sum, c) => sum + c[0], 0);
-                            const sumLat = rawCoords.reduce((sum, c) => sum + c[1], 0);
-                            setMapCenterTarget([sumLat / rawCoords.length, sumLng / rawCoords.length]);
+                          if (selectedZoneId === zone.id) {
+                            setSelectedZoneId(null);
+                          } else {
+                            setSelectedZoneId(zone.id);
+                            if (rawCoords.length > 0) {
+                              const sumLng = rawCoords.reduce((sum, c) => sum + c[0], 0);
+                              const sumLat = rawCoords.reduce((sum, c) => sum + c[1], 0);
+                              setMapCenterTarget([sumLat / rawCoords.length, sumLng / rawCoords.length]);
+                            }
                           }
                         }}
                         className={`p-3.5 rounded-xl border transition-all cursor-pointer ${
@@ -1081,21 +1186,36 @@ export default function AlertsPage() {
               )}
             </div>
 
-            {/* Live Socket Geofence Trigger Stream */}
+            {/* Live Socket & Intersecting Geofence Incidents Stream */}
             <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-xs space-y-3">
               <div className="flex items-center justify-between pb-2 border-b border-slate-100">
                 <div className="flex items-center gap-2">
-                  <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-ping" />
+                  <span
+                    className={`w-2.5 h-2.5 rounded-full ${
+                      allGeofenceIncidents.length > 0
+                        ? "bg-red-500 animate-ping"
+                        : "bg-emerald-500"
+                    }`}
+                  />
                   <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800">
-                    {isBn ? "লাইভ জিওফেন্স বিপদ স্ট্রিম" : "Live Geofence Incident Stream"}
+                    {isBn ? "বলয়ের অভ্যন্তরীণ বিপদসমূহ" : "Geofence Incidents Stream"}
                   </h3>
+                  {allGeofenceIncidents.length > 0 && (
+                    <span className="px-1.5 py-0.2 text-[10px] font-bold bg-red-100 text-red-700 rounded-full">
+                      {allGeofenceIncidents.length}
+                    </span>
+                  )}
                 </div>
                 <span className="text-[10px] text-slate-500 font-mono">
-                  Socket: GEOFENCE_ALERT
+                  {selectedZoneId
+                    ? isBn
+                      ? "নির্বাচিত জোন ফিল্টার"
+                      : "Filtered by Zone"
+                    : "PostGIS Live Stream"}
                 </span>
               </div>
 
-              {liveAlerts.length === 0 ? (
+              {allGeofenceIncidents.length === 0 ? (
                 <div className="p-6 bg-slate-50 border border-dashed border-slate-200 rounded-xl text-center text-xs text-slate-500 space-y-1.5">
                   <ShieldAlert className="w-7 h-7 text-slate-300 mx-auto" />
                   <p className="font-semibold text-slate-700">
@@ -1103,36 +1223,63 @@ export default function AlertsPage() {
                   </p>
                   <p className="text-[11px] text-slate-500">
                     {isBn
-                      ? "পোস্টজিআইএস ST_Intersects অ্যালগরিদম দিয়ে যেকোনো রিপোর্ট আপনার জোনের ভেতরে প্রবেশ করামাত্রই তাৎক্ষণিক নোটিফিকেশন পাবেন।"
+                      ? "পোস্টজিআইএস ST_Intersects অ্যালগরিদম দিয়ে যেকোনো রিপোর্ট আপনার জোনের ভেতরে প্রবেশ করামাত্রই তাৎক্ষণিক নোটিফিকেশন পাবেন এবং এখানে প্রদর্শিত হবে।"
                       : "Incidents submitted by citizens intersecting your PostGIS geofences appear here in real time."}
                   </p>
                 </div>
               ) : (
-                <div className="space-y-2">
-                  {liveAlerts.map((alert, idx) => (
+                <div className="space-y-2.5 max-h-[420px] overflow-y-auto pr-0.5">
+                  {allGeofenceIncidents.map((alert) => (
                     <div
-                      key={idx}
-                      className="p-3 bg-red-50/90 border border-red-200 rounded-xl text-xs text-red-900 flex items-start justify-between shadow-2xs gap-2"
+                      key={alert.id}
+                      onClick={() => {
+                        if (alert.coordinates?.lat && alert.coordinates?.lng) {
+                          setMapCenterTarget([alert.coordinates.lat, alert.coordinates.lng]);
+                        }
+                      }}
+                      className="p-3 bg-red-50/90 hover:bg-red-100/90 border border-red-200 rounded-xl text-xs text-red-900 transition-colors shadow-2xs space-y-1.5 cursor-pointer"
                     >
-                      <div className="flex items-start gap-2">
-                        <AlertTriangle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
-                        <div>
-                          <span className="font-bold">
-                            {alert.title || (isBn ? "বলয়ের ভেতরে জরুরি বিপদ!" : "Hazard Inside Alert Zone!")}
-                          </span>
-                          <p className="text-[11px] text-red-700 mt-0.5">
-                            {alert.message || alert.description}
-                          </p>
-                          {alert.zoneName && (
-                            <span className="inline-block mt-1 text-[10px] font-bold text-red-800 bg-red-100 px-1.5 py-0.5 rounded">
-                              {isBn ? `জোন: ${alert.zoneName}` : `Zone: ${alert.zoneName}`}
-                            </span>
-                          )}
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-start gap-2 min-w-0">
+                          <AlertTriangle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="font-bold text-red-950 truncate">
+                                {alert.title}
+                              </span>
+                              <span className="text-[9px] font-bold uppercase px-1.5 py-0.2 rounded bg-red-600 text-white shrink-0">
+                                {alert.severity}
+                              </span>
+                              {alert.category && (
+                                <span className="text-[9px] font-semibold px-1.5 py-0.2 rounded bg-white text-slate-700 border border-red-200 shrink-0">
+                                  {alert.category}
+                                </span>
+                              )}
+                            </div>
+                            {alert.description && alert.description !== alert.title && (
+                              <p className="text-[11px] text-red-800 mt-1 line-clamp-2">
+                                {alert.description}
+                              </p>
+                            )}
+                          </div>
                         </div>
+                        {alert.receivedAt && (
+                          <span className="text-[10px] text-red-600 font-mono shrink-0">
+                            {alert.receivedAt}
+                          </span>
+                        )}
                       </div>
-                      <span className="text-[10px] text-red-600 font-mono shrink-0">
-                        {alert.receivedAt}
-                      </span>
+
+                      <div className="flex items-center justify-between text-[10px] text-red-700 pt-1.5 border-t border-red-200/60 font-medium">
+                        {alert.zoneName && (
+                          <span className="font-semibold text-emerald-800 bg-emerald-100/80 px-1.5 py-0.5 rounded">
+                            {isBn ? `জোন: ${alert.zoneName}` : `Zone: ${alert.zoneName}`}
+                          </span>
+                        )}
+                        <span className="text-blue-700 hover:underline flex items-center gap-0.5">
+                          {isBn ? "মানচিত্রে দেখুন →" : "View on Map →"}
+                        </span>
+                      </div>
                     </div>
                   ))}
                 </div>

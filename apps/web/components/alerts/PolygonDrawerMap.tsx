@@ -16,8 +16,19 @@ import {
 import { useMapStore, MAP_LAYERS } from "@/store/useMapStore";
 import MapLayerSwitcher from "@/components/map/MapLayerSwitcher";
 import { LocateFixed } from "lucide-react";
+import { createDangerMarkerIcon } from "@/lib/mapMarkerUtils";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
+
+export interface ZoneIncidentMarkerItem {
+  id: string;
+  title: string;
+  description?: string;
+  category: string;
+  severity: string;
+  coordinates: { lat: number; lng: number };
+  zoneName?: string;
+}
 
 export interface AlertZoneItem {
   id: string;
@@ -41,6 +52,7 @@ interface PolygonDrawerMapProps {
   userLocationMarker?: [number, number] | null;
   onLocateMe?: () => void;
   isLocating?: boolean;
+  zoneIncidents?: ZoneIncidentMarkerItem[];
 }
 
 // Custom Leaflet DivIcons for daylight map
@@ -138,6 +150,7 @@ export default function PolygonDrawerMap({
   userLocationMarker,
   onLocateMe,
   isLocating = false,
+  zoneIncidents = [],
 }: PolygonDrawerMapProps) {
   const activeTileLayer = useMapStore((state) => state.activeTileLayer);
   const currentTileConfig = MAP_LAYERS[activeTileLayer] || MAP_LAYERS.google_streets;
@@ -256,6 +269,65 @@ export default function PolygonDrawerMap({
             </Polygon>
           );
         })}
+
+        {/* Active Threats inside Monitored Geofences */}
+        {zoneIncidents &&
+          zoneIncidents.map((incident) => {
+            if (
+              !incident.coordinates ||
+              typeof incident.coordinates.lat !== "number" ||
+              typeof incident.coordinates.lng !== "number"
+            ) {
+              return null;
+            }
+
+            return (
+              <Marker
+                key={`zone-incident-${incident.id}`}
+                position={[incident.coordinates.lat, incident.coordinates.lng]}
+                icon={createDangerMarkerIcon(
+                  incident.category,
+                  (incident.severity || "HIGH") as any,
+                  14
+                )}
+              >
+                <Popup className="tactical-marker-popup">
+                  <div className="p-1 min-w-[200px] space-y-1.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded uppercase bg-red-100 text-red-800">
+                        {incident.severity}
+                      </span>
+                      <span className="text-[10px] font-semibold text-slate-500">
+                        {incident.category}
+                      </span>
+                    </div>
+                    <h4 className="text-xs font-bold text-slate-900 leading-tight">
+                      {incident.title}
+                    </h4>
+                    {incident.description && incident.description !== incident.title && (
+                      <p className="text-[11px] text-slate-600 line-clamp-2">
+                        {incident.description}
+                      </p>
+                    )}
+                    {incident.zoneName && (
+                      <div className="text-[10px] font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
+                        <span>Zone: {incident.zoneName}</span>
+                      </div>
+                    )}
+                  </div>
+                </Popup>
+                <Tooltip direction="top" offset={[0, -12]}>
+                  <div className="text-xs font-semibold text-slate-900">
+                    <span className="font-bold text-red-600">
+                      {incident.severity}:
+                    </span>{" "}
+                    {incident.title}
+                  </div>
+                </Tooltip>
+              </Marker>
+            );
+          })}
 
         {/* Currently Drawing Active Polygon or Polyline */}
         {leafletActivePositions.length >= 3 && isClosed && (
