@@ -62,74 +62,6 @@ interface AlertZone {
   createdAt: string;
 }
 
-const ZONE_PRESETS = [
-  {
-    nameEn: "Gulshan & Banani Diplomatic Hub (~4.2 km²)",
-    nameBn: "গুলশান ও বনানী কূটনৈতিক এলাকা (~৪.২ বর্গকিমি)",
-    zoneNameEn: "Gulshan-Banani Perimeter",
-    zoneNameBn: "গুলশান-বনানী নিরাপত্তা বলয়",
-    coordinates: [
-      [90.4000, 23.7850],
-      [90.4200, 23.7850],
-      [90.4200, 23.8050],
-      [90.4000, 23.8050],
-      [90.4000, 23.7850],
-    ] as [number, number][],
-  },
-  {
-    nameEn: "Dhanmondi Residential & Lake (~3.8 km²)",
-    nameBn: "ধানমন্ডি আবাসিক ও লেক এলাকা (~৩.৮ বর্গকিমি)",
-    zoneNameEn: "Dhanmondi Residential Zone",
-    zoneNameBn: "ধানমন্ডি আবাসিক জোন",
-    coordinates: [
-      [90.3650, 23.7400],
-      [90.3850, 23.7400],
-      [90.3850, 23.7580],
-      [90.3650, 23.7580],
-      [90.3650, 23.7400],
-    ] as [number, number][],
-  },
-  {
-    nameEn: "Uttara Sector 1-7 Commuter Belt (~5.1 km²)",
-    nameBn: "উত্তরা সেক্টর ১-৭ করিডোর (~৫.১ বর্গকিমি)",
-    zoneNameEn: "Uttara Transit Perimeter",
-    zoneNameBn: "উত্তরা ট্রানজিট বলয়",
-    coordinates: [
-      [90.3800, 23.8550],
-      [90.4050, 23.8550],
-      [90.4050, 23.8750],
-      [90.3800, 23.8750],
-      [90.3800, 23.8550],
-    ] as [number, number][],
-  },
-  {
-    nameEn: "Motijheel Commercial Core (~2.9 km²)",
-    nameBn: "মতিঝিল বাণিজ্যিক কেন্দ্র (~২.৯ বর্গকিমি)",
-    zoneNameEn: "Motijheel Business District",
-    zoneNameBn: "মতিঝিল বাণিজ্যিক জোন",
-    coordinates: [
-      [90.4120, 23.7250],
-      [90.4280, 23.7250],
-      [90.4280, 23.7380],
-      [90.4120, 23.7380],
-      [90.4120, 23.7250],
-    ] as [number, number][],
-  },
-  {
-    nameEn: "Chittagong Agrabad Hub (~4.5 km²)",
-    nameBn: "চট্টগ্রাম আগ্রাবাদ এলাকা (~৪.৫ বর্গকিমি)",
-    zoneNameEn: "Chittagong Agrabad Zone",
-    zoneNameBn: "চট্টগ্রাম আগ্রাবাদ বলয়",
-    coordinates: [
-      [91.8050, 22.3200],
-      [91.8250, 22.3200],
-      [91.8250, 22.3400],
-      [91.8050, 22.3400],
-      [91.8050, 22.3200],
-    ] as [number, number][],
-  },
-];
-
 // Geodesic spherical area calculation in km²
 function calculatePolygonAreaKm2(coords: [number, number][]): number {
   if (coords.length < 3) return 0;
@@ -285,19 +217,6 @@ export default function AlertsPage() {
       activeCoords[0][1] === activeCoords[activeCoords.length - 1][1]
     );
   }, [activeCoords]);
-
-  // Apply Quick Preset
-  const handleApplyPreset = (preset: typeof ZONE_PRESETS[0]) => {
-    setZoneName(isBn ? preset.zoneNameBn : preset.zoneNameEn);
-    setActiveCoords(preset.coordinates);
-    setCoordsString(JSON.stringify(preset.coordinates, null, 2));
-    setCreateError(null);
-    if (preset.coordinates.length > 0) {
-      const sumLng = preset.coordinates.reduce((sum, c) => sum + c[0], 0);
-      const sumLat = preset.coordinates.reduce((sum, c) => sum + c[1], 0);
-      setMapCenterTarget([sumLat / preset.coordinates.length, sumLng / preset.coordinates.length]);
-    }
-  };
 
   // Add Point via map click
   const handleAddMapPoint = (point: [number, number]) => {
@@ -983,25 +902,6 @@ export default function AlertsPage() {
                 </div>
               )}
 
-              {/* Metropolitan Presets */}
-              <div className="pt-2">
-                <label className="block text-xs font-bold text-slate-700 mb-2">
-                  {isBn ? "দ্রুত মেট্রো প্রিসেট নির্বাচন:" : "Quick Metropolitan Presets:"}
-                </label>
-                <div className="flex flex-wrap gap-1.5">
-                  {ZONE_PRESETS.map((preset) => (
-                    <button
-                      type="button"
-                      key={preset.nameEn}
-                      onClick={() => handleApplyPreset(preset)}
-                      className="px-3 py-1.5 text-xs rounded-xl bg-slate-50 hover:bg-blue-50 text-slate-700 hover:text-blue-700 border border-slate-200 hover:border-blue-300 font-semibold transition-all cursor-pointer shadow-2xs"
-                    >
-                      {isBn ? preset.nameBn : preset.nameEn}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
               {/* Create Zone Form */}
               <form onSubmit={handleCreateZone} className="space-y-4 pt-2">
                 <div>
@@ -1121,8 +1021,8 @@ export default function AlertsPage() {
                   </p>
                   <p className="text-slate-500 text-[11px]">
                     {isBn
-                      ? "মানচিত্রে ক্লিক করে বা প্রিসেট নির্বাচন করে আপনার প্রথম জোন তৈরি করুন।"
-                      : "Click vertices on the map canvas or apply a metropolitan preset to establish 24/7 monitoring."}
+                      ? "মানচিত্রে ক্লিক করে আপনার প্রথম নিরাপত্তা জোন তৈরি করুন।"
+                      : "Click vertices on the map canvas to establish 24/7 monitoring."}
                   </p>
                 </div>
               ) : (
