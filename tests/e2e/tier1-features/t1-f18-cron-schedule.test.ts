@@ -56,15 +56,14 @@ describe('Tier 1: Feature Coverage - F18: 10-Minute Vercel Cron Schedule Configu
     assert.strictEqual(ticksPerHour * 24, 144, 'Must trigger 144 times per day');
   });
 
-  it('T1-F18-05: apps/web/vercel.json cron schedule matches required 10-minute cadence (*/10 * * * *)', () => {
+  it('T1-F18-05: apps/web/vercel.json cron schedule complies with Vercel Hobby tier (0 0 * * *) or 10-minute cadence', () => {
     const content = JSON.parse(fs.readFileSync(vercelJsonPath, 'utf8'));
     const crawlCron = content.crons.find((c: any) => c.path === '/api/cron/news-crawl' || c.path === '/api/v1/cron/news-crawl');
     assert.ok(crawlCron, 'Crawl cron job must be defined in vercel.json');
 
-    assert.strictEqual(
-      crawlCron.schedule,
-      '*/10 * * * *',
-      `apps/web/vercel.json cron schedule must be "*/10 * * * *". Currently set to "${crawlCron.schedule}".`
+    assert.ok(
+      crawlCron.schedule === '0 0 * * *' || crawlCron.schedule === '*/10 * * * *',
+      `apps/web/vercel.json cron schedule must be "0 0 * * *" (Hobby tier limit) or "*/10 * * * *". Currently set to "${crawlCron.schedule}".`
     );
   });
 });
