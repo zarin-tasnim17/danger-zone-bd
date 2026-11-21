@@ -7,6 +7,7 @@ import {
   Polygon,
   Polyline,
   Marker,
+  CircleMarker,
   Popup,
   Tooltip,
   useMap,
@@ -35,6 +36,8 @@ interface PolygonDrawerMapProps {
   savedZones?: AlertZoneItem[];
   selectedZoneId?: string | null;
   onSelectZone?: (zone: AlertZoneItem) => void;
+  flyToCenter?: [number, number] | null;
+  userLocationMarker?: [number, number] | null;
 }
 
 // Custom Leaflet DivIcons for daylight map
@@ -115,8 +118,8 @@ function MapPanController({
 }) {
   const map = useMap();
   useEffect(() => {
-    if (center) {
-      map.flyTo(center, zoom || 14, { duration: 1.2 });
+    if (center && Number.isFinite(center[0]) && Number.isFinite(center[1])) {
+      map.flyTo(center, zoom || 15, { duration: 1.2 });
     }
   }, [center, zoom, map]);
   return null;
@@ -128,6 +131,8 @@ export default function PolygonDrawerMap({
   savedZones = [],
   selectedZoneId,
   onSelectZone,
+  flyToCenter,
+  userLocationMarker,
 }: PolygonDrawerMapProps) {
   const activeTileLayer = useMapStore((state) => state.activeTileLayer);
   const currentTileConfig = MAP_LAYERS[activeTileLayer] || MAP_LAYERS.google_streets;
@@ -180,7 +185,39 @@ export default function PolygonDrawerMap({
         />
 
         <MapClickHandler onAddPoint={onAddPoint} />
-        <MapPanController center={flyTarget} />
+        <MapPanController center={flyToCenter || flyTarget} />
+
+        {/* User GPS Pinpoint Indicator */}
+        {userLocationMarker && Number.isFinite(userLocationMarker[0]) && Number.isFinite(userLocationMarker[1]) && (
+          <>
+            <CircleMarker
+              center={userLocationMarker}
+              radius={22}
+              pathOptions={{
+                color: "#3B82F6",
+                fillColor: "#3B82F6",
+                fillOpacity: 0.18,
+                weight: 1.5,
+              }}
+            />
+            <CircleMarker
+              center={userLocationMarker}
+              radius={7}
+              pathOptions={{
+                color: "#FFFFFF",
+                fillColor: "#2563EB",
+                fillOpacity: 1,
+                weight: 2.5,
+              }}
+            >
+              <Tooltip direction="top" offset={[0, -8]}>
+                <span className="text-[11px] font-bold text-blue-900">
+                  Your Location (GPS)
+                </span>
+              </Tooltip>
+            </CircleMarker>
+          </>
+        )}
 
         {/* Existing Saved Alert Zones (Translucent Green/Teal) */}
         {parsedSavedZones.map((zone) => {
@@ -295,15 +332,7 @@ export default function PolygonDrawerMap({
         })}
       </MapContainer>
 
-      {/* Floating Instructions Overlay */}
-      <div className="absolute top-3 left-3 z-[1000] pointer-events-none">
-        <div className="bg-white/95 backdrop-blur-md px-3 py-1.5 rounded-xl border border-slate-200/80 shadow-md text-[11px] text-slate-700 font-medium flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full bg-blue-600 animate-ping" />
-          <span>Click map to place perimeter vertices</span>
-        </div>
-      </div>
-
-      {/* Legend Badge */}
+      {/* Legend Badge (Kept clean at bottom-left without obstructing zoom controls) */}
       <div className="absolute bottom-3 left-3 z-[1000] pointer-events-none hidden sm:flex items-center gap-2 bg-white/95 backdrop-blur-md px-3 py-1.5 rounded-xl border border-slate-200/80 shadow-md text-[10px] text-slate-600">
         <div className="flex items-center gap-1.5">
           <span className="w-2.5 h-2.5 rounded-full bg-blue-600 border border-white" />
@@ -314,6 +343,15 @@ export default function PolygonDrawerMap({
           <span className="w-2.5 h-2.5 rounded-full bg-emerald-600 border border-white" />
           <span>Start Point (Click to Close)</span>
         </div>
+        {userLocationMarker && (
+          <>
+            <span className="text-slate-300">•</span>
+            <div className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-full bg-blue-600 border-2 border-white ring-1 ring-blue-400" />
+              <span>My GPS</span>
+            </div>
+          </>
+        )}
         {savedZones.length > 0 && (
           <>
             <span className="text-slate-300">•</span>
