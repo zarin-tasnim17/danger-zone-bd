@@ -642,14 +642,14 @@ export default function FeedPage() {
   ];
 
   return (
-    <div className="min-h-screen flex flex-col bg-slate-50 text-slate-900 font-sans selection:bg-red-500 selection:text-white">
+    <div className="min-h-screen flex flex-col bg-slate-50 text-slate-900 font-sans selection:bg-red-500 selection:text-white overflow-x-hidden w-full">
       {/* World-Class Single Daylight Navbar (No auxiliary route test strip, integrated language switch) */}
       <Navbar
         totalIncidents={activeCount}
         showFilters={false}
       />
 
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 overflow-x-hidden">
         {/* Header Hero Banner */}
         <section className="mb-6 sm:mb-8 space-y-4">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-white border border-slate-200/90 rounded-3xl p-5 sm:p-7 shadow-xs">
@@ -786,7 +786,7 @@ export default function FeedPage() {
           {/* Main Command Bar: Search on Left, Filter Console Trigger & Actions Pushed to Right */}
           <div className="flex items-center gap-2 sm:gap-2.5">
             {/* Search Input */}
-            <div className="relative flex-1 min-w-[170px]">
+            <div className="relative flex-1 min-w-0">
               <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
               <input
                 type="text"
