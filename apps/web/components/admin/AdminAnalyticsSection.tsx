@@ -51,7 +51,11 @@ export default function AdminAnalyticsSection({
           </div>
           <div>
             <div className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
-              {totalReports}
+              {isLoadingTrends && !trends ? (
+                <div className="h-8 w-16 bg-slate-200/80 rounded-lg animate-pulse" />
+              ) : (
+                totalReports
+              )}
             </div>
             <p className="text-[11px] text-slate-500 mt-1 font-medium">
               {isBn ? "বাংলাদেশ জুড়ে নথিভুক্ত" : "Live recorded across Bangladesh"}
@@ -71,7 +75,11 @@ export default function AdminAnalyticsSection({
           </div>
           <div>
             <div className="text-2xl sm:text-3xl font-black text-indigo-700 tracking-tight">
-              {nightPercentage}%
+              {isLoadingTrends && !trends ? (
+                <div className="h-8 w-16 bg-indigo-100/80 rounded-lg animate-pulse" />
+              ) : (
+                `${nightPercentage}%`
+              )}
             </div>
             <p className="text-[11px] text-slate-500 mt-1 font-medium font-mono">
               {trends?.nightReportsCount ?? 0} {isBn ? "টি রাতের ঘটনা" : "incidents occurred at night"}
@@ -91,7 +99,11 @@ export default function AdminAnalyticsSection({
           </div>
           <div>
             <div className="text-2xl sm:text-3xl font-black text-red-600 tracking-tight">
-              {highSeverityCount}
+              {isLoadingTrends && !trends ? (
+                <div className="h-8 w-16 bg-red-100/80 rounded-lg animate-pulse" />
+              ) : (
+                highSeverityCount
+              )}
             </div>
             <p className="text-[11px] text-slate-500 mt-1 font-medium">
               {isBn ? "সশস্ত্র বা চরম ঝুঁকিপূর্ণ পিন" : "Armed or imminent danger pins"}
@@ -111,7 +123,11 @@ export default function AdminAnalyticsSection({
           </div>
           <div>
             <div className="text-2xl sm:text-3xl font-black text-emerald-700 tracking-tight">
-              {resolvedCount}
+              {isLoadingTrends && !trends ? (
+                <div className="h-8 w-16 bg-emerald-100/80 rounded-lg animate-pulse" />
+              ) : (
+                resolvedCount
+              )}
             </div>
             <p className="text-[11px] text-slate-500 mt-1 font-medium">
               {isBn ? "উদ্ধার বা নিরাপদ ঘোষিত" : "Neutralized or safe status"}
@@ -153,6 +169,15 @@ export default function AdminAnalyticsSection({
               const entries = Array.from(aggregated.entries()).sort((a, b) => b[1] - a[1]);
 
               if (entries.length === 0) {
+                if (isLoadingTrends && !trends) {
+                  return (
+                    <div className="py-4 space-y-3">
+                      <div className="h-4 bg-slate-100 rounded-md animate-pulse w-3/4" />
+                      <div className="h-4 bg-slate-100 rounded-md animate-pulse w-1/2" />
+                      <div className="h-4 bg-slate-100 rounded-md animate-pulse w-2/3" />
+                    </div>
+                  );
+                }
                 return (
                   <p className="text-xs text-slate-400 py-6 text-center">
                     {isBn
@@ -207,19 +232,31 @@ export default function AdminAnalyticsSection({
               <div className="p-3.5 rounded-xl bg-red-50 border border-red-200/80">
                 <span className="text-[10px] font-bold text-red-700 block uppercase">HIGH</span>
                 <span className="text-xl sm:text-2xl font-black text-red-700 font-mono">
-                  {trends?.breakdown?.bySeverity?.HIGH ?? 0}
+                  {isLoadingTrends && !trends ? (
+                    <span className="inline-block h-6 w-8 bg-red-200/70 rounded animate-pulse" />
+                  ) : (
+                    trends?.breakdown?.bySeverity?.HIGH ?? 0
+                  )}
                 </span>
               </div>
               <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200/80">
                 <span className="text-[10px] font-bold text-amber-700 block uppercase">MEDIUM</span>
                 <span className="text-xl sm:text-2xl font-black text-amber-700 font-mono">
-                  {trends?.breakdown?.bySeverity?.MEDIUM ?? 0}
+                  {isLoadingTrends && !trends ? (
+                    <span className="inline-block h-6 w-8 bg-amber-200/70 rounded animate-pulse" />
+                  ) : (
+                    trends?.breakdown?.bySeverity?.MEDIUM ?? 0
+                  )}
                 </span>
               </div>
               <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200/80">
                 <span className="text-[10px] font-bold text-emerald-700 block uppercase">LOW</span>
                 <span className="text-xl sm:text-2xl font-black text-emerald-700 font-mono">
-                  {trends?.breakdown?.bySeverity?.LOW ?? 0}
+                  {isLoadingTrends && !trends ? (
+                    <span className="inline-block h-6 w-8 bg-emerald-200/70 rounded animate-pulse" />
+                  ) : (
+                    trends?.breakdown?.bySeverity?.LOW ?? 0
+                  )}
                 </span>
               </div>
             </div>
@@ -240,19 +277,31 @@ export default function AdminAnalyticsSection({
               <div className="p-3.5 rounded-xl bg-blue-50 border border-blue-200/80">
                 <span className="text-[10px] font-bold text-blue-700 block uppercase">ACTIVE</span>
                 <span className="text-xl sm:text-2xl font-black text-blue-700 font-mono">
-                  {trends?.breakdown?.byStatus?.ACTIVE ?? 0}
+                  {isLoadingTrends && !trends ? (
+                    <span className="inline-block h-6 w-8 bg-blue-200/70 rounded animate-pulse" />
+                  ) : (
+                    trends?.breakdown?.byStatus?.ACTIVE ?? 0
+                  )}
                 </span>
               </div>
               <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200/80">
                 <span className="text-[10px] font-bold text-emerald-700 block uppercase">RESOLVED</span>
                 <span className="text-xl sm:text-2xl font-black text-emerald-700 font-mono">
-                  {trends?.breakdown?.byStatus?.RESOLVED ?? 0}
+                  {isLoadingTrends && !trends ? (
+                    <span className="inline-block h-6 w-8 bg-emerald-200/70 rounded animate-pulse" />
+                  ) : (
+                    trends?.breakdown?.byStatus?.RESOLVED ?? 0
+                  )}
                 </span>
               </div>
               <div className="p-3.5 rounded-xl bg-slate-100 border border-slate-200/80">
                 <span className="text-[10px] font-bold text-slate-700 block uppercase">PURGED</span>
                 <span className="text-xl sm:text-2xl font-black text-slate-700 font-mono">
-                  {trends?.breakdown?.byStatus?.PURGED ?? 0}
+                  {isLoadingTrends && !trends ? (
+                    <span className="inline-block h-6 w-8 bg-slate-200 rounded animate-pulse" />
+                  ) : (
+                    trends?.breakdown?.byStatus?.PURGED ?? 0
+                  )}
                 </span>
               </div>
             </div>

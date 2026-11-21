@@ -168,7 +168,9 @@ export default function FeedPage() {
   const [error, setError] = useState<string | null>(null);
 
   // Filters & Search
+  type UserTypeFilter = "ALL" | "CITIZEN" | "PRESS" | "VERIFIED_RESPONDER" | "MY_REPORTS";
   const [categoryFilter, setCategoryFilter] = useState<string>("ALL");
+  const [userTypeFilter, setUserTypeFilter] = useState<UserTypeFilter>("ALL");
   const [severityFilter, setSeverityFilter] = useState<string>("ALL");
   const [nightFilter, setNightFilter] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -187,6 +189,16 @@ export default function FeedPage() {
     setCanScrollRight(scrollLeft < scrollWidth - clientWidth - 4);
   }, []);
 
+  const handleSelectCategory = (catId: string) => {
+    setCategoryFilter(catId);
+    if (categoryScrollRef.current) {
+      const activeBtn = categoryScrollRef.current.querySelector(`[data-category-id="${catId}"]`) as HTMLElement;
+      if (activeBtn) {
+        activeBtn.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+      }
+    }
+  };
+
   const handleScrollCategories = (direction: "left" | "right") => {
     const el = categoryScrollRef.current;
     if (!el) return;
@@ -197,12 +209,14 @@ export default function FeedPage() {
 
   const hasActiveFilters =
     categoryFilter !== "ALL" ||
+    userTypeFilter !== "ALL" ||
     severityFilter !== "ALL" ||
     nightFilter ||
     searchQuery.trim().length > 0;
 
   const handleResetFilters = () => {
     setCategoryFilter("ALL");
+    setUserTypeFilter("ALL");
     setSeverityFilter("ALL");
     setNightFilter(false);
     setSearchQuery("");
@@ -489,6 +503,27 @@ export default function FeedPage() {
   // Filtered and Sorted Incidents
   const filteredIncidents = useMemo(() => {
     let result = incidents.filter((item) => {
+      // User / Reporter Source Filter
+      if (userTypeFilter === "PRESS") {
+        if (!item.sourceUrl && !item.sourceName) return false;
+      } else if (userTypeFilter === "CITIZEN") {
+        if (item.sourceUrl || item.sourceName) return false;
+      } else if (userTypeFilter === "VERIFIED_RESPONDER") {
+        const isResponder =
+          item.isGpsVerified ||
+          (item as any).verificationStage === "COMMUNITY_CONFIRMED" ||
+          (item as any).verificationStage === "ADMIN_VERIFIED";
+        if (!isResponder) return false;
+      } else if (userTypeFilter === "MY_REPORTS") {
+        const currentUserId = user?.id;
+        const currentAnonId = (user as any)?.anonymousId;
+        if (!currentUserId && !currentAnonId) return false;
+        const isOwner =
+          (currentUserId && (item as any).userId === currentUserId) ||
+          (currentAnonId && (item as any).anonymousId === currentAnonId);
+        if (!isOwner) return false;
+      }
+
       if (!searchQuery.trim()) return true;
       const q = searchQuery.toLowerCase();
       const matchesCategory = item.category.toLowerCase().includes(q);
@@ -508,7 +543,7 @@ export default function FeedPage() {
     }
 
     return result;
-  }, [incidents, searchQuery, sortBy]);
+  }, [incidents, userTypeFilter, user, searchQuery, sortBy]);
 
   // Derived Telemetry Counts
   const activeCount = incidents.length;
@@ -696,62 +731,74 @@ export default function FeedPage() {
           </div>
 
           {/* Dynamic Real-Data Telemetry Stats Bar */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-4">
             {/* Active Reports */}
-            <div className="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-2xs flex items-center gap-3.5">
-              <div className="p-2.5 rounded-xl bg-orange-50 border border-orange-200 text-orange-600 shrink-0">
-                <AlertTriangle className="w-5 h-5" />
+            <div className="bg-white border border-slate-200/80 rounded-2xl p-3 sm:p-4 shadow-2xs flex items-center gap-2.5 sm:gap-3.5 min-w-0">
+              <div className="p-2 sm:p-2.5 rounded-xl bg-orange-50 border border-orange-200 text-orange-600 shrink-0">
+                <AlertTriangle className="w-4 h-4 sm:w-5 sm:h-5" />
               </div>
-              <div>
-                <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider block">
+              <div className="min-w-0 flex-1">
+                <span
+                  className="text-[10px] sm:text-[11px] font-bold text-slate-500 uppercase tracking-tight sm:tracking-wider block truncate"
+                  title={isBn ? "সক্রিয় সতর্কতা" : "Active Hazards"}
+                >
                   {isBn ? "সক্রিয় সতর্কতা" : "Active Hazards"}
                 </span>
-                <span className="text-xl sm:text-2xl font-black text-slate-900 font-mono">
+                <span className="text-xl sm:text-2xl font-black text-slate-900 font-mono block">
                   {activeCount}
                 </span>
               </div>
             </div>
 
             {/* Critical Red Zones */}
-            <div className="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-2xs flex items-center gap-3.5">
-              <div className="p-2.5 rounded-xl bg-red-50 border border-red-200 text-red-600 shrink-0">
-                <ShieldAlert className="w-5 h-5 animate-pulse" />
+            <div className="bg-white border border-slate-200/80 rounded-2xl p-3 sm:p-4 shadow-2xs flex items-center gap-2.5 sm:gap-3.5 min-w-0">
+              <div className="p-2 sm:p-2.5 rounded-xl bg-red-50 border border-red-200 text-red-600 shrink-0">
+                <ShieldAlert className="w-4 h-4 sm:w-5 sm:h-5 animate-pulse" />
               </div>
-              <div>
-                <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider block">
-                  {isBn ? "উচ্চ ঝুঁকি (Critical)" : "Critical Red Zones"}
+              <div className="min-w-0 flex-1">
+                <span
+                  className="text-[10px] sm:text-[11px] font-bold text-slate-500 uppercase tracking-tight sm:tracking-wider block truncate"
+                  title={isBn ? "উচ্চ ঝুঁকি (Critical)" : "Critical Red Zones"}
+                >
+                  {isBn ? "উচ্চ ঝুঁকি" : "Critical Red Zones"}
                 </span>
-                <span className="text-xl sm:text-2xl font-black text-red-600 font-mono">
+                <span className="text-xl sm:text-2xl font-black text-red-600 font-mono block">
                   {criticalCount}
                 </span>
               </div>
             </div>
 
             {/* Night Incidents */}
-            <div className="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-2xs flex items-center gap-3.5">
-              <div className="p-2.5 rounded-xl bg-indigo-50 border border-indigo-200 text-indigo-600 shrink-0">
-                <Moon className="w-5 h-5" />
+            <div className="bg-white border border-slate-200/80 rounded-2xl p-3 sm:p-4 shadow-2xs flex items-center gap-2.5 sm:gap-3.5 min-w-0">
+              <div className="p-2 sm:p-2.5 rounded-xl bg-indigo-50 border border-indigo-200 text-indigo-600 shrink-0">
+                <Moon className="w-4 h-4 sm:w-5 sm:h-5" />
               </div>
-              <div>
-                <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider block">
+              <div className="min-w-0 flex-1">
+                <span
+                  className="text-[10px] sm:text-[11px] font-bold text-slate-500 uppercase tracking-tight sm:tracking-wider block truncate"
+                  title={isBn ? "রাত্রিকালীন ঘটনা" : "Night Incidents"}
+                >
                   {isBn ? "রাত্রিকালীন ঘটনা" : "Night Incidents"}
                 </span>
-                <span className="text-xl sm:text-2xl font-black text-indigo-900 font-mono">
+                <span className="text-xl sm:text-2xl font-black text-indigo-900 font-mono block">
                   {nightCount}
                 </span>
               </div>
             </div>
 
-            {/* Community Upvotes */}
-            <div className="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-2xs flex items-center gap-3.5">
-              <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-600 shrink-0">
-                <ThumbsUp className="w-5 h-5" />
+            {/* Community Upvotes / Confirmations */}
+            <div className="bg-white border border-slate-200/80 rounded-2xl p-3 sm:p-4 shadow-2xs flex items-center gap-2.5 sm:gap-3.5 min-w-0">
+              <div className="p-2 sm:p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-600 shrink-0">
+                <ThumbsUp className="w-4 h-4 sm:w-5 sm:h-5" />
               </div>
-              <div>
-                <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider block">
+              <div className="min-w-0 flex-1">
+                <span
+                  className="text-[10px] sm:text-[11px] font-bold text-slate-500 uppercase tracking-tight sm:tracking-wider block truncate"
+                  title={isBn ? "নাগরিক সমর্থন" : "Confirmations"}
+                >
                   {isBn ? "নাগরিক সমর্থন" : "Confirmations"}
                 </span>
-                <span className="text-xl sm:text-2xl font-black text-emerald-700 font-mono">
+                <span className="text-xl sm:text-2xl font-black text-emerald-700 font-mono block">
                   {totalVotes}
                 </span>
               </div>
@@ -764,7 +811,7 @@ export default function FeedPage() {
           {/* Tier 1: Search & Tactical Refinement Bar (Severity, Night, Sort, Reset) */}
           <div className="flex flex-col xl:flex-row items-stretch xl:items-center gap-3">
             {/* Search Input */}
-            <div className="relative flex-1 min-w-[220px]">
+            <div className="relative flex-1 min-w-[200px]">
               <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
               <input
                 type="text"
@@ -790,9 +837,51 @@ export default function FeedPage() {
 
             {/* Refinement Controls Cluster */}
             <div className="flex flex-wrap items-center gap-2 sm:gap-2.5 shrink-0">
+              {/* Category Filter Dropdown (Direct 1-click access without pushing/swiping to the right) */}
+              <div className="h-9 inline-flex items-center gap-1.5 shrink-0 bg-slate-50 border border-slate-200 rounded-xl px-2.5 sm:px-3 transition-colors hover:bg-slate-100/60 focus-within:ring-2 focus-within:ring-slate-900/10 focus-within:border-slate-400">
+                <Layers className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                <span className="text-xs font-semibold text-slate-500 hidden sm:inline select-none whitespace-nowrap">
+                  {isBn ? "ক্যাটাগরি:" : "Category:"}
+                </span>
+                <select
+                  value={categoryFilter}
+                  onChange={(e) => handleSelectCategory(e.target.value)}
+                  className="h-full bg-transparent text-xs font-semibold text-slate-800 focus:outline-none cursor-pointer pr-1 max-w-[130px] sm:max-w-none"
+                  aria-label={isBn ? "বিপদের ধরন ফিল্টার" : "Filter by incident category"}
+                >
+                  {CATEGORY_TABS.map((tab) => (
+                    <option key={tab.id} value={tab.id}>
+                      {isBn ? tab.labelBn : tab.labelEn}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* User / Reporter Source Filter Dropdown ("select the related user I want to see") */}
+              <div className="h-9 inline-flex items-center gap-1.5 shrink-0 bg-slate-50 border border-slate-200 rounded-xl px-2.5 sm:px-3 transition-colors hover:bg-slate-100/60 focus-within:ring-2 focus-within:ring-slate-900/10 focus-within:border-slate-400">
+                <Users className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                <span className="text-xs font-semibold text-slate-500 hidden sm:inline select-none whitespace-nowrap">
+                  {isBn ? "ব্যবহারকারী:" : "User:"}
+                </span>
+                <select
+                  value={userTypeFilter}
+                  onChange={(e) => setUserTypeFilter(e.target.value as UserTypeFilter)}
+                  className="h-full bg-transparent text-xs font-semibold text-slate-800 focus:outline-none cursor-pointer pr-1 max-w-[130px] sm:max-w-none"
+                  aria-label={isBn ? "ব্যবহারকারী বা উৎস ফিল্টার" : "Filter by user or source"}
+                >
+                  <option value="ALL">{isBn ? "সকল ব্যবহারকারী" : "All Users"}</option>
+                  <option value="CITIZEN">{isBn ? "নাগরিক রিপোর্ট (Citizen)" : "Citizen Reports"}</option>
+                  <option value="PRESS">{isBn ? "সংবাদ মাধ্যম (Press)" : "Press & News"}</option>
+                  <option value="VERIFIED_RESPONDER">{isBn ? "যাচাইকৃত রেসপন্ডার" : "Verified Responders"}</option>
+                  {user && (
+                    <option value="MY_REPORTS">{isBn ? "আমার রিপোর্ট" : "My Reports"}</option>
+                  )}
+                </select>
+              </div>
+
               {/* Severity Segmented Switch */}
               <div className="h-9 inline-flex items-center gap-0.5 bg-slate-100/90 p-1 rounded-xl border border-slate-200/90">
-                <span className="text-[10px] font-bold text-slate-500 pl-2 pr-1 uppercase tracking-wider select-none">
+                <span className="text-[10px] font-bold text-slate-500 pl-2 pr-1 uppercase tracking-wider select-none hidden sm:inline">
                   {isBn ? "তীব্রতা:" : "Severity:"}
                 </span>
                 {SEVERITY_OPTIONS.map((opt) => {
@@ -801,7 +890,7 @@ export default function FeedPage() {
                     <button
                       key={opt.id}
                       onClick={() => setSeverityFilter(opt.id)}
-                      className={`h-7 text-xs px-2.5 rounded-lg font-semibold transition-all inline-flex items-center gap-1.5 ${
+                      className={`h-7 text-xs px-2 sm:px-2.5 rounded-lg font-semibold transition-all inline-flex items-center gap-1 sm:gap-1.5 ${
                         isSelected
                           ? opt.activeClass
                           : "text-slate-600 hover:text-slate-900 hover:bg-slate-200/50"
@@ -817,18 +906,18 @@ export default function FeedPage() {
               {/* Night Filter Button */}
               <button
                 onClick={() => setNightFilter(!nightFilter)}
-                className={`h-9 inline-flex items-center gap-2 px-3.5 rounded-xl text-xs font-semibold border transition-all active:scale-95 shrink-0 ${
+                className={`h-9 inline-flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3.5 rounded-xl text-xs font-semibold border transition-all active:scale-95 shrink-0 ${
                   nightFilter
                     ? "bg-indigo-900 text-white border-indigo-900 shadow-2xs ring-1 ring-indigo-950/20"
                     : "bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200"
                 }`}
               >
                 <Moon className={`w-3.5 h-3.5 ${nightFilter ? "text-amber-300 fill-amber-300/30" : "text-indigo-600"}`} />
-                <span className="whitespace-nowrap">{isBn ? "রাতের ঘটনা (৬টা - ৬টা)" : "Night Incidents (6PM - 6AM)"}</span>
+                <span className="whitespace-nowrap">{isBn ? "রাতের ঘটনা" : "Night (6PM-6AM)"}</span>
               </button>
 
               {/* Sorting Dropdown */}
-              <div className="h-9 inline-flex items-center gap-1.5 shrink-0 bg-slate-50 border border-slate-200 rounded-xl px-3 transition-colors hover:bg-slate-100/60 focus-within:ring-2 focus-within:ring-slate-900/10 focus-within:border-slate-400">
+              <div className="h-9 inline-flex items-center gap-1.5 shrink-0 bg-slate-50 border border-slate-200 rounded-xl px-2.5 sm:px-3 transition-colors hover:bg-slate-100/60 focus-within:ring-2 focus-within:ring-slate-900/10 focus-within:border-slate-400">
                 <SlidersHorizontal className="w-3.5 h-3.5 text-slate-500 shrink-0" />
                 <span className="text-xs font-semibold text-slate-500 hidden sm:inline select-none whitespace-nowrap">
                   {isBn ? "ক্রমবিন্যাস:" : "Sort:"}
@@ -885,7 +974,8 @@ export default function FeedPage() {
                   return (
                     <button
                       key={tab.id}
-                      onClick={() => setCategoryFilter(tab.id)}
+                      data-category-id={tab.id}
+                      onClick={() => handleSelectCategory(tab.id)}
                       className={`h-8 text-xs px-3 rounded-xl font-semibold border inline-flex items-center gap-1.5 transition-all shrink-0 select-none ${
                         isSelected
                           ? "bg-slate-900 text-white border-slate-900 shadow-2xs ring-1 ring-slate-900/10"

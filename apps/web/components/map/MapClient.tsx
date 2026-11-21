@@ -31,6 +31,8 @@ import {
   isFreshPosition,
   sanitizeAccuracy,
   formatCoordinate,
+  isHazardWithinTimeWindow,
+  formatTimeTo12Hour,
 } from "@repo/shared";
 import { getTranslation, geoTranslations } from "@/lib/translations";
 import {
@@ -59,6 +61,7 @@ import {
   Sparkles,
   MapPin,
   Radio,
+  Clock,
 } from "lucide-react";
 import { isMobileDevice } from "@/lib/deviceUtils";
 export { isMobileDevice };
@@ -371,6 +374,10 @@ export default function MapClient() {
         return false;
       }
       if (incident.expiresAt && new Date(incident.expiresAt).getTime() <= Date.now()) {
+        return false;
+      }
+      // If hazard has a designated active time window, ensure current BST time is inside window
+      if (!isHazardWithinTimeWindow(incident.activeTimeStart, incident.activeTimeEnd)) {
         return false;
       }
       if (
@@ -1523,6 +1530,17 @@ export default function MapClient() {
                         ? incident.descriptionBn
                         : incident.description)}
                     </p>
+
+                    {/* Active Hazard Schedule if Time-Bounded */}
+                    {incident.activeTimeStart && incident.activeTimeEnd && (
+                      <div className="px-2 py-1 rounded-md bg-indigo-50 border border-indigo-100 text-[11px] text-indigo-700 flex items-center gap-1.5 font-medium">
+                        <Clock className="w-3 h-3 text-indigo-500 shrink-0" />
+                        <span>
+                          {isBn ? "সক্রিয় সময়: " : "Active hours: "}
+                          {formatTimeTo12Hour(incident.activeTimeStart)} – {formatTimeTo12Hour(incident.activeTimeEnd)}
+                        </span>
+                      </div>
+                    )}
 
                     {/* Landmark / Source */}
                     <div className="pt-2 border-t border-slate-100 text-[11px] text-slate-500 flex items-center justify-between">

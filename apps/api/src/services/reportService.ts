@@ -72,6 +72,8 @@ export const createReport = async (
     latitude: number;
     longitude: number;
     description?: string;
+    activeTimeStart?: string | null;
+    activeTimeEnd?: string | null;
   },
   deviceGps?: DeviceGpsTelemetry
 ) => {
@@ -138,22 +140,77 @@ export const createReport = async (
 
   // Atomically create report, update lastReportAt, and populate PostGIS location
   const report = await prisma.$transaction(async (tx) => {
-    const createdReport = await tx.report.create({
-      data: {
-        userId,
-        category: payload.category,
-        severity: payload.severity,
-        isNightReport,
-        isGpsVerified,
-        latitude: payload.latitude,
-        longitude: payload.longitude,
-        description: payload.description,
-        locationPrecision: 'EXACT',
-        verificationStage: 'CITIZEN_UNVERIFIED',
-        threatStatus: 'ACTIVE',
-        expiresAt
+    let createdReport;
+    try {
+      createdReport = await tx.report.create({
+        data: {
+          userId,
+          category: payload.category,
+          severity: payload.severity,
+          isNightReport,
+          isGpsVerified,
+          latitude: payload.latitude,
+          longitude: payload.longitude,
+          description: payload.description,
+          activeTimeStart: payload.activeTimeStart || null,
+          activeTimeEnd: payload.activeTimeEnd || null,
+          locationPrecision: 'EXACT',
+          verificationStage: 'CITIZEN_UNVERIFIED',
+          threatStatus: 'ACTIVE',
+          expiresAt
+        }
+      });
+    } catch (createErr: any) {
+      if (
+        createErr?.code === '42703' ||
+        String(createErr?.message || '').includes('activeTimeStart') ||
+        String(createErr?.message || '').includes('activeTimeEnd')
+      ) {
+        try {
+          await tx.$executeRawUnsafe(`
+            ALTER TABLE "Report" ADD COLUMN IF NOT EXISTS "activeTimeStart" TEXT;
+            ALTER TABLE "Report" ADD COLUMN IF NOT EXISTS "activeTimeEnd" TEXT;
+          `);
+          createdReport = await tx.report.create({
+            data: {
+              userId,
+              category: payload.category,
+              severity: payload.severity,
+              isNightReport,
+              isGpsVerified,
+              latitude: payload.latitude,
+              longitude: payload.longitude,
+              description: payload.description,
+              activeTimeStart: payload.activeTimeStart || null,
+              activeTimeEnd: payload.activeTimeEnd || null,
+              locationPrecision: 'EXACT',
+              verificationStage: 'CITIZEN_UNVERIFIED',
+              threatStatus: 'ACTIVE',
+              expiresAt
+            }
+          });
+        } catch {
+          createdReport = await tx.report.create({
+            data: {
+              userId,
+              category: payload.category,
+              severity: payload.severity,
+              isNightReport,
+              isGpsVerified,
+              latitude: payload.latitude,
+              longitude: payload.longitude,
+              description: payload.description,
+              locationPrecision: 'EXACT',
+              verificationStage: 'CITIZEN_UNVERIFIED',
+              threatStatus: 'ACTIVE',
+              expiresAt
+            } as any
+          });
+        }
+      } else {
+        throw createErr;
       }
-    });
+    }
 
     await tx.user.update({
       where: { id: userId },
@@ -185,6 +242,8 @@ export const createReport = async (
     upazila: (report as any).upazila || null,
     threatStatus: (report as any).threatStatus || 'ACTIVE',
     isGpsVerified: report.isGpsVerified,
+    activeTimeStart: report.activeTimeStart,
+    activeTimeEnd: report.activeTimeEnd,
     expiresAt: report.expiresAt,
     createdAt: report.createdAt
   });

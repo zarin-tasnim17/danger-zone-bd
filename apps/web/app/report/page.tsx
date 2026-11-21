@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -63,14 +63,13 @@ const ReportPinMap = dynamic(() => import("@/components/report/ReportPinMap"), {
   ),
 });
 
-// Check if Bangladesh time (UTC+6) is currently night (8 PM to 5 AM)
-function isCurrentNightBangladesh(): boolean {
-  const now = new Date();
-  const bdHour = (now.getUTCHours() + 6) % 24;
-  return bdHour >= 20 || bdHour < 5;
-}
-
-import { MAX_GPS_PROXIMITY_METERS, ReportCategory } from "@repo/shared";
+import {
+  MAX_GPS_PROXIMITY_METERS,
+  ReportCategory,
+  isHazardWithinTimeWindow,
+  formatTimeTo12Hour,
+  convert12HourTo24Hour,
+} from "@repo/shared";
 import { CATEGORY_VISUALS, getCategoryVisual, normalizeCategoryKey } from "@/lib/incidentCategoryVisuals";
 import {
   HardwareGpsFix,
@@ -305,14 +304,6 @@ const CATEGORIES: CategoryDefinition[] = [
   },
 ];
 
-const PRESETS = [
-  { nameEn: "Banani 11 Bridge (Dhaka)", nameBn: "বনানী ১১ ব্রিজ", lat: 23.7925, lng: 90.4078 },
-  { nameEn: "Farmgate Footbridge (Dhaka)", nameBn: "ফার্মগেট ওভারব্রিজ", lat: 23.7570, lng: 90.3905 },
-  { nameEn: "Mohakhali Flyover (Dhaka)", nameBn: "মহাখালী ফ্লাইওভার", lat: 23.7776, lng: 90.4054 },
-  { nameEn: "GEC Circle (Chittagong)", nameBn: "জিইসি মোড় (চট্টগ্রাম)", lat: 22.3585, lng: 91.8215 },
-  { nameEn: "Zindabazar (Sylhet)", nameBn: "জিন্দাবাজার (সিলেট)", lat: 24.8949, lng: 91.8687 },
-];
-
 const QUICK_PROMPTS = [
   { en: "Armed individuals spotted on motorcycles", bn: "মোটরসাইকেলে অস্ত্রধারী দল দেখা গেছে" },
   { en: "Pitch dark alley for 200m; streetlamps broken", bn: "২০০ মিটার অন্ধকার রাস্তা; সড়কবাতি নষ্ট" },
@@ -429,13 +420,26 @@ export default function ReportPage() {
 
   // Unmodified live hardware GPS (never populated from calibrated store or manual pin actions)
   const [hardwareGps, setHardwareGps] = useState<HardwareGpsFix | null>(null);
+  const [isLocating, setIsLocating] = useState(false);
+  const [locationNotice, setLocationNotice] = useState<string | null>(null);
 
   // File Upload State
   const [file, setFile] = useState<File | null>(null);
   const [filePreview, setFilePreview] = useState<string | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
   const [mediaUploadStatus, setMediaUploadStatus] = useState<"none" | "uploading" | "uploaded" | "failed">("none");
   const [mediaUploadError, setMediaUploadError] = useState<string | null>(null);
   const [isRetryingMedia, setIsRetryingMedia] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Clean up object URLs to prevent memory leaks
+  useEffect(() => {
+    return () => {
+      if (filePreview) {
+        URL.revokeObjectURL(filePreview);
+      }
+    };
+  }, [filePreview]);
 
   // Submission State
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -485,7 +489,126 @@ export default function ReportPage() {
     () => evaluateHardwareGpsProximity(hardwareGps, latitude, longitude),
     [hardwareGps, latitude, longitude]
   );
-  const isNightDetected = isCurrentNightBangladesh();
+  // Danger Schedule / Active Time-Window State (12-hour AM/PM format with direct minute typing)
+  const [isTimeBounded, setIsTimeBounded] = useState(false);
+  const [startHour, setStartHour] = useState(6);
+  const [startHourStr, setStartHourStr] = useState("06");
+  const [startMinute, setStartMinute] = useState(0);
+  const [startMinuteStr, setStartMinuteStr] = useState("00");
+  const [startMeridiem, setStartMeridiem] = useState<"AM" | "PM">("PM");
+
+  const [endHour, setEndHour] = useState(6);
+  const [endHourStr, setEndHourStr] = useState("06");
+  const [endMinute, setEndMinute] = useState(0);
+  const [endMinuteStr, setEndMinuteStr] = useState("00");
+  const [endMeridiem, setEndMeridiem] = useState<"AM" | "PM">("AM");
+
+  const handleHourInput = (
+    e: React.ChangeEvent<HTMLInputElement>,
+    setterNum: (n: number) => void,
+    setterStr: (s: string) => void
+  ) => {
+    const raw = e.target.value.replace(/\D/g, "").slice(0, 2);
+    setterStr(raw);
+    const num = parseInt(raw, 10);
+    if (!isNaN(num) && num >= 1 && num <= 12) {
+      setterNum(num);
+    }
+  };
+
+  const handleHourBlur = (
+    raw: string,
+    setterNum: (n: number) => void,
+    setterStr: (s: string) => void
+  ) => {
+    const num = parseInt(raw, 10);
+    if (isNaN(num) || num < 1 || num > 12) {
+      setterNum(12);
+      setterStr("12");
+    } else {
+      setterNum(num);
+      setterStr(String(num).padStart(2, "0"));
+    }
+  };
+
+  const handleMinuteInput = (
+    e: React.ChangeEvent<HTMLInputElement>,
+    setterNum: (n: number) => void,
+    setterStr: (s: string) => void
+  ) => {
+    const raw = e.target.value.replace(/\D/g, "").slice(0, 2);
+    setterStr(raw);
+    const num = parseInt(raw, 10);
+    if (!isNaN(num) && num >= 0 && num <= 59) {
+      setterNum(num);
+    }
+  };
+
+  const handleMinuteBlur = (
+    raw: string,
+    setterNum: (n: number) => void,
+    setterStr: (s: string) => void
+  ) => {
+    const num = parseInt(raw, 10);
+    if (isNaN(num) || num < 0 || num > 59) {
+      setterNum(0);
+      setterStr("00");
+    } else {
+      setterNum(num);
+      setterStr(String(num).padStart(2, "0"));
+    }
+  };
+
+  const handleHourKeyDown = (
+    e: React.KeyboardEvent<HTMLInputElement>,
+    currentHour: number,
+    setterNum: (n: number) => void,
+    setterStr: (s: string) => void
+  ) => {
+    if (e.key === "ArrowUp") {
+      e.preventDefault();
+      const next = currentHour >= 12 ? 1 : currentHour + 1;
+      setterNum(next);
+      setterStr(String(next).padStart(2, "0"));
+    } else if (e.key === "ArrowDown") {
+      e.preventDefault();
+      const prev = currentHour <= 1 ? 12 : currentHour - 1;
+      setterNum(prev);
+      setterStr(String(prev).padStart(2, "0"));
+    }
+  };
+
+  const handleMinuteKeyDown = (
+    e: React.KeyboardEvent<HTMLInputElement>,
+    currentMinute: number,
+    setterNum: (n: number) => void,
+    setterStr: (s: string) => void
+  ) => {
+    if (e.key === "ArrowUp") {
+      e.preventDefault();
+      const next = (currentMinute + 1) % 60;
+      setterNum(next);
+      setterStr(String(next).padStart(2, "0"));
+    } else if (e.key === "ArrowDown") {
+      e.preventDefault();
+      const prev = (currentMinute - 1 + 60) % 60;
+      setterNum(prev);
+      setterStr(String(prev).padStart(2, "0"));
+    }
+  };
+
+  const formattedTimeStart = useMemo(
+    () => convert12HourTo24Hour(startHour, startMinute, startMeridiem),
+    [startHour, startMinute, startMeridiem]
+  );
+  const formattedTimeEnd = useMemo(
+    () => convert12HourTo24Hour(endHour, endMinute, endMeridiem),
+    [endHour, endMinute, endMeridiem]
+  );
+  const isScheduleCurrentlyActive = useMemo(
+    () => isHazardWithinTimeWindow(formattedTimeStart, formattedTimeEnd),
+    [formattedTimeStart, formattedTimeEnd]
+  );
 
   // Location handlers
   const handleMapLocationChange = useCallback(
@@ -495,24 +618,59 @@ export default function ReportPage() {
     [syncCoordinates]
   );
 
+  const handleLocateCurrentPosition = useCallback(() => {
+    if (typeof window === "undefined" || !("geolocation" in navigator)) {
+      setLocationNotice(
+        isBn ? "আপনার ডিভাইসে জিপিএস সমর্থিত নয়।" : "Geolocation is not supported on this device."
+      );
+      return;
+    }
+
+    setIsLocating(true);
+    setLocationNotice(null);
+
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const lat = Number(pos.coords.latitude.toFixed(6));
+        const lng = Number(pos.coords.longitude.toFixed(6));
+        const accuracy = Number.isFinite(pos.coords.accuracy) ? pos.coords.accuracy : Infinity;
+        setHardwareGps({ lat, lng, accuracy });
+        syncCoordinates(lat, lng);
+        setIsLocating(false);
+      },
+      (err) => {
+        console.warn("[Report] Live geolocation error:", err.message);
+        setIsLocating(false);
+        const msg =
+          err.code === 1
+            ? isBn
+              ? "ব্রাউজারে লোকেশন পারমিশন দিন বা ম্যাপে ক্লিক করে পিন বসান।"
+              : "Location permission denied. Please allow GPS access or click the map."
+            : err.code === 2
+            ? isBn
+              ? "অবস্থান সংকেত পাওয়া যায়নি।"
+              : "Unable to retrieve device position. Please check your GPS."
+            : isBn
+            ? "অবস্থান নির্ণয়ে সময় শেষ হয়েছে।"
+            : "Location request timed out. Please try again.";
+        setLocationNotice(msg);
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    );
+  }, [isBn, syncCoordinates]);
+
   const handleSnapToDeviceGps = () => {
-    if (hardwareGps && gpsEvaluation.isEligibleHardwareGps) {
+    if (hardwareGps) {
       syncCoordinates(hardwareGps.lat, hardwareGps.lng);
+    } else {
+      handleLocateCurrentPosition();
     }
   };
 
-  const handleApplyPreset = (lat: number, lng: number) => {
-    // Only move the incident pin; never fabricate hardwareGps for preset cities
-    syncCoordinates(lat, lng);
-  };
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selected = e.target.files?.[0];
-    if (!selected) return;
-
+  const processSelectedFile = (selected: File) => {
     const validation = validateEvidenceFile(selected);
     if (!validation.valid) {
-      e.target.value = "";
+      if (fileInputRef.current) fileInputRef.current.value = "";
       handleRemoveFile();
       const localizedMsg =
         validation.code === "FILE_TOO_LARGE"
@@ -539,8 +697,43 @@ export default function ReportPage() {
     setErrorMessage(null);
   };
 
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selected = e.target.files?.[0];
+    if (!selected) return;
+    processSelectedFile(selected);
+  };
+
+  const handleDragOver = (e: React.DragEvent<HTMLLabelElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!isDragging) setIsDragging(true);
+  };
+
+  const handleDragEnter = (e: React.DragEvent<HTMLLabelElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent<HTMLLabelElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLLabelElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    const dropped = e.dataTransfer.files?.[0];
+    if (dropped) {
+      processSelectedFile(dropped);
+    }
+  };
+
   const handleRemoveFile = () => {
     if (filePreview) URL.revokeObjectURL(filePreview);
+    if (fileInputRef.current) fileInputRef.current.value = "";
     setFile(null);
     setFilePreview(null);
     setMediaUploadStatus("none");
@@ -585,6 +778,8 @@ export default function ReportPage() {
         latitude: parsedLat,
         longitude: parsedLng,
         description: description.trim() || undefined,
+        activeTimeStart: isTimeBounded ? formattedTimeStart : undefined,
+        activeTimeEnd: isTimeBounded ? formattedTimeEnd : undefined,
       };
 
       const result = await apiFetch<any>("/reports", {
@@ -913,7 +1108,7 @@ export default function ReportPage() {
                       <span className="w-5 h-5 rounded-full bg-slate-900 text-white flex items-center justify-center text-[10px] font-black">
                         1
                       </span>
-                      <span>{isBn ? "বিপদের ক্যাটাগরি ট্যাগ নির্বাচন (Option A)" : "Select Incident Category Tags"}</span>
+                      <span>{isBn ? "বিপদের ক্যাটাগরি ট্যাগ নির্বাচন" : "Select Incident Category Tags"}</span>
                     </label>
                     <span className="text-[11px] font-medium text-slate-500">
                       {isBn ? "প্রয়োজনে দুটি ট্যাগ একসাথে নির্বাচন করুন" : "Select tags (auto-combines)"}
@@ -950,29 +1145,6 @@ export default function ReportPage() {
                         </button>
                       );
                     })}
-                  </div>
-
-                  {/* Reactive Resolved Category Status Banner */}
-                  <div className="p-3 rounded-xl border flex items-center justify-between gap-2 transition-all bg-blue-50 border-blue-200 text-blue-900">
-                    <div className="flex items-center gap-2.5">
-                      <Sparkles className="w-4 h-4 text-blue-600 shrink-0" />
-                      <div>
-                        <span className="text-xs font-bold block">
-                          {isBn ? "কার্যকর ক্যাটাগরি:" : "Resolved Incident Category:"}{" "}
-                          <span className="underline decoration-blue-500 underline-offset-2">
-                            {isBn ? selectedCategoryDef.labelBn : selectedCategoryDef.labelEn}
-                          </span>
-                        </span>
-                        <span className="text-[11px] text-blue-700/80 block mt-0.5">
-                          {isBn ? selectedCategoryDef.descBn : selectedCategoryDef.descEn}
-                        </span>
-                      </div>
-                    </div>
-                    {resolvedCategory.includes("_") && (
-                      <span className="text-[10px] font-extrabold uppercase px-2.5 py-1 rounded-full bg-blue-600 text-white shadow-xs shrink-0">
-                        {isBn ? "সমন্বিত অ্যালার্ট" : "Combined Alert"}
-                      </span>
-                    )}
                   </div>
                 </div>
 
@@ -1112,19 +1284,48 @@ export default function ReportPage() {
                   </div>
 
                   {!filePreview ? (
-                    <label className="border-2 border-dashed border-slate-200 hover:border-blue-400 hover:bg-blue-50/30 rounded-2xl p-6 flex flex-col items-center justify-center gap-2 text-center transition-all cursor-pointer group">
+                    <label
+                      onDragOver={handleDragOver}
+                      onDragEnter={handleDragEnter}
+                      onDragLeave={handleDragLeave}
+                      onDrop={handleDrop}
+                      className={`border-2 border-dashed rounded-2xl p-6 flex flex-col items-center justify-center gap-2 text-center transition-all cursor-pointer group ${
+                        isDragging
+                          ? "border-blue-500 bg-blue-50/70 ring-4 ring-blue-500/10 scale-[1.01]"
+                          : "border-slate-200 hover:border-blue-400 hover:bg-blue-50/30"
+                      }`}
+                    >
                       <input
+                        ref={fileInputRef}
                         type="file"
-                        accept="image/jpeg,image/png,image/webp"
+                        accept="image/jpeg,image/png,image/webp,image/jpg"
                         onChange={handleFileChange}
                         className="hidden"
                       />
-                      <div className="w-10 h-10 rounded-full bg-slate-100 group-hover:bg-blue-100 text-slate-500 group-hover:text-blue-600 flex items-center justify-center transition-colors">
+                      <div
+                        className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${
+                          isDragging
+                            ? "bg-blue-600 text-white"
+                            : "bg-slate-100 group-hover:bg-blue-100 text-slate-500 group-hover:text-blue-600"
+                        }`}
+                      >
                         <Upload className="w-5 h-5" />
                       </div>
                       <div>
-                        <span className="text-xs font-bold text-slate-800 group-hover:text-blue-600">
-                          {isBn ? "ছবি আপলোড করতে ক্লিক করুন" : "Click or drag photo here to attach"}
+                        <span
+                          className={`text-xs font-bold transition-colors ${
+                            isDragging
+                              ? "text-blue-700"
+                              : "text-slate-800 group-hover:text-blue-600"
+                          }`}
+                        >
+                          {isDragging
+                            ? isBn
+                              ? "ছবিটি এখানে ছেড়ে দিন"
+                              : "Drop photo here to attach"
+                            : isBn
+                              ? "ছবি আপলোড করতে ক্লিক করুন বা টেনে আনুন"
+                              : "Click or drag photo here to attach"}
                         </span>
                         <p className="text-[11px] text-slate-400 mt-0.5">
                           JPEG, PNG, WebP (Max 5MB)
@@ -1132,36 +1333,64 @@ export default function ReportPage() {
                       </div>
                       <div className="flex items-center gap-1.5 text-[10px] text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md mt-1">
                         <ShieldCheck className="w-3 h-3 text-emerald-600" />
-                        <span>{isBn ? "স্বয়ংক্রিয় চেহারা ও নম্বরপ্লেট ব্লার সক্রিয়" : "Automated Face & Plate Blurring Active"}</span>
+                        <span>
+                          {isBn
+                            ? "স্বয়ংক্রিয় চেহারা ও নম্বরপ্লেট ব্লার সক্রিয়"
+                            : "Automated Face & Plate Blurring Active"}
+                        </span>
                       </div>
                     </label>
                   ) : (
-                    <div className="relative rounded-2xl overflow-hidden border border-slate-200 bg-slate-100 p-2 flex items-center gap-3">
-                      <img
-                        src={filePreview}
-                        alt="Evidence preview"
-                        className="w-16 h-16 rounded-xl object-cover shrink-0 border border-slate-200"
-                      />
+                    <div className="relative rounded-2xl overflow-hidden border border-slate-200 bg-slate-50/80 p-3 flex items-center gap-3.5">
+                      <div className="relative w-16 h-16 rounded-xl overflow-hidden shrink-0 border border-slate-200 bg-slate-100">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={filePreview}
+                          alt="Evidence preview"
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
                       <div className="flex-1 min-w-0">
                         <span className="text-xs font-bold text-slate-800 truncate block">
                           {file?.name}
                         </span>
-                        <span className="text-[11px] text-slate-500">
+                        <span className="text-[11px] text-slate-500 font-medium">
                           {file ? (file.size / 1024 / 1024).toFixed(2) : 0} MB
                         </span>
-                        <div className="flex items-center gap-1 text-[10px] text-emerald-700 mt-0.5">
-                          <CheckCircle2 className="w-3 h-3" />
-                          <span>{isBn ? "প্রমাণের জন্য প্রস্তুত" : "Ready for privacy pipeline"}</span>
+                        <div className="flex items-center gap-1.5 text-[10px] font-semibold text-emerald-700 mt-0.5">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                          <span>
+                            {isBn
+                              ? "প্রমাণের জন্য প্রস্তুত (ব্লারিং সক্রিয়)"
+                              : "Ready for privacy pipeline"}
+                          </span>
                         </div>
                       </div>
-                      <button
-                        type="button"
-                        onClick={handleRemoveFile}
-                        className="p-2 rounded-xl bg-white hover:bg-red-50 text-slate-500 hover:text-red-600 border border-slate-200 transition-colors shrink-0"
-                        title="Remove image"
-                      >
-                        <XCircle className="w-5 h-5" />
-                      </button>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => fileInputRef.current?.click()}
+                          className="py-1.5 px-2.5 rounded-xl bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 text-xs font-semibold transition-colors cursor-pointer"
+                          title={isBn ? "ছবি পরিবর্তন করুন" : "Change photo"}
+                        >
+                          {isBn ? "পরিবর্তন" : "Change"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleRemoveFile}
+                          className="p-2 rounded-xl bg-white hover:bg-red-50 text-slate-500 hover:text-red-600 border border-slate-200 transition-colors shrink-0 cursor-pointer"
+                          title={isBn ? "ছবি মুছে ফেলুন" : "Remove photo"}
+                        >
+                          <XCircle className="w-5 h-5" />
+                        </button>
+                      </div>
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp,image/jpg"
+                        onChange={handleFileChange}
+                        className="hidden"
+                      />
                     </div>
                   )}
                 </div>
@@ -1178,20 +1407,8 @@ export default function ReportPage() {
                       </span>
                       <span>{isBn ? "ঘটনাস্থল ও জিপিএস রাডার" : "Incident Location & GPS"}</span>
                     </label>
-
-                    {gpsEvaluation.isEligibleHardwareGps && (
-                      <button
-                        type="button"
-                        onClick={handleSnapToDeviceGps}
-                        className="text-[11px] font-bold text-blue-600 hover:text-blue-800 flex items-center gap-1 transition-colors cursor-pointer"
-                      >
-                        <Crosshair className="w-3.5 h-3.5" />
-                        <span>{isBn ? "আমার অবস্থানে বসান" : "Snap to Me"}</span>
-                      </button>
-                    )}
                   </div>
 
-                  {/* Interactive Leaflet Pin Placement Map */}
                   {/* Fast Geocoding Location Search */}
                   <LocationSearchBar
                     onSelectLocation={(loc: GeocodedLocation) => {
@@ -1202,73 +1419,58 @@ export default function ReportPage() {
                   <ReportPinMap
                     incidentLat={latitude}
                     incidentLng={longitude}
-                    deviceLat={gpsEvaluation.isEligibleHardwareGps ? hardwareGps?.lat : undefined}
-                    deviceLng={gpsEvaluation.isEligibleHardwareGps ? hardwareGps?.lng : undefined}
+                    deviceLat={hardwareGps?.lat}
+                    deviceLng={hardwareGps?.lng}
                     proximityDistance={gpsEvaluation.isEligibleHardwareGps ? gpsEvaluation.distanceMeters : null}
                     proximityRadius={MAX_GPS_PROXIMITY_METERS}
                     onLocationChange={handleMapLocationChange}
-                    onSnapToDevice={gpsEvaluation.isEligibleHardwareGps ? handleSnapToDeviceGps : undefined}
+                    onSnapToDevice={handleSnapToDeviceGps}
+                    onLocateMe={handleLocateCurrentPosition}
+                    isLocating={isLocating}
                     severity={severity}
                     language={language}
                   />
 
-                  {/* Honest GPS Verification Status Pill */}
-                  <div
-                    className={`p-3.5 rounded-xl border flex items-start gap-3 transition-colors ${
-                      gpsEvaluation.isVerified
-                        ? "bg-emerald-50/80 border-emerald-200 text-emerald-900"
-                        : "bg-amber-50/80 border-amber-200 text-amber-900"
-                    }`}
-                  >
-                    <div className="p-1.5 rounded-lg bg-white shrink-0 shadow-2xs">
-                      {gpsEvaluation.isVerified ? (
-                        <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                      ) : (
-                        <AlertTriangle className="w-4 h-4 text-amber-600" />
-                      )}
-                    </div>
-                    <div className="flex-1 text-xs">
-                      <div className="flex items-center justify-between gap-1">
-                        <span className="font-bold">
-                          {gpsEvaluation.isVerified
-                            ? isBn
-                              ? `হার্ডওয়্যার জিপিএস যাচাইকৃত (≤ ${MAX_GPS_PROXIMITY_METERS} মি)`
-                              : `Hardware GPS Verified (≤ ${MAX_GPS_PROXIMITY_METERS}m)`
-                            : gpsEvaluation.status === "OUT_OF_RANGE"
-                              ? isBn
-                                ? `ম্যানুয়াল পিন: জিপিএস থেকে ${gpsEvaluation.distanceMeters} মি দূরে`
-                                : "Manual Pin / Outside 200m GPS (Unverified)"
-                              : gpsEvaluation.status === "LOW_ACCURACY"
-                                ? isBn
-                                  ? "ম্যানুয়াল পিন: দুর্বল জিপিএস সিগন্যাল (অযাচাইকৃত)"
-                                  : "Manual Pin / Coarse GPS Accuracy (Unverified)"
-                                : isBn
-                                  ? "ম্যানুয়াল পিন / অযাচাইকৃত জিপিএস"
-                                  : "Manual Pin / Unverified GPS"}
+                  {/* Location Guidance & Telemetry Status Indicator */}
+                  {gpsEvaluation.isVerified ? (
+                    <div className="flex items-center justify-between px-3.5 py-2 rounded-xl bg-emerald-50/90 border border-emerald-200/80 text-emerald-900 text-xs transition-colors">
+                      <div className="flex items-center gap-2">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                        <span className="font-semibold">
+                          {isBn ? "হার্ডওয়্যার জিপিএস যাচাইকৃত" : "Hardware GPS Verified"}
                         </span>
-                        {gpsEvaluation.distanceMeters !== null && (
-                          <span className="font-mono font-bold">{gpsEvaluation.distanceMeters}m</span>
-                        )}
                       </div>
-                      <p className="text-[11px] text-slate-600 mt-0.5 leading-snug">
-                        {gpsEvaluation.isVerified
-                          ? isBn
-                            ? "আপনার হার্ডওয়্যার জিপিএস এবং পিন করা স্থানের দূরত্ব ২০০ মিটারের মধ্যে রয়েছে।"
-                            : "Unmodified hardware GPS (accuracy ≤ 250m) confirms pin proximity within 200m."
-                          : gpsEvaluation.status === "OUT_OF_RANGE"
-                            ? isBn
-                              ? "পিনটি আপনার বর্তমান জিপিএস থেকে ২০০ মিটারের বেশি দূরে। এটি অযাচাইকৃত ম্যানুয়াল পিন হিসেবে প্রকাশিত হবে অথবা 'আমার অবস্থানে বসান' চাপুন।"
-                              : "Pin is more than 200m from your GPS. Submitting now tags this report as Manual Pin / Unverified GPS, or click Snap to Me."
-                            : gpsEvaluation.status === "LOW_ACCURACY"
-                              ? isBn
-                                ? "ব্রাউজার অবস্থানের নির্ভুলতা ২৫০ মিটারের বেশি হওয়ায় রিপোর্টটি ম্যানুয়াল পিন হিসেবে প্রকাশিত হবে।"
-                                : "Device location accuracy exceeds 250m; report will be marked Manual Pin / Unverified GPS."
-                              : isBn
-                                ? "হার্ডওয়্যার জিপিএস পাওয়া যায়নি। রিপোর্টটি ম্যানুয়াল পিন / অযাচাইকৃত জিপিএস হিসেবে প্রকাশিত হবে।"
-                                : "No hardware GPS fix acquired. Report will be published as Manual Pin / Unverified GPS."}
-                      </p>
+                      <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 border border-emerald-200 shrink-0">
+                        {isBn ? "যাচাইকৃত" : "Verified"}
+                      </span>
                     </div>
-                  </div>
+                  ) : (
+                    <div className="flex items-center gap-2 text-xs text-slate-500 px-1 py-0.5">
+                      <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                      <span>
+                        {isBn
+                          ? "ম্যাপের মাধ্যমে কাস্টম অবস্থান পিন করুন — ম্যাপে ক্লিক করুন"
+                          : "Pin custom location through map — click anywhere on the map"}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Optional Geolocation Error Alert if GPS permission was denied or failed */}
+                  {locationNotice && (
+                    <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-center justify-between gap-2 animate-in fade-in-50 duration-150">
+                      <div className="flex items-center gap-2">
+                        <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                        <span>{locationNotice}</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setLocationNotice(null)}
+                        className="p-1 rounded-lg hover:bg-amber-100 text-amber-700 cursor-pointer"
+                      >
+                        <XCircle className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  )}
 
                   {/* Manual Coordinates Readout */}
                   <div className="grid grid-cols-2 gap-2 text-xs">
@@ -1311,62 +1513,208 @@ export default function ReportPage() {
                       />
                     </div>
                   </div>
-
-                  {/* Preset Locations */}
-                  <div className="space-y-1.5 pt-1">
-                    <span className="text-[11px] font-semibold text-slate-500">
-                      {isBn ? "দ্রুত এলাকা নির্বাচন (ম্যানুয়াল পিন):" : "Quick city presets (Manual Pin):"}
-                    </span>
-                    <div className="flex flex-wrap gap-1.5">
-                      {PRESETS.map((p, idx) => (
-                        <button
-                          key={idx}
-                          type="button"
-                          onClick={() => handleApplyPreset(p.lat, p.lng)}
-                          className="text-[11px] px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 transition-colors cursor-pointer"
-                        >
-                          {isBn ? p.nameBn : p.nameEn.split("—")[0].trim()}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
                 </div>
 
-                {/* Night-time Safety Flag Banner */}
-                <div
-                  className={`p-4 rounded-2xl border flex items-center justify-between gap-3 text-xs ${
-                    isNightDetected
-                      ? "bg-indigo-50/80 border-indigo-200 text-indigo-900"
-                      : "bg-amber-50/80 border-amber-200 text-amber-900"
-                  }`}
-                >
-                  <div className="flex items-center gap-2.5">
-                    {isNightDetected ? (
-                      <Moon className="w-5 h-5 text-indigo-600 shrink-0" />
-                    ) : (
-                      <Sun className="w-5 h-5 text-amber-600 shrink-0" />
-                    )}
-                    <div>
-                      <span className="font-bold block">
-                        {isNightDetected
-                          ? isBn
-                            ? "🌙 নৈশকালীন বিপদ সংকেত স্বয়ংক্রিয়ভাবে সক্রিয়"
-                            : "🌙 Night Hazard Priority Flag: Auto-Detected"
-                          : isBn
-                            ? "☀️ দিবাকালীন বিপদ সংকেত"
-                            : "☀️ Daytime Incident Context"}
-                      </span>
-                      <span className="text-[11px] text-slate-500">
-                        {isNightDetected
-                          ? isBn
-                            ? "রাত ৮টা থেকে ভোর ৫টা পর্যন্ত উচ্চ ঝুঁকির সময় হিসেবে চিহ্নিত হয়।"
-                            : "Active between 8:00 PM and 5:00 AM BST (High Risk window)."
-                          : isBn
-                            ? "সাধারণ দিবাকালীন ট্র্যাকিং প্রযোজ্য।"
-                            : "Standard daytime surveillance active."}
-                      </span>
-                    </div>
+                {/* Danger Schedule & Active Hours Section */}
+                <div className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-xs space-y-4">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-2">
+                      <Clock className="w-4 h-4 text-indigo-600" />
+                      <span>{isBn ? "বিপদের সময়সূচী ও প্রদর্শন সময়সীমা" : "Hazard Schedule & Active Hours"}</span>
+                    </label>
                   </div>
+
+                  {/* Mode Selector: 24h All Day vs Specific Time Window */}
+                  <div className="grid grid-cols-2 gap-2 bg-slate-100 p-1 rounded-xl">
+                    <button
+                      type="button"
+                      onClick={() => setIsTimeBounded(false)}
+                      className={`py-2 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                        !isTimeBounded
+                          ? "bg-white text-slate-900 shadow-xs"
+                          : "text-slate-600 hover:text-slate-900"
+                      }`}
+                    >
+                      {isBn ? "সারাদিন (২৪ ঘণ্টা)" : "All Day (24 Hours)"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setIsTimeBounded(true)}
+                      className={`py-2 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                        isTimeBounded
+                          ? "bg-white text-indigo-700 shadow-xs"
+                          : "text-slate-600 hover:text-slate-900"
+                      }`}
+                    >
+                      {isBn ? "নির্দিষ্ট সময়সীমা" : "Specific Time Window"}
+                    </button>
+                  </div>
+
+                  {!isTimeBounded ? (
+                    <p className="text-xs text-slate-500 leading-relaxed">
+                      {isBn
+                        ? "বিপদ পিনটি সবসময় ম্যাপে সক্রিয় থাকবে এবং ২৪ ঘণ্টা সার্বক্ষণিক দৃশ্যমান হবে।"
+                        : "Continuous danger alert: The pin will remain actively visible on the map 24/7 until expiration."}
+                    </p>
+                  ) : (
+                    <div className="space-y-3.5 pt-1">
+                      {/* AM/PM Time Pickers */}
+                      <div className="space-y-2.5">
+                        {/* Start Time Row */}
+                        <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-200">
+                          <label className="text-xs font-bold text-slate-700 uppercase tracking-wide">
+                            {isBn ? "শুরুর সময় (Start Time)" : "Start Time"}
+                          </label>
+                          <div className="flex items-center gap-1.5">
+                            {/* Hour Input (Type any hour 01-12) */}
+                            <input
+                              type="text"
+                              inputMode="numeric"
+                              pattern="[0-9]*"
+                              maxLength={2}
+                              value={startHourStr}
+                              onChange={(e) => handleHourInput(e, setStartHour, setStartHourStr)}
+                              onBlur={() => handleHourBlur(startHourStr, setStartHour, setStartHourStr)}
+                              onKeyDown={(e) => handleHourKeyDown(e, startHour, setStartHour, setStartHourStr)}
+                              className="w-12 h-8 px-1.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-800 text-center focus:outline-indigo-500 focus:border-indigo-500 shadow-2xs"
+                              title={isBn ? "ঘণ্টা টাইপ করুন (০১–১২)" : "Type hour (01–12)"}
+                            />
+                            <span className="font-bold text-slate-400">:</span>
+                            {/* Minute Input (Type any minute 00-59) */}
+                            <input
+                              type="text"
+                              inputMode="numeric"
+                              pattern="[0-9]*"
+                              maxLength={2}
+                              value={startMinuteStr}
+                              onChange={(e) => handleMinuteInput(e, setStartMinute, setStartMinuteStr)}
+                              onBlur={() => handleMinuteBlur(startMinuteStr, setStartMinute, setStartMinuteStr)}
+                              onKeyDown={(e) => handleMinuteKeyDown(e, startMinute, setStartMinute, setStartMinuteStr)}
+                              className="w-12 h-8 px-1.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-800 text-center focus:outline-indigo-500 focus:border-indigo-500 shadow-2xs"
+                              title={isBn ? "যেকোনো মিনিট টাইপ করুন (০০–৫৯)" : "Type any minute (00–59)"}
+                            />
+                            {/* AM/PM Segmented Toggle */}
+                            <div className="flex rounded-lg p-0.5 bg-slate-200/80 text-[11px] font-bold">
+                              <button
+                                type="button"
+                                onClick={() => setStartMeridiem("AM")}
+                                className={`px-2 py-1 rounded-md transition-all cursor-pointer ${
+                                  startMeridiem === "AM"
+                                    ? "bg-white text-indigo-700 shadow-2xs font-black"
+                                    : "text-slate-500 hover:text-slate-800"
+                                }`}
+                              >
+                                AM
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setStartMeridiem("PM")}
+                                className={`px-2 py-1 rounded-md transition-all cursor-pointer ${
+                                  startMeridiem === "PM"
+                                    ? "bg-white text-indigo-700 shadow-2xs font-black"
+                                    : "text-slate-500 hover:text-slate-800"
+                                }`}
+                              >
+                                PM
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* End Time Row */}
+                        <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-200">
+                          <label className="text-xs font-bold text-slate-700 uppercase tracking-wide">
+                            {isBn ? "শেষের সময় (End Time)" : "End Time"}
+                          </label>
+                          <div className="flex items-center gap-1.5">
+                            {/* Hour Input (Type any hour 01-12) */}
+                            <input
+                              type="text"
+                              inputMode="numeric"
+                              pattern="[0-9]*"
+                              maxLength={2}
+                              value={endHourStr}
+                              onChange={(e) => handleHourInput(e, setEndHour, setEndHourStr)}
+                              onBlur={() => handleHourBlur(endHourStr, setEndHour, setEndHourStr)}
+                              onKeyDown={(e) => handleHourKeyDown(e, endHour, setEndHour, setEndHourStr)}
+                              className="w-12 h-8 px-1.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-800 text-center focus:outline-indigo-500 focus:border-indigo-500 shadow-2xs"
+                              title={isBn ? "ঘণ্টা টাইপ করুন (০১–১২)" : "Type hour (01–12)"}
+                            />
+                            <span className="font-bold text-slate-400">:</span>
+                            {/* Minute Input (Type any minute 00-59) */}
+                            <input
+                              type="text"
+                              inputMode="numeric"
+                              pattern="[0-9]*"
+                              maxLength={2}
+                              value={endMinuteStr}
+                              onChange={(e) => handleMinuteInput(e, setEndMinute, setEndMinuteStr)}
+                              onBlur={() => handleMinuteBlur(endMinuteStr, setEndMinute, setEndMinuteStr)}
+                              onKeyDown={(e) => handleMinuteKeyDown(e, endMinute, setEndMinute, setEndMinuteStr)}
+                              className="w-12 h-8 px-1.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-800 text-center focus:outline-indigo-500 focus:border-indigo-500 shadow-2xs"
+                              title={isBn ? "যেকোনো মিনিট টাইপ করুন (০০–৫৯)" : "Type any minute (00–59)"}
+                            />
+                            {/* AM/PM Segmented Toggle */}
+                            <div className="flex rounded-lg p-0.5 bg-slate-200/80 text-[11px] font-bold">
+                              <button
+                                type="button"
+                                onClick={() => setEndMeridiem("AM")}
+                                className={`px-2 py-1 rounded-md transition-all cursor-pointer ${
+                                  endMeridiem === "AM"
+                                    ? "bg-white text-indigo-700 shadow-2xs font-black"
+                                    : "text-slate-500 hover:text-slate-800"
+                                }`}
+                              >
+                                AM
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setEndMeridiem("PM")}
+                                className={`px-2 py-1 rounded-md transition-all cursor-pointer ${
+                                  endMeridiem === "PM"
+                                    ? "bg-white text-indigo-700 shadow-2xs font-black"
+                                    : "text-slate-500 hover:text-slate-800"
+                                }`}
+                              >
+                                PM
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Dynamic Real-Time Active Status Badge */}
+                      <div
+                        className={`p-3 rounded-xl border flex items-center gap-2.5 text-xs transition-colors ${
+                          isScheduleCurrentlyActive
+                            ? "bg-emerald-50 border-emerald-200 text-emerald-900"
+                            : "bg-slate-50 border-slate-200 text-slate-600"
+                        }`}
+                      >
+                        {isScheduleCurrentlyActive ? (
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                        ) : (
+                          <Clock className="w-4 h-4 text-slate-400 shrink-0" />
+                        )}
+                        <div className="leading-snug">
+                          <span className="font-bold block">
+                            {isScheduleCurrentlyActive
+                              ? isBn
+                                ? "🟢 বর্তমান সময়ে ম্যাপে সক্রিয়ভাবে প্রদর্শিত হবে"
+                                : "🟢 Currently Active: Visible on live map right now"
+                              : isBn
+                                ? "⚪ বর্তমান সময়ে ম্যাপ থেকে লুকানো থাকবে"
+                                : "⚪ Currently Inactive: Hidden from map right now"}
+                          </span>
+                          <span className="text-[11px] text-slate-500">
+                            {isBn
+                              ? `বিপদ পিনটি শুধুমাত্র প্রতিদিন ${formatTimeTo12Hour(formattedTimeStart)} থেকে ${formatTimeTo12Hour(formattedTimeEnd)} পর্যন্ত ম্যাপে দৃশ্যমান থাকবে।`
+                              : `Pin will show on map only between ${formatTimeTo12Hour(formattedTimeStart)} and ${formatTimeTo12Hour(formattedTimeEnd)} BST.`}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Citizen Trust & Privacy Policy */}
@@ -1391,7 +1739,15 @@ export default function ReportPage() {
                   {isSubmitting ? (
                     <>
                       <RefreshCw className="w-5 h-5 animate-spin" />
-                      <span>{isBn ? "রিপোর্ট প্রকাশ হচ্ছে..." : "Submitting Incident..."}</span>
+                      <span>
+                        {file
+                          ? isBn
+                            ? "রিপোর্ট ও ছবি প্রমাণ আপলোড হচ্ছে..."
+                            : "Submitting Incident & Photo..."
+                          : isBn
+                            ? "রিপোর্ট প্রকাশ হচ্ছে..."
+                            : "Submitting Incident..."}
+                      </span>
                     </>
                   ) : (
                     <>
