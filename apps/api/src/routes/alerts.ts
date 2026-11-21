@@ -7,6 +7,7 @@ import {
   getZonesHandler,
   deleteZoneHandler,
   subscribePushHandler,
+  unsubscribePushHandler,
 } from '../controllers/alertController';
 
 const router = Router();
@@ -47,5 +48,6 @@ router.post('/zones', requireAuth, validateRequest(createZoneSchema), createZone
 router.get('/zones', requireAuth, getZonesHandler);
 router.delete('/zones/:id', requireAuth, validateRequest(deleteZoneSchema), deleteZoneHandler);
 router.post('/subscribe', requireAuth, validateRequest(subscribePushSchema), subscribePushHandler);
+router.post('/unsubscribe', requireAuth, unsubscribePushHandler);
 
 export default router;
