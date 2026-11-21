@@ -20,9 +20,9 @@ async function seedAdmin() {
     }
     passwordHash = envPasswordHash;
   } else {
-    if (!envPassword || envPassword.length < 12) {
+    if (!envPassword || envPassword.length < 8) {
       throw new Error(
-        '[Seed Admin] Provide ADMIN_PASSWORD_HASH or an explicit ADMIN_PASSWORD of at least 12 characters.'
+        '[Seed Admin] Provide ADMIN_PASSWORD_HASH or an explicit ADMIN_PASSWORD of at least 8 characters.'
       );
     }
     if (envPassword === 'AdminSafety@2026') {

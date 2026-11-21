@@ -22,3 +22,14 @@ out/
 
 # Agent Skills
 .agents/
+
+# Lab Report & Documentation Export
+/report/
+
+# Archives & Large Compressed Bundles
+*.rar
+*.zip
+*.7z
+*.tar.gz
+
+
