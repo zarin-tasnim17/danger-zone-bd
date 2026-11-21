@@ -1211,37 +1211,29 @@ export default function ReportPage() {
                     language={language}
                   />
 
-                  {/* Clean Telemetry Status Indicator */}
-                  <div
-                    className={`px-3.5 py-2 rounded-xl border flex items-center justify-between text-xs transition-colors ${
-                      gpsEvaluation.isVerified
-                        ? "bg-emerald-50/90 border-emerald-200 text-emerald-900"
-                        : "bg-slate-50 border-slate-200 text-slate-700"
-                    }`}
-                  >
-                    <div className="flex items-center gap-2">
-                      {gpsEvaluation.isVerified ? (
+                  {/* Location Guidance & Telemetry Status Indicator */}
+                  {gpsEvaluation.isVerified ? (
+                    <div className="flex items-center justify-between px-3.5 py-2 rounded-xl bg-emerald-50/90 border border-emerald-200/80 text-emerald-900 text-xs transition-colors">
+                      <div className="flex items-center gap-2">
                         <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                      ) : (
-                        <MapPin className="w-4 h-4 text-slate-500 shrink-0" />
-                      )}
-                      <span className="font-bold">
-                        {gpsEvaluation.isVerified
-                          ? isBn
-                            ? "হার্ডওয়্যার জিপিএস যাচাইকৃত"
-                            : "Hardware GPS Verified"
-                          : isBn
-                            ? "কাস্টম ম্যাপ পিন"
-                            : "Custom Map Pin"}
-                      </span>
-                    </div>
-
-                    {gpsEvaluation.isVerified ? (
+                        <span className="font-semibold">
+                          {isBn ? "হার্ডওয়্যার জিপিএস যাচাইকৃত" : "Hardware GPS Verified"}
+                        </span>
+                      </div>
                       <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 border border-emerald-200 shrink-0">
                         {isBn ? "যাচাইকৃত" : "Verified"}
                       </span>
-                    ) : null}
-                  </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2 text-xs text-slate-500 px-1 py-0.5">
+                      <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                      <span>
+                        {isBn
+                          ? "ম্যাপের মাধ্যমে কাস্টম অবস্থান পিন করুন — ম্যাপে ক্লিক করুন"
+                          : "Pin custom location through map — click anywhere on the map"}
+                      </span>
+                    </div>
+                  )}
 
                   {/* Optional Geolocation Error Alert if GPS permission was denied or failed */}
                   {locationNotice && (
