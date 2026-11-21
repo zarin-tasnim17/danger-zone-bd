@@ -20,15 +20,19 @@ describe('[Unit] Feed Page Responsive Telemetry Cards & Dual Dropdown Filters', 
     assert.ok(src.includes('Confirmations'));
   });
 
-  it('2. Category filter dropdown provides 1-click selection without pushing/swiping across horizontal rail', () => {
+  it('2. Category filter dropdown and right-pushed filter system eliminates horizontal push rail', () => {
     const feedPath = path.join(WEB_TEST_CONFIG.webRoot, 'app/feed/page.tsx');
     const src = fs.readFileSync(feedPath, 'utf8');
 
-    // Asserts Category dropdown selector
+    // Asserts Category dropdown selector and Filter System state
     assert.ok(src.includes('handleSelectCategory'));
     assert.ok(src.includes('Filter by incident category'));
     assert.ok(src.includes('data-category-id'));
-    assert.ok(src.includes('scrollIntoView'));
+    assert.ok(src.includes('isFilterMenuOpen'));
+    assert.ok(src.includes('activeFiltersCount'));
+    assert.ok(src.includes('Active:'));
+    // Asserts removal of the horizontal category scroll rail
+    assert.ok(!src.includes('categoryScrollRef'), 'Horizontal scroll rail ref must be removed');
   });
 
   it('3. User / Reporter Source dropdown enables filtering by Citizen, Press, Responder, and My Reports', () => {

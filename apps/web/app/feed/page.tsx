@@ -176,35 +176,11 @@ export default function FeedPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState<SortOption>("NEWEST");
 
-  // Category horizontal scroll state
-  const categoryScrollRef = React.useRef<HTMLDivElement>(null);
-  const [canScrollLeft, setCanScrollLeft] = useState(false);
-  const [canScrollRight, setCanScrollRight] = useState(false);
-
-  const checkCategoryScroll = useCallback(() => {
-    const el = categoryScrollRef.current;
-    if (!el) return;
-    const { scrollLeft, scrollWidth, clientWidth } = el;
-    setCanScrollLeft(scrollLeft > 4);
-    setCanScrollRight(scrollLeft < scrollWidth - clientWidth - 4);
-  }, []);
+  // Filter System Dropdown state (Pushed to the right)
+  const [isFilterMenuOpen, setIsFilterMenuOpen] = useState(false);
 
   const handleSelectCategory = (catId: string) => {
     setCategoryFilter(catId);
-    if (categoryScrollRef.current) {
-      const activeBtn = categoryScrollRef.current.querySelector(`[data-category-id="${catId}"]`) as HTMLElement;
-      if (activeBtn) {
-        activeBtn.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
-      }
-    }
-  };
-
-  const handleScrollCategories = (direction: "left" | "right") => {
-    const el = categoryScrollRef.current;
-    if (!el) return;
-    const offset = direction === "left" ? -280 : 280;
-    el.scrollBy({ left: offset, behavior: "smooth" });
-    setTimeout(checkCategoryScroll, 320);
   };
 
   const hasActiveFilters =
@@ -214,6 +190,16 @@ export default function FeedPage() {
     nightFilter ||
     searchQuery.trim().length > 0;
 
+  const activeFiltersCount = useMemo(() => {
+    let count = 0;
+    if (categoryFilter !== "ALL") count++;
+    if (userTypeFilter !== "ALL") count++;
+    if (severityFilter !== "ALL") count++;
+    if (nightFilter) count++;
+    if (searchQuery.trim().length > 0) count++;
+    return count;
+  }, [categoryFilter, userTypeFilter, severityFilter, nightFilter, searchQuery]);
+
   const handleResetFilters = () => {
     setCategoryFilter("ALL");
     setUserTypeFilter("ALL");
@@ -221,17 +207,6 @@ export default function FeedPage() {
     setNightFilter(false);
     setSearchQuery("");
   };
-
-  useEffect(() => {
-    checkCategoryScroll();
-    const handleResize = () => checkCategoryScroll();
-    window.addEventListener("resize", handleResize);
-    const timer = setTimeout(checkCategoryScroll, 350);
-    return () => {
-      window.removeEventListener("resize", handleResize);
-      clearTimeout(timer);
-    };
-  }, [checkCategoryScroll]);
 
   // Interaction States
   const [votingId, setVotingId] = useState<string | null>(null);
@@ -808,10 +783,10 @@ export default function FeedPage() {
 
         {/* Tactical Search & Filter Command Console */}
         <section className="bg-white border border-slate-200/90 rounded-3xl p-4 sm:p-5 mb-6 shadow-xs space-y-3.5">
-          {/* Tier 1: Search & Tactical Refinement Bar (Severity, Night, Sort, Reset) */}
-          <div className="flex flex-col xl:flex-row items-stretch xl:items-center gap-3">
+          {/* Main Command Bar: Search on Left, Filter Console Trigger & Actions Pushed to Right */}
+          <div className="flex items-center gap-2 sm:gap-2.5">
             {/* Search Input */}
-            <div className="relative flex-1 min-w-[200px]">
+            <div className="relative flex-1 min-w-[170px]">
               <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
               <input
                 type="text"
@@ -822,7 +797,7 @@ export default function FeedPage() {
                 }
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full h-9 pl-9 pr-8 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 focus:bg-white transition placeholder:text-slate-400"
+                className="w-full h-10 pl-9 pr-8 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 focus:bg-white transition placeholder:text-slate-400"
               />
               {searchQuery && (
                 <button
@@ -835,97 +810,16 @@ export default function FeedPage() {
               )}
             </div>
 
-            {/* Refinement Controls Cluster */}
-            <div className="flex flex-wrap items-center gap-2 sm:gap-2.5 shrink-0">
-              {/* Category Filter Dropdown (Direct 1-click access without pushing/swiping to the right) */}
-              <div className="h-9 inline-flex items-center gap-1.5 shrink-0 bg-slate-50 border border-slate-200 rounded-xl px-2.5 sm:px-3 transition-colors hover:bg-slate-100/60 focus-within:ring-2 focus-within:ring-slate-900/10 focus-within:border-slate-400">
-                <Layers className="w-3.5 h-3.5 text-slate-500 shrink-0" />
-                <span className="text-xs font-semibold text-slate-500 hidden sm:inline select-none whitespace-nowrap">
-                  {isBn ? "ক্যাটাগরি:" : "Category:"}
-                </span>
-                <select
-                  value={categoryFilter}
-                  onChange={(e) => handleSelectCategory(e.target.value)}
-                  className="h-full bg-transparent text-xs font-semibold text-slate-800 focus:outline-none cursor-pointer pr-1 max-w-[130px] sm:max-w-none"
-                  aria-label={isBn ? "বিপদের ধরন ফিল্টার" : "Filter by incident category"}
-                >
-                  {CATEGORY_TABS.map((tab) => (
-                    <option key={tab.id} value={tab.id}>
-                      {isBn ? tab.labelBn : tab.labelEn}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* User / Reporter Source Filter Dropdown ("select the related user I want to see") */}
-              <div className="h-9 inline-flex items-center gap-1.5 shrink-0 bg-slate-50 border border-slate-200 rounded-xl px-2.5 sm:px-3 transition-colors hover:bg-slate-100/60 focus-within:ring-2 focus-within:ring-slate-900/10 focus-within:border-slate-400">
-                <Users className="w-3.5 h-3.5 text-slate-500 shrink-0" />
-                <span className="text-xs font-semibold text-slate-500 hidden sm:inline select-none whitespace-nowrap">
-                  {isBn ? "ব্যবহারকারী:" : "User:"}
-                </span>
-                <select
-                  value={userTypeFilter}
-                  onChange={(e) => setUserTypeFilter(e.target.value as UserTypeFilter)}
-                  className="h-full bg-transparent text-xs font-semibold text-slate-800 focus:outline-none cursor-pointer pr-1 max-w-[130px] sm:max-w-none"
-                  aria-label={isBn ? "ব্যবহারকারী বা উৎস ফিল্টার" : "Filter by user or source"}
-                >
-                  <option value="ALL">{isBn ? "সকল ব্যবহারকারী" : "All Users"}</option>
-                  <option value="CITIZEN">{isBn ? "নাগরিক রিপোর্ট (Citizen)" : "Citizen Reports"}</option>
-                  <option value="PRESS">{isBn ? "সংবাদ মাধ্যম (Press)" : "Press & News"}</option>
-                  <option value="VERIFIED_RESPONDER">{isBn ? "যাচাইকৃত রেসপন্ডার" : "Verified Responders"}</option>
-                  {user && (
-                    <option value="MY_REPORTS">{isBn ? "আমার রিপোর্ট" : "My Reports"}</option>
-                  )}
-                </select>
-              </div>
-
-              {/* Severity Segmented Switch */}
-              <div className="h-9 inline-flex items-center gap-0.5 bg-slate-100/90 p-1 rounded-xl border border-slate-200/90">
-                <span className="text-[10px] font-bold text-slate-500 pl-2 pr-1 uppercase tracking-wider select-none hidden sm:inline">
-                  {isBn ? "তীব্রতা:" : "Severity:"}
-                </span>
-                {SEVERITY_OPTIONS.map((opt) => {
-                  const isSelected = severityFilter === opt.id;
-                  return (
-                    <button
-                      key={opt.id}
-                      onClick={() => setSeverityFilter(opt.id)}
-                      className={`h-7 text-xs px-2 sm:px-2.5 rounded-lg font-semibold transition-all inline-flex items-center gap-1 sm:gap-1.5 ${
-                        isSelected
-                          ? opt.activeClass
-                          : "text-slate-600 hover:text-slate-900 hover:bg-slate-200/50"
-                      }`}
-                    >
-                      {opt.dotClass && <span className={`w-1.5 h-1.5 rounded-full ${opt.dotClass}`} />}
-                      <span>{isBn ? opt.labelBn : opt.labelEn}</span>
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* Night Filter Button */}
-              <button
-                onClick={() => setNightFilter(!nightFilter)}
-                className={`h-9 inline-flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3.5 rounded-xl text-xs font-semibold border transition-all active:scale-95 shrink-0 ${
-                  nightFilter
-                    ? "bg-indigo-900 text-white border-indigo-900 shadow-2xs ring-1 ring-indigo-950/20"
-                    : "bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200"
-                }`}
-              >
-                <Moon className={`w-3.5 h-3.5 ${nightFilter ? "text-amber-300 fill-amber-300/30" : "text-indigo-600"}`} />
-                <span className="whitespace-nowrap">{isBn ? "রাতের ঘটনা" : "Night (6PM-6AM)"}</span>
-              </button>
-
-              {/* Sorting Dropdown */}
-              <div className="h-9 inline-flex items-center gap-1.5 shrink-0 bg-slate-50 border border-slate-200 rounded-xl px-2.5 sm:px-3 transition-colors hover:bg-slate-100/60 focus-within:ring-2 focus-within:ring-slate-900/10 focus-within:border-slate-400">
+            {/* Right-Pushed Action Cluster */}
+            <div className="flex items-center gap-2 shrink-0">
+              {/* Quick Sort Dropdown (Desktop & Tablet) */}
+              <div className="h-10 hidden sm:inline-flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-2.5 transition-colors hover:bg-slate-100/60 focus-within:ring-2 focus-within:ring-slate-900/10 focus-within:border-slate-400">
                 <SlidersHorizontal className="w-3.5 h-3.5 text-slate-500 shrink-0" />
-                <span className="text-xs font-semibold text-slate-500 hidden sm:inline select-none whitespace-nowrap">
-                  {isBn ? "ক্রমবিন্যাস:" : "Sort:"}
-                </span>
                 <select
                   value={sortBy}
                   onChange={(e) => setSortBy(e.target.value as SortOption)}
                   className="h-full bg-transparent text-xs font-semibold text-slate-800 focus:outline-none cursor-pointer pr-1"
+                  aria-label={isBn ? "সাজানোর ক্রম" : "Sort order"}
                 >
                   <option value="NEWEST">{isBn ? "সর্বশেষ প্রকাশিত" : "Newest First"}</option>
                   <option value="MOST_UPVOTED">{isBn ? "সর্বাধিক সমর্থিত" : "Most Upvoted"}</option>
@@ -933,75 +827,315 @@ export default function FeedPage() {
                 </select>
               </div>
 
-              {/* Reset Filters Chip (Visible when active) */}
-              {hasActiveFilters && (
-                <button
-                  onClick={handleResetFilters}
-                  className="h-9 inline-flex items-center gap-1.5 px-3 rounded-xl text-xs font-semibold text-slate-500 hover:text-red-600 hover:bg-red-50 border border-slate-200 hover:border-red-200 transition-all shrink-0"
-                  title={isBn ? "সকল ফিল্টার মুছুন" : "Reset all filters"}
-                >
-                  <X className="w-3.5 h-3.5" />
-                  <span>{isBn ? "মুছুন" : "Reset"}</span>
-                </button>
-              )}
-            </div>
-          </div>
-
-          {/* Tier 2: Dedicated Full-Width Category Navigation Rail */}
-          <div className="pt-3 border-t border-slate-100 relative">
-            <div className="flex items-center gap-1.5">
-              {/* Left scroll chevron */}
-              {canScrollLeft && (
-                <button
-                  type="button"
-                  onClick={() => handleScrollCategories("left")}
-                  className="hidden md:inline-flex items-center justify-center w-8 h-8 rounded-xl bg-white border border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-50 shadow-2xs transition shrink-0 z-10"
-                  aria-label={isBn ? "বামে স্ক্রোল করুন" : "Scroll categories left"}
-                >
-                  <ChevronLeft className="w-4 h-4" />
-                </button>
-              )}
-
-              {/* Horizontal Scrollable Categories */}
-              <div
-                ref={categoryScrollRef}
-                onScroll={checkCategoryScroll}
-                className="flex items-center gap-1.5 overflow-x-auto scrollbar-none scroll-smooth py-0.5 flex-1 min-w-0"
+              {/* Dedicated Filter Trigger Button (Pushed to the Right) */}
+              <button
+                type="button"
+                onClick={() => setIsFilterMenuOpen((prev) => !prev)}
+                className={`h-10 px-3 sm:px-3.5 rounded-xl text-xs font-bold border flex items-center gap-2 transition-all active:scale-95 shadow-2xs select-none ${
+                  isFilterMenuOpen || activeFiltersCount > 0
+                    ? "bg-slate-900 text-white border-slate-900 shadow-sm ring-2 ring-slate-900/10"
+                    : "bg-white hover:bg-slate-50 text-slate-800 border-slate-200 hover:border-slate-300"
+                }`}
+                aria-expanded={isFilterMenuOpen}
+                aria-label={isBn ? "ফিল্টার সিস্টেম খুলুন" : "Open filter system"}
               >
-                {CATEGORY_TABS.map((tab) => {
-                  const isSelected = categoryFilter === tab.id;
-                  const Icon = tab.icon;
-                  return (
-                    <button
-                      key={tab.id}
-                      data-category-id={tab.id}
-                      onClick={() => handleSelectCategory(tab.id)}
-                      className={`h-8 text-xs px-3 rounded-xl font-semibold border inline-flex items-center gap-1.5 transition-all shrink-0 select-none ${
-                        isSelected
-                          ? "bg-slate-900 text-white border-slate-900 shadow-2xs ring-1 ring-slate-900/10"
-                          : "bg-white text-slate-600 border-slate-200 hover:text-slate-900 hover:bg-slate-50 hover:border-slate-300"
-                      }`}
-                    >
-                      <Icon className={`w-3.5 h-3.5 ${isSelected ? "text-white" : "text-slate-500"}`} />
-                      <span className="whitespace-nowrap">{isBn ? tab.labelBn : tab.labelEn}</span>
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* Right scroll chevron */}
-              {canScrollRight && (
-                <button
-                  type="button"
-                  onClick={() => handleScrollCategories("right")}
-                  className="hidden md:inline-flex items-center justify-center w-8 h-8 rounded-xl bg-white border border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-50 shadow-2xs transition shrink-0 z-10"
-                  aria-label={isBn ? "ডানে স্ক্রোল করুন" : "Scroll categories right"}
-                >
-                  <ChevronRight className="w-4 h-4" />
-                </button>
-              )}
+                <SlidersHorizontal className={`w-3.5 h-3.5 ${isFilterMenuOpen || activeFiltersCount > 0 ? "text-red-400" : "text-slate-600"}`} />
+                <span className="whitespace-nowrap">{isBn ? "ফিল্টার" : "Filters"}</span>
+                {activeFiltersCount > 0 && (
+                  <span className="w-5 h-5 rounded-full bg-red-600 text-white text-[10px] font-black flex items-center justify-center shrink-0 shadow-2xs">
+                    {activeFiltersCount}
+                  </span>
+                )}
+                <ChevronDown
+                  className={`w-3.5 h-3.5 transition-transform duration-200 ${
+                    isFilterMenuOpen ? "rotate-180 text-white" : "text-slate-400"
+                  }`}
+                />
+              </button>
             </div>
           </div>
+
+          {/* Active Filter Chips Bar (Visible when any filter or search is active) */}
+          {hasActiveFilters && (
+            <div className="flex flex-wrap items-center gap-1.5 pt-0.5 text-xs">
+              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider select-none mr-0.5">
+                {isBn ? "সক্রিয় ফিল্টার:" : "Active:"}
+              </span>
+
+              {categoryFilter !== "ALL" && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-900 text-white font-semibold text-xs shadow-2xs">
+                  <Layers className="w-3 h-3 text-slate-300" />
+                  <span>
+                    {isBn
+                      ? CATEGORY_TABS.find((c) => c.id === categoryFilter)?.labelBn || categoryFilter
+                      : CATEGORY_TABS.find((c) => c.id === categoryFilter)?.labelEn || categoryFilter}
+                  </span>
+                  <button
+                    onClick={() => handleSelectCategory("ALL")}
+                    className="hover:text-red-300 ml-0.5 p-0.5"
+                    aria-label={isBn ? "ক্যাটাগরি ফিল্টার মুছুন" : "Remove category filter"}
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              )}
+
+              {userTypeFilter !== "ALL" && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-700 text-white font-semibold text-xs shadow-2xs">
+                  <Users className="w-3 h-3 text-blue-200" />
+                  <span>
+                    {userTypeFilter === "CITIZEN"
+                      ? isBn ? "নাগরিক রিপোর্ট" : "Citizen Reports"
+                      : userTypeFilter === "PRESS"
+                        ? isBn ? "সংবাদ মাধ্যম" : "Press & News"
+                        : userTypeFilter === "VERIFIED_RESPONDER"
+                          ? isBn ? "যাচাইকৃত রেসপন্ডার" : "Verified Responders"
+                          : isBn ? "আমার রিপোর্ট" : "My Reports"}
+                  </span>
+                  <button
+                    onClick={() => setUserTypeFilter("ALL")}
+                    className="hover:text-blue-200 ml-0.5 p-0.5"
+                    aria-label={isBn ? "ব্যবহারকারী ফিল্টার মুছুন" : "Remove user filter"}
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              )}
+
+              {severityFilter !== "ALL" && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-red-600 text-white font-semibold text-xs shadow-2xs">
+                  <span>
+                    {isBn
+                      ? SEVERITY_OPTIONS.find((s) => s.id === severityFilter)?.labelBn || severityFilter
+                      : SEVERITY_OPTIONS.find((s) => s.id === severityFilter)?.labelEn || severityFilter}{" "}
+                    {isBn ? "ঝুঁকি" : "Risk"}
+                  </span>
+                  <button
+                    onClick={() => setSeverityFilter("ALL")}
+                    className="hover:text-red-200 ml-0.5 p-0.5"
+                    aria-label={isBn ? "তীব্রতা ফিল্টার মুছুন" : "Remove severity filter"}
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              )}
+
+              {nightFilter && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-900 text-white font-semibold text-xs shadow-2xs">
+                  <Moon className="w-3 h-3 text-amber-300 fill-amber-300/30" />
+                  <span>{isBn ? "রাতের ঘটনা" : "Night (6PM-6AM)"}</span>
+                  <button
+                    onClick={() => setNightFilter(false)}
+                    className="hover:text-amber-200 ml-0.5 p-0.5"
+                    aria-label={isBn ? "রাতের ফিল্টার মুছুন" : "Remove night filter"}
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              )}
+
+              {searchQuery.trim() && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-200 text-slate-800 font-semibold text-xs shadow-2xs">
+                  <Search className="w-3 h-3 text-slate-500" />
+                  <span className="max-w-[120px] truncate">&ldquo;{searchQuery}&rdquo;</span>
+                  <button
+                    onClick={() => setSearchQuery("")}
+                    className="hover:text-red-600 ml-0.5 p-0.5"
+                    aria-label={isBn ? "অনুসন্ধান মুছুন" : "Remove search query"}
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              )}
+
+              <button
+                onClick={handleResetFilters}
+                className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold text-red-600 hover:text-red-700 hover:bg-red-50 border border-transparent hover:border-red-200 transition"
+              >
+                <RotateCcw className="w-3 h-3" />
+                <span>{isBn ? "সব মুছুন" : "Clear All"}</span>
+              </button>
+            </div>
+          )}
+
+          {/* Expandable Filter System Console Dropdown */}
+          {isFilterMenuOpen && (
+            <div className="pt-3 border-t border-slate-100">
+              <div className="bg-slate-50/90 border border-slate-200/90 rounded-2xl p-4 sm:p-5 shadow-xs space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-lg bg-slate-900 text-white flex items-center justify-center shadow-2xs">
+                      <SlidersHorizontal className="w-3.5 h-3.5" />
+                    </div>
+                    <div>
+                      <h3 className="text-xs font-bold text-slate-900">
+                        {isBn ? "ফিল্টার সিস্টেম ও কাস্টমাইজেশন" : "Safety Telemetry Filter System"}
+                      </h3>
+                      <p className="text-[11px] text-slate-500">
+                        {isBn ? "নির্দিষ্ট ক্যাটাগরি, ব্যবহারকারী বা উৎস অনুযায়ী ফিল্টার করুন" : "Refine incidents by category, user source, severity, and schedule"}
+                      </p>
+                    </div>
+                  </div>
+
+                  {hasActiveFilters && (
+                    <button
+                      onClick={handleResetFilters}
+                      className="text-xs font-bold text-red-600 hover:text-red-700 hover:underline flex items-center gap-1"
+                    >
+                      <RotateCcw className="w-3 h-3" />
+                      <span>{isBn ? "রিসেট করুন" : "Reset All"}</span>
+                    </button>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
+                  {/* Dropdown 1: Related User / Reporter Source ("select the related user I want to see") */}
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] font-bold text-slate-600 flex items-center gap-1.5">
+                      <Users className="w-3.5 h-3.5 text-blue-600" />
+                      <span>{isBn ? "ব্যবহারকারী বা উৎস ফিল্টার" : "Related User / Reporter"}</span>
+                    </label>
+                    <div className="relative">
+                      <select
+                        value={userTypeFilter}
+                        onChange={(e) => setUserTypeFilter(e.target.value as UserTypeFilter)}
+                        className="w-full h-10 px-3 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 cursor-pointer shadow-2xs appearance-none pr-8"
+                        aria-label={isBn ? "ব্যবহারকারী বা উৎস ফিল্টার" : "Filter by user or source"}
+                      >
+                        <option value="ALL">{isBn ? "সকল ব্যবহারকারী ও উৎস" : "All Users & Sources"}</option>
+                        <option value="CITIZEN">{isBn ? "নাগরিক রিপোর্ট (Citizen Submissions)" : "Citizen Reports"}</option>
+                        <option value="PRESS">{isBn ? "সংবাদ মাধ্যম (Google News BD Verified)" : "Press & News Media"}</option>
+                        <option value="VERIFIED_RESPONDER">{isBn ? "যাচাইকৃত রেসপন্ডার (Admin / GPS)" : "Verified Responders"}</option>
+                        {user && (
+                          <option value="MY_REPORTS">{isBn ? "আমার রিপোর্ট (My Incident Reports)" : "My Reports"}</option>
+                        )}
+                      </select>
+                      <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    </div>
+                  </div>
+
+                  {/* Dropdown 2: Incident Category Dropdown */}
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] font-bold text-slate-600 flex items-center gap-1.5">
+                      <Layers className="w-3.5 h-3.5 text-slate-700" />
+                      <span>{isBn ? "বিপদের ধরন (ক্যাটাগরি)" : "Incident Category"}</span>
+                    </label>
+                    <div className="relative">
+                      <select
+                        value={categoryFilter}
+                        onChange={(e) => handleSelectCategory(e.target.value)}
+                        className="w-full h-10 px-3 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 cursor-pointer shadow-2xs appearance-none pr-8"
+                        aria-label={isBn ? "বিপদের ধরন ফিল্টার" : "Filter by incident category"}
+                      >
+                        {CATEGORY_TABS.map((tab) => (
+                          <option key={tab.id} value={tab.id} data-category-id={tab.id}>
+                            {isBn ? tab.labelBn : tab.labelEn}
+                          </option>
+                        ))}
+                      </select>
+                      <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    </div>
+                  </div>
+
+                  {/* Threat Severity Selector */}
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] font-bold text-slate-600 flex items-center gap-1.5">
+                      <AlertTriangle className="w-3.5 h-3.5 text-red-600" />
+                      <span>{isBn ? "ঝুঁকির মাত্রা (Severity)" : "Threat Severity"}</span>
+                    </label>
+                    <div className="h-10 flex items-center gap-1 bg-white p-1 rounded-xl border border-slate-200 shadow-2xs">
+                      {SEVERITY_OPTIONS.map((opt) => {
+                        const isSelected = severityFilter === opt.id;
+                        return (
+                          <button
+                            key={opt.id}
+                            type="button"
+                            onClick={() => setSeverityFilter(opt.id)}
+                            className={`flex-1 h-8 text-xs rounded-lg font-semibold transition-all inline-flex items-center justify-center gap-1 ${
+                              isSelected
+                                ? opt.activeClass
+                                : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
+                            }`}
+                          >
+                            {opt.dotClass && <span className={`w-1.5 h-1.5 rounded-full ${opt.dotClass}`} />}
+                            <span>{isBn ? opt.labelBn : opt.labelEn}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Time Window Switcher */}
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] font-bold text-slate-600 flex items-center gap-1.5">
+                      <Moon className="w-3.5 h-3.5 text-indigo-600" />
+                      <span>{isBn ? "সময়কাল (Time Window)" : "Time Window"}</span>
+                    </label>
+                    <div className="h-10 flex items-center gap-1.5 bg-white p-1 rounded-xl border border-slate-200 shadow-2xs">
+                      <button
+                        type="button"
+                        onClick={() => setNightFilter(false)}
+                        className={`flex-1 h-8 text-xs rounded-lg font-semibold transition-all ${
+                          !nightFilter
+                            ? "bg-slate-900 text-white shadow-2xs"
+                            : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
+                        }`}
+                      >
+                        {isBn ? "সার্বক্ষণিক (২৪ ঘণ্টা)" : "24 Hours (All)"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setNightFilter(true)}
+                        className={`flex-1 h-8 text-xs rounded-lg font-semibold inline-flex items-center justify-center gap-1 transition-all ${
+                          nightFilter
+                            ? "bg-indigo-900 text-white shadow-2xs"
+                            : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
+                        }`}
+                      >
+                        <Moon className={`w-3 h-3 ${nightFilter ? "text-amber-300 fill-amber-300/30" : "text-indigo-600"}`} />
+                        <span>{isBn ? "রাতের ঘটনা" : "Night (6PM-6AM)"}</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Mobile Sort Option */}
+                  <div className="space-y-1.5 sm:hidden">
+                    <label className="text-[11px] font-bold text-slate-600 flex items-center gap-1.5">
+                      <SlidersHorizontal className="w-3.5 h-3.5 text-slate-600" />
+                      <span>{isBn ? "সাজানোর ক্রম" : "Sort Order"}</span>
+                    </label>
+                    <div className="relative">
+                      <select
+                        value={sortBy}
+                        onChange={(e) => setSortBy(e.target.value as SortOption)}
+                        className="w-full h-10 px-3 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 cursor-pointer shadow-2xs appearance-none pr-8"
+                      >
+                        <option value="NEWEST">{isBn ? "সর্বশেষ প্রকাশিত" : "Newest First"}</option>
+                        <option value="MOST_UPVOTED">{isBn ? "সর্বাধিক সমর্থিত" : "Most Upvoted"}</option>
+                        <option value="SEVERITY_HIGH">{isBn ? "উচ্চ বিপদ আগে" : "High Severity"}</option>
+                      </select>
+                      <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pt-3 border-t border-slate-200/80 flex items-center justify-between">
+                  <span className="text-xs font-medium text-slate-500">
+                    {isBn
+                      ? `${filteredIncidents.length} টি ফলাফল পাওয়া গেছে`
+                      : `${filteredIncidents.length} matching incident(s)`}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setIsFilterMenuOpen(false)}
+                    className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition shadow-xs"
+                  >
+                    {isBn ? "প্রয়োগ ও সম্পন্ন" : "Apply & Close"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </section>
 
         {/* Content Viewport */}
