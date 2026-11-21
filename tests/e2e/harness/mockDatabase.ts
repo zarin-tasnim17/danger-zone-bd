@@ -17,6 +17,8 @@ export interface DbReport {
   latitude: number;
   longitude: number;
   description: string | null;
+  activeTimeStart?: string | null;
+  activeTimeEnd?: string | null;
   upvotes: number;
   downvotes: number;
   status: ReportStatus;
@@ -246,6 +248,8 @@ export class MockDatabase {
       latitude: data.latitude,
       longitude: data.longitude,
       description: data.description ?? 'Test incident report description',
+      activeTimeStart: data.activeTimeStart ?? null,
+      activeTimeEnd: data.activeTimeEnd ?? null,
       upvotes: data.upvotes ?? 0,
       downvotes: data.downvotes ?? 0,
       status: data.status || 'ACTIVE',

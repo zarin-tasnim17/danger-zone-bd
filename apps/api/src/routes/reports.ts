@@ -41,6 +41,16 @@ const reportSchema = z.object({
       .min(1, 'Description cannot be empty if provided')
       .max(1000, 'Description cannot exceed 1000 characters')
       .optional(),
+    activeTimeStart: z
+      .string()
+      .regex(/^([01]\d|2[0-3]):([0-5]\d)$/, 'activeTimeStart must be in HH:mm 24-hour format')
+      .optional()
+      .nullable(),
+    activeTimeEnd: z
+      .string()
+      .regex(/^([01]\d|2[0-3]):([0-5]\d)$/, 'activeTimeEnd must be in HH:mm 24-hour format')
+      .optional()
+      .nullable(),
   }).strict(),
   headers: z.object({
     'x-device-lat': optionalCoordHeader(-90, 90, 'x-device-lat'),

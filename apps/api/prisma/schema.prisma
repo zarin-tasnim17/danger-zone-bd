@@ -175,6 +175,8 @@ model Report {
   longitude       Float
   location        Unsupported("geography(Point, 4326)")?
   description     String?
+  activeTimeStart String?
+  activeTimeEnd   String?
   upvotes         Int      @default(0)
   downvotes       Int      @default(0)
   status            ReportStatus      @default(ACTIVE)
