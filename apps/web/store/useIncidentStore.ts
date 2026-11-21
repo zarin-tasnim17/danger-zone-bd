@@ -70,7 +70,7 @@ const mapBackendToFrontendIncident = (r: any): DangerIncident => {
     district: r.district,
     upazila: r.upazila,
     locationPrecision: r.locationPrecision,
-    threatStatus: r.threatStatus,
+    threatStatus: r.threatStatus || (r.status === 'RESOLVED' ? 'RESOLVED' : 'ACTIVE'),
     timestamp: r.createdAt ? new Date(r.createdAt).toISOString() : new Date().toISOString(),
     upvotes: r.upvotes || 0,
     downvotes: r.downvotes || 0,

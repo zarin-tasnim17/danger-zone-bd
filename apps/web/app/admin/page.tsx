@@ -20,6 +20,8 @@ import AdminPurgeModal from "@/components/admin/AdminPurgeModal";
 import AdminRejectModal from "@/components/admin/AdminRejectModal";
 import AdminShortcutsModal from "@/components/admin/AdminShortcutsModal";
 import AdminBanModal from "@/components/admin/AdminBanModal";
+import AdminLoadingScreen from "@/components/admin/AdminLoadingScreen";
+import { RefreshCw } from "lucide-react";
 import {
   AdminTab,
   AdminReport,
@@ -30,7 +32,7 @@ import {
 } from "@/components/admin/types";
 
 export default function AdminPage() {
-  const { user, logout, initAuth } = useAuthStore();
+  const { user, logout, initAuth, isLoading: isLoadingAuth } = useAuthStore();
   const { language } = useLanguageStore();
   const isBn = language === "bn";
 
@@ -45,6 +47,7 @@ export default function AdminPage() {
 
   // Loading & Error States
   const [isLoadingData, setIsLoadingData] = useState(false);
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
   const [dataError, setDataError] = useState<string | null>(null);
   const [isLoadingTrends, setIsLoadingTrends] = useState(false);
 
@@ -91,31 +94,50 @@ export default function AdminPage() {
     setIsLoadingData(true);
     setDataError(null);
     try {
-      // 1. Fetch live reports with populated author metadata
-      const adminReportsData = await apiFetch<{ reports: AdminReport[] }>(
-        "/admin/reports?limit=50"
-      ).catch(() => null);
+      // Run independent admin queries concurrently for instant responsiveness
+      const reportsPromise = (async () => {
+        try {
+          const adminReportsData = await apiFetch<{ reports: AdminReport[] }>(
+            "/admin/reports?limit=50"
+          );
+          if (adminReportsData && Array.isArray(adminReportsData.reports)) {
+            return adminReportsData.reports;
+          }
+        } catch {
+          // Fallback to public reports query if admin reports endpoint has transient issue
+        }
+        try {
+          const fallbackReports = await apiFetch<AdminReport[]>(
+            "/reports?minLat=20&maxLat=27&minLng=88&maxLng=93"
+          );
+          return fallbackReports || [];
+        } catch {
+          return [];
+        }
+      })();
 
-      if (adminReportsData && Array.isArray(adminReportsData.reports)) {
-        setReports(adminReportsData.reports);
-      } else {
-        const fallbackReports = await apiFetch<AdminReport[]>(
-          "/reports?minLat=20&maxLat=27&minLng=88&maxLng=93"
-        );
-        setReports(fallbackReports || []);
-      }
+      const logsPromise = apiFetch<{ logs: AdminLog[] }>("/admin/logs?page=1&limit=30")
+        .then((res) => res?.logs || [])
+        .catch(() => [] as AdminLog[]);
 
-      // 2. Fetch moderation audit logs
-      const logsData = await apiFetch<{ logs: AdminLog[] }>("/admin/logs?page=1&limit=30");
-      setLogs(logsData?.logs || []);
+      const verificationsPromise = apiFetch<AdminVerification[]>("/admin/verifications")
+        .catch(() => [] as AdminVerification[]);
 
-      // 3. Fetch pending KYC verifications
-      const verificationsData = await apiFetch<AdminVerification[]>("/admin/verifications");
-      setVerifications(verificationsData || []);
+      const trendsPromise = apiFetch<AdminTrends>("/admin/analytics/trends")
+        .catch(() => null);
 
-      // 4. Fetch 30-day hazard analytics and trends
-      const trendsData = await apiFetch<AdminTrends>("/admin/analytics/trends");
-      setTrends(trendsData || null);
+      const [reportsData, logsData, verificationsData, trendsData] = await Promise.all([
+        reportsPromise,
+        logsPromise,
+        verificationsPromise,
+        trendsPromise,
+      ]);
+
+      setReports(reportsData);
+      setLogs(logsData);
+      setVerifications(verificationsData);
+      setTrends(trendsData);
+      setHasLoadedOnce(true);
     } catch (err: any) {
       const msg =
         err?.message ||
@@ -304,7 +326,29 @@ export default function AdminPage() {
   }, [user, reports, verifications, handleApproveVerification]);
 
   // -------------------------------------------------------------
-  // Unauthenticated Admin Gate (Clean Minimal Portal)
+  // 1. Initial Authentication Gate (Prevents Gateway flash during session hydration)
+  // -------------------------------------------------------------
+  if (isLoadingAuth) {
+    return (
+      <div className="min-h-screen flex flex-col bg-slate-50 text-slate-900 selection:bg-red-500 selection:text-white">
+        <Navbar />
+        <main className="flex-1 w-full mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-16 flex flex-col items-center justify-center">
+          <AdminLoadingScreen
+            isBn={isBn}
+            message={isBn ? "প্রশাসক সেশন নিশ্চিত করা হচ্ছে..." : "Verifying Administrator Session..."}
+            subMessage={
+              isBn
+                ? "এনক্রিপ্টেড প্রশাসনিক পরিচয় ও অনুমতি যাচাইকরণ চলছে..."
+                : "Validating cryptographic credentials, device identity, and administrative permissions..."
+            }
+          />
+        </main>
+      </div>
+    );
+  }
+
+  // -------------------------------------------------------------
+  // 2. Unauthenticated Admin Gate (Clean Minimal Portal)
   // -------------------------------------------------------------
   if (user?.role !== "ADMIN") {
     return (
@@ -318,7 +362,26 @@ export default function AdminPage() {
   }
 
   // -------------------------------------------------------------
-  // Authenticated Admin Operations Console
+  // 3. Initial Dashboard Data Loading Gate
+  // Solves: "When I go to the admin page, the whole page and the refresh button are spinning..."
+  // -------------------------------------------------------------
+  if (!hasLoadedOnce && (isLoadingData || dataError)) {
+    return (
+      <div className="min-h-screen flex flex-col bg-slate-50 text-slate-900 selection:bg-red-500 selection:text-white">
+        <Navbar />
+        <main className="flex-1 w-full mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-16 flex flex-col items-center justify-center">
+          <AdminLoadingScreen
+            isBn={isBn}
+            error={dataError}
+            onRetry={fetchAdminData}
+          />
+        </main>
+      </div>
+    );
+  }
+
+  // -------------------------------------------------------------
+  // 4. Authenticated Admin Operations Console
   // -------------------------------------------------------------
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 text-slate-900 selection:bg-red-500 selection:text-white">
@@ -340,6 +403,27 @@ export default function AdminPage() {
           dataError={dataError}
           onDismissCrawlStatus={() => setCrawlStatus(null)}
         />
+
+        {/* Active Refresh Live Status Banner */}
+        {isLoadingData && hasLoadedOnce && (
+          <div className="bg-red-50/90 border border-red-200/90 text-red-800 px-4 py-2.5 rounded-2xl flex items-center justify-between text-xs font-semibold shadow-xs animate-in fade-in slide-in-from-top-2 duration-200">
+            <div className="flex items-center gap-2.5">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-red-600"></span>
+              </span>
+              <RefreshCw className="w-3.5 h-3.5 animate-spin text-red-600" />
+              <span>
+                {isBn
+                  ? "অ্যাডমিন কনসোল রিফ্রেশ করা হচ্ছে... সর্বশেষ লাইভ তথ্য ফেচ হচ্ছে।"
+                  : "Refreshing Security Console... Fetching latest live incident feeds and audit logs."}
+              </span>
+            </div>
+            <span className="text-[10px] font-mono text-red-600 font-bold uppercase tracking-wider hidden sm:inline">
+              {isBn ? "প্রক্রিয়াধীন" : "In Progress"}
+            </span>
+          </div>
+        )}
 
         {/* Tab Navigation Bar */}
         <AdminTabsNav

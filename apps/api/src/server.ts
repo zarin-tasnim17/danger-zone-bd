@@ -3,6 +3,7 @@ import { app } from './app';
 import { initSocketServer } from './sockets';
 import { initTimeDecayCron, initNewsCrawlerCron, initDailyRetentionCron } from './jobs';
 import { prisma } from './db/prisma';
+import { ensureDatabaseSchema } from './db/ensureSchema';
 import { env } from './config/env';
 
 const PORT = env.PORT ? parseInt(env.PORT, 10) : 5000;
@@ -11,6 +12,11 @@ const server = http.createServer(app);
 
 // Initialize Socket.IO on the same HTTP server
 initSocketServer(server);
+
+// Non-destructive automated schema alignment on startup
+ensureDatabaseSchema().catch((err) => {
+  console.warn('[Server] Startup schema validation notice:', err?.message || err);
+});
 
 // Initialize Background Workers
 const timeDecayCron = initTimeDecayCron();

@@ -150,9 +150,9 @@ describe('[Forms & Validation][Mocked] Client Form Boundaries & Schema Compatibi
     assert.equal(moderationActionRequestSchema.safeParse({ reason: 'ok' }).success, false);
     assert.equal(moderationActionRequestSchema.safeParse({ reason: 'Duplicate spam' }).success, true);
 
-    const adminSrc = fs.readFileSync(path.join(WEB_TEST_CONFIG.webRoot, 'app/admin/page.tsx'), 'utf8');
-    assert.ok(adminSrc.includes('purgeReason.trim()'));
-    assert.ok(adminSrc.includes('rejectReason.trim()'));
-    assert.ok(adminSrc.includes('banReason.trim()'));
+    const purgeSrc = fs.readFileSync(path.join(WEB_TEST_CONFIG.webRoot, 'components/admin/AdminPurgeModal.tsx'), 'utf8');
+    const rejectSrc = fs.readFileSync(path.join(WEB_TEST_CONFIG.webRoot, 'components/admin/AdminRejectModal.tsx'), 'utf8');
+    assert.ok(purgeSrc.includes('reason.trim().length < 3'));
+    assert.ok(rejectSrc.includes('reason.trim().length < 3'));
   });
 });

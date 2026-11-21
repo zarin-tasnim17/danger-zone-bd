@@ -80,7 +80,7 @@ export default function Navbar({
           </div>
           <div className="flex flex-col">
             <div className="flex items-center gap-1 sm:gap-2">
-              <span className="text-sm sm:text-base lg:text-lg font-black tracking-tight text-slate-900 group-hover:text-red-600 transition-colors whitespace-nowrap">
+              <span className="text-xs sm:text-base lg:text-lg font-black tracking-tight text-slate-900 group-hover:text-red-600 transition-colors whitespace-nowrap">
                 {isBn ? "বিপদ সংকেত" : "DANGER ZONE"}
               </span>
               <span className="hidden sm:inline-flex items-center gap-1.5 text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-50 text-red-700 border border-red-200 shadow-2xs font-mono whitespace-nowrap">
@@ -149,15 +149,15 @@ export default function Navbar({
             </button>
           </div>
 
-          {/* Admin Moderation Console Link or Citizen Trust Score */}
+          {/* Admin Moderation Console Link (shown on sm+ screens, mobile accesses it via drawer) */}
           {user?.role === "ADMIN" ? (
             <Link
               href="/admin"
-              className="bg-slate-900 hover:bg-slate-950 text-white border border-slate-800 text-xs font-bold px-2.5 sm:px-3 py-1.5 rounded-xl inline-flex items-center gap-1.5 transition-all shadow-xs shrink-0 whitespace-nowrap"
+              className="hidden sm:inline-flex bg-slate-900 hover:bg-slate-950 text-white border border-slate-800 text-xs font-bold px-2.5 sm:px-3 py-1.5 rounded-xl items-center gap-1.5 transition-all shadow-xs shrink-0 whitespace-nowrap"
               title="Open Admin Moderation Console"
             >
               <Lock className="w-3.5 h-3.5 text-red-500 shrink-0" />
-              <span className="hidden sm:inline whitespace-nowrap">Admin</span>
+              <span className="whitespace-nowrap">Admin</span>
             </Link>
           ) : (
             <Link
@@ -180,7 +180,7 @@ export default function Navbar({
           {/* High-Visibility Primary Report Hazard CTA */}
           <Link
             href="/report"
-            className="relative group overflow-hidden bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-700 hover:to-rose-700 text-white font-bold px-3 sm:px-3.5 py-1.5 sm:py-2 rounded-xl inline-flex items-center gap-1 sm:gap-1.5 transition-all shadow-md shadow-red-600/20 active:scale-95 ring-1 ring-red-500/30 shrink-0 whitespace-nowrap cursor-pointer"
+            className="relative group overflow-hidden bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-700 hover:to-rose-700 text-white font-bold px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-xl inline-flex items-center gap-1 sm:gap-1.5 transition-all shadow-md shadow-red-600/20 active:scale-95 ring-1 ring-red-500/30 shrink-0 whitespace-nowrap cursor-pointer"
             id="report-incident-btn"
             title={isBn ? "বিপদ রিপোর্ট" : "Report Threat"}
           >
@@ -246,10 +246,10 @@ export default function Navbar({
               <Link
                 href="/admin"
                 onClick={() => setMobileMenuOpen(false)}
-                className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-900 text-white rounded-lg text-xs font-bold"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 text-white rounded-xl text-xs font-bold shadow-xs hover:bg-slate-950 transition-colors"
               >
-                <Lock className="w-3 h-3 text-red-500" />
-                <span>Admin</span>
+                <Lock className="w-3.5 h-3.5 text-red-500" />
+                <span>Admin Console</span>
               </Link>
             )}
           </div>

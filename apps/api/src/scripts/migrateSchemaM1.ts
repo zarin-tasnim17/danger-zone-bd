@@ -42,6 +42,8 @@ async function main() {
     `ALTER TABLE "Report" ADD COLUMN IF NOT EXISTS "district" TEXT;`,
     `ALTER TABLE "Report" ADD COLUMN IF NOT EXISTS "upazila" TEXT;`,
     `ALTER TABLE "Report" ADD COLUMN IF NOT EXISTS "threatStatus" "ThreatStatus" DEFAULT 'ACTIVE';`,
+    `ALTER TABLE "Report" ADD COLUMN IF NOT EXISTS "activeTimeStart" TEXT;`,
+    `ALTER TABLE "Report" ADD COLUMN IF NOT EXISTS "activeTimeEnd" TEXT;`,
     `ALTER TABLE "NewsArticle" ADD COLUMN IF NOT EXISTS "isWireSyndicated" BOOLEAN DEFAULT FALSE;`,
     `ALTER TABLE "NewsArticle" ADD COLUMN IF NOT EXISTS "wireAgency" TEXT;`,
   ];

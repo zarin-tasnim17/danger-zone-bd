@@ -62,22 +62,76 @@ export const getReportsInBounds = async (bounds: BoundingBox, filters?: ReportFi
 
   const whereClause = Prisma.join(whereConditions, ' AND ');
 
-  const rawReports: any[] = await prisma.$queryRaw`
-    SELECT 
-      id, category, severity, "isNightReport", "isGpsVerified", latitude, longitude, description, upvotes, downvotes, status, "expiresAt", "createdAt", "sourceUrl", "sourceName",
-      "verificationStage", citations, "locationPrecision", district, upazila, "threatStatus", "activeTimeStart", "activeTimeEnd",
-      COALESCE(
-        (
-          SELECT json_agg(json_build_object('id', m.id, 'blurredUrl', m."blurredUrl", 'createdAt', m."createdAt"))
-          FROM "ReportMedia" m
-          WHERE m."reportId" = "Report".id
-        ),
-        '[]'::json
-      ) as media
-    FROM "Report"
-    WHERE ${whereClause}
-    ORDER BY "createdAt" DESC
-  `;
+  let rawReports: any[];
+  try {
+    rawReports = await prisma.$queryRaw`
+      SELECT 
+        id, category, severity, "isNightReport", "isGpsVerified", latitude, longitude, description, upvotes, downvotes, status, "expiresAt", "createdAt", "sourceUrl", "sourceName",
+        "verificationStage", citations, "locationPrecision", district, upazila, "threatStatus", "activeTimeStart", "activeTimeEnd",
+        COALESCE(
+          (
+            SELECT json_agg(json_build_object('id', m.id, 'blurredUrl', m."blurredUrl", 'createdAt', m."createdAt"))
+            FROM "ReportMedia" m
+            WHERE m."reportId" = "Report".id
+          ),
+          '[]'::json
+        ) as media
+      FROM "Report"
+      WHERE ${whereClause}
+      ORDER BY "createdAt" DESC
+    `;
+  } catch (err: any) {
+    // If activeTimeStart / activeTimeEnd column is missing in PostgreSQL (Code 42703), self-heal and fallback
+    if (
+      err?.code === '42703' ||
+      String(err?.message || '').includes('activeTimeStart') ||
+      String(err?.message || '').includes('activeTimeEnd')
+    ) {
+      try {
+        await prisma.$executeRawUnsafe(`
+          ALTER TABLE "Report" ADD COLUMN IF NOT EXISTS "activeTimeStart" TEXT;
+          ALTER TABLE "Report" ADD COLUMN IF NOT EXISTS "activeTimeEnd" TEXT;
+        `);
+        rawReports = await prisma.$queryRaw`
+          SELECT 
+            id, category, severity, "isNightReport", "isGpsVerified", latitude, longitude, description, upvotes, downvotes, status, "expiresAt", "createdAt", "sourceUrl", "sourceName",
+            "verificationStage", citations, "locationPrecision", district, upazila, "threatStatus", "activeTimeStart", "activeTimeEnd",
+            COALESCE(
+              (
+                SELECT json_agg(json_build_object('id', m.id, 'blurredUrl', m."blurredUrl", 'createdAt', m."createdAt"))
+                FROM "ReportMedia" m
+                WHERE m."reportId" = "Report".id
+              ),
+              '[]'::json
+            ) as media
+          FROM "Report"
+          WHERE ${whereClause}
+          ORDER BY "createdAt" DESC
+        `;
+      } catch {
+        // Safe fallback without referencing the physical columns directly
+        rawReports = await prisma.$queryRaw`
+          SELECT 
+            id, category, severity, "isNightReport", "isGpsVerified", latitude, longitude, description, upvotes, downvotes, status, "expiresAt", "createdAt", "sourceUrl", "sourceName",
+            "verificationStage", citations, "locationPrecision", district, upazila, "threatStatus",
+            NULL as "activeTimeStart", NULL as "activeTimeEnd",
+            COALESCE(
+              (
+                SELECT json_agg(json_build_object('id', m.id, 'blurredUrl', m."blurredUrl", 'createdAt', m."createdAt"))
+                FROM "ReportMedia" m
+                WHERE m."reportId" = "Report".id
+              ),
+              '[]'::json
+            ) as media
+          FROM "Report"
+          WHERE ${whereClause}
+          ORDER BY "createdAt" DESC
+        `;
+      }
+    } else {
+      throw err;
+    }
+  }
 
   return rawReports
     .filter((r) => isActiveThreatIncident(r))

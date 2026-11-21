@@ -152,10 +152,16 @@ export default function AdminHeader({
             onClick={onRefresh}
             disabled={isLoadingData}
             title={isBn ? "ডেটা রিফ্রেশ করুন" : "Refresh administrative data"}
-            className="px-3 py-2 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-semibold border border-slate-200/90 flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs disabled:opacity-60"
+            className={`px-3 py-2 rounded-xl text-xs font-semibold border flex items-center gap-1.5 transition-all shadow-2xs ${
+              isLoadingData
+                ? "bg-red-50/90 text-red-700 border-red-200 ring-2 ring-red-500/20 cursor-wait"
+                : "bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200/90 cursor-pointer active:scale-95"
+            }`}
           >
             <RefreshCw className={`w-3.5 h-3.5 ${isLoadingData ? "animate-spin text-red-600" : "text-slate-500"}`} />
-            <span className="hidden sm:inline">{isBn ? "রিফ্রেশ" : "Refresh"}</span>
+            <span className="hidden sm:inline">
+              {isLoadingData ? (isBn ? "রিফ্রেশ হচ্ছে..." : "Refreshing...") : (isBn ? "রিফ্রেশ" : "Refresh")}
+            </span>
           </button>
 
           {/* Live Map Link */}
