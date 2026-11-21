@@ -184,6 +184,73 @@ export function isActiveThreatIncident(
   return true;
 }
 
+/**
+ * Evaluates whether a hazard with an optional recurring daily time window
+ * (e.g., 6:00 PM to 6:00 AM) is currently active at referenceDate in Bangladesh Time (UTC+6).
+ *
+ * If activeTimeStart or activeTimeEnd is omitted, the hazard is considered continuous (24 Hours).
+ */
+export function isHazardWithinTimeWindow(
+  activeTimeStart?: string | null,
+  activeTimeEnd?: string | null,
+  referenceDate: Date = new Date()
+): boolean {
+  if (!activeTimeStart || !activeTimeEnd) {
+    return true; // 24-hour continuous hazard
+  }
+
+  const startMatch = /^([01]?\d|2[0-3]):([0-5]\d)$/.exec(activeTimeStart.trim());
+  const endMatch = /^([01]?\d|2[0-3]):([0-5]\d)$/.exec(activeTimeEnd.trim());
+  if (!startMatch || !endMatch) {
+    return true; // Fallback to continuous if format is malformed
+  }
+
+  // Bangladesh Standard Time is UTC+6
+  const bdHour = (referenceDate.getUTCHours() + 6) % 24;
+  const bdMinute = referenceDate.getUTCMinutes();
+  const currentTotal = bdHour * 60 + bdMinute;
+
+  const startTotal = parseInt(startMatch[1], 10) * 60 + parseInt(startMatch[2], 10);
+  const endTotal = parseInt(endMatch[1], 10) * 60 + parseInt(endMatch[2], 10);
+
+  if (startTotal <= endTotal) {
+    // Same-day window (e.g. 18:00 - 22:00 / 06:00 PM - 10:00 PM)
+    return currentTotal >= startTotal && currentTotal <= endTotal;
+  } else {
+    // Overnight window crossing midnight (e.g. 18:00 - 06:00 / 06:00 PM - 06:00 AM)
+    return currentTotal >= startTotal || currentTotal <= endTotal;
+  }
+}
+
+/**
+ * Converts 24-hour time format ("18:00") into 12-hour AM/PM format ("06:00 PM").
+ */
+export function formatTimeTo12Hour(time24?: string | null): string {
+  if (!time24) return '';
+  const match = /^([01]?\d|2[0-3]):([0-5]\d)$/.exec(time24.trim());
+  if (!match) return time24;
+
+  const hour = parseInt(match[1], 10);
+  const minute = match[2];
+  const meridiem = hour >= 12 ? 'PM' : 'AM';
+  const hour12 = hour % 12 === 0 ? 12 : hour % 12;
+
+  return `${String(hour12).padStart(2, '0')}:${minute} ${meridiem}`;
+}
+
+/**
+ * Converts 12-hour AM/PM components into canonical 24-hour "HH:mm" format.
+ */
+export function convert12HourTo24Hour(
+  hour12: number,
+  minute: number,
+  meridiem: 'AM' | 'PM'
+): string {
+  let h = hour12 % 12;
+  if (meridiem === 'PM') h += 12;
+  return `${String(h).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+}
+
 export interface Citation {
   sourceName: string;
   sourceUrl: string;
@@ -295,6 +362,8 @@ export interface DangerIncident {
   isGpsVerified?: boolean;
   expiresAt?: string | Date;
   rawStatus?: string;
+  activeTimeStart?: string | null;
+  activeTimeEnd?: string | null;
 }
 
 const SHARED_TRACKING_PARAMS = new Set([
