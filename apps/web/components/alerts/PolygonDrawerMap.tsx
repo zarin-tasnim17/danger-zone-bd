@@ -134,7 +134,7 @@ function MapPanController({
   const map = useMap();
   useEffect(() => {
     if (center && Number.isFinite(center[0]) && Number.isFinite(center[1])) {
-      map.flyTo(center, zoom || 15, { duration: 1.2 });
+      map.flyTo(center, zoom || 14, { duration: 1.2 });
     }
   }, [center, zoom, map]);
   return null;
@@ -167,6 +167,43 @@ export default function PolygonDrawerMap({
 
   const [flyTarget, setFlyTarget] = useState<[number, number] | null>(null);
 
+  // Determine starting map center:
+  // 1. Explicit flyToCenter
+  // 2. Centroid of savedZones[0] (user's latest saved area)
+  // 3. Last saved area center from localStorage
+  // 4. Fallback to Dhaka center
+  const defaultCenter = React.useMemo<[number, number]>(() => {
+    if (flyToCenter && Number.isFinite(flyToCenter[0]) && Number.isFinite(flyToCenter[1])) {
+      return flyToCenter;
+    }
+    if (savedZones.length > 0) {
+      const latest = savedZones[0];
+      const raw = latest.area?.coordinates?.[0] || latest.coordinates || [];
+      if (raw.length > 0) {
+        const sumLng = raw.reduce((sum, c) => sum + c[0], 0);
+        const sumLat = raw.reduce((sum, c) => sum + c[1], 0);
+        return [sumLat / raw.length, sumLng / raw.length];
+      }
+    }
+    if (typeof window !== "undefined") {
+      try {
+        const cached = localStorage.getItem("dz_last_alert_center");
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (
+            Array.isArray(parsed) &&
+            parsed.length === 2 &&
+            Number.isFinite(parsed[0]) &&
+            Number.isFinite(parsed[1])
+          ) {
+            return parsed as [number, number];
+          }
+        }
+      } catch {}
+    }
+    return [23.7925, 90.4078];
+  }, [flyToCenter, savedZones]);
+
   // Extract polygon coordinates safely for saved zones
   const parsedSavedZones = savedZones.map((zone) => {
     let rawCoords: [number, number][] = [];
@@ -185,7 +222,7 @@ export default function PolygonDrawerMap({
   return (
     <div className="w-full h-[340px] sm:h-[400px] lg:h-[440px] rounded-2xl overflow-hidden border border-slate-200/90 shadow-sm relative z-0 bg-slate-50">
       <MapContainer
-        center={[23.7925, 90.4078]} // Dhaka center
+        center={defaultCenter}
         zoom={13}
         minZoom={7}
         maxZoom={18}

@@ -101,8 +101,26 @@ export default function AlertsPage() {
   const [createSuccess, setCreateSuccess] = useState<string | null>(null);
   const [selectedZoneId, setSelectedZoneId] = useState<string | null>(null);
 
-  // User GPS Tracking & Map Center Target
-  const [mapCenterTarget, setMapCenterTarget] = useState<[number, number] | null>(null);
+  // User GPS Tracking & Map Center Target (defaults to last placed area from localStorage)
+  const [mapCenterTarget, setMapCenterTarget] = useState<[number, number] | null>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const cached = localStorage.getItem("dz_last_alert_center");
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (
+            Array.isArray(parsed) &&
+            parsed.length === 2 &&
+            Number.isFinite(parsed[0]) &&
+            Number.isFinite(parsed[1])
+          ) {
+            return parsed as [number, number];
+          }
+        }
+      } catch {}
+    }
+    return null;
+  });
   const [userGpsLocation, setUserGpsLocation] = useState<[number, number] | null>(null);
   const [isLocatingUser, setIsLocatingUser] = useState(false);
 
@@ -157,7 +175,58 @@ export default function AlertsPage() {
     setError(null);
     try {
       const data = await apiFetch<AlertZone[]>("/alerts/zones");
-      setZones(data || []);
+      const loadedZones = data || [];
+      setZones(loadedZones);
+
+      // Auto-focus the map on the last area placed or created (not default Dhaka)
+      if (typeof window !== "undefined") {
+        let targetCenter: [number, number] | null = null;
+        let targetZoneId: string | null = null;
+
+        const savedZoneId = localStorage.getItem("dz_last_alert_zone_id");
+        const matchingZone = savedZoneId
+          ? loadedZones.find((z) => z.id === savedZoneId)
+          : null;
+        const zoneToFocus = matchingZone || loadedZones[0];
+
+        if (zoneToFocus) {
+          targetZoneId = zoneToFocus.id;
+          const raw =
+            zoneToFocus.area?.coordinates?.[0] || zoneToFocus.coordinates || [];
+          if (raw.length > 0) {
+            const sumLng = raw.reduce((sum, c: [number, number]) => sum + c[0], 0);
+            const sumLat = raw.reduce((sum, c: [number, number]) => sum + c[1], 0);
+            targetCenter = [sumLat / raw.length, sumLng / raw.length];
+          }
+        }
+
+        // Fallback to last placed custom coordinates in localStorage if no zone exists
+        if (!targetCenter) {
+          const cachedCenter = localStorage.getItem("dz_last_alert_center");
+          if (cachedCenter) {
+            try {
+              const parsed = JSON.parse(cachedCenter);
+              if (
+                Array.isArray(parsed) &&
+                parsed.length === 2 &&
+                Number.isFinite(parsed[0]) &&
+                Number.isFinite(parsed[1])
+              ) {
+                targetCenter = parsed as [number, number];
+              }
+            } catch {}
+          }
+        }
+
+        if (targetCenter) {
+          setMapCenterTarget(targetCenter);
+          if (targetZoneId) {
+            setSelectedZoneId(targetZoneId);
+            localStorage.setItem("dz_last_alert_zone_id", targetZoneId);
+          }
+          localStorage.setItem("dz_last_alert_center", JSON.stringify(targetCenter));
+        }
+      }
     } catch (err: any) {
       console.warn("[Alerts] Fetch zones warning:", err.message);
       setError(err.message || "Failed to load alert zones");
@@ -432,6 +501,10 @@ export default function AlertsPage() {
 
   // Add Point via map click
   const handleAddMapPoint = (point: [number, number]) => {
+    // Save last placed coordinates [lat, lng] to remember user position
+    if (typeof window !== "undefined") {
+      localStorage.setItem("dz_last_alert_center", JSON.stringify([point[1], point[0]]));
+    }
     // If polygon is already closed, start a new one
     if (isClosed) {
       setActiveCoords([point]);
@@ -494,6 +567,9 @@ export default function AlertsPage() {
       setZoneName(isBn ? "আমার বর্তমান অবস্থান বলয়" : "My Current Location Perimeter");
       setUserGpsLocation([lat, lng]);
       setMapCenterTarget([lat, lng]);
+      if (typeof window !== "undefined") {
+        localStorage.setItem("dz_last_alert_center", JSON.stringify([lat, lng]));
+      }
       setIsLocatingUser(false);
       showToast(
         isBn ? "আপনার অবস্থান মানচিত্রে প্রদর্শিত হয়েছে!" : "Successfully centered on your location!",
@@ -616,6 +692,14 @@ export default function AlertsPage() {
         }),
       });
 
+      if (activeCoords.length > 0 && typeof window !== "undefined") {
+        const sumLng = activeCoords.reduce((sum, c) => sum + c[0], 0);
+        const sumLat = activeCoords.reduce((sum, c) => sum + c[1], 0);
+        const center: [number, number] = [sumLat / activeCoords.length, sumLng / activeCoords.length];
+        localStorage.setItem("dz_last_alert_center", JSON.stringify(center));
+        setMapCenterTarget(center);
+      }
+
       setCreateSuccess(
         isBn
           ? `সফলভাবে "${zoneName}" অ্যালার্ট জোন সক্রিয় করা হয়েছে!`
@@ -641,6 +725,9 @@ export default function AlertsPage() {
     setDeletingId(id);
     try {
       await apiFetch(`/alerts/zones/${id}`, { method: "DELETE" });
+      if (typeof window !== "undefined" && localStorage.getItem("dz_last_alert_zone_id") === id) {
+        localStorage.removeItem("dz_last_alert_zone_id");
+      }
       fetchZones();
     } catch (err: any) {
       showToast(`Delete failed: ${err.message}`, "error");
@@ -1145,7 +1232,12 @@ export default function AlertsPage() {
                     if (coords.length > 0) {
                       const sumLng = coords.reduce((sum, c) => sum + c[0], 0);
                       const sumLat = coords.reduce((sum, c) => sum + c[1], 0);
-                      setMapCenterTarget([sumLat / coords.length, sumLng / coords.length]);
+                      const center: [number, number] = [sumLat / coords.length, sumLng / coords.length];
+                      setMapCenterTarget(center);
+                      if (typeof window !== "undefined") {
+                        localStorage.setItem("dz_last_alert_center", JSON.stringify(center));
+                        localStorage.setItem("dz_last_alert_zone_id", z.id);
+                      }
                     }
                   }
                 }}
@@ -1306,7 +1398,12 @@ export default function AlertsPage() {
                             if (rawCoords.length > 0) {
                               const sumLng = rawCoords.reduce((sum, c) => sum + c[0], 0);
                               const sumLat = rawCoords.reduce((sum, c) => sum + c[1], 0);
-                              setMapCenterTarget([sumLat / rawCoords.length, sumLng / rawCoords.length]);
+                              const center: [number, number] = [sumLat / rawCoords.length, sumLng / rawCoords.length];
+                              setMapCenterTarget(center);
+                              if (typeof window !== "undefined") {
+                                localStorage.setItem("dz_last_alert_center", JSON.stringify(center));
+                                localStorage.setItem("dz_last_alert_zone_id", zone.id);
+                              }
                             }
                           }
                         }}
@@ -1445,7 +1542,11 @@ export default function AlertsPage() {
                       key={alert.id}
                       onClick={() => {
                         if (alert.coordinates?.lat && alert.coordinates?.lng) {
-                          setMapCenterTarget([alert.coordinates.lat, alert.coordinates.lng]);
+                          const center: [number, number] = [alert.coordinates.lat, alert.coordinates.lng];
+                          setMapCenterTarget(center);
+                          if (typeof window !== "undefined") {
+                            localStorage.setItem("dz_last_alert_center", JSON.stringify(center));
+                          }
                         }
                       }}
                       className="p-3 bg-red-50/90 hover:bg-red-100/90 border border-red-200 rounded-xl text-xs text-red-900 transition-colors shadow-2xs space-y-2 cursor-pointer"
