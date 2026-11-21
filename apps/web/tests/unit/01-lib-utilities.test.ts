@@ -1,7 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { resolveApiUrl } from '@/lib/api';
-import { validateEvidenceFile } from '@/lib/mediaUpload';
+import { normalizeEvidenceMimeType, validateEvidenceFile } from '@/lib/mediaUpload';
 import { calculateDistanceMeters, evaluateHardwareGpsProximity } from '@/lib/gpsVerification';
 import { isIncidentCategoryMatch } from '@/lib/filterUtils';
 import { cleanIncidentTitle, formatCategoryLabel } from '@/lib/incidentUtils';
@@ -89,6 +89,11 @@ describe('[Unit][Mocked] Frontend API & Domain Utilities', () => {
   it('validateEvidenceFile enforces allowed MIME types, non-empty size, and 5MB cap', () => {
     const valid = new File([new Uint8Array(1024)], 'photo.webp', { type: 'image/webp' });
     assert.deepEqual(validateEvidenceFile(valid), { valid: true });
+
+    const validJpg = new File([new Uint8Array(2048)], 'camera.jpg', { type: 'image/jpg' });
+    assert.deepEqual(validateEvidenceFile(validJpg), { valid: true });
+    assert.equal(normalizeEvidenceMimeType('image/jpg'), 'image/jpeg');
+    assert.equal(normalizeEvidenceMimeType('IMAGE/JPEG'), 'image/jpeg');
 
     const badMime = new File([new Uint8Array(512)], 'doc.pdf', { type: 'application/pdf' });
     const badMimeRes = validateEvidenceFile(badMime);
