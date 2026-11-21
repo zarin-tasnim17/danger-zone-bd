@@ -56,39 +56,6 @@ const RoutePathMap = dynamic(
   }
 );
 
-const ROUTE_PRESETS = [
-  {
-    nameEn: "Khulna Royal Square → Station (Fix Road Network)",
-    nameBn: "খুলনা রয়েল মোড় → স্টেশন (সড়ক নেটওয়ার্ক ফিক্স)",
-    start: { lat: 22.8116, lng: 89.5611 },
-    end: { lat: 22.802473, lng: 89.558654 },
-  },
-  {
-    nameEn: "Farmgate → Banani (High Crime Corridor)",
-    nameBn: "ফার্মগেট → বনানী (উচ্চ ছিনতাই প্রবণ করিডোর)",
-    start: { lat: 23.7570, lng: 90.3905 },
-    end: { lat: 23.7925, lng: 90.4078 },
-  },
-  {
-    nameEn: "Mohakhali → Gulshan 2 (Night Corridor)",
-    nameBn: "মহাখালী → গুলশান ২ (অন্ধকার সড়ক করিডোর)",
-    start: { lat: 23.7776, lng: 90.4054 },
-    end: { lat: 23.7979, lng: 90.4144 },
-  },
-  {
-    nameEn: "Dhanmondi 27 → Shahbagh (Unlit Segments)",
-    nameBn: "ধানমন্ডি ২৭ → শাহবাগ (আলোহীন রাস্তা)",
-    start: { lat: 23.7533, lng: 90.3768 },
-    end: { lat: 23.7388, lng: 90.3957 },
-  },
-  {
-    nameEn: "GEC Circle → Agrabad, Chittagong",
-    nameBn: "জিইসি মোড় → আগ্রাবাদ, চট্টগ্রাম",
-    start: { lat: 22.3592, lng: 91.8217 },
-    end: { lat: 22.3275, lng: 91.8122 },
-  },
-];
-
 export default function RoutesPage() {
   const { initAuth } = useAuthStore();
   const { language } = useLanguageStore();
@@ -215,21 +182,6 @@ export default function RoutesPage() {
     );
   };
 
-  const handleApplyPreset = (preset: (typeof ROUTE_PRESETS)[0]) => {
-    setStartLat(preset.start.lat.toString());
-    setStartLng(preset.start.lng.toString());
-    setEndLat(preset.end.lat.toString());
-    setEndLng(preset.end.lng.toString());
-    setDestinationLabel(null);
-    calculateSafePath(
-      preset.start.lat,
-      preset.start.lng,
-      preset.end.lat,
-      preset.end.lng,
-      mode
-    );
-  };
-
   // Acquire Citizen's live GPS for Origin
   const handleUseMyLocation = () => {
     if (!("geolocation" in navigator)) {
@@ -345,40 +297,6 @@ export default function RoutesPage() {
                 )}
               </button>
             )}
-          </div>
-        </section>
-
-        {/* High Risk Corridor Presets */}
-        <section className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-xs space-y-3">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
-              <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-              <span>{isBn ? "বাস্তব ভৌগোলিক করিডোর প্রিসেট" : "Real-World Geographic Corridors"}</span>
-            </span>
-            <span className="text-[11px] text-slate-500 font-medium">
-              {isBn ? "১-ক্লিকে সড়ক নেটওয়ার্ক পরীক্ষা করুন" : "1-Click Road Network Verification"}
-            </span>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2.5">
-            {ROUTE_PRESETS.map((preset) => (
-              <button
-                type="button"
-                key={preset.nameEn}
-                onClick={() => handleApplyPreset(preset)}
-                className="text-left p-3 rounded-xl text-xs bg-slate-50 hover:bg-blue-50/70 border border-slate-200 hover:border-blue-300 text-slate-800 transition-all flex flex-col justify-between gap-2 group shadow-2xs"
-              >
-                <div className="flex items-start justify-between gap-1 w-full">
-                  <span className="font-bold text-slate-900 group-hover:text-blue-700 line-clamp-2">
-                    {isBn ? preset.nameBn : preset.nameEn}
-                  </span>
-                  <ArrowRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-blue-600 shrink-0 mt-0.5" />
-                </div>
-                <span className="text-[10px] text-slate-500 font-mono">
-                  {preset.start.lat.toFixed(3)}, {preset.start.lng.toFixed(3)} → {preset.end.lat.toFixed(3)}, {preset.end.lng.toFixed(3)}
-                </span>
-              </button>
-            ))}
           </div>
         </section>
 
