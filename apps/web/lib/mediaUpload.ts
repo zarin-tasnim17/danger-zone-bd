@@ -8,6 +8,14 @@ export const ALLOWED_EVIDENCE_MIME_TYPES = [
 
 export const MAX_EVIDENCE_FILE_BYTES = 5 * 1024 * 1024; // 5MB
 
+export function normalizeEvidenceMimeType(type: string): string {
+  const lower = (type || "").trim().toLowerCase();
+  if (lower === "image/jpg" || lower === "image/pjpeg") {
+    return "image/jpeg";
+  }
+  return lower;
+}
+
 export interface PresignedUrlResponse {
   uploadUrl: string;
   fileKey: string;
@@ -32,7 +40,8 @@ export type EvidenceValidationResult =
     };
 
 export function validateEvidenceFile(file: File): EvidenceValidationResult {
-  if (!ALLOWED_EVIDENCE_MIME_TYPES.includes(file.type as (typeof ALLOWED_EVIDENCE_MIME_TYPES)[number])) {
+  const normalizedType = normalizeEvidenceMimeType(file.type);
+  if (!ALLOWED_EVIDENCE_MIME_TYPES.includes(normalizedType as (typeof ALLOWED_EVIDENCE_MIME_TYPES)[number])) {
     return {
       valid: false,
       code: "UNSUPPORTED_TYPE",
@@ -102,6 +111,8 @@ export async function compressImageToDataUrl(
       if (!ctx) {
         throw new Error("Browser canvas is unavailable to compress evidence photo.");
       }
+      ctx.fillStyle = "#FFFFFF";
+      ctx.fillRect(0, 0, targetW, targetH);
       ctx.drawImage(img, 0, 0, targetW, targetH);
 
       for (const mime of [preferredMime, "image/jpeg"] as const) {
@@ -143,9 +154,10 @@ export async function uploadReportEvidence(
     throw new Error(validation.message);
   }
 
+  const mimeType = normalizeEvidenceMimeType(file.type);
   const query = new URLSearchParams({
     reportId,
-    fileType: file.type,
+    fileType: mimeType,
     fileSize: String(file.size),
   });
 

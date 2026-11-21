@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -426,9 +426,20 @@ export default function ReportPage() {
   // File Upload State
   const [file, setFile] = useState<File | null>(null);
   const [filePreview, setFilePreview] = useState<string | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
   const [mediaUploadStatus, setMediaUploadStatus] = useState<"none" | "uploading" | "uploaded" | "failed">("none");
   const [mediaUploadError, setMediaUploadError] = useState<string | null>(null);
   const [isRetryingMedia, setIsRetryingMedia] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Clean up object URLs to prevent memory leaks
+  useEffect(() => {
+    return () => {
+      if (filePreview) {
+        URL.revokeObjectURL(filePreview);
+      }
+    };
+  }, [filePreview]);
 
   // Submission State
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -656,13 +667,10 @@ export default function ReportPage() {
     }
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selected = e.target.files?.[0];
-    if (!selected) return;
-
+  const processSelectedFile = (selected: File) => {
     const validation = validateEvidenceFile(selected);
     if (!validation.valid) {
-      e.target.value = "";
+      if (fileInputRef.current) fileInputRef.current.value = "";
       handleRemoveFile();
       const localizedMsg =
         validation.code === "FILE_TOO_LARGE"
@@ -689,8 +697,43 @@ export default function ReportPage() {
     setErrorMessage(null);
   };
 
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selected = e.target.files?.[0];
+    if (!selected) return;
+    processSelectedFile(selected);
+  };
+
+  const handleDragOver = (e: React.DragEvent<HTMLLabelElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!isDragging) setIsDragging(true);
+  };
+
+  const handleDragEnter = (e: React.DragEvent<HTMLLabelElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent<HTMLLabelElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLLabelElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    const dropped = e.dataTransfer.files?.[0];
+    if (dropped) {
+      processSelectedFile(dropped);
+    }
+  };
+
   const handleRemoveFile = () => {
     if (filePreview) URL.revokeObjectURL(filePreview);
+    if (fileInputRef.current) fileInputRef.current.value = "";
     setFile(null);
     setFilePreview(null);
     setMediaUploadStatus("none");
@@ -1241,19 +1284,48 @@ export default function ReportPage() {
                   </div>
 
                   {!filePreview ? (
-                    <label className="border-2 border-dashed border-slate-200 hover:border-blue-400 hover:bg-blue-50/30 rounded-2xl p-6 flex flex-col items-center justify-center gap-2 text-center transition-all cursor-pointer group">
+                    <label
+                      onDragOver={handleDragOver}
+                      onDragEnter={handleDragEnter}
+                      onDragLeave={handleDragLeave}
+                      onDrop={handleDrop}
+                      className={`border-2 border-dashed rounded-2xl p-6 flex flex-col items-center justify-center gap-2 text-center transition-all cursor-pointer group ${
+                        isDragging
+                          ? "border-blue-500 bg-blue-50/70 ring-4 ring-blue-500/10 scale-[1.01]"
+                          : "border-slate-200 hover:border-blue-400 hover:bg-blue-50/30"
+                      }`}
+                    >
                       <input
+                        ref={fileInputRef}
                         type="file"
-                        accept="image/jpeg,image/png,image/webp"
+                        accept="image/jpeg,image/png,image/webp,image/jpg"
                         onChange={handleFileChange}
                         className="hidden"
                       />
-                      <div className="w-10 h-10 rounded-full bg-slate-100 group-hover:bg-blue-100 text-slate-500 group-hover:text-blue-600 flex items-center justify-center transition-colors">
+                      <div
+                        className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${
+                          isDragging
+                            ? "bg-blue-600 text-white"
+                            : "bg-slate-100 group-hover:bg-blue-100 text-slate-500 group-hover:text-blue-600"
+                        }`}
+                      >
                         <Upload className="w-5 h-5" />
                       </div>
                       <div>
-                        <span className="text-xs font-bold text-slate-800 group-hover:text-blue-600">
-                          {isBn ? "ছবি আপলোড করতে ক্লিক করুন" : "Click or drag photo here to attach"}
+                        <span
+                          className={`text-xs font-bold transition-colors ${
+                            isDragging
+                              ? "text-blue-700"
+                              : "text-slate-800 group-hover:text-blue-600"
+                          }`}
+                        >
+                          {isDragging
+                            ? isBn
+                              ? "ছবিটি এখানে ছেড়ে দিন"
+                              : "Drop photo here to attach"
+                            : isBn
+                              ? "ছবি আপলোড করতে ক্লিক করুন বা টেনে আনুন"
+                              : "Click or drag photo here to attach"}
                         </span>
                         <p className="text-[11px] text-slate-400 mt-0.5">
                           JPEG, PNG, WebP (Max 5MB)
@@ -1261,36 +1333,64 @@ export default function ReportPage() {
                       </div>
                       <div className="flex items-center gap-1.5 text-[10px] text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md mt-1">
                         <ShieldCheck className="w-3 h-3 text-emerald-600" />
-                        <span>{isBn ? "স্বয়ংক্রিয় চেহারা ও নম্বরপ্লেট ব্লার সক্রিয়" : "Automated Face & Plate Blurring Active"}</span>
+                        <span>
+                          {isBn
+                            ? "স্বয়ংক্রিয় চেহারা ও নম্বরপ্লেট ব্লার সক্রিয়"
+                            : "Automated Face & Plate Blurring Active"}
+                        </span>
                       </div>
                     </label>
                   ) : (
-                    <div className="relative rounded-2xl overflow-hidden border border-slate-200 bg-slate-100 p-2 flex items-center gap-3">
-                      <img
-                        src={filePreview}
-                        alt="Evidence preview"
-                        className="w-16 h-16 rounded-xl object-cover shrink-0 border border-slate-200"
-                      />
+                    <div className="relative rounded-2xl overflow-hidden border border-slate-200 bg-slate-50/80 p-3 flex items-center gap-3.5">
+                      <div className="relative w-16 h-16 rounded-xl overflow-hidden shrink-0 border border-slate-200 bg-slate-100">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={filePreview}
+                          alt="Evidence preview"
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
                       <div className="flex-1 min-w-0">
                         <span className="text-xs font-bold text-slate-800 truncate block">
                           {file?.name}
                         </span>
-                        <span className="text-[11px] text-slate-500">
+                        <span className="text-[11px] text-slate-500 font-medium">
                           {file ? (file.size / 1024 / 1024).toFixed(2) : 0} MB
                         </span>
-                        <div className="flex items-center gap-1 text-[10px] text-emerald-700 mt-0.5">
-                          <CheckCircle2 className="w-3 h-3" />
-                          <span>{isBn ? "প্রমাণের জন্য প্রস্তুত" : "Ready for privacy pipeline"}</span>
+                        <div className="flex items-center gap-1.5 text-[10px] font-semibold text-emerald-700 mt-0.5">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                          <span>
+                            {isBn
+                              ? "প্রমাণের জন্য প্রস্তুত (ব্লারিং সক্রিয়)"
+                              : "Ready for privacy pipeline"}
+                          </span>
                         </div>
                       </div>
-                      <button
-                        type="button"
-                        onClick={handleRemoveFile}
-                        className="p-2 rounded-xl bg-white hover:bg-red-50 text-slate-500 hover:text-red-600 border border-slate-200 transition-colors shrink-0"
-                        title="Remove image"
-                      >
-                        <XCircle className="w-5 h-5" />
-                      </button>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => fileInputRef.current?.click()}
+                          className="py-1.5 px-2.5 rounded-xl bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 text-xs font-semibold transition-colors cursor-pointer"
+                          title={isBn ? "ছবি পরিবর্তন করুন" : "Change photo"}
+                        >
+                          {isBn ? "পরিবর্তন" : "Change"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleRemoveFile}
+                          className="p-2 rounded-xl bg-white hover:bg-red-50 text-slate-500 hover:text-red-600 border border-slate-200 transition-colors shrink-0 cursor-pointer"
+                          title={isBn ? "ছবি মুছে ফেলুন" : "Remove photo"}
+                        >
+                          <XCircle className="w-5 h-5" />
+                        </button>
+                      </div>
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp,image/jpg"
+                        onChange={handleFileChange}
+                        className="hidden"
+                      />
                     </div>
                   )}
                 </div>
@@ -1639,7 +1739,15 @@ export default function ReportPage() {
                   {isSubmitting ? (
                     <>
                       <RefreshCw className="w-5 h-5 animate-spin" />
-                      <span>{isBn ? "রিপোর্ট প্রকাশ হচ্ছে..." : "Submitting Incident..."}</span>
+                      <span>
+                        {file
+                          ? isBn
+                            ? "রিপোর্ট ও ছবি প্রমাণ আপলোড হচ্ছে..."
+                            : "Submitting Incident & Photo..."
+                          : isBn
+                            ? "রিপোর্ট প্রকাশ হচ্ছে..."
+                            : "Submitting Incident..."}
+                      </span>
                     </>
                   ) : (
                     <>
