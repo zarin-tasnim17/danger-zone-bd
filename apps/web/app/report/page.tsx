@@ -71,7 +71,7 @@ function isCurrentNightBangladesh(): boolean {
 }
 
 import { MAX_GPS_PROXIMITY_METERS, ReportCategory } from "@repo/shared";
-import { CATEGORY_VISUALS, getCategoryVisual } from "@/lib/incidentCategoryVisuals";
+import { CATEGORY_VISUALS, getCategoryVisual, normalizeCategoryKey } from "@/lib/incidentCategoryVisuals";
 import {
   HardwareGpsFix,
   evaluateHardwareGpsProximity,
@@ -250,6 +250,58 @@ const CATEGORIES: CategoryDefinition[] = [
     borderColor: "border-orange-200",
     expiryHintEn: "Active for 3 hours",
     expiryHintBn: "৩ ঘণ্টা সক্রিয় থাকবে",
+  },
+  {
+    id: "TEEN_GANG_ARMED_ASSAULT",
+    labelEn: "Gang Armed Clash",
+    labelBn: "কিশোর গ্যাং ও অস্ত্রসহ হামলা",
+    descEn: "Youth gang clashes involving bladed weapons or firearms",
+    descBn: "কিশোর গ্যাং কর্তৃক ধারালো অস্ত্র বা আগ্নেয়াস্ত্র নিয়ে হামলা",
+    icon: Users,
+    color: "text-violet-800",
+    bgColor: "bg-violet-50",
+    borderColor: "border-violet-300",
+    expiryHintEn: "Active for 12 hours",
+    expiryHintBn: "১২ ঘণ্টা সক্রিয় থাকবে",
+  },
+  {
+    id: "DACOITY",
+    labelEn: "Robbery",
+    labelBn: "ডাকাতি",
+    descEn: "Group armed robbery, home invasion, looting",
+    descBn: "দলবদ্ধ সশস্ত্র ডাকাতি, মালামাল লুণ্ঠন",
+    icon: Skull,
+    color: "text-red-700",
+    bgColor: "bg-red-50",
+    borderColor: "border-red-200",
+    expiryHintEn: "Active for 4 hours",
+    expiryHintBn: "৪ ঘণ্টা সক্রিয় থাকবে",
+  },
+  {
+    id: "TEEN_GANG",
+    labelEn: "Youth Gang Activity",
+    labelBn: "কিশোর গ্যাং",
+    descEn: "Juvenile gang intimidation, turf clash, neighborhood menace",
+    descBn: "কিশোর গ্যাংয়ের মহড়া, হুমকি, আধিপত্য বিস্তার",
+    icon: Users,
+    color: "text-violet-700",
+    bgColor: "bg-violet-50",
+    borderColor: "border-violet-200",
+    expiryHintEn: "Active for 24 hours",
+    expiryHintBn: "২৪ ঘণ্টা সক্রিয় থাকবে",
+  },
+  {
+    id: "DRUG_ACTIVITY",
+    labelEn: "Drug-Related Crime",
+    labelBn: "মাদক সংক্রান্ত অপরাধ",
+    descEn: "Drug peddling, open narcotics dealing, illicit distribution",
+    descBn: "প্রকাশ্যে মাদক কেনাবেচা, অপরাধীদের জমায়েত",
+    icon: Pill,
+    color: "text-blue-700",
+    bgColor: "bg-blue-50",
+    borderColor: "border-blue-200",
+    expiryHintEn: "Active for 24 hours",
+    expiryHintBn: "২৪ ঘণ্টা সক্রিয় থাকবে",
   },
 ];
 
@@ -567,7 +619,15 @@ export default function ReportPage() {
     setErrorMessage(null);
   };
 
-  const selectedCategoryDef = CATEGORIES.find((c) => c.id === resolvedCategory) || CATEGORIES[0];
+  const selectedCategoryDef = useMemo(() => {
+    const direct = CATEGORIES.find((c) => c.id === resolvedCategory);
+    if (direct) return direct;
+    const canonical = normalizeCategoryKey(resolvedCategory);
+    const byCanonical = CATEGORIES.find(
+      (c) => c.id === canonical || normalizeCategoryKey(c.id) === canonical
+    );
+    return byCanonical || CATEGORIES[0];
+  }, [resolvedCategory]);
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 text-slate-900 selection:bg-red-500 selection:text-white">
