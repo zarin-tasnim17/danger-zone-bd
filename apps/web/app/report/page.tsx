@@ -63,14 +63,13 @@ const ReportPinMap = dynamic(() => import("@/components/report/ReportPinMap"), {
   ),
 });
 
-// Check if Bangladesh time (UTC+6) is currently night (8 PM to 5 AM)
-function isCurrentNightBangladesh(): boolean {
-  const now = new Date();
-  const bdHour = (now.getUTCHours() + 6) % 24;
-  return bdHour >= 20 || bdHour < 5;
-}
-
-import { MAX_GPS_PROXIMITY_METERS, ReportCategory } from "@repo/shared";
+import {
+  MAX_GPS_PROXIMITY_METERS,
+  ReportCategory,
+  isHazardWithinTimeWindow,
+  formatTimeTo12Hour,
+  convert12HourTo24Hour,
+} from "@repo/shared";
 import { CATEGORY_VISUALS, getCategoryVisual, normalizeCategoryKey } from "@/lib/incidentCategoryVisuals";
 import {
   HardwareGpsFix,
@@ -479,7 +478,27 @@ export default function ReportPage() {
     () => evaluateHardwareGpsProximity(hardwareGps, latitude, longitude),
     [hardwareGps, latitude, longitude]
   );
-  const isNightDetected = isCurrentNightBangladesh();
+  // Danger Schedule / Active Time-Window State (12-hour AM/PM format)
+  const [isTimeBounded, setIsTimeBounded] = useState(false);
+  const [startHour, setStartHour] = useState(6);
+  const [startMinute, setStartMinute] = useState(0);
+  const [startMeridiem, setStartMeridiem] = useState<"AM" | "PM">("PM");
+  const [endHour, setEndHour] = useState(6);
+  const [endMinute, setEndMinute] = useState(0);
+  const [endMeridiem, setEndMeridiem] = useState<"AM" | "PM">("AM");
+
+  const formattedTimeStart = useMemo(
+    () => convert12HourTo24Hour(startHour, startMinute, startMeridiem),
+    [startHour, startMinute, startMeridiem]
+  );
+  const formattedTimeEnd = useMemo(
+    () => convert12HourTo24Hour(endHour, endMinute, endMeridiem),
+    [endHour, endMinute, endMeridiem]
+  );
+  const isScheduleCurrentlyActive = useMemo(
+    () => isHazardWithinTimeWindow(formattedTimeStart, formattedTimeEnd),
+    [formattedTimeStart, formattedTimeEnd]
+  );
 
   // Location handlers
   const handleMapLocationChange = useCallback(
@@ -617,6 +636,8 @@ export default function ReportPage() {
         latitude: parsedLat,
         longitude: parsedLng,
         description: description.trim() || undefined,
+        activeTimeStart: isTimeBounded ? formattedTimeStart : undefined,
+        activeTimeEnd: isTimeBounded ? formattedTimeEnd : undefined,
       };
 
       const result = await apiFetch<any>("/reports", {
@@ -1295,41 +1316,212 @@ export default function ReportPage() {
                   </div>
                 </div>
 
-                {/* Night-time Safety Flag Banner */}
-                <div
-                  className={`p-4 rounded-2xl border flex items-center justify-between gap-3 text-xs ${
-                    isNightDetected
-                      ? "bg-indigo-50/80 border-indigo-200 text-indigo-900"
-                      : "bg-amber-50/80 border-amber-200 text-amber-900"
-                  }`}
-                >
-                  <div className="flex items-center gap-2.5">
-                    {isNightDetected ? (
-                      <Moon className="w-5 h-5 text-indigo-600 shrink-0" />
-                    ) : (
-                      <Sun className="w-5 h-5 text-amber-600 shrink-0" />
-                    )}
-                    <div>
-                      <span className="font-bold block">
-                        {isNightDetected
-                          ? isBn
-                            ? "🌙 নৈশকালীন বিপদ সংকেত স্বয়ংক্রিয়ভাবে সক্রিয়"
-                            : "🌙 Night Hazard Priority Flag: Auto-Detected"
-                          : isBn
-                            ? "☀️ দিবাকালীন বিপদ সংকেত"
-                            : "☀️ Daytime Incident Context"}
-                      </span>
-                      <span className="text-[11px] text-slate-500">
-                        {isNightDetected
-                          ? isBn
-                            ? "রাত ৮টা থেকে ভোর ৫টা পর্যন্ত উচ্চ ঝুঁকির সময় হিসেবে চিহ্নিত হয়।"
-                            : "Active between 8:00 PM and 5:00 AM BST (High Risk window)."
-                          : isBn
-                            ? "সাধারণ দিবাকালীন ট্র্যাকিং প্রযোজ্য।"
-                            : "Standard daytime surveillance active."}
-                      </span>
-                    </div>
+                {/* Danger Schedule & Active Hours Section */}
+                <div className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-xs space-y-4">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-2">
+                      <Clock className="w-4 h-4 text-indigo-600" />
+                      <span>{isBn ? "বিপদের সময়সূচী ও প্রদর্শন সময়সীমা" : "Hazard Schedule & Active Hours"}</span>
+                    </label>
                   </div>
+
+                  {/* Mode Selector: 24h All Day vs Specific Time Window */}
+                  <div className="grid grid-cols-2 gap-2 bg-slate-100 p-1 rounded-xl">
+                    <button
+                      type="button"
+                      onClick={() => setIsTimeBounded(false)}
+                      className={`py-2 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                        !isTimeBounded
+                          ? "bg-white text-slate-900 shadow-xs"
+                          : "text-slate-600 hover:text-slate-900"
+                      }`}
+                    >
+                      {isBn ? "সারাদিন (২৪ ঘণ্টা)" : "All Day (24 Hours)"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setIsTimeBounded(true)}
+                      className={`py-2 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                        isTimeBounded
+                          ? "bg-white text-indigo-700 shadow-xs"
+                          : "text-slate-600 hover:text-slate-900"
+                      }`}
+                    >
+                      {isBn ? "নির্দিষ্ট সময়সীমা" : "Specific Time Window"}
+                    </button>
+                  </div>
+
+                  {!isTimeBounded ? (
+                    <p className="text-xs text-slate-500 leading-relaxed">
+                      {isBn
+                        ? "বিপদ পিনটি সবসময় ম্যাপে সক্রিয় থাকবে এবং ২৪ ঘণ্টা সার্বক্ষণিক দৃশ্যমান হবে।"
+                        : "Continuous danger alert: The pin will remain actively visible on the map 24/7 until expiration."}
+                    </p>
+                  ) : (
+                    <div className="space-y-3.5 pt-1">
+                      {/* AM/PM Time Pickers */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {/* Start Time Picker */}
+                        <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-1.5">
+                          <label className="text-[11px] font-bold text-slate-600 block uppercase tracking-wide">
+                            {isBn ? "শুরুর সময় (Start Time)" : "Start Time"}
+                          </label>
+                          <div className="flex items-center gap-1.5">
+                            {/* Hour Select 1-12 */}
+                            <select
+                              value={startHour}
+                              onChange={(e) => setStartHour(parseInt(e.target.value, 10))}
+                              className="px-2 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-800 focus:outline-indigo-500"
+                            >
+                              {Array.from({ length: 12 }, (_, i) => i + 1).map((h) => (
+                                <option key={h} value={h}>
+                                  {String(h).padStart(2, "0")}
+                                </option>
+                              ))}
+                            </select>
+                            <span className="font-bold text-slate-400">:</span>
+                            {/* Minute Select */}
+                            <select
+                              value={startMinute}
+                              onChange={(e) => setStartMinute(parseInt(e.target.value, 10))}
+                              className="px-2 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-800 focus:outline-indigo-500"
+                            >
+                              {[0, 15, 30, 45].map((m) => (
+                                <option key={m} value={m}>
+                                  {String(m).padStart(2, "0")}
+                                </option>
+                              ))}
+                            </select>
+                            {/* AM/PM Select */}
+                            <select
+                              value={startMeridiem}
+                              onChange={(e) => setStartMeridiem(e.target.value as "AM" | "PM")}
+                              className="px-2 py-1.5 rounded-lg border border-indigo-200 bg-indigo-50 text-xs font-black text-indigo-700 focus:outline-indigo-500"
+                            >
+                              <option value="AM">AM</option>
+                              <option value="PM">PM</option>
+                            </select>
+                          </div>
+                        </div>
+
+                        {/* End Time Picker */}
+                        <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-1.5">
+                          <label className="text-[11px] font-bold text-slate-600 block uppercase tracking-wide">
+                            {isBn ? "শেষের সময় (End Time)" : "End Time"}
+                          </label>
+                          <div className="flex items-center gap-1.5">
+                            {/* Hour Select 1-12 */}
+                            <select
+                              value={endHour}
+                              onChange={(e) => setEndHour(parseInt(e.target.value, 10))}
+                              className="px-2 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-800 focus:outline-indigo-500"
+                            >
+                              {Array.from({ length: 12 }, (_, i) => i + 1).map((h) => (
+                                <option key={h} value={h}>
+                                  {String(h).padStart(2, "0")}
+                                </option>
+                              ))}
+                            </select>
+                            <span className="font-bold text-slate-400">:</span>
+                            {/* Minute Select */}
+                            <select
+                              value={endMinute}
+                              onChange={(e) => setEndMinute(parseInt(e.target.value, 10))}
+                              className="px-2 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-800 focus:outline-indigo-500"
+                            >
+                              {[0, 15, 30, 45].map((m) => (
+                                <option key={m} value={m}>
+                                  {String(m).padStart(2, "0")}
+                                </option>
+                              ))}
+                            </select>
+                            {/* AM/PM Select */}
+                            <select
+                              value={endMeridiem}
+                              onChange={(e) => setEndMeridiem(e.target.value as "AM" | "PM")}
+                              className="px-2 py-1.5 rounded-lg border border-indigo-200 bg-indigo-50 text-xs font-black text-indigo-700 focus:outline-indigo-500"
+                            >
+                              <option value="AM">AM</option>
+                              <option value="PM">PM</option>
+                            </select>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Quick Scenario Presets */}
+                      <div className="space-y-1.5">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                          {isBn ? "দ্রুত প্রিসেট (Quick Presets):" : "Quick Presets (AM/PM):"}
+                        </span>
+                        <div className="flex flex-wrap gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setStartHour(6); setStartMinute(0); setStartMeridiem("PM");
+                              setEndHour(6); setEndMinute(0); setEndMeridiem("AM");
+                            }}
+                            className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-100 hover:bg-indigo-50 hover:text-indigo-700 text-slate-700 border border-slate-200/80 transition-colors cursor-pointer flex items-center gap-1"
+                          >
+                            <span>🌙</span>
+                            <span>{isBn ? "সন্ধ্যা–সকাল (06:00 PM – 06:00 AM)" : "06:00 PM – 06:00 AM (Overnight / Unlit)"}</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setStartHour(6); setStartMinute(0); setStartMeridiem("PM");
+                              setEndHour(10); setEndMinute(0); setEndMeridiem("PM");
+                            }}
+                            className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-100 hover:bg-indigo-50 hover:text-indigo-700 text-slate-700 border border-slate-200/80 transition-colors cursor-pointer flex items-center gap-1"
+                          >
+                            <span>🌆</span>
+                            <span>{isBn ? "সন্ধ্যা (06:00 PM – 10:00 PM)" : "06:00 PM – 10:00 PM (Evening Peak)"}</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setStartHour(10); setStartMinute(0); setStartMeridiem("PM");
+                              setEndHour(4); setEndMinute(0); setEndMeridiem("AM");
+                            }}
+                            className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-100 hover:bg-indigo-50 hover:text-indigo-700 text-slate-700 border border-slate-200/80 transition-colors cursor-pointer flex items-center gap-1"
+                          >
+                            <span>🌌</span>
+                            <span>{isBn ? "গভীর রাত (10:00 PM – 04:00 AM)" : "10:00 PM – 04:00 AM (Late Night)"}</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Dynamic Real-Time Active Status Badge */}
+                      <div
+                        className={`p-3 rounded-xl border flex items-center gap-2.5 text-xs transition-colors ${
+                          isScheduleCurrentlyActive
+                            ? "bg-emerald-50 border-emerald-200 text-emerald-900"
+                            : "bg-slate-50 border-slate-200 text-slate-600"
+                        }`}
+                      >
+                        {isScheduleCurrentlyActive ? (
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                        ) : (
+                          <Clock className="w-4 h-4 text-slate-400 shrink-0" />
+                        )}
+                        <div className="leading-snug">
+                          <span className="font-bold block">
+                            {isScheduleCurrentlyActive
+                              ? isBn
+                                ? "🟢 বর্তমান সময়ে ম্যাপে সক্রিয়ভাবে প্রদর্শিত হবে"
+                                : "🟢 Currently Active: Visible on live map right now"
+                              : isBn
+                                ? "⚪ বর্তমান সময়ে ম্যাপ থেকে লুকানো থাকবে"
+                                : "⚪ Currently Inactive: Hidden from map right now"}
+                          </span>
+                          <span className="text-[11px] text-slate-500">
+                            {isBn
+                              ? `বিপদ পিনটি শুধুমাত্র প্রতিদিন ${formatTimeTo12Hour(formattedTimeStart)} থেকে ${formatTimeTo12Hour(formattedTimeEnd)} পর্যন্ত ম্যাপে দৃশ্যমান থাকবে।`
+                              : `Pin will show on map only between ${formatTimeTo12Hour(formattedTimeStart)} and ${formatTimeTo12Hour(formattedTimeEnd)} BST.`}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Citizen Trust & Privacy Policy */}
