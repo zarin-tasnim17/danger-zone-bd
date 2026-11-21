@@ -478,14 +478,113 @@ export default function ReportPage() {
     () => evaluateHardwareGpsProximity(hardwareGps, latitude, longitude),
     [hardwareGps, latitude, longitude]
   );
-  // Danger Schedule / Active Time-Window State (12-hour AM/PM format)
+  // Danger Schedule / Active Time-Window State (12-hour AM/PM format with direct minute typing)
   const [isTimeBounded, setIsTimeBounded] = useState(false);
   const [startHour, setStartHour] = useState(6);
+  const [startHourStr, setStartHourStr] = useState("06");
   const [startMinute, setStartMinute] = useState(0);
+  const [startMinuteStr, setStartMinuteStr] = useState("00");
   const [startMeridiem, setStartMeridiem] = useState<"AM" | "PM">("PM");
+
   const [endHour, setEndHour] = useState(6);
+  const [endHourStr, setEndHourStr] = useState("06");
   const [endMinute, setEndMinute] = useState(0);
+  const [endMinuteStr, setEndMinuteStr] = useState("00");
   const [endMeridiem, setEndMeridiem] = useState<"AM" | "PM">("AM");
+
+  const handleHourInput = (
+    e: React.ChangeEvent<HTMLInputElement>,
+    setterNum: (n: number) => void,
+    setterStr: (s: string) => void
+  ) => {
+    const raw = e.target.value.replace(/\D/g, "").slice(0, 2);
+    setterStr(raw);
+    const num = parseInt(raw, 10);
+    if (!isNaN(num) && num >= 1 && num <= 12) {
+      setterNum(num);
+    }
+  };
+
+  const handleHourBlur = (
+    raw: string,
+    setterNum: (n: number) => void,
+    setterStr: (s: string) => void
+  ) => {
+    const num = parseInt(raw, 10);
+    if (isNaN(num) || num < 1 || num > 12) {
+      setterNum(12);
+      setterStr("12");
+    } else {
+      setterNum(num);
+      setterStr(String(num).padStart(2, "0"));
+    }
+  };
+
+  const handleMinuteInput = (
+    e: React.ChangeEvent<HTMLInputElement>,
+    setterNum: (n: number) => void,
+    setterStr: (s: string) => void
+  ) => {
+    const raw = e.target.value.replace(/\D/g, "").slice(0, 2);
+    setterStr(raw);
+    const num = parseInt(raw, 10);
+    if (!isNaN(num) && num >= 0 && num <= 59) {
+      setterNum(num);
+    }
+  };
+
+  const handleMinuteBlur = (
+    raw: string,
+    setterNum: (n: number) => void,
+    setterStr: (s: string) => void
+  ) => {
+    const num = parseInt(raw, 10);
+    if (isNaN(num) || num < 0 || num > 59) {
+      setterNum(0);
+      setterStr("00");
+    } else {
+      setterNum(num);
+      setterStr(String(num).padStart(2, "0"));
+    }
+  };
+
+  const handleHourKeyDown = (
+    e: React.KeyboardEvent<HTMLInputElement>,
+    currentHour: number,
+    setterNum: (n: number) => void,
+    setterStr: (s: string) => void
+  ) => {
+    if (e.key === "ArrowUp") {
+      e.preventDefault();
+      const next = currentHour >= 12 ? 1 : currentHour + 1;
+      setterNum(next);
+      setterStr(String(next).padStart(2, "0"));
+    } else if (e.key === "ArrowDown") {
+      e.preventDefault();
+      const prev = currentHour <= 1 ? 12 : currentHour - 1;
+      setterNum(prev);
+      setterStr(String(prev).padStart(2, "0"));
+    }
+  };
+
+  const handleMinuteKeyDown = (
+    e: React.KeyboardEvent<HTMLInputElement>,
+    currentMinute: number,
+    setterNum: (n: number) => void,
+    setterStr: (s: string) => void
+  ) => {
+    if (e.key === "ArrowUp") {
+      e.preventDefault();
+      const next = (currentMinute + 1) % 60;
+      setterNum(next);
+      setterStr(String(next).padStart(2, "0"));
+    } else if (e.key === "ArrowDown") {
+      e.preventDefault();
+      const prev = (currentMinute - 1 + 60) % 60;
+      setterNum(prev);
+      setterStr(String(prev).padStart(2, "0"));
+    }
+  };
 
   const formattedTimeStart = useMemo(
     () => convert12HourTo24Hour(startHour, startMinute, startMeridiem),
@@ -1367,31 +1466,33 @@ export default function ReportPage() {
                             {isBn ? "শুরুর সময় (Start Time)" : "Start Time"}
                           </label>
                           <div className="flex items-center gap-1.5">
-                            {/* Hour Select 1-12 */}
-                            <select
-                              value={startHour}
-                              onChange={(e) => setStartHour(parseInt(e.target.value, 10))}
-                              className="px-2 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-800 focus:outline-indigo-500 cursor-pointer"
-                            >
-                              {Array.from({ length: 12 }, (_, i) => i + 1).map((h) => (
-                                <option key={h} value={h}>
-                                  {String(h).padStart(2, "0")}
-                                </option>
-                              ))}
-                            </select>
+                            {/* Hour Input (Type any hour 01-12) */}
+                            <input
+                              type="text"
+                              inputMode="numeric"
+                              pattern="[0-9]*"
+                              maxLength={2}
+                              value={startHourStr}
+                              onChange={(e) => handleHourInput(e, setStartHour, setStartHourStr)}
+                              onBlur={() => handleHourBlur(startHourStr, setStartHour, setStartHourStr)}
+                              onKeyDown={(e) => handleHourKeyDown(e, startHour, setStartHour, setStartHourStr)}
+                              className="w-12 h-8 px-1.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-800 text-center focus:outline-indigo-500 focus:border-indigo-500 shadow-2xs"
+                              title={isBn ? "ঘণ্টা টাইপ করুন (০১–১২)" : "Type hour (01–12)"}
+                            />
                             <span className="font-bold text-slate-400">:</span>
-                            {/* Minute Select */}
-                            <select
-                              value={startMinute}
-                              onChange={(e) => setStartMinute(parseInt(e.target.value, 10))}
-                              className="px-2 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-800 focus:outline-indigo-500 cursor-pointer"
-                            >
-                              {[0, 15, 30, 45].map((m) => (
-                                <option key={m} value={m}>
-                                  {String(m).padStart(2, "0")}
-                                </option>
-                              ))}
-                            </select>
+                            {/* Minute Input (Type any minute 00-59) */}
+                            <input
+                              type="text"
+                              inputMode="numeric"
+                              pattern="[0-9]*"
+                              maxLength={2}
+                              value={startMinuteStr}
+                              onChange={(e) => handleMinuteInput(e, setStartMinute, setStartMinuteStr)}
+                              onBlur={() => handleMinuteBlur(startMinuteStr, setStartMinute, setStartMinuteStr)}
+                              onKeyDown={(e) => handleMinuteKeyDown(e, startMinute, setStartMinute, setStartMinuteStr)}
+                              className="w-12 h-8 px-1.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-800 text-center focus:outline-indigo-500 focus:border-indigo-500 shadow-2xs"
+                              title={isBn ? "যেকোনো মিনিট টাইপ করুন (০০–৫৯)" : "Type any minute (00–59)"}
+                            />
                             {/* AM/PM Segmented Toggle */}
                             <div className="flex rounded-lg p-0.5 bg-slate-200/80 text-[11px] font-bold">
                               <button
@@ -1426,31 +1527,33 @@ export default function ReportPage() {
                             {isBn ? "শেষের সময় (End Time)" : "End Time"}
                           </label>
                           <div className="flex items-center gap-1.5">
-                            {/* Hour Select 1-12 */}
-                            <select
-                              value={endHour}
-                              onChange={(e) => setEndHour(parseInt(e.target.value, 10))}
-                              className="px-2 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-800 focus:outline-indigo-500 cursor-pointer"
-                            >
-                              {Array.from({ length: 12 }, (_, i) => i + 1).map((h) => (
-                                <option key={h} value={h}>
-                                  {String(h).padStart(2, "0")}
-                                </option>
-                              ))}
-                            </select>
+                            {/* Hour Input (Type any hour 01-12) */}
+                            <input
+                              type="text"
+                              inputMode="numeric"
+                              pattern="[0-9]*"
+                              maxLength={2}
+                              value={endHourStr}
+                              onChange={(e) => handleHourInput(e, setEndHour, setEndHourStr)}
+                              onBlur={() => handleHourBlur(endHourStr, setEndHour, setEndHourStr)}
+                              onKeyDown={(e) => handleHourKeyDown(e, endHour, setEndHour, setEndHourStr)}
+                              className="w-12 h-8 px-1.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-800 text-center focus:outline-indigo-500 focus:border-indigo-500 shadow-2xs"
+                              title={isBn ? "ঘণ্টা টাইপ করুন (০১–১২)" : "Type hour (01–12)"}
+                            />
                             <span className="font-bold text-slate-400">:</span>
-                            {/* Minute Select */}
-                            <select
-                              value={endMinute}
-                              onChange={(e) => setEndMinute(parseInt(e.target.value, 10))}
-                              className="px-2 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-800 focus:outline-indigo-500 cursor-pointer"
-                            >
-                              {[0, 15, 30, 45].map((m) => (
-                                <option key={m} value={m}>
-                                  {String(m).padStart(2, "0")}
-                                </option>
-                              ))}
-                            </select>
+                            {/* Minute Input (Type any minute 00-59) */}
+                            <input
+                              type="text"
+                              inputMode="numeric"
+                              pattern="[0-9]*"
+                              maxLength={2}
+                              value={endMinuteStr}
+                              onChange={(e) => handleMinuteInput(e, setEndMinute, setEndMinuteStr)}
+                              onBlur={() => handleMinuteBlur(endMinuteStr, setEndMinute, setEndMinuteStr)}
+                              onKeyDown={(e) => handleMinuteKeyDown(e, endMinute, setEndMinute, setEndMinuteStr)}
+                              className="w-12 h-8 px-1.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-800 text-center focus:outline-indigo-500 focus:border-indigo-500 shadow-2xs"
+                              title={isBn ? "যেকোনো মিনিট টাইপ করুন (০০–৫৯)" : "Type any minute (00–59)"}
+                            />
                             {/* AM/PM Segmented Toggle */}
                             <div className="flex rounded-lg p-0.5 bg-slate-200/80 text-[11px] font-bold">
                               <button
