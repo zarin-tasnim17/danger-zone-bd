@@ -93,6 +93,7 @@ flowchart TD
 * **< 30-Second Workflow:** Eyewitnesses can submit emergency hazard reports without mandatory registration, password creation, or email verification.
 * **Protection Against Retaliation:** Eyewitnesses are assigned silent, cryptographically generated device tokens (`anonymousId`). Public markers **never** expose reporter PII.
 * **Hardware GPS Geofence Enforcement:** The server calculates the spatial offset between the user's live device hardware coordinates and the dropped pin location. Submissions exceeding **200 meters** are rejected to eliminate remote troll attacks and misinformation.
+* **Interactive Map Pinning:** Eyewitnesses can pinpoint hazards directly on the interactive map with real-time radius confirmation and coordinate reverse-geocoding.
 * **Privacy-Preserving Media:** Uploaded photos undergo automatic visual blurring of sensitive regions, bystanders, and license plates before storage.
 
 ### ⏱️ Dynamic Time-To-Live (TTL) & Lifecycle Management
