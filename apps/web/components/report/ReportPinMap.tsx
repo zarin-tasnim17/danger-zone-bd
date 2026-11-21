@@ -172,19 +172,11 @@ export default function ReportPinMap({
             type="button"
             onClick={onLocateMe || onSnapToDevice}
             disabled={isLocating}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white/95 hover:bg-white text-slate-800 border border-slate-200/90 shadow-md text-xs font-bold transition-all active:scale-95 cursor-pointer backdrop-blur-md hover:text-blue-600 disabled:opacity-60"
+            className="w-9 h-9 rounded-xl bg-white/95 hover:bg-white text-slate-800 border border-slate-200/90 shadow-md flex items-center justify-center transition-all active:scale-95 cursor-pointer backdrop-blur-md hover:text-blue-600 disabled:opacity-60"
             title={isBn ? "আমার বর্তমান জিপিএস স্থানে পিন বসান" : "Snap pin to current GPS location"}
+            aria-label={isBn ? "আমার বর্তমান অবস্থান" : "Use current location"}
           >
-            <Crosshair className={`w-3.5 h-3.5 text-blue-600 ${isLocating ? "animate-spin" : ""}`} />
-            <span>
-              {isLocating
-                ? isBn
-                  ? "খোঁজা হচ্ছে..."
-                  : "Locating..."
-                : isBn
-                  ? "বর্তমান অবস্থান"
-                  : "Current Location"}
-            </span>
+            <Crosshair className={`w-4 h-4 text-blue-600 ${isLocating ? "animate-spin" : ""}`} />
           </button>
         )}
       </div>

@@ -1253,59 +1253,36 @@ export default function ReportPage() {
                     language={language}
                   />
 
-                  {/* Streamlined Telemetry Status Bar */}
+                  {/* Clean Telemetry Status Indicator */}
                   <div
-                    className={`px-3.5 py-2.5 rounded-xl border flex items-center justify-between gap-3 text-xs transition-colors ${
+                    className={`px-3.5 py-2 rounded-xl border flex items-center justify-between text-xs transition-colors ${
                       gpsEvaluation.isVerified
                         ? "bg-emerald-50/90 border-emerald-200 text-emerald-900"
                         : "bg-slate-50 border-slate-200 text-slate-700"
                     }`}
                   >
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <div
-                        className={`p-1 rounded-lg ${
-                          gpsEvaluation.isVerified
-                            ? "bg-emerald-100 text-emerald-700"
-                            : "bg-slate-200/80 text-slate-600"
-                        } shrink-0`}
-                      >
-                        {gpsEvaluation.isVerified ? (
-                          <CheckCircle2 className="w-3.5 h-3.5" />
-                        ) : (
-                          <MapPin className="w-3.5 h-3.5" />
-                        )}
-                      </div>
-                      <div className="truncate">
-                        <span className="font-bold">
-                          {gpsEvaluation.isVerified
-                            ? isBn
-                              ? "হার্ডওয়্যার জিপিএস যাচাইকৃত"
-                              : "Hardware GPS Verified"
-                            : isBn
-                              ? "ম্যানুয়াল ম্যাপ পিন"
-                              : "Custom Map Pin"}
-                        </span>
-                        <span className="text-[11px] text-slate-500 ml-2 hidden sm:inline">
-                          {gpsEvaluation.isVerified
-                            ? isBn
-                              ? `(দূরত্ব ${gpsEvaluation.distanceMeters ?? 0} মি ≤ ২০০ মি)`
-                              : `(Within ${gpsEvaluation.distanceMeters ?? 0}m of device)`
-                            : isBn
-                              ? "• ম্যাপে ক্লিক করে বা 'আমার বর্তমান অবস্থান' দিয়ে সেট করুন"
-                              : "• Click map or tap 'Use Current Location' to pin"}
-                        </span>
-                      </div>
+                    <div className="flex items-center gap-2">
+                      {gpsEvaluation.isVerified ? (
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                      ) : (
+                        <MapPin className="w-4 h-4 text-slate-500 shrink-0" />
+                      )}
+                      <span className="font-bold">
+                        {gpsEvaluation.isVerified
+                          ? isBn
+                            ? "হার্ডওয়্যার জিপিএস যাচাইকৃত"
+                            : "Hardware GPS Verified"
+                          : isBn
+                            ? "কাস্টম ম্যাপ পিন"
+                            : "Custom Map Pin"}
+                      </span>
                     </div>
 
                     {gpsEvaluation.isVerified ? (
                       <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 border border-emerald-200 shrink-0">
-                        Verified
+                        {isBn ? "যাচাইকৃত" : "Verified"}
                       </span>
-                    ) : (
-                      <span className="text-[10px] font-semibold text-slate-400 font-mono shrink-0">
-                        {latitude.toFixed(4)}, {longitude.toFixed(4)}
-                      </span>
-                    )}
+                    ) : null}
                   </div>
 
                   {/* Optional Geolocation Error Alert if GPS permission was denied or failed */}
