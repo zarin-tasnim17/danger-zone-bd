@@ -89,6 +89,8 @@ const mapBackendToFrontendIncident = (r: any): DangerIncident => {
     isGpsVerified: Boolean(r.isGpsVerified),
     expiresAt: r.expiresAt ? new Date(r.expiresAt).toISOString() : undefined,
     rawStatus: r.status,
+    activeTimeStart: r.activeTimeStart || null,
+    activeTimeEnd: r.activeTimeEnd || null,
   };
 };
 
