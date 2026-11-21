@@ -311,8 +311,8 @@ export default function AlertsPage() {
             applyLocationAndBox(storeLoc.lat, storeLoc.lng);
             showToast(
               isBn
-                ? "পিসিতে লাইভ জিপিএস সিগন্যাল পাওয়া যায়নি, পূর্বের সংরক্ষিত অবস্থান ব্যবহার করা হয়েছে।"
-                : "Live GPS unavailable on PC. Using last known/saved location.",
+                ? "ডিভাইসে লাইভ জিপিএস সিগন্যাল পাওয়া যায়নি, পূর্বের সংরক্ষিত অবস্থান ব্যবহার করা হয়েছে।"
+                : "Live GPS unavailable. Using last known/saved location.",
               "info"
             );
             return;
@@ -322,15 +322,15 @@ export default function AlertsPage() {
           if (primaryErr?.code === 1 || fallbackErr.code === 1) {
             showToast(
               isBn
-                ? "ব্রাউজারে লোকেশন পারমিশন ব্লক করা আছে। ব্রাউজারের অ্যাড্রেস বার থেকে লোকেশন চালু করুন।"
-                : "Location access denied. Please allow location access in your browser address bar.",
+                ? "ব্রাউজারে লোকেশন পারমিশন ব্লক করা আছে। ব্রাউজার সেটিংস থেকে লোকেশন অনুমতি দিন।"
+                : "Location access denied. Please allow location permissions in your browser settings.",
               "error"
             );
           } else {
             showToast(
               isBn
-                ? "পিসিতে জিপিএস পাওয়া যায়নি। উইন্ডোজ লোকেশন অন করুন অথবা মানচিত্রে সরাসরি ক্লিক করুন।"
-                : "Could not detect GPS on PC. Please check Windows Location settings or click directly on the map.",
+                ? "ডিভাইসে জিপিএস পাওয়া যায়নি। ফোনের লোকেশন অন করুন অথবা মানচিত্রে সরাসরি ক্লিক করুন।"
+                : "Could not detect GPS. Please check device location settings or click directly on the map.",
               "error"
             );
           }
