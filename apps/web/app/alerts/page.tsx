@@ -5,6 +5,7 @@ import dynamic from "next/dynamic";
 import Navbar from "@/components/layout/Navbar";
 import { apiFetch } from "@/lib/api";
 import { useAuthStore } from "@/store/useAuthStore";
+import { useMapStore } from "@/store/useMapStore";
 import { useLanguageStore } from "@/store/useLanguageStore";
 import { showToast } from "@/store/useToastStore";
 import { getSocket } from "@/lib/socket";
@@ -61,74 +62,6 @@ interface AlertZone {
   createdAt: string;
 }
 
-const ZONE_PRESETS = [
-  {
-    nameEn: "Gulshan & Banani Diplomatic Hub (~4.2 km²)",
-    nameBn: "গুলশান ও বনানী কূটনৈতিক এলাকা (~৪.২ বর্গকিমি)",
-    zoneNameEn: "Gulshan-Banani Perimeter",
-    zoneNameBn: "গুলশান-বনানী নিরাপত্তা বলয়",
-    coordinates: [
-      [90.4000, 23.7850],
-      [90.4200, 23.7850],
-      [90.4200, 23.8050],
-      [90.4000, 23.8050],
-      [90.4000, 23.7850],
-    ] as [number, number][],
-  },
-  {
-    nameEn: "Dhanmondi Residential & Lake (~3.8 km²)",
-    nameBn: "ধানমন্ডি আবাসিক ও লেক এলাকা (~৩.৮ বর্গকিমি)",
-    zoneNameEn: "Dhanmondi Residential Zone",
-    zoneNameBn: "ধানমন্ডি আবাসিক জোন",
-    coordinates: [
-      [90.3650, 23.7400],
-      [90.3850, 23.7400],
-      [90.3850, 23.7580],
-      [90.3650, 23.7580],
-      [90.3650, 23.7400],
-    ] as [number, number][],
-  },
-  {
-    nameEn: "Uttara Sector 1-7 Commuter Belt (~5.1 km²)",
-    nameBn: "উত্তরা সেক্টর ১-৭ করিডোর (~৫.১ বর্গকিমি)",
-    zoneNameEn: "Uttara Transit Perimeter",
-    zoneNameBn: "উত্তরা ট্রানজিট বলয়",
-    coordinates: [
-      [90.3800, 23.8550],
-      [90.4050, 23.8550],
-      [90.4050, 23.8750],
-      [90.3800, 23.8750],
-      [90.3800, 23.8550],
-    ] as [number, number][],
-  },
-  {
-    nameEn: "Motijheel Commercial Core (~2.9 km²)",
-    nameBn: "মতিঝিল বাণিজ্যিক কেন্দ্র (~২.৯ বর্গকিমি)",
-    zoneNameEn: "Motijheel Business District",
-    zoneNameBn: "মতিঝিল বাণিজ্যিক জোন",
-    coordinates: [
-      [90.4120, 23.7250],
-      [90.4280, 23.7250],
-      [90.4280, 23.7380],
-      [90.4120, 23.7380],
-      [90.4120, 23.7250],
-    ] as [number, number][],
-  },
-  {
-    nameEn: "Chittagong Agrabad Hub (~4.5 km²)",
-    nameBn: "চট্টগ্রাম আগ্রাবাদ এলাকা (~৪.৫ বর্গকিমি)",
-    zoneNameEn: "Chittagong Agrabad Zone",
-    zoneNameBn: "চট্টগ্রাম আগ্রাবাদ বলয়",
-    coordinates: [
-      [91.8050, 22.3200],
-      [91.8250, 22.3200],
-      [91.8250, 22.3400],
-      [91.8050, 22.3400],
-      [91.8050, 22.3200],
-    ] as [number, number][],
-  },
-];
-
 // Geodesic spherical area calculation in km²
 function calculatePolygonAreaKm2(coords: [number, number][]): number {
   if (coords.length < 3) return 0;
@@ -166,6 +99,11 @@ export default function AlertsPage() {
   const [createSuccess, setCreateSuccess] = useState<string | null>(null);
   const [showJsonEditor, setShowJsonEditor] = useState(false);
   const [selectedZoneId, setSelectedZoneId] = useState<string | null>(null);
+
+  // User GPS Tracking & Map Center Target
+  const [mapCenterTarget, setMapCenterTarget] = useState<[number, number] | null>(null);
+  const [userGpsLocation, setUserGpsLocation] = useState<[number, number] | null>(null);
+  const [isLocatingUser, setIsLocatingUser] = useState(false);
 
   // Web Push Status
   const [pushPermission, setPushPermission] = useState<NotificationPermission | "unsupported">("default");
@@ -280,14 +218,6 @@ export default function AlertsPage() {
     );
   }, [activeCoords]);
 
-  // Apply Quick Preset
-  const handleApplyPreset = (preset: typeof ZONE_PRESETS[0]) => {
-    setZoneName(isBn ? preset.zoneNameBn : preset.zoneNameEn);
-    setActiveCoords(preset.coordinates);
-    setCoordsString(JSON.stringify(preset.coordinates, null, 2));
-    setCreateError(null);
-  };
-
   // Add Point via map click
   const handleAddMapPoint = (point: [number, number]) => {
     // If polygon is already closed, start a new one
@@ -333,36 +263,93 @@ export default function AlertsPage() {
 
   // Geolocate user to start drawing near them
   const handleGeolocate = () => {
-    if (!navigator.geolocation) {
+    if (typeof window === "undefined" || !("geolocation" in navigator)) {
       showToast(
         isBn ? "আপনার ব্রাউজারে জিপিএস সমর্থিত নয়" : "Geolocation is not supported by your browser",
         "error"
       );
       return;
     }
+
+    setIsLocatingUser(true);
+
+    const applyLocationAndBox = (lat: number, lng: number) => {
+      // Add a 500m bounding perimeter around user position
+      const delta = 0.005;
+      const userBox: [number, number][] = [
+        [lng - delta, lat - delta],
+        [lng + delta, lat - delta],
+        [lng + delta, lat + delta],
+        [lng - delta, lat + delta],
+        [lng - delta, lat - delta],
+      ];
+      setActiveCoords(userBox);
+      setCoordsString(JSON.stringify(userBox, null, 2));
+      setZoneName(isBn ? "আমার বর্তমান অবস্থান বলয়" : "My Current Location Perimeter");
+      setUserGpsLocation([lat, lng]);
+      setMapCenterTarget([lat, lng]);
+      setIsLocatingUser(false);
+      showToast(
+        isBn ? "আপনার অবস্থান মানচিত্রে প্রদর্শিত হয়েছে!" : "Successfully centered on your location!",
+        "success"
+      );
+    };
+
+    const tryCoarseOrStoredFallback = (primaryErr?: GeolocationPositionError) => {
+      // On Windows PC without dedicated GPS hardware, attempt coarse network/IP positioning
+      navigator.geolocation.getCurrentPosition(
+        (coarsePos) => {
+          const lat = parseFloat(coarsePos.coords.latitude.toFixed(5));
+          const lng = parseFloat(coarsePos.coords.longitude.toFixed(5));
+          applyLocationAndBox(lat, lng);
+        },
+        (fallbackErr) => {
+          // Check if user has calibrated location or cached store location from Live Map
+          const storeLoc =
+            useMapStore.getState().userLocation || useMapStore.getState().loadSavedLocation();
+          if (storeLoc && typeof storeLoc.lat === "number" && typeof storeLoc.lng === "number") {
+            applyLocationAndBox(storeLoc.lat, storeLoc.lng);
+            showToast(
+              isBn
+                ? "ডিভাইসে লাইভ জিপিএস সিগন্যাল পাওয়া যায়নি, পূর্বের সংরক্ষিত অবস্থান ব্যবহার করা হয়েছে।"
+                : "Live GPS unavailable. Using last known/saved location.",
+              "info"
+            );
+            return;
+          }
+
+          setIsLocatingUser(false);
+          if (primaryErr?.code === 1 || fallbackErr.code === 1) {
+            showToast(
+              isBn
+                ? "ব্রাউজারে লোকেশন পারমিশন ব্লক করা আছে। ব্রাউজার সেটিংস থেকে লোকেশন অনুমতি দিন।"
+                : "Location access denied. Please allow location permissions in your browser settings.",
+              "error"
+            );
+          } else {
+            showToast(
+              isBn
+                ? "ডিভাইসে জিপিএস পাওয়া যায়নি। ফোনের লোকেশন অন করুন অথবা মানচিত্রে সরাসরি ক্লিক করুন।"
+                : "Could not detect GPS. Please check device location settings or click directly on the map.",
+              "error"
+            );
+          }
+        },
+        { enableHighAccuracy: false, timeout: 8000, maximumAge: 60000 }
+      );
+    };
+
+    // First attempt with high accuracy, fast timeout
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        const lng = parseFloat(pos.coords.longitude.toFixed(5));
         const lat = parseFloat(pos.coords.latitude.toFixed(5));
-        // Add a 500m bounding perimeter around user position
-        const delta = 0.005;
-        const userBox: [number, number][] = [
-          [lng - delta, lat - delta],
-          [lng + delta, lat - delta],
-          [lng + delta, lat + delta],
-          [lng - delta, lat + delta],
-          [lng - delta, lat - delta],
-        ];
-        setActiveCoords(userBox);
-        setCoordsString(JSON.stringify(userBox, null, 2));
-        setZoneName(isBn ? "আমার বর্তমান অবস্থান বলয়" : "My Current Location Perimeter");
+        const lng = parseFloat(pos.coords.longitude.toFixed(5));
+        applyLocationAndBox(lat, lng);
       },
-      () => {
-        showToast(
-          isBn ? "জিপিএস অবস্থান সংগ্রহ করা যায়নি" : "Unable to retrieve your GPS location",
-          "error"
-        );
-      }
+      (err) => {
+        tryCoarseOrStoredFallback(err);
+      },
+      { enableHighAccuracy: true, timeout: 6000, maximumAge: 30000 }
     );
   };
 
@@ -793,11 +780,60 @@ export default function AlertsPage() {
                 <button
                   type="button"
                   onClick={handleGeolocate}
-                  className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+                  disabled={isLocatingUser}
+                  className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 disabled:opacity-60 text-slate-700 font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
                 >
-                  <LocateFixed className="w-3.5 h-3.5 text-blue-600" />
-                  <span>{isBn ? "আমার অবস্থান" : "My GPS"}</span>
+                  {isLocatingUser ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 text-blue-600 animate-spin" />
+                      <span>{isBn ? "অবস্থান খোঁজা হচ্ছে..." : "Locating..."}</span>
+                    </>
+                  ) : (
+                    <>
+                      <LocateFixed className="w-3.5 h-3.5 text-blue-600" />
+                      <span>{isBn ? "আমার অবস্থান" : "My GPS"}</span>
+                    </>
+                  )}
                 </button>
+              </div>
+
+              {/* Dynamic Guidance Banner (Placed outside the map to prevent blocking tiles and zoom buttons) */}
+              <div className="flex items-center justify-between gap-2 px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200/90 text-xs text-slate-700 font-medium shadow-2xs">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span
+                    className={`w-2.5 h-2.5 rounded-full shrink-0 ${
+                      isClosed
+                        ? "bg-emerald-500"
+                        : activeCoords.length > 0
+                        ? "bg-blue-600 animate-pulse"
+                        : "bg-blue-600 animate-ping"
+                    }`}
+                  />
+                  <span className="truncate font-semibold text-slate-800">
+                    {activeCoords.length === 0
+                      ? isBn
+                        ? "মানচিত্রে ক্লিক করে আপনার এলাকার চারপাশে পয়েন্ট বসান"
+                        : "Click map to place perimeter vertices around your area"
+                      : !isClosed
+                      ? isBn
+                        ? `${activeCoords.length}টি পয়েন্ট চিহ্নিত হয়েছে। রিং সম্পূর্ণ করতে ১ম পয়েন্টে চাপুন`
+                        : `${activeCoords.length} vertices placed. Click first point or 'Close Ring' to finish`
+                      : isBn
+                        ? `নিরাপত্তা বলয় আবদ্ধ হয়েছে (${areaKm2} বর্গকিমি)। নিচে নাম দিয়ে সংরক্ষণ করুন`
+                        : `Perimeter closed (${areaKm2} km²). Give your zone a name below to save`}
+                  </span>
+                </div>
+                {activeCoords.length > 0 && !isClosed && (
+                  <span className="text-[11px] text-slate-500 shrink-0 font-mono hidden sm:inline bg-white px-2 py-0.5 rounded-md border border-slate-200">
+                    {Math.max(0, 3 - activeCoords.length) > 0
+                      ? isBn
+                        ? `আরও ${3 - activeCoords.length}টি প্রয়োজন`
+                        : `Need ${3 - activeCoords.length} more`
+                      : isBn
+                        ? "রিং সম্পূর্ণের জন্য প্রস্তুত"
+                        : "Ready to close ring"}
+                  </span>
+                )}
               </div>
 
               {/* Interactive Leaflet Map */}
@@ -806,7 +842,19 @@ export default function AlertsPage() {
                 onAddPoint={handleAddMapPoint}
                 savedZones={zones}
                 selectedZoneId={selectedZoneId}
-                onSelectZone={(z) => setSelectedZoneId(z.id)}
+                onSelectZone={(z) => {
+                  setSelectedZoneId(z.id);
+                  let coords: [number, number][] = [];
+                  if (z.area?.coordinates?.[0]) coords = z.area.coordinates[0];
+                  else if (z.coordinates) coords = z.coordinates;
+                  if (coords.length > 0) {
+                    const sumLng = coords.reduce((sum, c) => sum + c[0], 0);
+                    const sumLat = coords.reduce((sum, c) => sum + c[1], 0);
+                    setMapCenterTarget([sumLat / coords.length, sumLng / coords.length]);
+                  }
+                }}
+                flyToCenter={mapCenterTarget}
+                userLocationMarker={userGpsLocation}
               />
 
               {/* Warnings and Status Banners */}
@@ -853,25 +901,6 @@ export default function AlertsPage() {
                   </button>
                 </div>
               )}
-
-              {/* Metropolitan Presets */}
-              <div className="pt-2">
-                <label className="block text-xs font-bold text-slate-700 mb-2">
-                  {isBn ? "দ্রুত মেট্রো প্রিসেট নির্বাচন:" : "Quick Metropolitan Presets:"}
-                </label>
-                <div className="flex flex-wrap gap-1.5">
-                  {ZONE_PRESETS.map((preset) => (
-                    <button
-                      type="button"
-                      key={preset.nameEn}
-                      onClick={() => handleApplyPreset(preset)}
-                      className="px-3 py-1.5 text-xs rounded-xl bg-slate-50 hover:bg-blue-50 text-slate-700 hover:text-blue-700 border border-slate-200 hover:border-blue-300 font-semibold transition-all cursor-pointer shadow-2xs"
-                    >
-                      {isBn ? preset.nameBn : preset.nameEn}
-                    </button>
-                  ))}
-                </div>
-              </div>
 
               {/* Create Zone Form */}
               <form onSubmit={handleCreateZone} className="space-y-4 pt-2">
@@ -992,8 +1021,8 @@ export default function AlertsPage() {
                   </p>
                   <p className="text-slate-500 text-[11px]">
                     {isBn
-                      ? "মানচিত্রে ক্লিক করে বা প্রিসেট নির্বাচন করে আপনার প্রথম জোন তৈরি করুন।"
-                      : "Click vertices on the map canvas or apply a metropolitan preset to establish 24/7 monitoring."}
+                      ? "মানচিত্রে ক্লিক করে আপনার প্রথম নিরাপত্তা জোন তৈরি করুন।"
+                      : "Click vertices on the map canvas to establish 24/7 monitoring."}
                   </p>
                 </div>
               ) : (
@@ -1008,7 +1037,14 @@ export default function AlertsPage() {
                     return (
                       <div
                         key={zone.id}
-                        onClick={() => setSelectedZoneId(zone.id)}
+                        onClick={() => {
+                          setSelectedZoneId(zone.id);
+                          if (rawCoords.length > 0) {
+                            const sumLng = rawCoords.reduce((sum, c) => sum + c[0], 0);
+                            const sumLat = rawCoords.reduce((sum, c) => sum + c[1], 0);
+                            setMapCenterTarget([sumLat / rawCoords.length, sumLng / rawCoords.length]);
+                          }
+                        }}
                         className={`p-3.5 rounded-xl border transition-all cursor-pointer ${
                           isSelected
                             ? "bg-blue-50/70 border-blue-300 shadow-xs"
