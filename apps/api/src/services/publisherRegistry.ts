@@ -1093,9 +1093,9 @@ export const DIRECT_PUBLISHER_FEEDS: DirectFeedDefinition[] = [
     domain: 'banglatribune.com',
   },
   {
-    name: 'Sylhet View 24',
-    url: 'https://sylhetview24.net/feed/',
-    domain: 'sylhetview24.net',
+    name: 'Samakal',
+    url: 'https://samakal.com/rss.xml',
+    domain: 'samakal.com',
   },
   {
     name: 'Somoy News TV',

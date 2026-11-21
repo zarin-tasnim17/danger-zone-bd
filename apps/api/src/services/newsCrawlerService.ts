@@ -453,7 +453,7 @@ export const recordGoogleNewsFailure = (isRateLimit: boolean): void => {
   circuitBreaker.consecutiveFailures++;
   if (isRateLimit || circuitBreaker.consecutiveFailures >= 3) {
     circuitBreaker.state = 'OPEN';
-    circuitBreaker.openUntil = Date.now() + 30 * 60 * 1000; // 30 minutes cooldown
+    circuitBreaker.openUntil = Date.now() + 3 * 60 * 1000; // 3 minutes cooldown
     console.warn(
       `[News Crawler] ⚠️ Google News circuit breaker OPEN until ${new Date(circuitBreaker.openUntil).toISOString()} (RateLimit: ${isRateLimit})`
     );
@@ -1105,7 +1105,10 @@ export const crawlAllNewsFeeds = async (
           resp = await fetch(feedConfig.url, {
             signal: controller.signal,
             headers: {
-              'User-Agent': 'DangerZoneBD-PublicSafetyNewsCrawler/1.0 (contact@dangerzonebd.org)',
+              'User-Agent':
+                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 (compatible; DangerZoneBD/1.0; +https://dangerzonebd.org)',
+              Accept: 'application/rss+xml, application/xml, text/xml, text/html, */*',
+              'Accept-Language': 'en-US,en;q=0.9,bn;q=0.8',
             },
           });
 
