@@ -15,6 +15,7 @@ import {
   SOCKET_EVENTS,
   getSocketReportId,
   ReportCategory,
+  formatTimeTo12Hour,
   type ReportVotedPayload,
   type ReportResolvedPayload,
   type ReportPurgedPayload,
@@ -70,6 +71,8 @@ interface Incident {
   category: ReportCategory;
   severity: "LOW" | "MEDIUM" | "HIGH";
   isNightReport?: boolean;
+  activeTimeStart?: string | null;
+  activeTimeEnd?: string | null;
   latitude: number;
   longitude: number;
   description?: string | null;
@@ -83,6 +86,67 @@ interface Incident {
   media?: ReportMedia[];
   fuzzedRadiusMeters?: number;
   isGpsVerified?: boolean;
+}
+
+/**
+ * Converts "HH:mm" time string into total minutes of the day [0 - 1439]
+ */
+function parseTimeToMinutes(timeStr: string): number {
+  if (!timeStr) return 0;
+  const parts = timeStr.trim().split(":");
+  const h = parseInt(parts[0], 10) || 0;
+  const m = parseInt(parts[1], 10) || 0;
+  return ((h * 60 + m) % 1440 + 1440) % 1440;
+}
+
+/**
+ * Checks whether minuteOfDay [0 - 1439] falls inside a window [start, end].
+ * Handles overnight intervals crossing midnight cleanly (e.g. 18:00 to 06:00).
+ */
+function isMinuteInWindow(minuteOfDay: number, startStr: string, endStr: string): boolean {
+  const s = parseTimeToMinutes(startStr);
+  const e = parseTimeToMinutes(endStr);
+  if (s <= e) {
+    return minuteOfDay >= s && minuteOfDay <= e;
+  }
+  return minuteOfDay >= s || minuteOfDay <= e;
+}
+
+/**
+ * Determines whether two 24-hour time windows overlap, properly handling midnight wraparound.
+ */
+function checkTimeWindowOverlap(
+  startA: string,
+  endA: string,
+  startB: string,
+  endB: string
+): boolean {
+  const sA = parseTimeToMinutes(startA);
+  const eA = parseTimeToMinutes(endA);
+  const sB = parseTimeToMinutes(startB);
+  const eB = parseTimeToMinutes(endB);
+
+  const getIntervals = (s: number, e: number): [number, number][] => {
+    if (s <= e) {
+      return [[s, e]];
+    }
+    return [
+      [s, 1439],
+      [0, e],
+    ];
+  };
+
+  const intervalsA = getIntervals(sA, eA);
+  const intervalsB = getIntervals(sB, eB);
+
+  for (const [a1, a2] of intervalsA) {
+    for (const [b1, b2] of intervalsB) {
+      if (Math.max(a1, b1) <= Math.min(a2, b2)) {
+        return true;
+      }
+    }
+  }
+  return false;
 }
 
 interface IncidentComment {
@@ -169,69 +233,58 @@ export default function FeedPage() {
 
   // Filters & Search
   type UserTypeFilter = "ALL" | "CITIZEN" | "PRESS" | "VERIFIED_RESPONDER" | "MY_REPORTS";
+  type TimeFilterMode = "ALL" | "NIGHT" | "DAY" | "CUSTOM";
+
   const [categoryFilter, setCategoryFilter] = useState<string>("ALL");
   const [userTypeFilter, setUserTypeFilter] = useState<UserTypeFilter>("ALL");
   const [severityFilter, setSeverityFilter] = useState<string>("ALL");
-  const [nightFilter, setNightFilter] = useState<boolean>(false);
+  const [timeFilterMode, setTimeFilterMode] = useState<TimeFilterMode>("ALL");
+  const [customStartTime, setCustomStartTime] = useState<string>("18:00");
+  const [customEndTime, setCustomEndTime] = useState<string>("06:00");
+  const [includeContinuous, setIncludeContinuous] = useState<boolean>(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState<SortOption>("NEWEST");
 
-  // Category horizontal scroll state
-  const categoryScrollRef = React.useRef<HTMLDivElement>(null);
-  const [canScrollLeft, setCanScrollLeft] = useState(false);
-  const [canScrollRight, setCanScrollRight] = useState(false);
-
-  const checkCategoryScroll = useCallback(() => {
-    const el = categoryScrollRef.current;
-    if (!el) return;
-    const { scrollLeft, scrollWidth, clientWidth } = el;
-    setCanScrollLeft(scrollLeft > 4);
-    setCanScrollRight(scrollLeft < scrollWidth - clientWidth - 4);
-  }, []);
+  // Filter System Dropdown state (Pushed to the right)
+  const [isFilterMenuOpen, setIsFilterMenuOpen] = useState(false);
 
   const handleSelectCategory = (catId: string) => {
     setCategoryFilter(catId);
-    if (categoryScrollRef.current) {
-      const activeBtn = categoryScrollRef.current.querySelector(`[data-category-id="${catId}"]`) as HTMLElement;
-      if (activeBtn) {
-        activeBtn.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
-      }
-    }
   };
 
-  const handleScrollCategories = (direction: "left" | "right") => {
-    const el = categoryScrollRef.current;
-    if (!el) return;
-    const offset = direction === "left" ? -280 : 280;
-    el.scrollBy({ left: offset, behavior: "smooth" });
-    setTimeout(checkCategoryScroll, 320);
+  const applyTimePreset = (start: string, end: string, mode: TimeFilterMode) => {
+    setCustomStartTime(start);
+    setCustomEndTime(end);
+    setTimeFilterMode(mode);
   };
 
   const hasActiveFilters =
     categoryFilter !== "ALL" ||
     userTypeFilter !== "ALL" ||
     severityFilter !== "ALL" ||
-    nightFilter ||
+    timeFilterMode !== "ALL" ||
     searchQuery.trim().length > 0;
+
+  const activeFiltersCount = useMemo(() => {
+    let count = 0;
+    if (categoryFilter !== "ALL") count++;
+    if (userTypeFilter !== "ALL") count++;
+    if (severityFilter !== "ALL") count++;
+    if (timeFilterMode !== "ALL") count++;
+    if (searchQuery.trim().length > 0) count++;
+    return count;
+  }, [categoryFilter, userTypeFilter, severityFilter, timeFilterMode, searchQuery]);
 
   const handleResetFilters = () => {
     setCategoryFilter("ALL");
     setUserTypeFilter("ALL");
     setSeverityFilter("ALL");
-    setNightFilter(false);
+    setTimeFilterMode("ALL");
+    setCustomStartTime("18:00");
+    setCustomEndTime("06:00");
+    setIncludeContinuous(true);
     setSearchQuery("");
   };
-
-  useEffect(() => {
-    checkCategoryScroll();
-    const handleResize = () => checkCategoryScroll();
-    window.addEventListener("resize", handleResize);
-    const timer = setTimeout(checkCategoryScroll, 350);
-    return () => {
-      window.removeEventListener("resize", handleResize);
-      clearTimeout(timer);
-    };
-  }, [checkCategoryScroll]);
 
   // Interaction States
   const [votingId, setVotingId] = useState<string | null>(null);
@@ -250,7 +303,6 @@ export default function FeedPage() {
       let query = "/reports?minLat=20.0&maxLat=27.0&minLng=88.0&maxLng=93.0";
       if (categoryFilter !== "ALL") query += `&category=${categoryFilter}`;
       if (severityFilter !== "ALL") query += `&severity=${severityFilter}`;
-      if (nightFilter) query += `&isNightReport=true`;
 
       const data = await apiFetch<Incident[]>(query);
       setIncidents(data || []);
@@ -260,7 +312,7 @@ export default function FeedPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [categoryFilter, severityFilter, nightFilter, isBn]);
+  }, [categoryFilter, severityFilter, isBn]);
 
   useEffect(() => {
     initAuth();
@@ -524,6 +576,40 @@ export default function FeedPage() {
         if (!isOwner) return false;
       }
 
+      // Time Window & Hazard Schedule Filter
+      if (timeFilterMode !== "ALL") {
+        const filterStart = customStartTime;
+        const filterEnd = customEndTime;
+
+        // Incident has an explicit danger schedule (e.g. 18:00 - 06:00, or 14:00 - 18:00)
+        if (item.activeTimeStart && item.activeTimeEnd) {
+          const overlaps = checkTimeWindowOverlap(
+            item.activeTimeStart,
+            item.activeTimeEnd,
+            filterStart,
+            filterEnd
+          );
+          if (!overlaps) return false;
+        } else if (item.isNightReport) {
+          // Night report with implicit 18:00 - 06:00 window
+          const overlaps = checkTimeWindowOverlap("18:00", "06:00", filterStart, filterEnd);
+          if (!overlaps) return false;
+        } else {
+          // Continuous 24/7 or unscheduled report
+          if (!includeContinuous) {
+            if (item.createdAt) {
+              const d = new Date(item.createdAt);
+              const bstMinutes = ((d.getUTCHours() + 6) % 24) * 60 + d.getUTCMinutes();
+              if (!isMinuteInWindow(bstMinutes, filterStart, filterEnd)) {
+                return false;
+              }
+            } else {
+              return false;
+            }
+          }
+        }
+      }
+
       if (!searchQuery.trim()) return true;
       const q = searchQuery.toLowerCase();
       const matchesCategory = item.category.toLowerCase().includes(q);
@@ -543,7 +629,7 @@ export default function FeedPage() {
     }
 
     return result;
-  }, [incidents, userTypeFilter, user, searchQuery, sortBy]);
+  }, [incidents, userTypeFilter, user, searchQuery, sortBy, timeFilterMode, customStartTime, customEndTime, includeContinuous]);
 
   // Derived Telemetry Counts
   const activeCount = incidents.length;
@@ -667,14 +753,14 @@ export default function FeedPage() {
   ];
 
   return (
-    <div className="min-h-screen flex flex-col bg-slate-50 text-slate-900 font-sans selection:bg-red-500 selection:text-white">
+    <div className="min-h-screen flex flex-col bg-slate-50 text-slate-900 font-sans selection:bg-red-500 selection:text-white overflow-x-hidden w-full">
       {/* World-Class Single Daylight Navbar (No auxiliary route test strip, integrated language switch) */}
       <Navbar
         totalIncidents={activeCount}
         showFilters={false}
       />
 
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 overflow-x-hidden">
         {/* Header Hero Banner */}
         <section className="mb-6 sm:mb-8 space-y-4">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-white border border-slate-200/90 rounded-3xl p-5 sm:p-7 shadow-xs">
@@ -808,10 +894,10 @@ export default function FeedPage() {
 
         {/* Tactical Search & Filter Command Console */}
         <section className="bg-white border border-slate-200/90 rounded-3xl p-4 sm:p-5 mb-6 shadow-xs space-y-3.5">
-          {/* Tier 1: Search & Tactical Refinement Bar (Severity, Night, Sort, Reset) */}
-          <div className="flex flex-col xl:flex-row items-stretch xl:items-center gap-3">
+          {/* Main Command Bar: Search on Left, Filter Console Trigger & Actions Pushed to Right */}
+          <div className="flex items-center gap-2 sm:gap-2.5">
             {/* Search Input */}
-            <div className="relative flex-1 min-w-[200px]">
+            <div className="relative flex-1 min-w-0">
               <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
               <input
                 type="text"
@@ -822,7 +908,7 @@ export default function FeedPage() {
                 }
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full h-9 pl-9 pr-8 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 focus:bg-white transition placeholder:text-slate-400"
+                className="w-full h-10 pl-9 pr-8 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 focus:bg-white transition placeholder:text-slate-400"
               />
               {searchQuery && (
                 <button
@@ -835,97 +921,16 @@ export default function FeedPage() {
               )}
             </div>
 
-            {/* Refinement Controls Cluster */}
-            <div className="flex flex-wrap items-center gap-2 sm:gap-2.5 shrink-0">
-              {/* Category Filter Dropdown (Direct 1-click access without pushing/swiping to the right) */}
-              <div className="h-9 inline-flex items-center gap-1.5 shrink-0 bg-slate-50 border border-slate-200 rounded-xl px-2.5 sm:px-3 transition-colors hover:bg-slate-100/60 focus-within:ring-2 focus-within:ring-slate-900/10 focus-within:border-slate-400">
-                <Layers className="w-3.5 h-3.5 text-slate-500 shrink-0" />
-                <span className="text-xs font-semibold text-slate-500 hidden sm:inline select-none whitespace-nowrap">
-                  {isBn ? "ক্যাটাগরি:" : "Category:"}
-                </span>
-                <select
-                  value={categoryFilter}
-                  onChange={(e) => handleSelectCategory(e.target.value)}
-                  className="h-full bg-transparent text-xs font-semibold text-slate-800 focus:outline-none cursor-pointer pr-1 max-w-[130px] sm:max-w-none"
-                  aria-label={isBn ? "বিপদের ধরন ফিল্টার" : "Filter by incident category"}
-                >
-                  {CATEGORY_TABS.map((tab) => (
-                    <option key={tab.id} value={tab.id}>
-                      {isBn ? tab.labelBn : tab.labelEn}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* User / Reporter Source Filter Dropdown ("select the related user I want to see") */}
-              <div className="h-9 inline-flex items-center gap-1.5 shrink-0 bg-slate-50 border border-slate-200 rounded-xl px-2.5 sm:px-3 transition-colors hover:bg-slate-100/60 focus-within:ring-2 focus-within:ring-slate-900/10 focus-within:border-slate-400">
-                <Users className="w-3.5 h-3.5 text-slate-500 shrink-0" />
-                <span className="text-xs font-semibold text-slate-500 hidden sm:inline select-none whitespace-nowrap">
-                  {isBn ? "ব্যবহারকারী:" : "User:"}
-                </span>
-                <select
-                  value={userTypeFilter}
-                  onChange={(e) => setUserTypeFilter(e.target.value as UserTypeFilter)}
-                  className="h-full bg-transparent text-xs font-semibold text-slate-800 focus:outline-none cursor-pointer pr-1 max-w-[130px] sm:max-w-none"
-                  aria-label={isBn ? "ব্যবহারকারী বা উৎস ফিল্টার" : "Filter by user or source"}
-                >
-                  <option value="ALL">{isBn ? "সকল ব্যবহারকারী" : "All Users"}</option>
-                  <option value="CITIZEN">{isBn ? "নাগরিক রিপোর্ট (Citizen)" : "Citizen Reports"}</option>
-                  <option value="PRESS">{isBn ? "সংবাদ মাধ্যম (Press)" : "Press & News"}</option>
-                  <option value="VERIFIED_RESPONDER">{isBn ? "যাচাইকৃত রেসপন্ডার" : "Verified Responders"}</option>
-                  {user && (
-                    <option value="MY_REPORTS">{isBn ? "আমার রিপোর্ট" : "My Reports"}</option>
-                  )}
-                </select>
-              </div>
-
-              {/* Severity Segmented Switch */}
-              <div className="h-9 inline-flex items-center gap-0.5 bg-slate-100/90 p-1 rounded-xl border border-slate-200/90">
-                <span className="text-[10px] font-bold text-slate-500 pl-2 pr-1 uppercase tracking-wider select-none hidden sm:inline">
-                  {isBn ? "তীব্রতা:" : "Severity:"}
-                </span>
-                {SEVERITY_OPTIONS.map((opt) => {
-                  const isSelected = severityFilter === opt.id;
-                  return (
-                    <button
-                      key={opt.id}
-                      onClick={() => setSeverityFilter(opt.id)}
-                      className={`h-7 text-xs px-2 sm:px-2.5 rounded-lg font-semibold transition-all inline-flex items-center gap-1 sm:gap-1.5 ${
-                        isSelected
-                          ? opt.activeClass
-                          : "text-slate-600 hover:text-slate-900 hover:bg-slate-200/50"
-                      }`}
-                    >
-                      {opt.dotClass && <span className={`w-1.5 h-1.5 rounded-full ${opt.dotClass}`} />}
-                      <span>{isBn ? opt.labelBn : opt.labelEn}</span>
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* Night Filter Button */}
-              <button
-                onClick={() => setNightFilter(!nightFilter)}
-                className={`h-9 inline-flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3.5 rounded-xl text-xs font-semibold border transition-all active:scale-95 shrink-0 ${
-                  nightFilter
-                    ? "bg-indigo-900 text-white border-indigo-900 shadow-2xs ring-1 ring-indigo-950/20"
-                    : "bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200"
-                }`}
-              >
-                <Moon className={`w-3.5 h-3.5 ${nightFilter ? "text-amber-300 fill-amber-300/30" : "text-indigo-600"}`} />
-                <span className="whitespace-nowrap">{isBn ? "রাতের ঘটনা" : "Night (6PM-6AM)"}</span>
-              </button>
-
-              {/* Sorting Dropdown */}
-              <div className="h-9 inline-flex items-center gap-1.5 shrink-0 bg-slate-50 border border-slate-200 rounded-xl px-2.5 sm:px-3 transition-colors hover:bg-slate-100/60 focus-within:ring-2 focus-within:ring-slate-900/10 focus-within:border-slate-400">
+            {/* Right-Pushed Action Cluster */}
+            <div className="flex items-center gap-2 shrink-0">
+              {/* Quick Sort Dropdown (Desktop & Tablet) */}
+              <div className="h-10 hidden sm:inline-flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-2.5 transition-colors hover:bg-slate-100/60 focus-within:ring-2 focus-within:ring-slate-900/10 focus-within:border-slate-400">
                 <SlidersHorizontal className="w-3.5 h-3.5 text-slate-500 shrink-0" />
-                <span className="text-xs font-semibold text-slate-500 hidden sm:inline select-none whitespace-nowrap">
-                  {isBn ? "ক্রমবিন্যাস:" : "Sort:"}
-                </span>
                 <select
                   value={sortBy}
                   onChange={(e) => setSortBy(e.target.value as SortOption)}
                   className="h-full bg-transparent text-xs font-semibold text-slate-800 focus:outline-none cursor-pointer pr-1"
+                  aria-label={isBn ? "সাজানোর ক্রম" : "Sort order"}
                 >
                   <option value="NEWEST">{isBn ? "সর্বশেষ প্রকাশিত" : "Newest First"}</option>
                   <option value="MOST_UPVOTED">{isBn ? "সর্বাধিক সমর্থিত" : "Most Upvoted"}</option>
@@ -933,75 +938,473 @@ export default function FeedPage() {
                 </select>
               </div>
 
-              {/* Reset Filters Chip (Visible when active) */}
-              {hasActiveFilters && (
-                <button
-                  onClick={handleResetFilters}
-                  className="h-9 inline-flex items-center gap-1.5 px-3 rounded-xl text-xs font-semibold text-slate-500 hover:text-red-600 hover:bg-red-50 border border-slate-200 hover:border-red-200 transition-all shrink-0"
-                  title={isBn ? "সকল ফিল্টার মুছুন" : "Reset all filters"}
-                >
-                  <X className="w-3.5 h-3.5" />
-                  <span>{isBn ? "মুছুন" : "Reset"}</span>
-                </button>
-              )}
-            </div>
-          </div>
-
-          {/* Tier 2: Dedicated Full-Width Category Navigation Rail */}
-          <div className="pt-3 border-t border-slate-100 relative">
-            <div className="flex items-center gap-1.5">
-              {/* Left scroll chevron */}
-              {canScrollLeft && (
-                <button
-                  type="button"
-                  onClick={() => handleScrollCategories("left")}
-                  className="hidden md:inline-flex items-center justify-center w-8 h-8 rounded-xl bg-white border border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-50 shadow-2xs transition shrink-0 z-10"
-                  aria-label={isBn ? "বামে স্ক্রোল করুন" : "Scroll categories left"}
-                >
-                  <ChevronLeft className="w-4 h-4" />
-                </button>
-              )}
-
-              {/* Horizontal Scrollable Categories */}
-              <div
-                ref={categoryScrollRef}
-                onScroll={checkCategoryScroll}
-                className="flex items-center gap-1.5 overflow-x-auto scrollbar-none scroll-smooth py-0.5 flex-1 min-w-0"
+              {/* Dedicated Filter Trigger Button (Pushed to the Right) */}
+              <button
+                type="button"
+                onClick={() => setIsFilterMenuOpen((prev) => !prev)}
+                className={`h-10 px-3 sm:px-3.5 rounded-xl text-xs font-bold border flex items-center gap-2 transition-all active:scale-95 shadow-2xs select-none ${
+                  isFilterMenuOpen || activeFiltersCount > 0
+                    ? "bg-slate-900 text-white border-slate-900 shadow-sm ring-2 ring-slate-900/10"
+                    : "bg-white hover:bg-slate-50 text-slate-800 border-slate-200 hover:border-slate-300"
+                }`}
+                aria-expanded={isFilterMenuOpen}
+                aria-label={isBn ? "ফিল্টার সিস্টেম খুলুন" : "Open filter system"}
               >
-                {CATEGORY_TABS.map((tab) => {
-                  const isSelected = categoryFilter === tab.id;
-                  const Icon = tab.icon;
-                  return (
-                    <button
-                      key={tab.id}
-                      data-category-id={tab.id}
-                      onClick={() => handleSelectCategory(tab.id)}
-                      className={`h-8 text-xs px-3 rounded-xl font-semibold border inline-flex items-center gap-1.5 transition-all shrink-0 select-none ${
-                        isSelected
-                          ? "bg-slate-900 text-white border-slate-900 shadow-2xs ring-1 ring-slate-900/10"
-                          : "bg-white text-slate-600 border-slate-200 hover:text-slate-900 hover:bg-slate-50 hover:border-slate-300"
-                      }`}
-                    >
-                      <Icon className={`w-3.5 h-3.5 ${isSelected ? "text-white" : "text-slate-500"}`} />
-                      <span className="whitespace-nowrap">{isBn ? tab.labelBn : tab.labelEn}</span>
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* Right scroll chevron */}
-              {canScrollRight && (
-                <button
-                  type="button"
-                  onClick={() => handleScrollCategories("right")}
-                  className="hidden md:inline-flex items-center justify-center w-8 h-8 rounded-xl bg-white border border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-50 shadow-2xs transition shrink-0 z-10"
-                  aria-label={isBn ? "ডানে স্ক্রোল করুন" : "Scroll categories right"}
-                >
-                  <ChevronRight className="w-4 h-4" />
-                </button>
-              )}
+                <SlidersHorizontal className={`w-3.5 h-3.5 ${isFilterMenuOpen || activeFiltersCount > 0 ? "text-red-400" : "text-slate-600"}`} />
+                <span className="whitespace-nowrap">{isBn ? "ফিল্টার" : "Filters"}</span>
+                {activeFiltersCount > 0 && (
+                  <span className="w-5 h-5 rounded-full bg-red-600 text-white text-[10px] font-black flex items-center justify-center shrink-0 shadow-2xs">
+                    {activeFiltersCount}
+                  </span>
+                )}
+                <ChevronDown
+                  className={`w-3.5 h-3.5 transition-transform duration-200 ${
+                    isFilterMenuOpen ? "rotate-180 text-white" : "text-slate-400"
+                  }`}
+                />
+              </button>
             </div>
           </div>
+
+          {/* Active Filter Chips Bar (Visible when any filter or search is active) */}
+          {hasActiveFilters && (
+            <div className="flex flex-wrap items-center gap-1.5 pt-0.5 text-xs">
+              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider select-none mr-0.5">
+                {isBn ? "সক্রিয় ফিল্টার:" : "Active:"}
+              </span>
+
+              {categoryFilter !== "ALL" && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-900 text-white font-semibold text-xs shadow-2xs">
+                  <Layers className="w-3 h-3 text-slate-300" />
+                  <span>
+                    {isBn
+                      ? CATEGORY_TABS.find((c) => c.id === categoryFilter)?.labelBn || categoryFilter
+                      : CATEGORY_TABS.find((c) => c.id === categoryFilter)?.labelEn || categoryFilter}
+                  </span>
+                  <button
+                    onClick={() => handleSelectCategory("ALL")}
+                    className="hover:text-red-300 ml-0.5 p-0.5"
+                    aria-label={isBn ? "ক্যাটাগরি ফিল্টার মুছুন" : "Remove category filter"}
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              )}
+
+              {userTypeFilter !== "ALL" && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-700 text-white font-semibold text-xs shadow-2xs">
+                  <Users className="w-3 h-3 text-blue-200" />
+                  <span>
+                    {userTypeFilter === "CITIZEN"
+                      ? isBn ? "নাগরিক রিপোর্ট" : "Citizen Reports"
+                      : userTypeFilter === "PRESS"
+                        ? isBn ? "সংবাদ মাধ্যম" : "Press & News"
+                        : userTypeFilter === "VERIFIED_RESPONDER"
+                          ? isBn ? "যাচাইকৃত রেসপন্ডার" : "Verified Responders"
+                          : isBn ? "আমার রিপোর্ট" : "My Reports"}
+                  </span>
+                  <button
+                    onClick={() => setUserTypeFilter("ALL")}
+                    className="hover:text-blue-200 ml-0.5 p-0.5"
+                    aria-label={isBn ? "ব্যবহারকারী ফিল্টার মুছুন" : "Remove user filter"}
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              )}
+
+              {severityFilter !== "ALL" && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-red-600 text-white font-semibold text-xs shadow-2xs">
+                  <span>
+                    {isBn
+                      ? SEVERITY_OPTIONS.find((s) => s.id === severityFilter)?.labelBn || severityFilter
+                      : SEVERITY_OPTIONS.find((s) => s.id === severityFilter)?.labelEn || severityFilter}{" "}
+                    {isBn ? "ঝুঁকি" : "Risk"}
+                  </span>
+                  <button
+                    onClick={() => setSeverityFilter("ALL")}
+                    className="hover:text-red-200 ml-0.5 p-0.5"
+                    aria-label={isBn ? "তীব্রতা ফিল্টার মুছুন" : "Remove severity filter"}
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              )}
+
+              {timeFilterMode === "NIGHT" && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-900 text-white font-semibold text-xs shadow-2xs">
+                  <Moon className="w-3 h-3 text-amber-300 fill-amber-300/30" />
+                  <span>{isBn ? "রাতের ঘটনা (৬টা-৬টা)" : "Night (6PM-6AM)"}</span>
+                  <button
+                    onClick={() => setTimeFilterMode("ALL")}
+                    className="hover:text-amber-200 ml-0.5 p-0.5"
+                    aria-label={isBn ? "রাতের ফিল্টার মুছুন" : "Remove night filter"}
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              )}
+
+              {timeFilterMode === "DAY" && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-600 text-white font-semibold text-xs shadow-2xs">
+                  <span>☀️ {isBn ? "দিনের বেলা (৬টা-৬টা)" : "Daytime (6AM-6PM)"}</span>
+                  <button
+                    onClick={() => setTimeFilterMode("ALL")}
+                    className="hover:text-amber-200 ml-0.5 p-0.5"
+                    aria-label={isBn ? "দিনের ফিল্টার মুছুন" : "Remove daytime filter"}
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              )}
+
+              {timeFilterMode === "CUSTOM" && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-900 text-white font-semibold text-xs shadow-2xs">
+                  <Clock className="w-3 h-3 text-amber-300" />
+                  <span>
+                    {isBn ? "সময়সীমা:" : "Time:"} {formatTimeTo12Hour(customStartTime)} – {formatTimeTo12Hour(customEndTime)}
+                  </span>
+                  <button
+                    onClick={() => setTimeFilterMode("ALL")}
+                    className="hover:text-amber-200 ml-0.5 p-0.5"
+                    aria-label={isBn ? "সময় ফিল্টার মুছুন" : "Remove time filter"}
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              )}
+
+              {searchQuery.trim() && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-200 text-slate-800 font-semibold text-xs shadow-2xs">
+                  <Search className="w-3 h-3 text-slate-500" />
+                  <span className="max-w-[120px] truncate">&ldquo;{searchQuery}&rdquo;</span>
+                  <button
+                    onClick={() => setSearchQuery("")}
+                    className="hover:text-red-600 ml-0.5 p-0.5"
+                    aria-label={isBn ? "অনুসন্ধান মুছুন" : "Remove search query"}
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              )}
+
+              <button
+                onClick={handleResetFilters}
+                className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold text-red-600 hover:text-red-700 hover:bg-red-50 border border-transparent hover:border-red-200 transition"
+              >
+                <RotateCcw className="w-3 h-3" />
+                <span>{isBn ? "সব মুছুন" : "Clear All"}</span>
+              </button>
+            </div>
+          )}
+
+          {/* Expandable Filter System Console Dropdown */}
+          {isFilterMenuOpen && (
+            <div className="pt-3 border-t border-slate-100">
+              <div className="bg-slate-50/90 border border-slate-200/90 rounded-2xl p-4 sm:p-5 shadow-xs space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-lg bg-slate-900 text-white flex items-center justify-center shadow-2xs">
+                      <SlidersHorizontal className="w-3.5 h-3.5" />
+                    </div>
+                    <div>
+                      <h3 className="text-xs font-bold text-slate-900">
+                        {isBn ? "ফিল্টার সিস্টেম ও কাস্টমাইজেশন" : "Safety Telemetry Filter System"}
+                      </h3>
+                      <p className="text-[11px] text-slate-500">
+                        {isBn ? "নির্দিষ্ট ক্যাটাগরি, ব্যবহারকারী বা উৎস অনুযায়ী ফিল্টার করুন" : "Refine incidents by category, user source, severity, and schedule"}
+                      </p>
+                    </div>
+                  </div>
+
+                  {hasActiveFilters && (
+                    <button
+                      onClick={handleResetFilters}
+                      className="text-xs font-bold text-red-600 hover:text-red-700 hover:underline flex items-center gap-1"
+                    >
+                      <RotateCcw className="w-3 h-3" />
+                      <span>{isBn ? "রিসেট করুন" : "Reset All"}</span>
+                    </button>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
+                  {/* Dropdown 1: Related User / Reporter Source ("select the related user I want to see") */}
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] font-bold text-slate-600 flex items-center gap-1.5">
+                      <Users className="w-3.5 h-3.5 text-blue-600" />
+                      <span>{isBn ? "ব্যবহারকারী বা উৎস ফিল্টার" : "Related User / Reporter"}</span>
+                    </label>
+                    <div className="relative">
+                      <select
+                        value={userTypeFilter}
+                        onChange={(e) => setUserTypeFilter(e.target.value as UserTypeFilter)}
+                        className="w-full h-10 px-3 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 cursor-pointer shadow-2xs appearance-none pr-8"
+                        aria-label={isBn ? "ব্যবহারকারী বা উৎস ফিল্টার" : "Filter by user or source"}
+                      >
+                        <option value="ALL">{isBn ? "সকল ব্যবহারকারী ও উৎস" : "All Users & Sources"}</option>
+                        <option value="CITIZEN">{isBn ? "নাগরিক রিপোর্ট (Citizen Submissions)" : "Citizen Reports"}</option>
+                        <option value="PRESS">{isBn ? "সংবাদ মাধ্যম (Google News BD Verified)" : "Press & News Media"}</option>
+                        <option value="VERIFIED_RESPONDER">{isBn ? "যাচাইকৃত রেসপন্ডার (Admin / GPS)" : "Verified Responders"}</option>
+                        {user && (
+                          <option value="MY_REPORTS">{isBn ? "আমার রিপোর্ট (My Incident Reports)" : "My Reports"}</option>
+                        )}
+                      </select>
+                      <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    </div>
+                  </div>
+
+                  {/* Dropdown 2: Incident Category Dropdown */}
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] font-bold text-slate-600 flex items-center gap-1.5">
+                      <Layers className="w-3.5 h-3.5 text-slate-700" />
+                      <span>{isBn ? "বিপদের ধরন (ক্যাটাগরি)" : "Incident Category"}</span>
+                    </label>
+                    <div className="relative">
+                      <select
+                        value={categoryFilter}
+                        onChange={(e) => handleSelectCategory(e.target.value)}
+                        className="w-full h-10 px-3 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 cursor-pointer shadow-2xs appearance-none pr-8"
+                        aria-label={isBn ? "বিপদের ধরন ফিল্টার" : "Filter by incident category"}
+                      >
+                        {CATEGORY_TABS.map((tab) => (
+                          <option key={tab.id} value={tab.id} data-category-id={tab.id}>
+                            {isBn ? tab.labelBn : tab.labelEn}
+                          </option>
+                        ))}
+                      </select>
+                      <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    </div>
+                  </div>
+
+                  {/* Threat Severity Selector */}
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] font-bold text-slate-600 flex items-center gap-1.5">
+                      <AlertTriangle className="w-3.5 h-3.5 text-red-600" />
+                      <span>{isBn ? "ঝুঁকির মাত্রা (Severity)" : "Threat Severity"}</span>
+                    </label>
+                    <div className="h-10 flex items-center gap-1 bg-white p-1 rounded-xl border border-slate-200 shadow-2xs">
+                      {SEVERITY_OPTIONS.map((opt) => {
+                        const isSelected = severityFilter === opt.id;
+                        return (
+                          <button
+                            key={opt.id}
+                            type="button"
+                            onClick={() => setSeverityFilter(opt.id)}
+                            className={`flex-1 h-8 text-xs rounded-lg font-semibold transition-all inline-flex items-center justify-center gap-1 ${
+                              isSelected
+                                ? opt.activeClass
+                                : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
+                            }`}
+                          >
+                            {opt.dotClass && <span className={`w-1.5 h-1.5 rounded-full ${opt.dotClass}`} />}
+                            <span>{isBn ? opt.labelBn : opt.labelEn}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Time Window Switcher & Custom Range Selector */}
+                  <div className="space-y-2 sm:col-span-2 lg:col-span-3 bg-white p-3.5 sm:p-4 rounded-xl border border-slate-200 shadow-2xs">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <label className="text-[11px] font-bold text-slate-700 flex items-center gap-1.5 uppercase tracking-wider">
+                        <Clock className="w-3.5 h-3.5 text-indigo-600" />
+                        <span>{isBn ? "বিপদের সময়সীমা ও সক্রিয় সময় ফিল্টার" : "Danger Schedule & Active Hours Filter"}</span>
+                      </label>
+                      {timeFilterMode !== "ALL" && (
+                        <span className="text-[11px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-md">
+                          {timeFilterMode === "NIGHT"
+                            ? isBn ? "রাত ৬:০০ PM — সকাল ৬:০০ AM" : "06:00 PM — 06:00 AM (BST)"
+                            : timeFilterMode === "DAY"
+                              ? isBn ? "সকাল ৬:০০ AM — সন্ধ্যা ৬:০০ PM" : "06:00 AM — 06:00 PM (BST)"
+                              : `${formatTimeTo12Hour(customStartTime)} — ${formatTimeTo12Hour(customEndTime)} (BST)`}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Quick Mode Switches */}
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setTimeFilterMode("ALL")}
+                        className={`h-8 px-3 text-xs rounded-lg font-semibold transition-all ${
+                          timeFilterMode === "ALL"
+                            ? "bg-slate-900 text-white shadow-2xs"
+                            : "bg-slate-100 text-slate-600 hover:text-slate-900 hover:bg-slate-200/70"
+                        }`}
+                      >
+                        {isBn ? "সার্বক্ষণিক (২৪ ঘণ্টা)" : "24 Hours (All Day)"}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => applyTimePreset("18:00", "06:00", "NIGHT")}
+                        className={`h-8 px-3 text-xs rounded-lg font-semibold inline-flex items-center gap-1.5 transition-all ${
+                          timeFilterMode === "NIGHT"
+                            ? "bg-indigo-900 text-white shadow-2xs"
+                            : "bg-slate-100 text-slate-600 hover:text-slate-900 hover:bg-slate-200/70"
+                        }`}
+                      >
+                        <Moon className={`w-3 h-3 ${timeFilterMode === "NIGHT" ? "text-amber-300 fill-amber-300/30" : "text-indigo-600"}`} />
+                        <span>{isBn ? "রাত (৬টা - ৬টা)" : "Night (6PM - 6AM)"}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => applyTimePreset("06:00", "18:00", "DAY")}
+                        className={`h-8 px-3 text-xs rounded-lg font-semibold inline-flex items-center gap-1.5 transition-all ${
+                          timeFilterMode === "DAY"
+                            ? "bg-amber-600 text-white shadow-2xs"
+                            : "bg-slate-100 text-slate-600 hover:text-slate-900 hover:bg-slate-200/70"
+                        }`}
+                      >
+                        <span>☀️ {isBn ? "দিনের বেলা (৬টা - ৬টা)" : "Daytime (6AM - 6PM)"}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => applyTimePreset("18:00", "22:00", "CUSTOM")}
+                        className={`h-8 px-2.5 text-xs rounded-lg font-semibold transition-all hidden sm:inline-flex items-center gap-1 ${
+                          timeFilterMode === "CUSTOM" && customStartTime === "18:00" && customEndTime === "22:00"
+                            ? "bg-indigo-700 text-white shadow-2xs"
+                            : "bg-slate-100 text-slate-600 hover:text-slate-900 hover:bg-slate-200/70"
+                        }`}
+                      >
+                        <span>🌆 {isBn ? "সন্ধ্যা (৬টা - ১০টা)" : "Evening (6PM - 10PM)"}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => applyTimePreset("22:00", "04:00", "CUSTOM")}
+                        className={`h-8 px-2.5 text-xs rounded-lg font-semibold transition-all hidden sm:inline-flex items-center gap-1 ${
+                          timeFilterMode === "CUSTOM" && customStartTime === "22:00" && customEndTime === "04:00"
+                            ? "bg-purple-900 text-white shadow-2xs"
+                            : "bg-slate-100 text-slate-600 hover:text-slate-900 hover:bg-slate-200/70"
+                        }`}
+                      >
+                        <span>🌃 {isBn ? "গভীর রাত (১০টা - ৪টা)" : "Late Night (10PM - 4AM)"}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setTimeFilterMode("CUSTOM")}
+                        className={`h-8 px-3 text-xs rounded-lg font-semibold inline-flex items-center gap-1.5 transition-all ${
+                          timeFilterMode === "CUSTOM"
+                            ? "bg-slate-800 text-white shadow-2xs"
+                            : "bg-slate-100 text-slate-600 hover:text-slate-900 hover:bg-slate-200/70"
+                        }`}
+                      >
+                        <SlidersHorizontal className="w-3 h-3 text-slate-300" />
+                        <span>{isBn ? "যেকোনো সময় (Custom Time)" : "Custom Time Window"}</span>
+                      </button>
+                    </div>
+
+                    {/* Custom Time Pickers (Visible when Custom, Day, or Night is active) */}
+                    {timeFilterMode !== "ALL" && (
+                      <div className="pt-2 border-t border-slate-100 space-y-2.5">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-center">
+                          {/* Start Time Input */}
+                          <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 border border-slate-200">
+                            <div className="space-y-0.5">
+                              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wide block">
+                                {isBn ? "শুরুর সময় (From Time)" : "Start Time (From)"}
+                              </span>
+                              <span className="text-xs font-bold text-slate-900">
+                                {formatTimeTo12Hour(customStartTime)}
+                              </span>
+                            </div>
+                            <input
+                              type="time"
+                              value={customStartTime}
+                              onChange={(e) => {
+                                setCustomStartTime(e.target.value);
+                                setTimeFilterMode("CUSTOM");
+                              }}
+                              className="h-8 px-2 bg-white border border-slate-300 rounded-lg text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-900/10 cursor-pointer shadow-2xs"
+                              aria-label={isBn ? "শুরুর সময় নির্বাচন করুন" : "Select start time"}
+                            />
+                          </div>
+
+                          {/* End Time Input */}
+                          <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 border border-slate-200">
+                            <div className="space-y-0.5">
+                              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wide block">
+                                {isBn ? "শেষ সময় (To Time)" : "End Time (To)"}
+                              </span>
+                              <span className="text-xs font-bold text-slate-900">
+                                {formatTimeTo12Hour(customEndTime)}
+                              </span>
+                            </div>
+                            <input
+                              type="time"
+                              value={customEndTime}
+                              onChange={(e) => {
+                                setCustomEndTime(e.target.value);
+                                setTimeFilterMode("CUSTOM");
+                              }}
+                              className="h-8 px-2 bg-white border border-slate-300 rounded-lg text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-900/10 cursor-pointer shadow-2xs"
+                              aria-label={isBn ? "শেষ সময় নির্বাচন করুন" : "Select end time"}
+                            />
+                          </div>
+                        </div>
+
+                        {/* Include 24/7 continuous hazards checkbox */}
+                        <label className="flex items-center gap-2 cursor-pointer select-none text-xs text-slate-600 hover:text-slate-900 pt-0.5">
+                          <input
+                            type="checkbox"
+                            checked={includeContinuous}
+                            onChange={(e) => setIncludeContinuous(e.target.checked)}
+                            className="w-3.5 h-3.5 rounded border-slate-300 text-slate-900 focus:ring-slate-900/10 cursor-pointer"
+                          />
+                          <span>
+                            {isBn
+                              ? "সার্বক্ষণিক (২৪ ঘণ্টা) চলমান ঝুঁকিও অন্তর্ভুক্ত রাখুন"
+                              : "Also include 24/7 continuous hazards (active around the clock)"}
+                          </span>
+                        </label>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Mobile Sort Option */}
+                  <div className="space-y-1.5 sm:hidden">
+                    <label className="text-[11px] font-bold text-slate-600 flex items-center gap-1.5">
+                      <SlidersHorizontal className="w-3.5 h-3.5 text-slate-600" />
+                      <span>{isBn ? "সাজানোর ক্রম" : "Sort Order"}</span>
+                    </label>
+                    <div className="relative">
+                      <select
+                        value={sortBy}
+                        onChange={(e) => setSortBy(e.target.value as SortOption)}
+                        className="w-full h-10 px-3 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 cursor-pointer shadow-2xs appearance-none pr-8"
+                      >
+                        <option value="NEWEST">{isBn ? "সর্বশেষ প্রকাশিত" : "Newest First"}</option>
+                        <option value="MOST_UPVOTED">{isBn ? "সর্বাধিক সমর্থিত" : "Most Upvoted"}</option>
+                        <option value="SEVERITY_HIGH">{isBn ? "উচ্চ বিপদ আগে" : "High Severity"}</option>
+                      </select>
+                      <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pt-3 border-t border-slate-200/80 flex items-center justify-between">
+                  <span className="text-xs font-medium text-slate-500">
+                    {isBn
+                      ? `${filteredIncidents.length} টি ফলাফল পাওয়া গেছে`
+                      : `${filteredIncidents.length} matching incident(s)`}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setIsFilterMenuOpen(false)}
+                    className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition shadow-xs"
+                  >
+                    {isBn ? "প্রয়োগ ও সম্পন্ন" : "Apply & Close"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </section>
 
         {/* Content Viewport */}
@@ -1063,12 +1466,7 @@ export default function FeedPage() {
             </div>
             <div className="flex items-center justify-center gap-2.5 pt-2">
               <button
-                onClick={() => {
-                  setCategoryFilter("ALL");
-                  setSeverityFilter("ALL");
-                  setNightFilter(false);
-                  setSearchQuery("");
-                }}
+                onClick={handleResetFilters}
                 className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold transition active:scale-95 border border-slate-200"
               >
                 {isBn ? "ফিল্টার মুছুন" : "Reset Filters"}
