@@ -1187,25 +1187,6 @@ export default function ReportPage() {
                       </span>
                       <span>{isBn ? "ঘটনাস্থল ও জিপিএস রাডার" : "Incident Location & GPS"}</span>
                     </label>
-
-                    <button
-                      type="button"
-                      onClick={handleLocateCurrentPosition}
-                      disabled={isLocating}
-                      className="text-xs font-bold text-blue-600 hover:text-blue-800 hover:bg-blue-50 px-2.5 py-1.5 rounded-xl border border-blue-200/80 flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer disabled:opacity-60 shadow-2xs"
-                      title={isBn ? "আমার বর্তমান জিপিএস স্থানে পিন বসান" : "Locate and snap to my current GPS"}
-                    >
-                      <Crosshair className={`w-3.5 h-3.5 text-blue-600 ${isLocating ? "animate-spin" : ""}`} />
-                      <span>
-                        {isLocating
-                          ? isBn
-                            ? "খোঁজা হচ্ছে..."
-                            : "Locating..."
-                          : isBn
-                            ? "আমার বর্তমান অবস্থান"
-                            : "Use Current Location"}
-                      </span>
-                    </button>
                   </div>
 
                   {/* Fast Geocoding Location Search */}
