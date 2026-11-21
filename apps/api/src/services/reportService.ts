@@ -72,6 +72,8 @@ export const createReport = async (
     latitude: number;
     longitude: number;
     description?: string;
+    activeTimeStart?: string | null;
+    activeTimeEnd?: string | null;
   },
   deviceGps?: DeviceGpsTelemetry
 ) => {
@@ -148,6 +150,8 @@ export const createReport = async (
         latitude: payload.latitude,
         longitude: payload.longitude,
         description: payload.description,
+        activeTimeStart: payload.activeTimeStart || null,
+        activeTimeEnd: payload.activeTimeEnd || null,
         locationPrecision: 'EXACT',
         verificationStage: 'CITIZEN_UNVERIFIED',
         threatStatus: 'ACTIVE',
@@ -185,6 +189,8 @@ export const createReport = async (
     upazila: (report as any).upazila || null,
     threatStatus: (report as any).threatStatus || 'ACTIVE',
     isGpsVerified: report.isGpsVerified,
+    activeTimeStart: report.activeTimeStart,
+    activeTimeEnd: report.activeTimeEnd,
     expiresAt: report.expiresAt,
     createdAt: report.createdAt
   });

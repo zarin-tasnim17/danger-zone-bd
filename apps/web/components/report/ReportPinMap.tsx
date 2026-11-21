@@ -23,6 +23,8 @@ interface ReportPinMapProps {
   proximityDistance?: number | null;
   onLocationChange: (lat: number, lng: number) => void;
   onSnapToDevice?: () => void;
+  onLocateMe?: () => void;
+  isLocating?: boolean;
   severity: "LOW" | "MEDIUM" | "HIGH";
   language?: "en" | "bn";
 }
@@ -60,6 +62,8 @@ export default function ReportPinMap({
   proximityRadius = 200,
   onLocationChange,
   onSnapToDevice,
+  onLocateMe,
+  isLocating = false,
   severity,
   language = "en",
 }: ReportPinMapProps) {
@@ -161,59 +165,18 @@ export default function ReportPinMap({
         />
       </MapContainer>
 
-      {/* Floating Status Badge (Top-Left) */}
-      <div className="absolute top-3 left-3 z-[1000] pointer-events-none">
-        {hasDeviceGps && proximityDistance !== null ? (
-          <div
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold shadow-md backdrop-blur-md border ${
-              isWithinProximity
-                ? "bg-emerald-50/95 text-emerald-800 border-emerald-200"
-                : "bg-amber-50/95 text-amber-900 border-amber-200"
-            }`}
-          >
-            {isWithinProximity ? (
-              <>
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                <span>
-                  {isBn
-                    ? `✓ হার্ডওয়্যার জিপিএস যাচাইকৃত: ${proximityDistance} মি (≤ ২০০ মি)`
-                    : `✓ Hardware GPS Verified: ${proximityDistance}m (≤ 200m)`}
-                </span>
-              </>
-            ) : (
-              <>
-                <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                <span>
-                  {isBn
-                    ? `⚠️ দূরত্ব ${proximityDistance} মি (> ২০০ মি) • ম্যানুয়াল পিন`
-                    : `⚠️ ${proximityDistance}m from GPS (> 200m) • Manual Pin`}
-                </span>
-              </>
-            )}
-          </div>
-        ) : (
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-amber-50/95 text-amber-900 shadow-md backdrop-blur-md border border-amber-200">
-            <MapPin className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-            <span>
-              {isBn
-                ? "ম্যানুয়াল পিন / অযাচাইকৃত জিপিএস — স্থান নির্বাচন করুন"
-                : "Manual Pin / Unverified GPS — Click map to place pin"}
-            </span>
-          </div>
-        )}
-      </div>
-
       {/* Floating Action Controls (Bottom-Right) */}
       <div className="absolute bottom-3 right-3 z-[1000] flex items-center gap-2">
-        {hasDeviceGps && onSnapToDevice && (
+        {(onLocateMe || (hasDeviceGps && onSnapToDevice)) && (
           <button
             type="button"
-            onClick={onSnapToDevice}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/95 hover:bg-white text-slate-800 border border-slate-200 shadow-md text-xs font-bold transition-all active:scale-95 cursor-pointer backdrop-blur-md"
-            title={isBn ? "আমার বর্তমান জিপিএস স্থানে পিন বসান" : "Snap pin to current device location"}
+            onClick={onLocateMe || onSnapToDevice}
+            disabled={isLocating}
+            className="w-9 h-9 rounded-xl bg-white/95 hover:bg-white text-slate-800 border border-slate-200/90 shadow-md flex items-center justify-center transition-all active:scale-95 cursor-pointer backdrop-blur-md hover:text-blue-600 disabled:opacity-60"
+            title={isBn ? "আমার বর্তমান জিপিএস স্থানে পিন বসান" : "Snap pin to current GPS location"}
+            aria-label={isBn ? "আমার বর্তমান অবস্থান" : "Use current location"}
           >
-            <Crosshair className="w-3.5 h-3.5 text-blue-600" />
-            <span>{isBn ? "আমার জিপিএস-এ বসান" : "Snap to My GPS"}</span>
+            <Crosshair className={`w-4 h-4 text-blue-600 ${isLocating ? "animate-spin" : ""}`} />
           </button>
         )}
       </div>
@@ -221,7 +184,7 @@ export default function ReportPinMap({
       {/* Help text at bottom-left */}
       <div className="absolute bottom-2 left-3 z-[1000] pointer-events-none hidden sm:block">
         <span className="text-[10px] font-medium text-slate-600 bg-white/80 backdrop-blur-xs px-2 py-0.5 rounded-md border border-slate-200/60 shadow-2xs">
-          {hasDeviceGps ? "Blue dot = Your Device • Colored circle = 200m Radar" : "OpenStreetMap contributors"}
+          {hasDeviceGps ? "Blue dot = Your Device • Colored circle = 200m Radar" : "Click anywhere on map to reposition hazard pin"}
         </span>
       </div>
     </div>

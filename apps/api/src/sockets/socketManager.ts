@@ -155,6 +155,8 @@ export interface SanitizedReportEvent {
   sourceUrl?: string | null;
   sourceName?: string | null;
   isGpsVerified?: boolean;
+  activeTimeStart?: string | null;
+  activeTimeEnd?: string | null;
 }
 
 /**

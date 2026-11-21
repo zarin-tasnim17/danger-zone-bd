@@ -39,7 +39,17 @@ router.use(rejectMultipart);
 const presignedUrlSchema = z.object({
   query: z.object({
     reportId: z.string().uuid(),
-    fileType: z.enum(ALLOWED_MIME_TYPES),
+    fileType: z.preprocess(
+      (val) => {
+        if (typeof val === 'string') {
+          const lower = val.trim().toLowerCase();
+          if (lower === 'image/jpg' || lower === 'image/pjpeg') return 'image/jpeg';
+          return lower;
+        }
+        return val;
+      },
+      z.enum(ALLOWED_MIME_TYPES)
+    ),
     fileSize: z.string().refine((val) => {
       const num = Number(val);
       return !isNaN(num) && num > 0 && num <= MAX_FILE_SIZE_BYTES;

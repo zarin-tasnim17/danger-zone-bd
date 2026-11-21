@@ -3,6 +3,7 @@ import {
   MAX_GPS_PROXIMITY_METERS,
   MAX_HARDWARE_GPS_ACCURACY_METERS,
   isWithinBangladesh,
+  isHazardWithinTimeWindow,
 } from '@repo/shared';
 import { calculateDistanceMeters } from './gpsVerification';
 
@@ -100,6 +101,12 @@ export function isHazardEligible(
     const expiresAtMs = Date.parse(String(expiresAt));
     const now = options?.currentTime ?? Date.now();
     if (Number.isFinite(expiresAtMs) && expiresAtMs <= now) return false;
+  }
+
+  // Recurring danger time-window check (only alert if within active window)
+  const refDate = options?.currentTime ? new Date(options.currentTime) : new Date();
+  if (!isHazardWithinTimeWindow(hazard.activeTimeStart, hazard.activeTimeEnd, refDate)) {
+    return false;
   }
 
   return true;
