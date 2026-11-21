@@ -1354,17 +1354,48 @@ export async function findDuplicateActiveReport(params: {
     whereConditions.longitude = { gte: longitude - maxDelta, lte: longitude + maxDelta };
   }
 
-  const candidates = await prisma.report.findMany({
-    where: whereConditions,
-    include: {
-      newsArticles: {
-        select: { title: true, publishedAt: true },
-        take: 3,
+  let candidates: any[] = [];
+  try {
+    candidates = await prisma.report.findMany({
+      where: whereConditions,
+      include: {
+        newsArticles: {
+          select: { title: true, publishedAt: true },
+          take: 3,
+        },
       },
-    },
-    orderBy: { createdAt: 'desc' },
-    take: 25,
-  });
+      orderBy: { createdAt: 'desc' },
+      take: 25,
+    });
+  } catch (findErr: any) {
+    if (
+      String(findErr?.message || '').includes('activeTimeStart') ||
+      String(findErr?.message || '').includes('activeTimeEnd') ||
+      findErr?.code === '42703'
+    ) {
+      try {
+        await prisma.$executeRawUnsafe(`
+          ALTER TABLE "Report" ADD COLUMN IF NOT EXISTS "activeTimeStart" TEXT;
+          ALTER TABLE "Report" ADD COLUMN IF NOT EXISTS "activeTimeEnd" TEXT;
+        `);
+        candidates = await prisma.report.findMany({
+          where: whereConditions,
+          include: {
+            newsArticles: {
+              select: { title: true, publishedAt: true },
+              take: 3,
+            },
+          },
+          orderBy: { createdAt: 'desc' },
+          take: 25,
+        });
+      } catch {
+        candidates = [];
+      }
+    } else {
+      throw findErr;
+    }
+  }
 
   for (const candidate of candidates) {
     const candidateTitle =

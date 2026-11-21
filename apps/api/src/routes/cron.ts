@@ -4,6 +4,7 @@ import { cronNewsCrawlRateLimiter } from '../middleware/rateLimiter';
 import { verifyCronSecret } from '../middleware/verifyWebhookSecret';
 import { successResponse, errorResponse } from '../utils/responseFormatter';
 import { newsObservabilityService } from '../services/newsObservabilityService';
+import { ensureDatabaseSchema } from '../db/ensureSchema';
 
 const router = Router();
 
@@ -15,6 +16,8 @@ const router = Router();
 const handleNewsCrawl = async (_req: Request, res: Response) => {
   try {
     console.log('[Cron Route] 🌐 Received automated news crawl request...');
+    // Ensure database columns activeTimeStart / activeTimeEnd are aligned
+    await ensureDatabaseSchema();
     const result = await triggerNewsCrawler();
 
     return successResponse(

@@ -158,7 +158,7 @@ export const createReport = async (
           verificationStage: 'CITIZEN_UNVERIFIED',
           threatStatus: 'ACTIVE',
           expiresAt
-        }
+        } as any
       });
     } catch (createErr: any) {
       if (
@@ -187,7 +187,7 @@ export const createReport = async (
               verificationStage: 'CITIZEN_UNVERIFIED',
               threatStatus: 'ACTIVE',
               expiresAt
-            }
+            } as any
           });
         } catch {
           createdReport = await tx.report.create({
@@ -242,8 +242,8 @@ export const createReport = async (
     upazila: (report as any).upazila || null,
     threatStatus: (report as any).threatStatus || 'ACTIVE',
     isGpsVerified: report.isGpsVerified,
-    activeTimeStart: report.activeTimeStart,
-    activeTimeEnd: report.activeTimeEnd,
+    activeTimeStart: (report as any).activeTimeStart,
+    activeTimeEnd: (report as any).activeTimeEnd,
     expiresAt: report.expiresAt,
     createdAt: report.createdAt
   });
