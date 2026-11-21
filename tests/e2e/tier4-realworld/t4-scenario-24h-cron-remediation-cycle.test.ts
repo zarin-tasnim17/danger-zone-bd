@@ -75,8 +75,8 @@ describe('Tier 4: Real-World Scenario 4 - End-to-End 24h Cron Ingestion, Remedia
       sourceUrl: 'https://news.bd/saudi-crash',
       sourceName: 'Daily News',
       status: 'ACTIVE',
-    });
-    (overseasReport as any).threatStatus = 'ACTIVE';
+      threatStatus: 'ACTIVE',
+    } as any);
 
     // 2. Machine Record B: Legal / Court hearing follow-up
     const legalReport = db.seedReport({
@@ -88,8 +88,8 @@ describe('Tier 4: Real-World Scenario 4 - End-to-End 24h Cron Ingestion, Remedia
       sourceUrl: 'https://news.bd/court-hearing',
       sourceName: 'Daily Law',
       status: 'ACTIVE',
-    });
-    (legalReport as any).threatStatus = 'ACTIVE';
+      threatStatus: 'ACTIVE',
+    } as any);
 
     // 3. Machine Record C: Genuine current localized road crash
     const currentCrashReport = db.seedReport({
@@ -98,13 +98,15 @@ describe('Tier 4: Real-World Scenario 4 - End-to-End 24h Cron Ingestion, Remedia
       category: 'ROAD_ACCIDENT',
       latitude: 22.6200,
       longitude: 91.6600,
+      district: 'Chattogram',
+      upazila: 'Sitakunda',
+      locationPrecision: 'UPAZILA',
+      threatStatus: 'ACTIVE',
       sourceUrl: 'https://news.bd/sitakunda-live',
       sourceName: 'The Daily Star',
       status: 'ACTIVE',
       expiresAt: new Date(now.getTime() + 48 * 60 * 60 * 1000), // Active for 48h
-    });
-    (currentCrashReport as any).threatStatus = 'ACTIVE';
-    (currentCrashReport as any).locationPrecision = 'UPAZILA';
+    } as any);
 
     // 4. Citizen Record D: User-submitted safety incident (NO sourceUrl, NO newsArticles)
     const citizenLatitude = 23.7540;
@@ -116,13 +118,14 @@ describe('Tier 4: Real-World Scenario 4 - End-to-End 24h Cron Ingestion, Remedia
       category: 'SNATCHING',
       latitude: citizenLatitude,
       longitude: citizenLongitude,
+      district: 'Dhaka',
+      locationPrecision: 'EXACT',
+      threatStatus: 'ACTIVE',
       sourceUrl: null, // Strictly citizen submitted!
       sourceName: null,
       status: 'ACTIVE',
       expiresAt: new Date(now.getTime() + 72 * 60 * 60 * 1000),
-    });
-    (citizenReport as any).threatStatus = 'ACTIVE';
-    (citizenReport as any).locationPrecision = 'EXACT';
+    } as any);
 
     assert.strictEqual(await db.report.count(), 4, 'Initial database contains 4 mixed reports');
 
@@ -130,63 +133,58 @@ describe('Tier 4: Real-World Scenario 4 - End-to-End 24h Cron Ingestion, Remedia
     // Phase 3: Safe Non-Destructive Remediation (F24)
     // =========================================================================
 
-    // Step A: Dry-run audit report
-    const allDbReports = await db.report.findMany();
-    const dryRunSummary: Array<{
-      reportId: string;
-      sourceType: 'NEWS' | 'CITIZEN';
-      action: 'REMEDIATE_TO_RESOLVED' | 'PRESERVE_ACTIVE';
-      reason: string;
-    }> = [];
+    // Step A: Dry-run audit report via genuine audit engine
+    const dryRunSummary = await auditAllReports(false, db);
 
-    for (const rep of allDbReports) {
-      const isCitizen = !rep.sourceUrl && !rep.sourceName;
-      if (isCitizen) {
-        dryRunSummary.push({
-          reportId: rep.id,
-          sourceType: 'CITIZEN',
-          action: 'PRESERVE_ACTIVE',
-          reason: 'Citizen user-submitted report must be strictly preserved without modification',
-        });
-      } else if (rep.title?.includes('সৌদি আরবে')) {
-        dryRunSummary.push({
-          reportId: rep.id,
-          sourceType: 'NEWS',
-          action: 'REMEDIATE_TO_RESOLVED',
-          reason: 'Overseas international incident mislocated to Bangladesh',
-        });
-      } else if (rep.title?.includes('শুনানি আজ')) {
-        dryRunSummary.push({
-          reportId: rep.id,
-          sourceType: 'NEWS',
-          action: 'REMEDIATE_TO_RESOLVED',
-          reason: 'Legal/court proceeding without active physical threat',
-        });
-      } else {
-        dryRunSummary.push({
-          reportId: rep.id,
-          sourceType: 'NEWS',
-          action: 'PRESERVE_ACTIVE',
-          reason: 'Qualifying active Bangladesh physical safety incident',
-        });
-      }
-    }
+    assert.strictEqual(dryRunSummary.records.length, 4, 'Dry-run inspected all 4 reports');
+    assert.strictEqual(dryRunSummary.totalRemediated, 0, 'Dry-run does not mutate DB (totalRemediated is 0)');
+    assert.strictEqual(
+      dryRunSummary.records.filter((s) => s.action === 'REMEDIATE_TO_RESOLVED').length,
+      2,
+      '2 machine news incidents identified for remediation'
+    );
+    assert.strictEqual(
+      dryRunSummary.records.filter((s) => s.action === 'PRESERVE_ACTIVE').length,
+      2,
+      '2 genuine incidents preserved as active'
+    );
+    assert.strictEqual(
+      dryRunSummary.breakdown.CITIZEN_PRESERVED,
+      1,
+      'Exactly 1 citizen report preserved in breakdown'
+    );
+    assert.strictEqual(
+      dryRunSummary.records.filter((s) => s.sourceType === 'CITIZEN').length,
+      1,
+      'Citizen preserved count in records is 1'
+    );
 
-    assert.strictEqual(dryRunSummary.length, 4);
-    assert.strictEqual(dryRunSummary.filter((s) => s.action === 'REMEDIATE_TO_RESOLVED').length, 2);
-    assert.strictEqual(dryRunSummary.filter((s) => s.action === 'PRESERVE_ACTIVE').length, 2);
+    // Verify DB state was NOT modified during dry-run
+    const dbReportsAfterDryRun = await db.report.findMany();
+    assert.strictEqual(
+      dbReportsAfterDryRun.filter((r) => r.status === 'ACTIVE').length,
+      4,
+      'All 4 reports remain ACTIVE in DB after dry run'
+    );
 
-    // Step B: Apply safe reversible remediation
-    for (const auditItem of dryRunSummary) {
-      if (auditItem.action === 'REMEDIATE_TO_RESOLVED') {
-        await db.report.update({
-          where: { id: auditItem.reportId },
-          data: {
-            status: 'RESOLVED',
-          },
-        });
-      }
-    }
+    // Step B: Apply safe reversible remediation via genuine audit engine
+    const applySummary = await auditAllReports(true, db);
+    assert.strictEqual(applySummary.totalRemediated, 2, 'Exactly 2 disqualified reports remediated in DB');
+    assert.strictEqual(applySummary.totalActiveEligible, 2, '2 active eligible threats retained');
+    assert.strictEqual(applySummary.breakdown.CITIZEN_PRESERVED, 1, 'Citizen preserved count remains 1');
+
+    // Verify actual database state after apply
+    const overseasInDb = await db.report.findUnique({ where: { id: overseasReport.id } });
+    assert.strictEqual(overseasInDb?.status, 'RESOLVED', 'Overseas incident updated to RESOLVED');
+    assert.strictEqual((overseasInDb as any)?.threatStatus, 'RESOLVED', 'Overseas threatStatus updated to RESOLVED');
+
+    const legalInDb = await db.report.findUnique({ where: { id: legalReport.id } });
+    assert.strictEqual(legalInDb?.status, 'RESOLVED', 'Court hearing updated to RESOLVED');
+    assert.strictEqual((legalInDb as any)?.threatStatus, 'RESOLVED', 'Court hearing threatStatus updated to RESOLVED');
+
+    const currentCrashInDb = await db.report.findUnique({ where: { id: currentCrashReport.id } });
+    assert.strictEqual(currentCrashInDb?.status, 'ACTIVE', 'Qualifying domestic crash remains ACTIVE');
+    assert.strictEqual((currentCrashInDb as any)?.threatStatus, 'ACTIVE', 'Domestic crash threatStatus remains ACTIVE');
 
     // =========================================================================
     // Phase 4: Citizen Report Preservation Invariants (F24)

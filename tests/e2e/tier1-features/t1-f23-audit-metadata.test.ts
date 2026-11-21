@@ -35,6 +35,12 @@ describe('Tier 1: Feature Coverage - F23: Diagnostic Audit Metadata Schema & Pro
     assert.strictEqual(parsed.crawlRunId, 'crawl_20261120_abc123');
     assert.strictEqual(parsed.classification.category, 'ROAD_ACCIDENT');
     assert.strictEqual(parsed.geocoding.upazila, 'Sitakunda');
+
+    // Exercise exported contract assertion validator
+    const validated = assertValidAuditMetadata(validMeta);
+    assert.strictEqual(validated.crawlRunId, 'crawl_20261120_abc123');
+    assert.strictEqual(validated.classification.confidence, 0.95);
+    assert.strictEqual(validated.geocoding.district, 'Chattogram');
   });
 
   it('T1-F23-02: Classification stage decision records explainable confidence score and matched keywords', () => {
@@ -145,6 +151,11 @@ describe('Tier 1: Feature Coverage - F23: Diagnostic Audit Metadata Schema & Pro
       () => auditMetadataSchema.parse(invalidMetaMissingCrawlId),
       /crawlRunId/,
       'Payload missing crawlRunId must be rejected by schema validator'
+    );
+    assert.throws(
+      () => assertValidAuditMetadata(invalidMetaMissingCrawlId),
+      /crawlRunId/,
+      'Payload missing crawlRunId must be rejected by assertValidAuditMetadata validator'
     );
   });
 });

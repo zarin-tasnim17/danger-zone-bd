@@ -6,7 +6,7 @@ import { prisma as defaultPrisma } from '../db/prisma';
 import { classifyNewsText } from '../services/newsClassifierService';
 import { evaluateActiveThreatEligibility } from '../services/activeThreatEligibilityService';
 import { isForeignIncident } from '../services/internationalIncidentFilter';
-import { GeocodeResult } from '../services/geocodingService';
+import { GeocodeResult, findLandmarkInText, isWithinBangladesh } from '../services/geocodingService';
 import { ReportStatus, ThreatStatus } from '@prisma/client';
 
 export interface AuditRecordSummary {
@@ -99,7 +99,7 @@ export async function auditHistoricalData(
   for (const rep of reports) {
     const isCitizen = isCitizenReport(rep);
     const primaryArticle = rep.newsArticles && rep.newsArticles.length > 0 ? rep.newsArticles[0] : undefined;
-    const headline = primaryArticle?.title || rep.description || 'No description';
+    const headline = primaryArticle?.title || (rep as any).title || rep.description || 'No description';
     const pubDate = primaryArticle?.publishedAt || rep.createdAt;
 
     // Strict Citizen Report Protection Invariant
@@ -165,17 +165,29 @@ export async function auditHistoricalData(
     const classification = classifyNewsText(headline, rep.description || '');
 
     // 3. Build geocode provenance
-    const geocode: GeocodeResult | null = rep.district
-      ? {
-          locationName: rep.upazila ? `${rep.upazila}, ${rep.district}` : rep.district,
-          district: rep.district,
-          upazila: rep.upazila || undefined,
-          locationPrecision: (rep.locationPrecision as 'EXACT' | 'UPAZILA' | 'DISTRICT') || 'DISTRICT',
-          latitude: rep.latitude,
-          longitude: rep.longitude,
-          source: 'DICTIONARY',
-        }
-      : null;
+    let geocode: GeocodeResult | null = null;
+    if (rep.district) {
+      geocode = {
+        locationName: rep.upazila ? `${rep.upazila}, ${rep.district}` : rep.district,
+        district: rep.district,
+        upazila: rep.upazila || undefined,
+        locationPrecision: (rep.locationPrecision as 'EXACT' | 'UPAZILA' | 'DISTRICT') || 'DISTRICT',
+        latitude: rep.latitude,
+        longitude: rep.longitude,
+        source: 'DICTIONARY',
+      };
+    } else if (rep.latitude && rep.longitude && isWithinBangladesh(rep.latitude, rep.longitude)) {
+      const matched = findLandmarkInText(headline) || findLandmarkInText(rep.description || '');
+      geocode = {
+        locationName: matched?.locationName || rep.upazila || 'Bangladesh',
+        district: matched?.district || (rep.locationPrecision === 'EXACT' ? 'Dhaka' : 'Bangladesh'),
+        upazila: rep.upazila || matched?.upazila,
+        locationPrecision: (rep.locationPrecision as any) || matched?.locationPrecision || 'DISTRICT',
+        latitude: rep.latitude,
+        longitude: rep.longitude,
+        source: 'DICTIONARY',
+      };
+    }
 
     // 4. Evaluate active threat eligibility
     const eligibility = evaluateActiveThreatEligibility(
@@ -190,6 +202,8 @@ export async function auditHistoricalData(
         publishedAt: pubDate,
         sourceUrl: rep.sourceUrl || undefined,
         sourceName: rep.sourceName || undefined,
+        confidence: classification.confidence,
+        expiresAt: rep.expiresAt || undefined,
       },
       now
     );
