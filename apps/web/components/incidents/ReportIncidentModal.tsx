@@ -15,7 +15,7 @@ import {
 import { ReportCategory, ReportSeverity } from "@repo/shared";
 import { useMapStore } from "@/store/useMapStore";
 import { apiFetch } from "@/lib/api";
-import { getCategoryVisual, formatCategoryLabel } from "@/lib/incidentCategoryVisuals";
+import { getCategoryVisual, formatCategoryLabel, normalizeCategoryKey } from "@/lib/incidentCategoryVisuals";
 import {
   HardwareGpsFix,
   evaluateHardwareGpsProximity,
@@ -138,69 +138,90 @@ export default function ReportIncidentModal({ isOpen, onClose }: ReportModalProp
 
   // Option A: Smart Category Resolution
   const resolvedCategory = useMemo<ReportCategory>(() => {
-    const hasTheft = selectedTags.includes("THEFT");
-    const hasRobbery = selectedTags.includes("ROBBERY") || selectedTags.includes("DACOITY");
-    const hasSnatching = selectedTags.includes("SNATCHING");
-    const hasArmedAssault = selectedTags.includes("ARMED_ASSAULT");
+    const normalizedTags = selectedTags.map((t) => normalizeCategoryKey(t));
+    const hasTheft = normalizedTags.includes("THEFT");
+    const hasRobbery = normalizedTags.includes("ROBBERY");
+    const hasSnatching = normalizedTags.includes("SNATCHING");
+    const hasArmedAssault = normalizedTags.includes("ARMED_ASSAULT");
+    const hasYouthGang = normalizedTags.includes("YOUTH_GANG_ACTIVITY");
 
     if (hasTheft && hasRobbery) return "THEFT_ROBBERY";
     if (hasSnatching && hasArmedAssault) return "SNATCHING_ARMED_ASSAULT";
+    if (hasYouthGang && hasArmedAssault) return "TEEN_GANG_ARMED_ASSAULT";
 
     const lastTag = selectedTags[selectedTags.length - 1];
-    if (lastTag) return lastTag as ReportCategory;
+    if (lastTag) {
+      const canonical = normalizeCategoryKey(lastTag);
+      if (canonical && canonical !== "UNKNOWN") return canonical as ReportCategory;
+      return lastTag as ReportCategory;
+    }
     return "SNATCHING";
   }, [selectedTags]);
 
   // Handle Tag Toggling with Smart Combination Pairing
   const handleToggleTag = (tagId: string) => {
     // If tag is already selected, unselect it (unless it's the last one)
-    if (selectedTags.includes(tagId)) {
+    if (selectedTags.includes(tagId) || selectedTags.some((t) => normalizeCategoryKey(t) === normalizeCategoryKey(tagId))) {
       if (selectedTags.length > 1) {
-        setSelectedTags((prev) => prev.filter((id) => id !== tagId));
+        setSelectedTags((prev) => prev.filter((id) => id !== tagId && normalizeCategoryKey(id) !== normalizeCategoryKey(tagId)));
       }
       return;
     }
+
+    const norm = normalizeCategoryKey(tagId);
 
     // Pair Combinations:
     // 1. THEFT + ROBBERY
-    if (tagId === "THEFT") {
-      if (selectedTags.includes("ROBBERY")) {
-        setSelectedTags(["ROBBERY", "THEFT"]);
+    if (norm === "THEFT") {
+      if (selectedTags.some((t) => normalizeCategoryKey(t) === "ROBBERY")) {
+        setSelectedTags(["ROBBERY", tagId]);
       } else {
-        setSelectedTags(["THEFT"]);
+        setSelectedTags([tagId]);
       }
       return;
     }
 
-    if (tagId === "ROBBERY") {
-      if (selectedTags.includes("THEFT")) {
-        setSelectedTags(["THEFT", "ROBBERY"]);
+    if (norm === "ROBBERY") {
+      if (selectedTags.some((t) => normalizeCategoryKey(t) === "THEFT")) {
+        setSelectedTags(["THEFT", tagId]);
       } else {
-        setSelectedTags(["ROBBERY"]);
+        setSelectedTags([tagId]);
       }
       return;
     }
 
     // 2. SNATCHING + ARMED_ASSAULT
-    if (tagId === "SNATCHING") {
-      if (selectedTags.includes("ARMED_ASSAULT")) {
-        setSelectedTags(["ARMED_ASSAULT", "SNATCHING"]);
+    if (norm === "SNATCHING") {
+      if (selectedTags.some((t) => normalizeCategoryKey(t) === "ARMED_ASSAULT")) {
+        setSelectedTags(["ARMED_ASSAULT", tagId]);
       } else {
-        setSelectedTags(["SNATCHING"]);
+        setSelectedTags([tagId]);
       }
       return;
     }
 
-    if (tagId === "ARMED_ASSAULT") {
-      if (selectedTags.includes("SNATCHING")) {
-        setSelectedTags(["SNATCHING", "ARMED_ASSAULT"]);
+    if (norm === "ARMED_ASSAULT") {
+      if (selectedTags.some((t) => normalizeCategoryKey(t) === "SNATCHING")) {
+        setSelectedTags(["SNATCHING", tagId]);
+      } else if (selectedTags.some((t) => normalizeCategoryKey(t) === "YOUTH_GANG_ACTIVITY")) {
+        setSelectedTags(["YOUTH_GANG_ACTIVITY", tagId]);
       } else {
-        setSelectedTags(["ARMED_ASSAULT"]);
+        setSelectedTags([tagId]);
       }
       return;
     }
 
-    // Independent tags: EXTORTION, YOUTH_GANG_ACTIVITY, DRUG_RELATED_CRIME, ROAD_ACCIDENT, UNLIT_ROAD
+    // 3. YOUTH_GANG_ACTIVITY + ARMED_ASSAULT
+    if (norm === "YOUTH_GANG_ACTIVITY") {
+      if (selectedTags.some((t) => normalizeCategoryKey(t) === "ARMED_ASSAULT")) {
+        setSelectedTags(["ARMED_ASSAULT", tagId]);
+      } else {
+        setSelectedTags([tagId]);
+      }
+      return;
+    }
+
+    // Independent tags: EXTORTION, DRUG_RELATED_CRIME, ROAD_ACCIDENT, UNLIT_ROAD
     setSelectedTags([tagId]);
   };
 

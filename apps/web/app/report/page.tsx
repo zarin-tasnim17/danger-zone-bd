@@ -71,7 +71,7 @@ function isCurrentNightBangladesh(): boolean {
 }
 
 import { MAX_GPS_PROXIMITY_METERS, ReportCategory } from "@repo/shared";
-import { CATEGORY_VISUALS, getCategoryVisual } from "@/lib/incidentCategoryVisuals";
+import { CATEGORY_VISUALS, getCategoryVisual, normalizeCategoryKey } from "@/lib/incidentCategoryVisuals";
 import {
   HardwareGpsFix,
   evaluateHardwareGpsProximity,
@@ -251,6 +251,58 @@ const CATEGORIES: CategoryDefinition[] = [
     expiryHintEn: "Active for 3 hours",
     expiryHintBn: "৩ ঘণ্টা সক্রিয় থাকবে",
   },
+  {
+    id: "TEEN_GANG_ARMED_ASSAULT",
+    labelEn: "Gang Armed Clash",
+    labelBn: "কিশোর গ্যাং ও অস্ত্রসহ হামলা",
+    descEn: "Youth gang clashes involving bladed weapons or firearms",
+    descBn: "কিশোর গ্যাং কর্তৃক ধারালো অস্ত্র বা আগ্নেয়াস্ত্র নিয়ে হামলা",
+    icon: Users,
+    color: "text-violet-800",
+    bgColor: "bg-violet-50",
+    borderColor: "border-violet-300",
+    expiryHintEn: "Active for 12 hours",
+    expiryHintBn: "১২ ঘণ্টা সক্রিয় থাকবে",
+  },
+  {
+    id: "DACOITY",
+    labelEn: "Robbery",
+    labelBn: "ডাকাতি",
+    descEn: "Group armed robbery, home invasion, looting",
+    descBn: "দলবদ্ধ সশস্ত্র ডাকাতি, মালামাল লুণ্ঠন",
+    icon: Skull,
+    color: "text-red-700",
+    bgColor: "bg-red-50",
+    borderColor: "border-red-200",
+    expiryHintEn: "Active for 4 hours",
+    expiryHintBn: "৪ ঘণ্টা সক্রিয় থাকবে",
+  },
+  {
+    id: "TEEN_GANG",
+    labelEn: "Youth Gang Activity",
+    labelBn: "কিশোর গ্যাং",
+    descEn: "Juvenile gang intimidation, turf clash, neighborhood menace",
+    descBn: "কিশোর গ্যাংয়ের মহড়া, হুমকি, আধিপত্য বিস্তার",
+    icon: Users,
+    color: "text-violet-700",
+    bgColor: "bg-violet-50",
+    borderColor: "border-violet-200",
+    expiryHintEn: "Active for 24 hours",
+    expiryHintBn: "২৪ ঘণ্টা সক্রিয় থাকবে",
+  },
+  {
+    id: "DRUG_ACTIVITY",
+    labelEn: "Drug-Related Crime",
+    labelBn: "মাদক সংক্রান্ত অপরাধ",
+    descEn: "Drug peddling, open narcotics dealing, illicit distribution",
+    descBn: "প্রকাশ্যে মাদক কেনাবেচা, অপরাধীদের জমায়েত",
+    icon: Pill,
+    color: "text-blue-700",
+    bgColor: "bg-blue-50",
+    borderColor: "border-blue-200",
+    expiryHintEn: "Active for 24 hours",
+    expiryHintBn: "২৪ ঘণ্টা সক্রিয় থাকবে",
+  },
 ];
 
 const PRESETS = [
@@ -278,46 +330,87 @@ export default function ReportPage() {
   // Form State (Option A Smart Combine)
   const [selectedTags, setSelectedTags] = useState<string[]>(["SNATCHING"]);
   const resolvedCategory = useMemo<ReportCategory>(() => {
-    const hasTheft = selectedTags.includes("THEFT");
-    const hasRobbery = selectedTags.includes("ROBBERY") || selectedTags.includes("DACOITY");
-    const hasSnatching = selectedTags.includes("SNATCHING");
-    const hasArmedAssault = selectedTags.includes("ARMED_ASSAULT");
+    const normalizedTags = selectedTags.map((t) => normalizeCategoryKey(t));
+    const hasTheft = normalizedTags.includes("THEFT");
+    const hasRobbery = normalizedTags.includes("ROBBERY");
+    const hasSnatching = normalizedTags.includes("SNATCHING");
+    const hasArmedAssault = normalizedTags.includes("ARMED_ASSAULT");
+    const hasYouthGang = normalizedTags.includes("YOUTH_GANG_ACTIVITY");
 
     if (hasTheft && hasRobbery) return "THEFT_ROBBERY";
     if (hasSnatching && hasArmedAssault) return "SNATCHING_ARMED_ASSAULT";
+    if (hasYouthGang && hasArmedAssault) return "TEEN_GANG_ARMED_ASSAULT";
 
     const lastTag = selectedTags[selectedTags.length - 1];
-    if (lastTag) return lastTag as ReportCategory;
+    if (lastTag) {
+      const canonical = normalizeCategoryKey(lastTag);
+      if (canonical && canonical !== "UNKNOWN") return canonical as ReportCategory;
+      return lastTag as ReportCategory;
+    }
     return "SNATCHING";
   }, [selectedTags]);
 
   const handleToggleTag = (tagId: string) => {
-    if (selectedTags.includes(tagId)) {
+    if (selectedTags.includes(tagId) || selectedTags.some((t) => normalizeCategoryKey(t) === normalizeCategoryKey(tagId))) {
       if (selectedTags.length > 1) {
-        setSelectedTags((prev) => prev.filter((id) => id !== tagId));
+        setSelectedTags((prev) => prev.filter((id) => id !== tagId && normalizeCategoryKey(id) !== normalizeCategoryKey(tagId)));
       }
       return;
     }
-    if (tagId === "THEFT") {
-      if (selectedTags.includes("ROBBERY")) setSelectedTags(["ROBBERY", "THEFT"]);
-      else setSelectedTags(["THEFT"]);
+
+    const norm = normalizeCategoryKey(tagId);
+
+    // 1. THEFT + ROBBERY
+    if (norm === "THEFT") {
+      if (selectedTags.some((t) => normalizeCategoryKey(t) === "ROBBERY")) {
+        setSelectedTags(["ROBBERY", tagId]);
+      } else {
+        setSelectedTags([tagId]);
+      }
       return;
     }
-    if (tagId === "ROBBERY") {
-      if (selectedTags.includes("THEFT")) setSelectedTags(["THEFT", "ROBBERY"]);
-      else setSelectedTags(["ROBBERY"]);
+    if (norm === "ROBBERY") {
+      if (selectedTags.some((t) => normalizeCategoryKey(t) === "THEFT")) {
+        setSelectedTags(["THEFT", tagId]);
+      } else {
+        setSelectedTags([tagId]);
+      }
       return;
     }
-    if (tagId === "SNATCHING") {
-      if (selectedTags.includes("ARMED_ASSAULT")) setSelectedTags(["ARMED_ASSAULT", "SNATCHING"]);
-      else setSelectedTags(["SNATCHING"]);
+
+    // 2. SNATCHING + ARMED_ASSAULT
+    if (norm === "SNATCHING") {
+      if (selectedTags.some((t) => normalizeCategoryKey(t) === "ARMED_ASSAULT")) {
+        setSelectedTags(["ARMED_ASSAULT", tagId]);
+      } else {
+        setSelectedTags([tagId]);
+      }
       return;
     }
-    if (tagId === "ARMED_ASSAULT") {
-      if (selectedTags.includes("SNATCHING")) setSelectedTags(["SNATCHING", "ARMED_ASSAULT"]);
-      else setSelectedTags(["ARMED_ASSAULT"]);
+
+    // 3. ARMED_ASSAULT + SNATCHING or YOUTH_GANG_ACTIVITY
+    if (norm === "ARMED_ASSAULT") {
+      if (selectedTags.some((t) => normalizeCategoryKey(t) === "SNATCHING")) {
+        setSelectedTags(["SNATCHING", tagId]);
+      } else if (selectedTags.some((t) => normalizeCategoryKey(t) === "YOUTH_GANG_ACTIVITY")) {
+        setSelectedTags(["YOUTH_GANG_ACTIVITY", tagId]);
+      } else {
+        setSelectedTags([tagId]);
+      }
       return;
     }
+
+    // 4. YOUTH_GANG_ACTIVITY + ARMED_ASSAULT
+    if (norm === "YOUTH_GANG_ACTIVITY") {
+      if (selectedTags.some((t) => normalizeCategoryKey(t) === "ARMED_ASSAULT")) {
+        setSelectedTags(["ARMED_ASSAULT", tagId]);
+      } else {
+        setSelectedTags([tagId]);
+      }
+      return;
+    }
+
+    // Standalone tag selection
     setSelectedTags([tagId]);
   };
   const [severity, setSeverity] = useState<IncidentSeverity>("HIGH");
@@ -567,7 +660,15 @@ export default function ReportPage() {
     setErrorMessage(null);
   };
 
-  const selectedCategoryDef = CATEGORIES.find((c) => c.id === resolvedCategory) || CATEGORIES[0];
+  const selectedCategoryDef = useMemo(() => {
+    const direct = CATEGORIES.find((c) => c.id === resolvedCategory);
+    if (direct) return direct;
+    const canonical = normalizeCategoryKey(resolvedCategory);
+    const byCanonical = CATEGORIES.find(
+      (c) => c.id === canonical || normalizeCategoryKey(c.id) === canonical
+    );
+    return byCanonical || CATEGORIES[0];
+  }, [resolvedCategory]);
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 text-slate-900 selection:bg-red-500 selection:text-white">
@@ -824,14 +925,14 @@ export default function ReportPage() {
                       { id: "SNATCHING", labelEn: CATEGORY_VISUALS.SNATCHING.labelEn, labelBn: CATEGORY_VISUALS.SNATCHING.labelBn, icon: CATEGORY_VISUALS.SNATCHING.icon, color: "text-orange-700" },
                       { id: "ARMED_ASSAULT", labelEn: CATEGORY_VISUALS.ARMED_ASSAULT.labelEn, labelBn: CATEGORY_VISUALS.ARMED_ASSAULT.labelBn, icon: CATEGORY_VISUALS.ARMED_ASSAULT.icon, color: "text-rose-700" },
                       { id: "THEFT", labelEn: CATEGORY_VISUALS.THEFT.labelEn, labelBn: CATEGORY_VISUALS.THEFT.labelBn, icon: CATEGORY_VISUALS.THEFT.icon, color: "text-amber-700" },
-                      { id: "DACOITY", labelEn: CATEGORY_VISUALS.ROBBERY.labelEn, labelBn: CATEGORY_VISUALS.ROBBERY.labelBn, icon: CATEGORY_VISUALS.ROBBERY.icon, color: "text-red-700" },
-                      { id: "TEEN_GANG", labelEn: CATEGORY_VISUALS.YOUTH_GANG_ACTIVITY.labelEn, labelBn: CATEGORY_VISUALS.YOUTH_GANG_ACTIVITY.labelBn, icon: CATEGORY_VISUALS.YOUTH_GANG_ACTIVITY.icon, color: "text-violet-700" },
+                      { id: "ROBBERY", labelEn: CATEGORY_VISUALS.ROBBERY.labelEn, labelBn: CATEGORY_VISUALS.ROBBERY.labelBn, icon: CATEGORY_VISUALS.ROBBERY.icon, color: "text-red-700" },
+                      { id: "YOUTH_GANG_ACTIVITY", labelEn: CATEGORY_VISUALS.YOUTH_GANG_ACTIVITY.labelEn, labelBn: CATEGORY_VISUALS.YOUTH_GANG_ACTIVITY.labelBn, icon: CATEGORY_VISUALS.YOUTH_GANG_ACTIVITY.icon, color: "text-violet-700" },
                       { id: "EXTORTION", labelEn: CATEGORY_VISUALS.EXTORTION.labelEn, labelBn: CATEGORY_VISUALS.EXTORTION.labelBn, icon: CATEGORY_VISUALS.EXTORTION.icon, color: "text-purple-700" },
-                      { id: "DRUG_ACTIVITY", labelEn: CATEGORY_VISUALS.DRUG_RELATED_CRIME.labelEn, labelBn: CATEGORY_VISUALS.DRUG_RELATED_CRIME.labelBn, icon: CATEGORY_VISUALS.DRUG_RELATED_CRIME.icon, color: "text-blue-700" },
+                      { id: "DRUG_RELATED_CRIME", labelEn: CATEGORY_VISUALS.DRUG_RELATED_CRIME.labelEn, labelBn: CATEGORY_VISUALS.DRUG_RELATED_CRIME.labelBn, icon: CATEGORY_VISUALS.DRUG_RELATED_CRIME.icon, color: "text-blue-700" },
                       { id: "ROAD_ACCIDENT", labelEn: CATEGORY_VISUALS.ROAD_ACCIDENT.labelEn, labelBn: CATEGORY_VISUALS.ROAD_ACCIDENT.labelBn, icon: CATEGORY_VISUALS.ROAD_ACCIDENT.icon, color: "text-emerald-700" },
                       { id: "UNLIT_ROAD", labelEn: CATEGORY_VISUALS.UNLIT_ROAD.labelEn, labelBn: CATEGORY_VISUALS.UNLIT_ROAD.labelBn, icon: CATEGORY_VISUALS.UNLIT_ROAD.icon, color: "text-slate-700" },
                     ].map((tag) => {
-                      const isSelected = selectedTags.includes(tag.id);
+                      const isSelected = selectedTags.includes(tag.id) || selectedTags.some((t) => normalizeCategoryKey(t) === tag.id);
                       const Icon = tag.icon;
                       return (
                         <button
