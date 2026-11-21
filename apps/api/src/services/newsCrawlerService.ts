@@ -80,7 +80,7 @@ export const DEDICATED_CATEGORY_FEEDS: FeedConfig[] = [
     name: 'Google News BD Armed Assault',
     category: 'ARMED_ASSAULT',
     categoryHint: 'ARMED_ASSAULT',
-    url: buildGoogleNewsRssUrl('(assault OR "armed assault" OR "knife attack" OR gunfire OR "কুপিয়ে জখম" OR "ছুরিকাঘাত" OR "গুলিবিদ্ধ" OR "সংঘর্ষ") bangladesh -saudi -india -overseas when:1d'),
+    url: buildGoogleNewsRssUrl('(assault OR "armed assault" OR "knife attack" OR gunfire OR "কুপিয়ে জখম" OR "ছুরিকাঘাত" OR "গুলিবিদ্ধ" OR "সংঘর্ষ" OR arson OR torched OR "set on fire" OR "bomb blast" OR "crude bomb" OR "cocktail blast" OR "অগ্নিসংযোগ" OR "বাসে আগুন" OR "ককটেল বিস্ফোরণ") bangladesh -saudi -india -overseas when:1d'),
     timeoutMs: 10000,
   },
   {
@@ -160,7 +160,7 @@ export const DEDICATED_CATEGORY_FEEDS_EN: FeedConfig[] = [
     name: 'Google News BD Armed Assault (EN)',
     category: 'ARMED_ASSAULT',
     categoryHint: 'ARMED_ASSAULT',
-    url: buildGoogleNewsRssUrl('(assault OR "armed assault" OR "knife attack" OR gunfire OR stabbed OR stabbing OR "violent clash") bangladesh -court -bail -verdict -remand -corruption -politics -saudi -india -overseas when:1d', 'en'),
+    url: buildGoogleNewsRssUrl('(assault OR "armed assault" OR "knife attack" OR gunfire OR stabbed OR stabbing OR "violent clash" OR arson OR torched OR "set on fire" OR "bomb blast" OR "crude bomb" OR "cocktail blast") bangladesh -court -bail -verdict -remand -corruption -politics -saudi -india -overseas when:1d', 'en'),
     timeoutMs: 10000,
   },
   {
@@ -240,7 +240,7 @@ export const DEDICATED_CATEGORY_FEEDS_BN: FeedConfig[] = [
     name: 'Google News BD Armed Assault (BN)',
     category: 'ARMED_ASSAULT',
     categoryHint: 'ARMED_ASSAULT',
-    url: buildGoogleNewsRssUrl('("কোপানো" OR "কুপিয়ে জখম" OR "ছুরিকাঘাত" OR "গুলিবিদ্ধ" OR "সংঘর্ষ" OR "অস্ত্রসহ হামলা" OR "মারামারি") বাংলাদেশ -আদালত -জামিন -রিমান্ড -দুদক -দুর্নীতি -রাজনীতি -সৌদি -ভারত when:1d', 'bn'),
+    url: buildGoogleNewsRssUrl('("কোপানো" OR "কুপিয়ে জখম" OR "ছুরিকাঘাত" OR "গুলিবিদ্ধ" OR "সংঘর্ষ" OR "অস্ত্রসহ হামলা" OR "মারামারি" OR "অগ্নিসংযোগ" OR "বাসে আগুন" OR "ট্রেনে আগুন" OR "ককটেল বিস্ফোরণ" OR "বোমা হামলা" OR "ভাঙচুর ও আগুন") বাংলাদেশ -আদালত -জামিন -রিমান্ড -দুদক -দুর্নীতি -রাজনীতি -সৌদি -ভারত when:1d', 'bn'),
     timeoutMs: 10000,
   },
   {
@@ -453,7 +453,7 @@ export const recordGoogleNewsFailure = (isRateLimit: boolean): void => {
   circuitBreaker.consecutiveFailures++;
   if (isRateLimit || circuitBreaker.consecutiveFailures >= 3) {
     circuitBreaker.state = 'OPEN';
-    circuitBreaker.openUntil = Date.now() + 30 * 60 * 1000; // 30 minutes cooldown
+    circuitBreaker.openUntil = Date.now() + 3 * 60 * 1000; // 3 minutes cooldown
     console.warn(
       `[News Crawler] ⚠️ Google News circuit breaker OPEN until ${new Date(circuitBreaker.openUntil).toISOString()} (RateLimit: ${isRateLimit})`
     );
@@ -1105,7 +1105,10 @@ export const crawlAllNewsFeeds = async (
           resp = await fetch(feedConfig.url, {
             signal: controller.signal,
             headers: {
-              'User-Agent': 'DangerZoneBD-PublicSafetyNewsCrawler/1.0 (contact@dangerzonebd.org)',
+              'User-Agent':
+                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 (compatible; DangerZoneBD/1.0; +https://dangerzonebd.org)',
+              Accept: 'application/rss+xml, application/xml, text/xml, text/html, */*',
+              'Accept-Language': 'en-US,en;q=0.9,bn;q=0.8',
             },
           });
 
