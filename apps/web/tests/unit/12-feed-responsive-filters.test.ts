@@ -49,4 +49,18 @@ describe('[Unit] Feed Page Responsive Telemetry Cards & Dual Dropdown Filters', 
     assert.ok(src.includes('Verified Responders'));
     assert.ok(src.includes('My Reports'));
   });
+
+  it('4. Custom Time Window filter enables users to filter incidents at any time of day', () => {
+    const feedPath = path.join(WEB_TEST_CONFIG.webRoot, 'app/feed/page.tsx');
+    const src = fs.readFileSync(feedPath, 'utf8');
+
+    // Asserts custom time window filtering states and functions
+    assert.ok(src.includes('timeFilterMode'));
+    assert.ok(src.includes('customStartTime'));
+    assert.ok(src.includes('customEndTime'));
+    assert.ok(src.includes('formatTimeTo12Hour'));
+    assert.ok(src.includes('checkTimeWindowOverlap'));
+    assert.ok(src.includes('includeContinuous'));
+    assert.ok(src.includes('Custom Time Window') || src.includes('যেকোনো সময়'));
+  });
 });

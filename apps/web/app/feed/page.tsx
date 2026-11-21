@@ -15,6 +15,7 @@ import {
   SOCKET_EVENTS,
   getSocketReportId,
   ReportCategory,
+  formatTimeTo12Hour,
   type ReportVotedPayload,
   type ReportResolvedPayload,
   type ReportPurgedPayload,
@@ -70,6 +71,8 @@ interface Incident {
   category: ReportCategory;
   severity: "LOW" | "MEDIUM" | "HIGH";
   isNightReport?: boolean;
+  activeTimeStart?: string | null;
+  activeTimeEnd?: string | null;
   latitude: number;
   longitude: number;
   description?: string | null;
@@ -83,6 +86,67 @@ interface Incident {
   media?: ReportMedia[];
   fuzzedRadiusMeters?: number;
   isGpsVerified?: boolean;
+}
+
+/**
+ * Converts "HH:mm" time string into total minutes of the day [0 - 1439]
+ */
+function parseTimeToMinutes(timeStr: string): number {
+  if (!timeStr) return 0;
+  const parts = timeStr.trim().split(":");
+  const h = parseInt(parts[0], 10) || 0;
+  const m = parseInt(parts[1], 10) || 0;
+  return ((h * 60 + m) % 1440 + 1440) % 1440;
+}
+
+/**
+ * Checks whether minuteOfDay [0 - 1439] falls inside a window [start, end].
+ * Handles overnight intervals crossing midnight cleanly (e.g. 18:00 to 06:00).
+ */
+function isMinuteInWindow(minuteOfDay: number, startStr: string, endStr: string): boolean {
+  const s = parseTimeToMinutes(startStr);
+  const e = parseTimeToMinutes(endStr);
+  if (s <= e) {
+    return minuteOfDay >= s && minuteOfDay <= e;
+  }
+  return minuteOfDay >= s || minuteOfDay <= e;
+}
+
+/**
+ * Determines whether two 24-hour time windows overlap, properly handling midnight wraparound.
+ */
+function checkTimeWindowOverlap(
+  startA: string,
+  endA: string,
+  startB: string,
+  endB: string
+): boolean {
+  const sA = parseTimeToMinutes(startA);
+  const eA = parseTimeToMinutes(endA);
+  const sB = parseTimeToMinutes(startB);
+  const eB = parseTimeToMinutes(endB);
+
+  const getIntervals = (s: number, e: number): [number, number][] => {
+    if (s <= e) {
+      return [[s, e]];
+    }
+    return [
+      [s, 1439],
+      [0, e],
+    ];
+  };
+
+  const intervalsA = getIntervals(sA, eA);
+  const intervalsB = getIntervals(sB, eB);
+
+  for (const [a1, a2] of intervalsA) {
+    for (const [b1, b2] of intervalsB) {
+      if (Math.max(a1, b1) <= Math.min(a2, b2)) {
+        return true;
+      }
+    }
+  }
+  return false;
 }
 
 interface IncidentComment {
@@ -169,10 +233,15 @@ export default function FeedPage() {
 
   // Filters & Search
   type UserTypeFilter = "ALL" | "CITIZEN" | "PRESS" | "VERIFIED_RESPONDER" | "MY_REPORTS";
+  type TimeFilterMode = "ALL" | "NIGHT" | "DAY" | "CUSTOM";
+
   const [categoryFilter, setCategoryFilter] = useState<string>("ALL");
   const [userTypeFilter, setUserTypeFilter] = useState<UserTypeFilter>("ALL");
   const [severityFilter, setSeverityFilter] = useState<string>("ALL");
-  const [nightFilter, setNightFilter] = useState<boolean>(false);
+  const [timeFilterMode, setTimeFilterMode] = useState<TimeFilterMode>("ALL");
+  const [customStartTime, setCustomStartTime] = useState<string>("18:00");
+  const [customEndTime, setCustomEndTime] = useState<string>("06:00");
+  const [includeContinuous, setIncludeContinuous] = useState<boolean>(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState<SortOption>("NEWEST");
 
@@ -183,11 +252,17 @@ export default function FeedPage() {
     setCategoryFilter(catId);
   };
 
+  const applyTimePreset = (start: string, end: string, mode: TimeFilterMode) => {
+    setCustomStartTime(start);
+    setCustomEndTime(end);
+    setTimeFilterMode(mode);
+  };
+
   const hasActiveFilters =
     categoryFilter !== "ALL" ||
     userTypeFilter !== "ALL" ||
     severityFilter !== "ALL" ||
-    nightFilter ||
+    timeFilterMode !== "ALL" ||
     searchQuery.trim().length > 0;
 
   const activeFiltersCount = useMemo(() => {
@@ -195,16 +270,19 @@ export default function FeedPage() {
     if (categoryFilter !== "ALL") count++;
     if (userTypeFilter !== "ALL") count++;
     if (severityFilter !== "ALL") count++;
-    if (nightFilter) count++;
+    if (timeFilterMode !== "ALL") count++;
     if (searchQuery.trim().length > 0) count++;
     return count;
-  }, [categoryFilter, userTypeFilter, severityFilter, nightFilter, searchQuery]);
+  }, [categoryFilter, userTypeFilter, severityFilter, timeFilterMode, searchQuery]);
 
   const handleResetFilters = () => {
     setCategoryFilter("ALL");
     setUserTypeFilter("ALL");
     setSeverityFilter("ALL");
-    setNightFilter(false);
+    setTimeFilterMode("ALL");
+    setCustomStartTime("18:00");
+    setCustomEndTime("06:00");
+    setIncludeContinuous(true);
     setSearchQuery("");
   };
 
@@ -225,7 +303,6 @@ export default function FeedPage() {
       let query = "/reports?minLat=20.0&maxLat=27.0&minLng=88.0&maxLng=93.0";
       if (categoryFilter !== "ALL") query += `&category=${categoryFilter}`;
       if (severityFilter !== "ALL") query += `&severity=${severityFilter}`;
-      if (nightFilter) query += `&isNightReport=true`;
 
       const data = await apiFetch<Incident[]>(query);
       setIncidents(data || []);
@@ -235,7 +312,7 @@ export default function FeedPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [categoryFilter, severityFilter, nightFilter, isBn]);
+  }, [categoryFilter, severityFilter, isBn]);
 
   useEffect(() => {
     initAuth();
@@ -499,6 +576,40 @@ export default function FeedPage() {
         if (!isOwner) return false;
       }
 
+      // Time Window & Hazard Schedule Filter
+      if (timeFilterMode !== "ALL") {
+        const filterStart = customStartTime;
+        const filterEnd = customEndTime;
+
+        // Incident has an explicit danger schedule (e.g. 18:00 - 06:00, or 14:00 - 18:00)
+        if (item.activeTimeStart && item.activeTimeEnd) {
+          const overlaps = checkTimeWindowOverlap(
+            item.activeTimeStart,
+            item.activeTimeEnd,
+            filterStart,
+            filterEnd
+          );
+          if (!overlaps) return false;
+        } else if (item.isNightReport) {
+          // Night report with implicit 18:00 - 06:00 window
+          const overlaps = checkTimeWindowOverlap("18:00", "06:00", filterStart, filterEnd);
+          if (!overlaps) return false;
+        } else {
+          // Continuous 24/7 or unscheduled report
+          if (!includeContinuous) {
+            if (item.createdAt) {
+              const d = new Date(item.createdAt);
+              const bstMinutes = ((d.getUTCHours() + 6) % 24) * 60 + d.getUTCMinutes();
+              if (!isMinuteInWindow(bstMinutes, filterStart, filterEnd)) {
+                return false;
+              }
+            } else {
+              return false;
+            }
+          }
+        }
+      }
+
       if (!searchQuery.trim()) return true;
       const q = searchQuery.toLowerCase();
       const matchesCategory = item.category.toLowerCase().includes(q);
@@ -518,7 +629,7 @@ export default function FeedPage() {
     }
 
     return result;
-  }, [incidents, userTypeFilter, user, searchQuery, sortBy]);
+  }, [incidents, userTypeFilter, user, searchQuery, sortBy, timeFilterMode, customStartTime, customEndTime, includeContinuous]);
 
   // Derived Telemetry Counts
   const activeCount = incidents.length;
@@ -920,14 +1031,43 @@ export default function FeedPage() {
                 </span>
               )}
 
-              {nightFilter && (
+              {timeFilterMode === "NIGHT" && (
                 <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-900 text-white font-semibold text-xs shadow-2xs">
                   <Moon className="w-3 h-3 text-amber-300 fill-amber-300/30" />
-                  <span>{isBn ? "রাতের ঘটনা" : "Night (6PM-6AM)"}</span>
+                  <span>{isBn ? "রাতের ঘটনা (৬টা-৬টা)" : "Night (6PM-6AM)"}</span>
                   <button
-                    onClick={() => setNightFilter(false)}
+                    onClick={() => setTimeFilterMode("ALL")}
                     className="hover:text-amber-200 ml-0.5 p-0.5"
                     aria-label={isBn ? "রাতের ফিল্টার মুছুন" : "Remove night filter"}
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              )}
+
+              {timeFilterMode === "DAY" && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-600 text-white font-semibold text-xs shadow-2xs">
+                  <span>☀️ {isBn ? "দিনের বেলা (৬টা-৬টা)" : "Daytime (6AM-6PM)"}</span>
+                  <button
+                    onClick={() => setTimeFilterMode("ALL")}
+                    className="hover:text-amber-200 ml-0.5 p-0.5"
+                    aria-label={isBn ? "দিনের ফিল্টার মুছুন" : "Remove daytime filter"}
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              )}
+
+              {timeFilterMode === "CUSTOM" && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-900 text-white font-semibold text-xs shadow-2xs">
+                  <Clock className="w-3 h-3 text-amber-300" />
+                  <span>
+                    {isBn ? "সময়সীমা:" : "Time:"} {formatTimeTo12Hour(customStartTime)} – {formatTimeTo12Hour(customEndTime)}
+                  </span>
+                  <button
+                    onClick={() => setTimeFilterMode("ALL")}
+                    className="hover:text-amber-200 ml-0.5 p-0.5"
+                    aria-label={isBn ? "সময় ফিল্টার মুছুন" : "Remove time filter"}
                   >
                     <X className="w-3 h-3" />
                   </button>
@@ -1065,37 +1205,166 @@ export default function FeedPage() {
                     </div>
                   </div>
 
-                  {/* Time Window Switcher */}
-                  <div className="space-y-1.5">
-                    <label className="text-[11px] font-bold text-slate-600 flex items-center gap-1.5">
-                      <Moon className="w-3.5 h-3.5 text-indigo-600" />
-                      <span>{isBn ? "সময়কাল (Time Window)" : "Time Window"}</span>
-                    </label>
-                    <div className="h-10 flex items-center gap-1.5 bg-white p-1 rounded-xl border border-slate-200 shadow-2xs">
+                  {/* Time Window Switcher & Custom Range Selector */}
+                  <div className="space-y-2 sm:col-span-2 lg:col-span-3 bg-white p-3.5 sm:p-4 rounded-xl border border-slate-200 shadow-2xs">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <label className="text-[11px] font-bold text-slate-700 flex items-center gap-1.5 uppercase tracking-wider">
+                        <Clock className="w-3.5 h-3.5 text-indigo-600" />
+                        <span>{isBn ? "বিপদের সময়সীমা ও সক্রিয় সময় ফিল্টার" : "Danger Schedule & Active Hours Filter"}</span>
+                      </label>
+                      {timeFilterMode !== "ALL" && (
+                        <span className="text-[11px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-md">
+                          {timeFilterMode === "NIGHT"
+                            ? isBn ? "রাত ৬:০০ PM — সকাল ৬:০০ AM" : "06:00 PM — 06:00 AM (BST)"
+                            : timeFilterMode === "DAY"
+                              ? isBn ? "সকাল ৬:০০ AM — সন্ধ্যা ৬:০০ PM" : "06:00 AM — 06:00 PM (BST)"
+                              : `${formatTimeTo12Hour(customStartTime)} — ${formatTimeTo12Hour(customEndTime)} (BST)`}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Quick Mode Switches */}
+                    <div className="flex flex-wrap items-center gap-1.5">
                       <button
                         type="button"
-                        onClick={() => setNightFilter(false)}
-                        className={`flex-1 h-8 text-xs rounded-lg font-semibold transition-all ${
-                          !nightFilter
+                        onClick={() => setTimeFilterMode("ALL")}
+                        className={`h-8 px-3 text-xs rounded-lg font-semibold transition-all ${
+                          timeFilterMode === "ALL"
                             ? "bg-slate-900 text-white shadow-2xs"
-                            : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
+                            : "bg-slate-100 text-slate-600 hover:text-slate-900 hover:bg-slate-200/70"
                         }`}
                       >
-                        {isBn ? "সার্বক্ষণিক (২৪ ঘণ্টা)" : "24 Hours (All)"}
+                        {isBn ? "সার্বক্ষণিক (২৪ ঘণ্টা)" : "24 Hours (All Day)"}
                       </button>
+
                       <button
                         type="button"
-                        onClick={() => setNightFilter(true)}
-                        className={`flex-1 h-8 text-xs rounded-lg font-semibold inline-flex items-center justify-center gap-1 transition-all ${
-                          nightFilter
+                        onClick={() => applyTimePreset("18:00", "06:00", "NIGHT")}
+                        className={`h-8 px-3 text-xs rounded-lg font-semibold inline-flex items-center gap-1.5 transition-all ${
+                          timeFilterMode === "NIGHT"
                             ? "bg-indigo-900 text-white shadow-2xs"
-                            : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
+                            : "bg-slate-100 text-slate-600 hover:text-slate-900 hover:bg-slate-200/70"
                         }`}
                       >
-                        <Moon className={`w-3 h-3 ${nightFilter ? "text-amber-300 fill-amber-300/30" : "text-indigo-600"}`} />
-                        <span>{isBn ? "রাতের ঘটনা" : "Night (6PM-6AM)"}</span>
+                        <Moon className={`w-3 h-3 ${timeFilterMode === "NIGHT" ? "text-amber-300 fill-amber-300/30" : "text-indigo-600"}`} />
+                        <span>{isBn ? "রাত (৬টা - ৬টা)" : "Night (6PM - 6AM)"}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => applyTimePreset("06:00", "18:00", "DAY")}
+                        className={`h-8 px-3 text-xs rounded-lg font-semibold inline-flex items-center gap-1.5 transition-all ${
+                          timeFilterMode === "DAY"
+                            ? "bg-amber-600 text-white shadow-2xs"
+                            : "bg-slate-100 text-slate-600 hover:text-slate-900 hover:bg-slate-200/70"
+                        }`}
+                      >
+                        <span>☀️ {isBn ? "দিনের বেলা (৬টা - ৬টা)" : "Daytime (6AM - 6PM)"}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => applyTimePreset("18:00", "22:00", "CUSTOM")}
+                        className={`h-8 px-2.5 text-xs rounded-lg font-semibold transition-all hidden sm:inline-flex items-center gap-1 ${
+                          timeFilterMode === "CUSTOM" && customStartTime === "18:00" && customEndTime === "22:00"
+                            ? "bg-indigo-700 text-white shadow-2xs"
+                            : "bg-slate-100 text-slate-600 hover:text-slate-900 hover:bg-slate-200/70"
+                        }`}
+                      >
+                        <span>🌆 {isBn ? "সন্ধ্যা (৬টা - ১০টা)" : "Evening (6PM - 10PM)"}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => applyTimePreset("22:00", "04:00", "CUSTOM")}
+                        className={`h-8 px-2.5 text-xs rounded-lg font-semibold transition-all hidden sm:inline-flex items-center gap-1 ${
+                          timeFilterMode === "CUSTOM" && customStartTime === "22:00" && customEndTime === "04:00"
+                            ? "bg-purple-900 text-white shadow-2xs"
+                            : "bg-slate-100 text-slate-600 hover:text-slate-900 hover:bg-slate-200/70"
+                        }`}
+                      >
+                        <span>🌃 {isBn ? "গভীর রাত (১০টা - ৪টা)" : "Late Night (10PM - 4AM)"}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setTimeFilterMode("CUSTOM")}
+                        className={`h-8 px-3 text-xs rounded-lg font-semibold inline-flex items-center gap-1.5 transition-all ${
+                          timeFilterMode === "CUSTOM"
+                            ? "bg-slate-800 text-white shadow-2xs"
+                            : "bg-slate-100 text-slate-600 hover:text-slate-900 hover:bg-slate-200/70"
+                        }`}
+                      >
+                        <SlidersHorizontal className="w-3 h-3 text-slate-300" />
+                        <span>{isBn ? "যেকোনো সময় (Custom Time)" : "Custom Time Window"}</span>
                       </button>
                     </div>
+
+                    {/* Custom Time Pickers (Visible when Custom, Day, or Night is active) */}
+                    {timeFilterMode !== "ALL" && (
+                      <div className="pt-2 border-t border-slate-100 space-y-2.5">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-center">
+                          {/* Start Time Input */}
+                          <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 border border-slate-200">
+                            <div className="space-y-0.5">
+                              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wide block">
+                                {isBn ? "শুরুর সময় (From Time)" : "Start Time (From)"}
+                              </span>
+                              <span className="text-xs font-bold text-slate-900">
+                                {formatTimeTo12Hour(customStartTime)}
+                              </span>
+                            </div>
+                            <input
+                              type="time"
+                              value={customStartTime}
+                              onChange={(e) => {
+                                setCustomStartTime(e.target.value);
+                                setTimeFilterMode("CUSTOM");
+                              }}
+                              className="h-8 px-2 bg-white border border-slate-300 rounded-lg text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-900/10 cursor-pointer shadow-2xs"
+                              aria-label={isBn ? "শুরুর সময় নির্বাচন করুন" : "Select start time"}
+                            />
+                          </div>
+
+                          {/* End Time Input */}
+                          <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 border border-slate-200">
+                            <div className="space-y-0.5">
+                              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wide block">
+                                {isBn ? "শেষ সময় (To Time)" : "End Time (To)"}
+                              </span>
+                              <span className="text-xs font-bold text-slate-900">
+                                {formatTimeTo12Hour(customEndTime)}
+                              </span>
+                            </div>
+                            <input
+                              type="time"
+                              value={customEndTime}
+                              onChange={(e) => {
+                                setCustomEndTime(e.target.value);
+                                setTimeFilterMode("CUSTOM");
+                              }}
+                              className="h-8 px-2 bg-white border border-slate-300 rounded-lg text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-900/10 cursor-pointer shadow-2xs"
+                              aria-label={isBn ? "শেষ সময় নির্বাচন করুন" : "Select end time"}
+                            />
+                          </div>
+                        </div>
+
+                        {/* Include 24/7 continuous hazards checkbox */}
+                        <label className="flex items-center gap-2 cursor-pointer select-none text-xs text-slate-600 hover:text-slate-900 pt-0.5">
+                          <input
+                            type="checkbox"
+                            checked={includeContinuous}
+                            onChange={(e) => setIncludeContinuous(e.target.checked)}
+                            className="w-3.5 h-3.5 rounded border-slate-300 text-slate-900 focus:ring-slate-900/10 cursor-pointer"
+                          />
+                          <span>
+                            {isBn
+                              ? "সার্বক্ষণিক (২৪ ঘণ্টা) চলমান ঝুঁকিও অন্তর্ভুক্ত রাখুন"
+                              : "Also include 24/7 continuous hazards (active around the clock)"}
+                          </span>
+                        </label>
+                      </div>
+                    )}
                   </div>
 
                   {/* Mobile Sort Option */}
@@ -1197,12 +1466,7 @@ export default function FeedPage() {
             </div>
             <div className="flex items-center justify-center gap-2.5 pt-2">
               <button
-                onClick={() => {
-                  setCategoryFilter("ALL");
-                  setSeverityFilter("ALL");
-                  setNightFilter(false);
-                  setSearchQuery("");
-                }}
+                onClick={handleResetFilters}
                 className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold transition active:scale-95 border border-slate-200"
               >
                 {isBn ? "ফিল্টার মুছুন" : "Reset Filters"}
