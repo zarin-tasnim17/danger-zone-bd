@@ -945,7 +945,7 @@ export default function ReportPage() {
                       <span className="w-5 h-5 rounded-full bg-slate-900 text-white flex items-center justify-center text-[10px] font-black">
                         1
                       </span>
-                      <span>{isBn ? "বিপদের ক্যাটাগরি ট্যাগ নির্বাচন (Option A)" : "Select Incident Category Tags"}</span>
+                      <span>{isBn ? "বিপদের ক্যাটাগরি ট্যাগ নির্বাচন" : "Select Incident Category Tags"}</span>
                     </label>
                     <span className="text-[11px] font-medium text-slate-500">
                       {isBn ? "প্রয়োজনে দুটি ট্যাগ একসাথে নির্বাচন করুন" : "Select tags (auto-combines)"}
@@ -982,29 +982,6 @@ export default function ReportPage() {
                         </button>
                       );
                     })}
-                  </div>
-
-                  {/* Reactive Resolved Category Status Banner */}
-                  <div className="p-3 rounded-xl border flex items-center justify-between gap-2 transition-all bg-blue-50 border-blue-200 text-blue-900">
-                    <div className="flex items-center gap-2.5">
-                      <Sparkles className="w-4 h-4 text-blue-600 shrink-0" />
-                      <div>
-                        <span className="text-xs font-bold block">
-                          {isBn ? "কার্যকর ক্যাটাগরি:" : "Resolved Incident Category:"}{" "}
-                          <span className="underline decoration-blue-500 underline-offset-2">
-                            {isBn ? selectedCategoryDef.labelBn : selectedCategoryDef.labelEn}
-                          </span>
-                        </span>
-                        <span className="text-[11px] text-blue-700/80 block mt-0.5">
-                          {isBn ? selectedCategoryDef.descBn : selectedCategoryDef.descEn}
-                        </span>
-                      </div>
-                    </div>
-                    {resolvedCategory.includes("_") && (
-                      <span className="text-[10px] font-extrabold uppercase px-2.5 py-1 rounded-full bg-blue-600 text-white shadow-xs shrink-0">
-                        {isBn ? "সমন্বিত অ্যালার্ট" : "Combined Alert"}
-                      </span>
-                    )}
                   </div>
                 </div>
 
