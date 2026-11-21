@@ -157,16 +157,64 @@ export type LocationPrecision = (typeof LOCATION_PRECISIONS)[number];
 export const THREAT_STATUSES = [
   "ACTIVE",
   "RESOLVED",
+  "EXPIRED",
   "EXPIRED_UNVERIFIED",
   "UNDER_REVIEW",
 ] as const;
 export type ThreatStatus = (typeof THREAT_STATUSES)[number];
+
+export interface ActiveThreatPredicateInput {
+  status: 'ACTIVE' | 'RESOLVED' | 'PENDING' | 'REJECTED' | 'PURGED' | string;
+  threatStatus?: 'ACTIVE' | 'RESOLVED' | 'UNDER_REVIEW' | 'EXPIRED' | 'EXPIRED_UNVERIFIED' | string | null;
+  locationPrecision?: 'EXACT' | 'UPAZILA' | 'DISTRICT' | 'AMBIGUOUS' | string | null;
+  expiresAt: string | Date | number;
+}
+
+export function isActiveThreatIncident(
+  incident: ActiveThreatPredicateInput,
+  now: Date = new Date()
+): boolean {
+  if (!incident) return false;
+  if (incident.status !== 'ACTIVE') return false;
+  if (incident.threatStatus !== 'ACTIVE') return false;
+  if (incident.locationPrecision === 'AMBIGUOUS') return false;
+  if (incident.expiresAt === undefined || incident.expiresAt === null) return false;
+  const expiry = incident.expiresAt instanceof Date ? incident.expiresAt : new Date(incident.expiresAt);
+  if (isNaN(expiry.getTime()) || expiry.getTime() <= now.getTime()) return false;
+  return true;
+}
 
 export interface Citation {
   sourceName: string;
   sourceUrl: string;
   title?: string;
   publishedAt?: string | Date;
+  isWire?: boolean;
+  wireAgency?: 'BSS' | 'UNB' | 'REUTERS' | 'AP' | 'AFP' | string | null;
+}
+
+export type TimeOfDay = 'MORNING' | 'AFTERNOON' | 'EVENING' | 'NIGHT';
+
+export interface EventFingerprint {
+  category: ReportCategory;
+  temporalWindow: {
+    occurrenceDate?: string; // YYYY-MM-DD
+    timeOfDay?: TimeOfDay;
+    publishedAt: Date;
+  };
+  administrativeLocation: {
+    district?: string;
+    upazila?: string;
+    latitude: number;
+    longitude: number;
+  };
+  entities: Set<string>; // vehicles, weapons, factions
+  casualtySignature?: {
+    killed?: number;
+    injured?: number;
+  };
+  isWireSyndicated: boolean;
+  wireAgency?: 'BSS' | 'UNB' | 'REUTERS' | 'AP' | 'AFP' | null;
 }
 
 export const SAFE_ZONE_TYPES = ["HOSPITAL", "POLICE_BOX", "PHARMACY"] as const;
@@ -245,6 +293,8 @@ export interface DangerIncident {
   citations?: Citation[];
   fuzzedRadiusMeters?: number;
   isGpsVerified?: boolean;
+  expiresAt?: string | Date;
+  rawStatus?: string;
 }
 
 const SHARED_TRACKING_PARAMS = new Set([

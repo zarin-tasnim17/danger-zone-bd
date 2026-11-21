@@ -27,6 +27,10 @@ export interface DbReport {
   sourceName: string | null;
   createdAt: Date;
   updatedAt: Date;
+  threatStatus?: any;
+  locationPrecision?: string | null;
+  district?: string | null;
+  upazila?: string | null;
 }
 
 export interface DbNewsArticle {
@@ -252,9 +256,14 @@ export class MockDatabase {
       sourceName: data.sourceName ?? null,
       createdAt: data.createdAt || now,
       updatedAt: data.updatedAt || now,
+      threatStatus: (data as any).threatStatus ?? null,
+      locationPrecision: (data as any).locationPrecision ?? null,
+      district: (data as any).district ?? null,
+      upazila: (data as any).upazila ?? null,
+      ...data,
     };
     this.reports.set(id, report);
-    return { ...report };
+    return report;
   }
 
   public seedArticle(data: Partial<DbNewsArticle> & { guid: string; title: string; category: ReportCategory }): DbNewsArticle {

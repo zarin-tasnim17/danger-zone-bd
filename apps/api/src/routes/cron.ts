@@ -23,6 +23,7 @@ const handleNewsCrawl = async (_req: Request, res: Response) => {
         message: 'News crawler executed successfully',
         timestamp: new Date().toISOString(),
         ...result,
+        telemetry: (result as any).telemetry || null,
       },
       200
     );

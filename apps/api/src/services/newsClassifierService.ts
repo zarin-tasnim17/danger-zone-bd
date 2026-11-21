@@ -92,6 +92,11 @@ const CATEGORY_KEYWORDS: Record<ReportCategory, string[]> = {
     'ছুরি মেরে',
     'গুলিবিদ্ধ',
     'গুলি বর্ষণ',
+    'গুলিবর্ষণ',
+    'বন্দুকযুদ্ধ',
+    'গুলি বিনিময়',
+    'গোলাগুলি',
+    'গুলির লড়াই',
     'আগ্নেয়াস্ত্র',
     'বন্দুকধারী',
     'বোমা হামলা',
@@ -144,6 +149,8 @@ const CATEGORY_KEYWORDS: Record<ReportCategory, string[]> = {
     'stabbing',
     'machete attack',
     'gunfire',
+    'shootout',
+    'gunfight',
     'armed attack',
     'shot and injured',
     'shot',
@@ -368,6 +375,11 @@ const HIGH_SEVERITY_KEYWORDS = [
   'গুলিবিদ্ধ',
   'গুলি',
   'বন্দুক',
+  'বন্দুকযুদ্ধ',
+  'গোলাগুলি',
+  'গুলিবর্ষণ',
+  'shootout',
+  'gunfight',
   'অস্ত্র',
   'অস্ত্রধারী',
   'আগ্নেয়াস্ত্র',
@@ -434,6 +446,8 @@ const COMPOUND_SAFETY_PHRASES = new Set([
   'কুপিয়ে জখম',
   'ছুরি মেরে',
   'গুলি বর্ষণ',
+  'গুলি বিনিময়',
+  'গুলির লড়াই',
   'বোমা হামলা',
   'দুই পক্ষের সংঘর্ষ',
   'দুপক্ষের সংঘর্ষ',
@@ -511,6 +525,9 @@ const MEDIUM_SPECIFICITY_TERMS = new Set([
   'ছুরিকাঘাত',
   'আগ্নেয়াস্ত্র',
   'বন্দুকধারী',
+  'বন্দুকযুদ্ধ',
+  'গোলাগুলি',
+  'গুলিবর্ষণ',
   'টিয়ারশেল',
   'ককটেল',
   'চাঁদাবাজ',
@@ -539,6 +556,8 @@ const MEDIUM_SPECIFICITY_TERMS = new Set([
   'stabbing',
   'machete',
   'gunfire',
+  'shootout',
+  'gunfight',
   'mugger',
   'mugging',
   'kidnap',
@@ -1002,14 +1021,61 @@ const IMMEDIATE_VIOLENT_ATTACK_PATTERNS = [
 ];
 
 const ARREST_FOLLOWUP_PATTERNS = [
+  // Existing: Explicit suspect arrest
   /(?:পলাতক\s*আসামি|আসামি|আসামিকে)\s*(?:গ্রেফতার|গ্রেপ্তার|আটক|গ্রেফতারের|ধরা)/u,
   /(?:গ্রেফতার|গ্রেপ্তার|আটক)\s*(?:হয়েছে|হয়েছেন|করা\s*হয়েছে|করা\s*হয়)/u,
-  /(?:র‌্যাব|র‍্যাব|পুলিশ|ডিবি|গোয়েন্দা\s*পুলিশ)[\s\S]{0,25}?(?:গ্রেফতার|গ্রেপ্তার|আটক)\s*করেছে/u,
+  /(?:র‌্যাব|র‍্যাব|পুলিশ|ডিবি|গোয়েন্দা\s*পুলিশ|আইনশৃঙ্খলা\s*বাহিনী)[\s\S]{0,25}?(?:গ্রেফতার|গ্রেপ্তার|আটক)\s*করেছে/u,
+
+  // Feature 7: Standalone [Place] এ [Criminal Type] আটক/গ্রেফতার
+  /(?:ডাকাত\s*দল|ডাকাত\s*দলের|ডাকাত|সন্ত্রাসী|চাঁদাবাজ|ছিনতাইকারী|মাদক\s*কারবারি|কারবারি|চোর\s*চক্র|চোর|পাচারকারী|অপরাধী|খুনি|জঙ্গি|সদস্য|মূলহোতা)[\s\S]{0,35}?(?:আটক|গ্রেফতার|গ্রেপ্তার)/u,
+  /(?:গ্রেফতার|গ্রেপ্তার|আটক)\s*[০-৯\d]+/u, // e.g. গ্রেফতার ৪, আটক ৩
+  /[০-৯\d]+\s*(?:জন|সদস্য|ডাকাত|ছিনতাইকারী|মাদক\s*কারবারি)?\s*(?:আটক|গ্রেফতার|গ্রেপ্তার)/u, // e.g. ৩ সদস্য আটক
+  /(?:মূলহোতাসহ|অস্ত্রসহ|মাদকসহ|ফেনসিডিলসহ|ইয়াবাসহ|চোরাই\s*মালসহ|মালামালসহ)[\s\S]{0,25}?(?:গ্রেফতার|গ্রেপ্তার|আটক)/u,
+  /(?:গ্রেফতার|গ্রেপ্তার|আটক)\s*হয়েছেন/u,
+  /(?:গ্রেফতার|গ্রেপ্তার|আটক)\s*অভিযান/u,
+  /(?:অভিযান\s*চালিয়ে\s*[\s\S]{0,25}?(?:আটক|গ্রেফতার|গ্রেপ্তার))/u,
+
+  // English standalone arrest & detention patterns
+  /\b(?:\d+|two|three|four|five|six|seven|eight|nine|ten)?\s*(?:robbers?|thieves|thief|peddlers?|suspects?|extortionists?|criminals?|dacoits?|gang\s+members?|culprits?|fugitives?)\s+(?:arrested|held|nabbed|detained)\b/i,
+  /\b(?:police|db|rab|cid|bgb|law\s+enforcers?)\s+(?:arrest|arrests|nab|nabs|detain|detains|hold|holds)\b/i,
+  /\b(?:arrested|held|nabbed|detained)\s+(?:with|in|from|at|by)\b/i,
+  /\b(?:arrest|detention|nabbed|apprehended)\s+of\b/i,
   /\b(?:fugitive(?:\s+accused)?\s+(?:arrested|nabbed|detained|held)|accused\s+(?:arrested|nabbed|held)|suspects?\s+arrested|arrest\s+of\s+accused)\b/i,
 ];
 
 const ACTIVE_ARREST_CLASH_PATTERNS = [
-  /(?:গ্রেফতারকালে\s*হামলা|গ্রেপ্তারকালে\s*হামলা|গ্রেফতারকালে\s*সংঘর্ষ|বন্দুকযুদ্ধ|গুলির\s*লড়াই|গুলি\s*বিনিময়|shootout\s+during\s+arrest|clashed\s+with\s+police\s+during\s+arrest)/u,
+  /(?:গ্রেফতারকালে|গ্রেপ্তারকালে|গ্রেফতার\s*অভিযানে|গ্রেপ্তার\s*অভিযানে|অভিযানকালে)[\s\S]{0,35}?(?:হামলা|সংঘর্ষ|ককটেল|গুলি|গুলিবিদ্ধ|গোলাগুলি|আহত|রণক্ষেত্র)/u,
+  /(?:বন্দুকযুদ্ধ|গুলির\s*লড়াই|গুলি\s*বিনিময়|গোলাগুলি|গুলিবর্ষণ|crossfire|gunfight|shootout)/u,
+  /\b(?:shootout|gunfight|gunfire|come\s+under\s+fire|come\s+under\s+gunfire|under\s+gunfire|attacked\s+during|clashed\s+with\s+police)\b/i,
+];
+
+// Feature 8: Case Filing / Lawsuit Follow-Up Patterns
+const CASE_FILING_PATTERNS = [
+  /(?:মামলা\s*দায়ের|মামলা\s*হয়েছে|মামলা\s*রুজু|মামলা\s*নথিভুক্ত|মামলা\s*দায়ের\s*হয়েছে|মামলা\s*দায়ের\s*করা\s*হয়েছে|থানায়\s*মামলা\s*(?:দায়ের)?|অভিযোগ\s*দায়ের|আদালতে\s*মামলা)/u,
+  /(?:ঘটনায়|জেরে|নিয়ে)[\s\S]{0,35}?(?:মামলা\s*দায়ের|মামলা\s*হয়েছে|মামলা\s*রুজু)/u,
+  /(?:বিরুদ্ধে|নামে)[\s\S]{0,35}?(?:মামলা\s*দায়ের|মামলা\s*করা\s*হয়েছে)/u,
+  /\b(?:case\s+(?:filed|lodged|recorded|registered)|lawsuit\s+(?:filed|lodged)|complaint\s+(?:lodged|filed)|FIR\s+(?:filed|lodged|registered))\b/i,
+  /\bcase\s+filed\s+over\b/i,
+];
+
+// Feature 8: Administrative Probe / Inquiry Committee Patterns
+const PROBE_COMMITTEE_PATTERNS = [
+  /(?:তদন্ত\s*কমিটি\s*(?:গঠন|গঠন\s*করেছে|করা\s*হয়েছে|হয়েছে|করল|ঘোষণা)|তদন্ত\s*দল\s*গঠন)/u,
+  /(?:তদন্ত\s*কমিটিকে|কমিটিকে\s*আগামী[\s\S]{0,30}?প্রতিবেদন)/u,
+  /\b(?:probe\s+committee|inquiry\s+committee|investigation\s+committee|probe\s+body|fact-finding\s+committee)\s+(?:formed|constituted|set\s+up|launched|announced)\b/i,
+  /\b(?:formed|constituted)\s+(?:a\s+)?(?:probe|inquiry|investigation)\s+committee\b/i,
+];
+
+// Feature 8: Interrogation / Questioning Patterns
+const INTERROGATION_PATTERNS = [
+  /(?:রিমান্ডে\s*জিজ্ঞাসাবাদ|জিজ্ঞাসাবাদ\s*করা\s*হচ্ছে|জিজ্ঞাসাবাদ\s*চলছে|আটক[\s\S]{0,25}?জিজ্ঞাসাবাদ|জিজ্ঞাসাবাদে\s*(?:গুরুত্বপূর্ণ|তথ্য|স্বীকার))/u,
+  /\b(?:suspects?\s+interrogated|interrogated\s+by|under\s+interrogation|questioned\s+by\s+police)\b/i,
+];
+
+// Feature 8: General Diary (GD) Patterns
+const GENERAL_DIARY_PATTERNS = [
+  /(?:সাধারণ\s*ডায়েরি\s*\(?জিডি\)?|থানায়\s*জিডি|জিডি\s*করেছেন|জিডি\s*দায়ের|জিডি\s*অন্তর্ভুক্ত|জিডি\s*করা\s*হয়েছে)/u,
+  /\b(?:general\s+diary|GD\s+filed|filed\s+(?:a\s+)?GD|lodged\s+(?:a\s+)?GD)\b/i,
 ];
 
 const HISTORICAL_CASE_PATTERNS = [
@@ -1050,7 +1116,8 @@ const FOLLOW_UP_MOURNING_PATTERNS = [
 ];
 
 function checkGroundRealityDisqualification(
-  combinedText: string
+  combinedText: string,
+  title: string = ''
 ): { isDisqualified: boolean; reason?: string } {
   const isImmediateAttack = IMMEDIATE_VIOLENT_ATTACK_PATTERNS.some((pat) => pat.test(combinedText));
 
@@ -1111,31 +1178,62 @@ function checkGroundRealityDisqualification(
     return { isDisqualified: true, reason: 'MOURNING_FOLLOWUP' };
   }
 
-  // 8. Arrest Follow-Up Disqualification (unless active shootout/violence occurred during the arrest)
+  // 8. Case Filing Follow-Up Disqualification (Feature 8)
+  const isCaseFilingTitle = CASE_FILING_PATTERNS.some((p) => p.test(title));
+  const isCaseFiling = CASE_FILING_PATTERNS.some((p) => p.test(combinedText));
+  if ((isCaseFilingTitle || (isCaseFiling && !isImmediateAttack)) && !isCourtVenueAttack) {
+    return { isDisqualified: true, reason: 'CASE_FILING_FOLLOWUP' };
+  }
+
+  // 9. Administrative Probe / Inquiry Committee Disqualification (Feature 8)
+  const isProbeTitle = PROBE_COMMITTEE_PATTERNS.some((p) => p.test(title));
+  const isProbe = PROBE_COMMITTEE_PATTERNS.some((p) => p.test(combinedText));
+  if (isProbeTitle || (isProbe && !isImmediateAttack)) {
+    return { isDisqualified: true, reason: 'PROBE_COMMITTEE' };
+  }
+
+  // 10. Interrogation / Questioning Follow-Up Disqualification (Feature 8)
+  const isInterrogationTitle = INTERROGATION_PATTERNS.some((p) => p.test(title));
+  const isInterrogation = INTERROGATION_PATTERNS.some((p) => p.test(combinedText));
+  if (isInterrogationTitle || (isInterrogation && !isImmediateAttack)) {
+    return { isDisqualified: true, reason: 'INTERROGATION_FOLLOWUP' };
+  }
+
+  // 11. General Diary (GD) Disqualification (Feature 8)
+  const isGDTitle = GENERAL_DIARY_PATTERNS.some((p) => p.test(title));
+  const isGD = GENERAL_DIARY_PATTERNS.some((p) => p.test(combinedText));
+  if (isGDTitle || (isGD && !isImmediateAttack)) {
+    return { isDisqualified: true, reason: 'GENERAL_DIARY' };
+  }
+
+  // 12. Arrest Follow-Up Disqualification (Feature 7) (unless active shootout/violence occurred during the arrest or live contraband interdiction)
   const isArrestFollowup = ARREST_FOLLOWUP_PATTERNS.some((pat) => pat.test(combinedText));
   const hasActiveArrestClash = ACTIVE_ARREST_CLASH_PATTERNS.some((pat) => pat.test(combinedText));
-  if (isArrestFollowup && !hasActiveArrestClash) {
+  const isBorderOrContrabandSeizure =
+    /(?:বিজিবির\s*অভিযানে|সীমান্তে[\s\S]{0,35}?(?:অভিযানে|বিজিবি)|পাচারকালে|চোরাচালানকালে|smuggling\s+in\s+progress|border\s+(?:guard|drive|seizure))/u.test(combinedText) &&
+    /(?:উদ্ধার|জব্দ|seized|recovered)/u.test(combinedText);
+  if (isArrestFollowup && !hasActiveArrestClash && !isBorderOrContrabandSeizure) {
     return { isDisqualified: true, reason: 'ARREST_FOLLOWUP' };
   }
 
-  // 9. Historical Case Reference Disqualification (e.g. "গাড়িবহরে হামলা মামলার পলাতক আসামি গ্রেফতার")
+  // 13. Historical Case Reference Disqualification (e.g. "গাড়িবহরে হামলা মামলার পলাতক আসামি গ্রেফতার")
   const isHistoricalCase = HISTORICAL_CASE_PATTERNS.some((pat) => pat.test(combinedText));
   if (isHistoricalCase && !isImmediateAttack) {
     return { isDisqualified: true, reason: 'HISTORICAL_CASE_MENTION' };
   }
 
-  // 10. Political Reaction / Ministerial Statement Disqualification
+  // 14. Political Reaction / Ministerial Statement Disqualification
   const isPoliticalReaction = POLITICAL_REACTION_PATTERNS.some((pat) => pat.test(combinedText));
   if (isPoliticalReaction && !isImmediateAttack) {
     return { isDisqualified: true, reason: 'POLITICAL_STATEMENT' };
   }
 
-  // 11. Retrospective Crime Statistics / Multi-day Summary Disqualification
+  // 15. Retrospective Crime Statistics / Multi-day Summary Disqualification
   if (RETROSPECTIVE_SUMMARY_PATTERNS.some((pat) => pat.test(combinedText))) {
     return { isDisqualified: true, reason: 'RETROSPECTIVE_SUMMARY' };
   }
 
-  // 12. Resolved Campus / Institutional Standoff Disqualification
+  // 16. Resolved Campus / Institutional Standoff Disqualification
   const isCampusResolved = CAMPUS_STANDOFF_RESOLVED_PATTERNS.some((pat) => pat.test(combinedText));
   if (isCampusResolved && !isImmediateAttack) {
     return { isDisqualified: true, reason: 'RESOLVED_ALTERCATION' };
@@ -1248,7 +1346,7 @@ export const classifyNewsText = (title: string, summary: string = ''): Classifie
   if (resolvedCategory === 'DRUG_ACTIVITY') resolvedCategory = 'DRUG_RELATED_CRIME';
 
   // Evaluate ground-reality physical safety disqualification
-  const disqualification = checkGroundRealityDisqualification(combinedText);
+  const disqualification = checkGroundRealityDisqualification(combinedText, title);
   if (disqualification.isDisqualified) {
     return {
       isSafetyRelated: false,
@@ -1288,6 +1386,11 @@ export const classifyNewsText = (title: string, summary: string = ''): Classifie
       combinedText.includes('সংঘর্ষে নিহত') ||
       combinedText.includes('রণক্ষেত্র') ||
       combinedText.includes('gunfire') ||
+      combinedText.includes('shootout') ||
+      combinedText.includes('gunfight') ||
+      combinedText.includes('বন্দুকযুদ্ধ') ||
+      combinedText.includes('গোলাগুলি') ||
+      combinedText.includes('গুলিবর্ষণ') ||
       combinedText.includes('shooting') ||
       combinedText.includes('shot') ||
       combinedText.includes('stabbed') ||

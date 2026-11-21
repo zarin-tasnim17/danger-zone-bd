@@ -39,9 +39,9 @@ export const getPlatformStats = async (): Promise<PlatformStats> => {
     >`
       SELECT
         COUNT(*)::int AS "totalReports",
-        COUNT(*) FILTER (WHERE status = 'ACTIVE' AND "expiresAt" > NOW() AND ("threatStatus" = 'ACTIVE' OR "threatStatus" IS NULL) AND ("locationPrecision" IS NULL OR "locationPrecision" != 'AMBIGUOUS'))::int AS "activeReports",
+        COUNT(*) FILTER (WHERE status = 'ACTIVE' AND "expiresAt" > NOW() AND "threatStatus" = 'ACTIVE' AND ("locationPrecision" IS NULL OR "locationPrecision" != 'AMBIGUOUS'))::int AS "activeReports",
         COUNT(*) FILTER (WHERE status = 'RESOLVED' OR "threatStatus" = 'RESOLVED')::int AS "resolvedReports",
-        COUNT(*) FILTER (WHERE status = 'ACTIVE' AND severity = 'HIGH' AND "expiresAt" > NOW() AND ("threatStatus" = 'ACTIVE' OR "threatStatus" IS NULL) AND ("locationPrecision" IS NULL OR "locationPrecision" != 'AMBIGUOUS'))::int AS "criticalThreats",
+        COUNT(*) FILTER (WHERE status = 'ACTIVE' AND severity = 'HIGH' AND "expiresAt" > NOW() AND "threatStatus" = 'ACTIVE' AND ("locationPrecision" IS NULL OR "locationPrecision" != 'AMBIGUOUS'))::int AS "criticalThreats",
         MAX("createdAt") AS "latestCreatedAt"
       FROM "Report"
       WHERE location IS NOT NULL

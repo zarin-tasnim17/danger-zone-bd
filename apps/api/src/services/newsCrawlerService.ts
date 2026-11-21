@@ -6,11 +6,12 @@ import { classifyNewsText } from './newsClassifierService';
 import { isForeignIncident } from './internationalIncidentFilter';
 import { evaluateActiveThreatEligibility } from './activeThreatEligibilityService';
 import { crossVerifyCitizenReports } from './newsVerificationService';
-import { findDuplicateActiveReport, normalizeCanonicalUrl, cleanIncidentTitle } from './incidentDeduplicationService';
+import { findDuplicateActiveReport, normalizeCanonicalUrl, cleanIncidentTitle, candidateLock } from './incidentDeduplicationService';
 import { emitNewReport, emitReportEnriched } from '../sockets';
+import { isActiveThreatIncident } from '@repo/shared';
 import { broadcastPlatformStats } from './statsService';
 import { setReportLocation } from '../db/spatialUtils';
-import { newsObservabilityService, CrawlRunRecorder } from './newsObservabilityService';
+import { newsObservabilityService, CrawlRunRecorder, CrawlerRunTelemetry } from './newsObservabilityService';
 import {
   isWireSyndicatedStory,
   resolvePublisherDomain,
@@ -650,6 +651,7 @@ export const processAndIngestNewsItems = async (
       console.log(
         `[News Crawler] 🌍 Skipping overseas incident: "${item.title.substring(0, 65)}..." (Matched: ${foreignCheck.matchedTerm})`
       );
+      if (runRecorder) runRecorder.recordForeignArticleFiltered();
       skipped++;
       continue;
     }
@@ -657,10 +659,13 @@ export const processAndIngestNewsItems = async (
     // 4. Content-Based Bilingual Classification (Strict Decoupling from Feed categoryHint)
     const classification = classifyNewsText(item.title, item.contentSnippet || '');
     const finalCategory = classification.category;
+    if (!classification.isSafetyRelated || classification.disqualifiedReason) {
+      if (runRecorder) runRecorder.recordDisqualifiedNonIncident();
+    }
 
     // 5. Domestic Geocoding resolution (Headline priority + victim residence exclusion)
     const geocode = await resolveLocationFromText(item.title, item.contentSnippet || '');
-    const wireInfo = isWireSyndicatedStory(canonicalUrl, item.sourceName, item.contentSnippet || item.title);
+    const wireInfo = isWireSyndicatedStory(canonicalUrl, item.sourceName, item.contentSnippet || '', item.title);
     const isWire = wireInfo.isWire;
     const wireAgency = wireInfo.agency || null;
     const initialVerificationStage: any = isWire ? 'WIRE_SYNDICATED' : 'SINGLE_SOURCE_PRESS';
@@ -678,10 +683,14 @@ export const processAndIngestNewsItems = async (
       sourceUrl: canonicalUrl,
       sourceName: item.sourceName,
       isWire,
+      confidence: classification.confidence,
     });
 
     if (!eligibility.isEligibleForActiveMap || !geocode) {
       if (runRecorder && !geocode) runRecorder.recordGeocodingFailure();
+      if (runRecorder && classification.isSafetyRelated && !classification.disqualifiedReason) {
+        runRecorder.recordStagedUnderReview();
+      }
       // Stage non-active / historical / follow-up / unresolvable article without creating live map pin
       try {
         await prisma.newsArticle.create({
@@ -718,281 +727,304 @@ export const processAndIngestNewsItems = async (
     const cleanTitle = cleanIncidentTitle(item.title);
     const cleanDesc = cleanIncidentTitle(item.contentSnippet || item.title);
 
-    // 7. Cross-Outlet Semantic Deduplication:
-    // If another news agency already reported on this exact same accident/crime in this area,
-    // consolidate under the existing report instead of scattering duplicate pins across the map.
-    const duplicateMatch = await findDuplicateActiveReport({
-      title: cleanTitle,
-      category: finalCategory,
-      latitude: geocode.latitude,
-      longitude: geocode.longitude,
-      district: geocode.district,
-      upazila: geocode.upazila,
-      locationPrecision: geocode.locationPrecision,
-    });
+    // 7. Concurrency-Safe Cross-Outlet Semantic Deduplication & Persistence
+    const lockKey = candidateLock.getLockKey(geocode.district, geocode.latitude, geocode.longitude);
 
-    if (duplicateMatch) {
-      const { existingReport, sharedTokens } = duplicateMatch;
-      console.log(
-        `[News Crawler] 🔄 Consolidated duplicate story from "${item.sourceName}": "${cleanTitle.substring(0, 60)}..." -> Merged with Report ${existingReport.id} (Shared: ${sharedTokens.join(', ')})`
-      );
+    await candidateLock.runExclusive(lockKey, async () => {
+      // Re-check GUID and URL inside lock to catch items processed milliseconds earlier by concurrent feeds
+      if (existingGuidSet.has(guid) || existingUrlSet.has(canonicalUrl)) {
+        skipped++;
+        if (runRecorder) runRecorder.recordDuplicateRejection();
+        return;
+      }
 
-      // Create NewsArticle record linked to existingReport.id (multi-source consolidation)
-      await prisma.newsArticle.create({
-        data: {
-          guid,
-          title: item.title,
+      const duplicateMatch = await findDuplicateActiveReport({
+        title: cleanTitle,
+        category: finalCategory,
+        latitude: geocode.latitude,
+        longitude: geocode.longitude,
+        district: geocode.district,
+        upazila: geocode.upazila,
+        locationPrecision: geocode.locationPrecision,
+        publishedAt,
+        summary: cleanDesc,
+        isWireSyndicated: isWire,
+        wireAgency,
+      });
+
+      if (duplicateMatch) {
+        const { existingReport, sharedTokens } = duplicateMatch;
+        console.log(
+          `[News Crawler] 🔄 Consolidated duplicate story from "${item.sourceName}": "${cleanTitle.substring(0, 60)}..." -> Merged with Report ${existingReport.id} (Shared: ${sharedTokens.join(', ')})`
+        );
+
+        // Create NewsArticle record linked to existingReport.id (multi-source consolidation)
+        await prisma.newsArticle.create({
+          data: {
+            guid,
+            title: item.title,
+            sourceUrl: canonicalUrl,
+            sourceName: item.sourceName,
+            publishedAt,
+            category: finalCategory,
+            severity: classification.severity,
+            latitude: geocode.latitude,
+            longitude: geocode.longitude,
+            reportId: existingReport.id,
+            isWireSyndicated: isWire,
+            wireAgency,
+          },
+        });
+
+        // Format source names to credit multiple outlets
+        const currentSources = existingReport.sourceName || '';
+        const cleanOutlet = item.sourceName.replace(/^Google News BD[^:]*:\s*/i, '').trim();
+        let updatedSources = currentSources;
+        if (cleanOutlet && !currentSources.includes(cleanOutlet)) {
+          updatedSources = `${currentSources}, ${cleanOutlet}`.replace(/^,\s*/, '');
+        }
+
+        // Preserve structured citations array
+        const existingCitations: any[] = Array.isArray(existingReport.citations)
+          ? (existingReport.citations as any[])
+          : existingReport.sourceUrl
+            ? [
+                {
+                  sourceName: (existingReport.sourceName || 'Press').replace(/^Google News BD[^:]*:\s*/i, '').trim(),
+                  sourceUrl: existingReport.sourceUrl,
+                  title: cleanIncidentTitle(existingReport.description?.split('\n')[0] || ''),
+                },
+              ]
+            : [];
+
+        const newCitation = {
+          sourceName: cleanOutlet || item.sourceName,
           sourceUrl: canonicalUrl,
-          sourceName: item.sourceName,
-          publishedAt,
-          category: finalCategory,
-          severity: classification.severity,
-          latitude: geocode.latitude,
-          longitude: geocode.longitude,
-          reportId: existingReport.id,
-          isWireSyndicated: isWire,
+          title: cleanTitle,
+          publishedAt: publishedAt.toISOString(),
+          isWire,
+          wireAgency,
+        };
+
+        const incomingDomain = resolvePublisherDomain(canonicalUrl, item.sourceName);
+        const priorDomains = existingCitations.map((c) => resolvePublisherDomain(c.sourceUrl, c.sourceName));
+        const isDifferentPublisher = incomingDomain !== 'unknown' && !priorDomains.includes(incomingDomain);
+
+        if (!existingCitations.some((c) => c.sourceUrl === canonicalUrl)) {
+          existingCitations.push(newCitation);
+        }
+
+        // Stage promotion logic & wire syndication trust protection:
+        let nextStage: any = existingReport.verificationStage;
+        let upvoteIncrement = 0;
+
+        if (existingReport.verificationStage === 'ADMIN_VERIFIED') {
+          nextStage = 'ADMIN_VERIFIED';
+        } else if (isWire) {
+          // Wire stories never advance to corroborated stage and never inflate upvotes
+          nextStage = existingReport.verificationStage;
+          upvoteIncrement = 0;
+        } else {
+          if (isDifferentPublisher) {
+            nextStage = 'PRESS_CORROBORATED';
+            upvoteIncrement = 2; // Genuine multi-press verification confidence boost
+          } else if (existingReport.verificationStage === 'CLASSIFIED') {
+            nextStage = 'CORROBORATED';
+          }
+        }
+
+        // If existing report was misclassified as ROAD_ACCIDENT, but a corroborating outlet confirms
+        // a specific crime or violent clash (ARMED_ASSAULT, THEFT, ROBBERY, etc.), elevate to specific category:
+        const updatedCategory =
+          existingReport.category === 'ROAD_ACCIDENT' && finalCategory !== 'ROAD_ACCIDENT'
+            ? finalCategory
+            : existingReport.category;
+
+        // Coordinate upgrade logic:
+        let newLat = existingReport.latitude;
+        let newLng = existingReport.longitude;
+        let newPrecision = existingReport.locationPrecision || 'UPAZILA';
+        let newDistrict = existingReport.district;
+        let newUpazila = existingReport.upazila;
+
+        if (duplicateMatch.shouldUpgradeCoords && duplicateMatch.newCoords) {
+          newLat = duplicateMatch.newCoords.latitude;
+          newLng = duplicateMatch.newCoords.longitude;
+          newPrecision = 'UPAZILA';
+          if (duplicateMatch.newCoords.district) newDistrict = duplicateMatch.newCoords.district;
+          if (duplicateMatch.newCoords.upazila) newUpazila = duplicateMatch.newCoords.upazila;
+          await setReportLocation(prisma, existingReport.id, newLat, newLng);
+        }
+
+        await prisma.report.update({
+          where: { id: existingReport.id },
+          data: {
+            category: updatedCategory,
+            sourceName: updatedSources,
+            ...(upvoteIncrement > 0 ? { upvotes: { increment: upvoteIncrement } } : {}),
+            verificationStage: nextStage,
+            citations: existingCitations,
+            latitude: newLat,
+            longitude: newLng,
+            locationPrecision: newPrecision,
+            district: newDistrict,
+            upazila: newUpazila,
+          },
+        });
+
+        // Add a context update linking the confirming news outlet
+        await prisma.reportUpdate.create({
+          data: {
+            reportId: existingReport.id,
+            userId: botUserId,
+            content: `অতিরিক্ত প্রেস নিশ্চিতকরণ (${cleanOutlet || item.sourceName}): "${cleanTitle}"`,
+          },
+        });
+
+        // Emit real-time REPORT_ENRICHED event only for active ongoing threats
+        if (isActiveThreatIncident(existingReport as any)) {
+          emitReportEnriched({
+            id: existingReport.id,
+            category: updatedCategory,
+            severity: existingReport.severity,
+            latitude: newLat,
+            longitude: newLng,
+            description: existingReport.description,
+            upvotes: (existingReport.upvotes || 0) + upvoteIncrement,
+            downvotes: existingReport.downvotes || 0,
+            status: existingReport.status,
+            expiresAt: existingReport.expiresAt,
+            createdAt: existingReport.createdAt,
+            sourceUrl: existingReport.sourceUrl,
+            sourceName: updatedSources,
+            isGpsVerified: existingReport.isGpsVerified,
+            verificationStage: nextStage,
+            citations: existingCitations,
+            locationPrecision: newPrecision,
+            district: newDistrict,
+            upazila: newUpazila,
+            threatStatus: existingReport.threatStatus,
+          });
+        }
+
+        existingGuidSet.add(guid);
+        existingUrlSet.add(canonicalUrl);
+        skipped++;
+        if (runRecorder) runRecorder.recordDuplicateConsolidated();
+        return;
+      }
+
+      const initialCitations = [
+        {
+          sourceName: item.sourceName.replace(/^Google News BD[^:]*:\s*/i, '').trim() || item.sourceName,
+          sourceUrl: canonicalUrl,
+          title: cleanTitle,
+          publishedAt: publishedAt.toISOString(),
+          isWire,
           wireAgency,
         },
-      });
+      ];
 
-      // Format source names to credit multiple outlets
-      const currentSources = existingReport.sourceName || '';
-      const cleanOutlet = item.sourceName.replace(/^Google News BD[^:]*:\s*/i, '').trim();
-      let updatedSources = currentSources;
-      if (cleanOutlet && !currentSources.includes(cleanOutlet)) {
-        updatedSources = `${currentSources}, ${cleanOutlet}`.replace(/^,\s*/, '');
-      }
-
-      // Preserve structured citations array
-      const existingCitations: any[] = Array.isArray(existingReport.citations)
-        ? (existingReport.citations as any[])
-        : existingReport.sourceUrl
-          ? [
-              {
-                sourceName: (existingReport.sourceName || 'Press').replace(/^Google News BD[^:]*:\s*/i, '').trim(),
-                sourceUrl: existingReport.sourceUrl,
-                title: cleanIncidentTitle(existingReport.description?.split('\n')[0] || ''),
-              },
-            ]
-          : [];
-
-      const newCitation = {
-        sourceName: cleanOutlet || item.sourceName,
-        sourceUrl: canonicalUrl,
-        title: cleanTitle,
-        publishedAt: publishedAt.toISOString(),
-      };
-
-      const incomingDomain = resolvePublisherDomain(canonicalUrl, item.sourceName);
-      const priorDomains = existingCitations.map((c) => resolvePublisherDomain(c.sourceUrl, c.sourceName));
-      const isDifferentPublisher = incomingDomain !== 'unknown' && !priorDomains.includes(incomingDomain);
-
-      if (!existingCitations.some((c) => c.sourceUrl === canonicalUrl)) {
-        existingCitations.push(newCitation);
-      }
-
-      // Stage promotion logic:
-      let nextStage: any = existingReport.verificationStage;
-      if (existingReport.verificationStage === 'ADMIN_VERIFIED') {
-        nextStage = 'ADMIN_VERIFIED';
-      } else if (isWire) {
-        // Wire stories never advance to corroborated stage
-        nextStage = existingReport.verificationStage;
-      } else {
-        if (isDifferentPublisher) {
-          nextStage = 'PRESS_CORROBORATED';
-        } else if (existingReport.verificationStage === 'CLASSIFIED') {
-          nextStage = 'CORROBORATED';
-        }
-      }
-
-      // If existing report was misclassified as ROAD_ACCIDENT, but a corroborating outlet confirms
-      // a specific crime or violent clash (ARMED_ASSAULT, THEFT, ROBBERY, etc.), elevate to specific category:
-      const updatedCategory =
-        existingReport.category === 'ROAD_ACCIDENT' && finalCategory !== 'ROAD_ACCIDENT'
-          ? finalCategory
-          : existingReport.category;
-
-      // Coordinate upgrade logic:
-      let newLat = existingReport.latitude;
-      let newLng = existingReport.longitude;
-      let newPrecision = existingReport.locationPrecision || 'UPAZILA';
-      let newDistrict = existingReport.district;
-      let newUpazila = existingReport.upazila;
-
-      if (duplicateMatch.shouldUpgradeCoords && duplicateMatch.newCoords) {
-        newLat = duplicateMatch.newCoords.latitude;
-        newLng = duplicateMatch.newCoords.longitude;
-        newPrecision = 'UPAZILA';
-        if (duplicateMatch.newCoords.district) newDistrict = duplicateMatch.newCoords.district;
-        if (duplicateMatch.newCoords.upazila) newUpazila = duplicateMatch.newCoords.upazila;
-        await setReportLocation(prisma, existingReport.id, newLat, newLng);
-      }
-
-      await prisma.report.update({
-        where: { id: existingReport.id },
-        data: {
-          category: updatedCategory,
-          sourceName: updatedSources,
-          upvotes: { increment: 2 }, // Multi-press verification confidence boost
-          verificationStage: nextStage,
-          citations: existingCitations,
-          latitude: newLat,
-          longitude: newLng,
-          locationPrecision: newPrecision,
-          district: newDistrict,
-          upazila: newUpazila,
-        },
-      });
-
-      // Add a context update linking the confirming news outlet
-      await prisma.reportUpdate.create({
-        data: {
-          reportId: existingReport.id,
-          userId: botUserId,
-          content: `অতিরিক্ত প্রেস নিশ্চিতকরণ (${cleanOutlet || item.sourceName}): "${cleanTitle}"`,
-        },
-      });
-
-      // Emit real-time REPORT_ENRICHED event only for active ongoing threats
-      if (existingReport.status === 'ACTIVE' && (existingReport.threatStatus === 'ACTIVE' || !existingReport.threatStatus)) {
-        emitReportEnriched({
-          id: existingReport.id,
-          category: updatedCategory,
-          severity: existingReport.severity,
-          latitude: newLat,
-          longitude: newLng,
-          description: existingReport.description,
-          upvotes: (existingReport.upvotes || 0) + 2,
-          downvotes: existingReport.downvotes || 0,
-          status: existingReport.status,
-          expiresAt: existingReport.expiresAt,
-          createdAt: existingReport.createdAt,
-          sourceUrl: existingReport.sourceUrl,
-          sourceName: updatedSources,
-          isGpsVerified: existingReport.isGpsVerified,
-          verificationStage: nextStage,
-          citations: existingCitations,
-          locationPrecision: newPrecision,
-          district: newDistrict,
-          upazila: newUpazila,
-          threatStatus: existingReport.threatStatus || 'ACTIVE',
+      // Atomically create report, populate PostGIS location, and persist news article metadata
+      const report = await prisma.$transaction(async (tx) => {
+        const createdReport = await tx.report.create({
+          data: {
+            userId: botUserId,
+            category: finalCategory,
+            severity: classification.severity,
+            latitude: geocode.latitude,
+            longitude: geocode.longitude,
+            description: cleanDesc,
+            sourceUrl: canonicalUrl,
+            sourceName: item.sourceName,
+            verificationStage: initialVerificationStage,
+            citations: initialCitations,
+            expiresAt,
+            locationPrecision: geocode.locationPrecision || 'UPAZILA',
+            district: geocode.district,
+            upazila: geocode.upazila,
+            threatStatus: 'ACTIVE',
+          },
         });
-      }
+
+        await setReportLocation(tx, createdReport.id, geocode.latitude, geocode.longitude);
+
+        await tx.newsArticle.create({
+          data: {
+            guid,
+            title: item.title,
+            sourceUrl: canonicalUrl,
+            sourceName: item.sourceName,
+            publishedAt,
+            category: finalCategory,
+            severity: classification.severity,
+            latitude: geocode.latitude,
+            longitude: geocode.longitude,
+            reportId: createdReport.id,
+            isWireSyndicated: isWire,
+            wireAgency,
+          },
+        });
+
+        return createdReport;
+      });
 
       existingGuidSet.add(guid);
       existingUrlSet.add(canonicalUrl);
-      skipped++;
-      if (runRecorder) runRecorder.recordDuplicateRejection();
-      continue;
-    }
+      ingested++;
+      if (runRecorder) runRecorder.recordNewIncident();
 
-    const initialCitations = [
-      {
-        sourceName: item.sourceName.replace(/^Google News BD[^:]*:\s*/i, '').trim() || item.sourceName,
+      // 7. Cross-Verification with active citizen reports
+      const verifyResult = await crossVerifyCitizenReports({
+        id: report.id,
+        category: report.category,
+        latitude: report.latitude,
+        longitude: report.longitude,
+        sourceName: item.sourceName,
         sourceUrl: canonicalUrl,
-        title: cleanTitle,
-        publishedAt: publishedAt.toISOString(),
-      },
-    ];
-
-    // Atomically create report, populate PostGIS location, and persist news article metadata
-    const report = await prisma.$transaction(async (tx) => {
-      const createdReport = await tx.report.create({
-        data: {
-          userId: botUserId,
-          category: finalCategory,
-          severity: classification.severity,
-          latitude: geocode.latitude,
-          longitude: geocode.longitude,
-          description: cleanDesc,
-          sourceUrl: canonicalUrl,
-          sourceName: item.sourceName,
-          verificationStage: initialVerificationStage,
-          citations: initialCitations,
-          expiresAt,
-          locationPrecision: geocode.locationPrecision || 'UPAZILA',
-          district: geocode.district,
-          upazila: geocode.upazila,
-          threatStatus: 'ACTIVE',
-        },
+        title: item.title,
       });
-
-      await setReportLocation(tx, createdReport.id, geocode.latitude, geocode.longitude);
-
-      await tx.newsArticle.create({
-        data: {
-          guid,
-          title: item.title,
-          sourceUrl: canonicalUrl,
-          sourceName: item.sourceName,
-          publishedAt,
-          category: finalCategory,
-          severity: classification.severity,
-          latitude: geocode.latitude,
-          longitude: geocode.longitude,
-          reportId: createdReport.id,
-          isWireSyndicated: isWire,
-          wireAgency,
-        },
-      });
-
-      return createdReport;
-    });
-
-    existingGuidSet.add(guid);
-    existingUrlSet.add(canonicalUrl);
-    ingested++;
-    if (runRecorder) runRecorder.recordNewIncident();
-
-    // 7. Cross-Verification with active citizen reports
-    const verifyResult = await crossVerifyCitizenReports({
-      id: report.id,
-      category: report.category,
-      latitude: report.latitude,
-      longitude: report.longitude,
-      sourceName: item.sourceName,
-      sourceUrl: canonicalUrl,
-      title: item.title,
-    });
-    verifiedMatches += verifyResult.matchedCount;
-    if (runRecorder && verifyResult.matchedCount > 0) {
-      runRecorder.recordVerifiedMatches(verifyResult.matchedCount);
-      // Automatically advance verificationStage to COMMUNITY_CONFIRMED when citizen report matches
-      await prisma.report.update({
-        where: { id: report.id },
-        data: { verificationStage: 'COMMUNITY_CONFIRMED' },
-      });
-      if (verifyResult.verifiedReportIds.length > 0) {
-        await prisma.report.updateMany({
-          where: { id: { in: verifyResult.verifiedReportIds } },
+      verifiedMatches += verifyResult.matchedCount;
+      if (runRecorder && verifyResult.matchedCount > 0) {
+        runRecorder.recordVerifiedMatches(verifyResult.matchedCount);
+        // Automatically advance verificationStage to COMMUNITY_CONFIRMED when citizen report matches
+        await prisma.report.update({
+          where: { id: report.id },
           data: { verificationStage: 'COMMUNITY_CONFIRMED' },
         });
+        if (verifyResult.verifiedReportIds.length > 0) {
+          await prisma.report.updateMany({
+            where: { id: { in: verifyResult.verifiedReportIds } },
+            data: { verificationStage: 'COMMUNITY_CONFIRMED' },
+          });
+        }
       }
-    }
 
-    // 8. Real-time broadcast
-    emitNewReport({
-      id: report.id,
-      category: report.category,
-      severity: report.severity,
-      latitude: report.latitude,
-      longitude: report.longitude,
-      description: report.description,
-      upvotes: report.upvotes,
-      downvotes: report.downvotes,
-      status: report.status,
-      expiresAt: report.expiresAt,
-      createdAt: report.createdAt,
-      sourceUrl: report.sourceUrl,
-      sourceName: report.sourceName,
-      isGpsVerified: report.isGpsVerified,
-      verificationStage: report.verificationStage,
-      citations: report.citations,
-      locationPrecision: report.locationPrecision,
-      district: report.district,
-      upazila: report.upazila,
-      threatStatus: report.threatStatus,
+      // 8. Real-time broadcast
+      if (isActiveThreatIncident(report as any)) {
+        emitNewReport({
+          id: report.id,
+          category: report.category,
+          severity: report.severity,
+          latitude: report.latitude,
+          longitude: report.longitude,
+          description: report.description,
+          upvotes: report.upvotes,
+          downvotes: report.downvotes,
+          status: report.status,
+          expiresAt: report.expiresAt,
+          createdAt: report.createdAt,
+          sourceUrl: report.sourceUrl,
+          sourceName: report.sourceName,
+          isGpsVerified: report.isGpsVerified,
+          verificationStage: report.verificationStage,
+          citations: report.citations,
+          locationPrecision: report.locationPrecision,
+          district: report.district,
+          upazila: report.upazila,
+          threatStatus: report.threatStatus,
+        });
+      }
     });
   }
 
@@ -1031,6 +1063,7 @@ export const crawlAllNewsFeeds = async (
   totalVerifiedMatches: number;
   runId: string;
   durationMs: number;
+  telemetry: CrawlerRunTelemetry;
 }> => {
   const runRecorder = newsObservabilityService.startRun();
   let totalIngested = 0;
@@ -1043,6 +1076,16 @@ export const crawlAllNewsFeeds = async (
     const safety = await validateUrlForSafeFetch(feedConfig.url);
     if (!safety.isSafe) {
       console.warn(`[News Crawler] Blocked unsafe feed URL "${feedConfig.name}" (${feedConfig.url}): ${safety.reason}`);
+      feedsChecked++;
+      runRecorder.recordFeedExecution({
+        feedName: feedConfig.name,
+        category: feedConfig.category,
+        url: feedConfig.url,
+        status: 'FAILED',
+        latencyMs: 0,
+        itemsFetched: 0,
+        errorMessage: safety.reason || 'Blocked unsafe feed URL',
+      });
       return;
     }
 
@@ -1050,19 +1093,21 @@ export const crawlAllNewsFeeds = async (
     const feedStartTime = Date.now();
     const timeoutMs = feedConfig.timeoutMs || 10000;
 
+    let timeoutPromiseHandle: NodeJS.Timeout | undefined;
+
     try {
       const parsePromise = (async () => {
-        // Try fetching raw text first to sanitize XML (handles The Daily Star encoding artifacts)
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+        let resp: Response | undefined;
+
         try {
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-          const resp = await fetch(feedConfig.url, {
+          resp = await fetch(feedConfig.url, {
             signal: controller.signal,
             headers: {
               'User-Agent': 'DangerZoneBD-PublicSafetyNewsCrawler/1.0 (contact@dangerzonebd.org)',
             },
           });
-          clearTimeout(timeoutId);
 
           if (resp.status === 429) {
             if (feedConfig.url.includes('news.google.com')) {
@@ -1087,19 +1132,30 @@ export const crawlAllNewsFeeds = async (
           const cleanXml = sanitizeXmlString(rawText);
           return await parser.parseString(cleanXml);
         } catch (fetchErr: any) {
-          if (fetchErr.name === 'AbortError') {
+          if (fetchErr.name === 'AbortError' || fetchErr.name === 'TimeoutError' || fetchErr.message?.includes('timed out')) {
             throw new Error(`Feed fetch timed out after ${timeoutMs}ms`);
           }
-          if (fetchErr.message?.includes('429')) {
+          if (fetchErr.message?.includes('HTTP 429') || fetchErr.message?.startsWith('HTTP ')) {
+            // Do NOT re-query on explicit HTTP error codes (404, 500, etc.)
             throw fetchErr;
           }
-          // Fallback to parser.parseURL in environments or mocks that mock parser directly
+          if (fetchErr.message?.includes('exceeds limit') || fetchErr.message?.includes('Feed response')) {
+            // Re-throw size limit violations cleanly so MAX_FEED_RESPONSE_BYTES cannot be bypassed
+            throw fetchErr;
+          }
+          if (resp !== undefined) {
+            // Response was already received; do not fallback to parser.parseURL on body read, size overflow, or XML parse error
+            throw fetchErr;
+          }
+          // Fallback to parser.parseURL only for non-HTTP fetch failures before receiving response (e.g. mock test harnesses)
           return await parser.parseURL(feedConfig.url);
+        } finally {
+          clearTimeout(timeoutId);
         }
       })();
 
       const timeoutPromise = new Promise<never>((_, reject) => {
-        setTimeout(() => reject(new Error(`Feed fetch timed out after ${timeoutMs}ms`)), timeoutMs);
+        timeoutPromiseHandle = setTimeout(() => reject(new Error(`Feed fetch timed out after ${timeoutMs}ms`)), timeoutMs);
       });
 
       const feed = await Promise.race([parsePromise, timeoutPromise]);
@@ -1154,17 +1210,26 @@ export const crawlAllNewsFeeds = async (
         errorMessage: feedErr?.message || String(feedErr),
       });
       // Isolated failure handling: continuing crawl loop without aborting
+    } finally {
+      if (timeoutPromiseHandle) {
+        clearTimeout(timeoutPromiseHandle);
+      }
     }
   };
 
   if (feeds !== PUBLIC_NEWS_FEEDS) {
-    // Custom/targeted feeds (e.g. hermetic test mode)
+    // Custom/targeted feeds (e.g. hermetic test mode or targeted test calls)
     for (const feedConfig of feeds) {
-      await fetchAndProcessSingleFeed(feedConfig);
+      try {
+        await fetchAndProcessSingleFeed(feedConfig);
+      } catch (err: any) {
+        console.warn(`[News Crawler] Isolated feed failure for "${feedConfig.name}":`, err?.message || err);
+      }
     }
   } else {
-    // Production scheduled crawl:
-    // 1. Direct Publisher RSS Feeds (Dhaka Tribune, Dainik Azadi, Jagonews24, Prothom Alo, Daily Star)
+    // Production uncapped nationwide scheduled crawl (52 total feeds across 64 districts):
+
+    // 1. Direct Publisher RSS Feeds (10 feeds in parallel)
     console.log('[News Crawler] 📰 Ingesting direct publisher feeds in parallel...');
     const directFeedConfigs: FeedConfig[] = DIRECT_PUBLISHER_FEEDS.map((df: DirectFeedDefinition) => ({
       name: df.name,
@@ -1176,19 +1241,39 @@ export const crawlAllNewsFeeds = async (
 
     await Promise.allSettled(directFeedConfigs.map((df) => fetchAndProcessSingleFeed(df)));
 
-    // 2. Google News Regional Discovery with Circuit Breaker and 10-Cluster Rotation
+    // 2. All 22 Dedicated English & Bengali Category Feeds
     if (checkGoogleNewsCircuit()) {
-      const [clusterA, clusterB] = getNextClusterPair();
-      console.log(`[News Crawler] 🌐 Executing Google News Regional Discovery for clusters: ${clusterA} + ${clusterB}`);
-      const clusterFeeds = [...buildClusterFeeds(clusterA), ...buildClusterFeeds(clusterB)];
-
-      for (const cFeed of clusterFeeds) {
-        await sleepJitter(1500, 2500);
-        await fetchAndProcessSingleFeed(cFeed);
+      console.log('[News Crawler] 🌐 Ingesting all 22 dedicated category feeds (EN + BN)...');
+      for (const catFeed of PUBLIC_NEWS_FEEDS) {
+        try {
+          await sleepJitter(1000, 2000);
+          await fetchAndProcessSingleFeed(catFeed);
+        } catch (err: any) {
+          console.warn(`[News Crawler] Isolated feed failure for "${catFeed.name}":`, err?.message || err);
+        }
       }
     } else {
       console.log(
-        `[News Crawler] 🔌 Google News Circuit Breaker is OPEN (cooldown until ${new Date(circuitBreaker.openUntil).toISOString()}). Direct publisher feeds completed successfully.`
+        `[News Crawler] 🔌 Google News Circuit Breaker is OPEN (cooldown until ${new Date(circuitBreaker.openUntil).toISOString()}). Skipping category feeds.`
+      );
+    }
+
+    // 3. All 10 Nationwide Regional Clusters (Uncapped 64-District Coverage, 20 feeds)
+    if (checkGoogleNewsCircuit()) {
+      console.log('[News Crawler] 🌐 Ingesting all 10 nationwide regional clusters (uncapped 64 districts)...');
+      const allClusterFeeds = NATIONWIDE_CLUSTERS.flatMap((c) => buildClusterFeeds(c.id));
+
+      for (const cFeed of allClusterFeeds) {
+        try {
+          await sleepJitter(1000, 2000);
+          await fetchAndProcessSingleFeed(cFeed);
+        } catch (err: any) {
+          console.warn(`[News Crawler] Isolated feed failure for "${cFeed.name}":`, err?.message || err);
+        }
+      }
+    } else {
+      console.log(
+        `[News Crawler] 🔌 Google News Circuit Breaker is OPEN (cooldown until ${new Date(circuitBreaker.openUntil).toISOString()}). Skipping regional cluster feeds.`
       );
     }
   }
@@ -1202,5 +1287,6 @@ export const crawlAllNewsFeeds = async (
     totalVerifiedMatches,
     runId: completedRun.runId,
     durationMs: completedRun.durationMs,
+    telemetry: runRecorder.toTelemetry(),
   };
 };

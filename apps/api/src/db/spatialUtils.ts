@@ -1,5 +1,6 @@
 import { Prisma, ReportCategory, ReportSeverity } from '@prisma/client';
 import { prisma } from './prisma';
+import { isActiveThreatIncident } from '@repo/shared';
 
 export interface BoundingBox {
   minLng: number;
@@ -38,7 +39,7 @@ export const getReportsInBounds = async (bounds: BoundingBox, filters?: ReportFi
   const whereConditions: Prisma.Sql[] = [
     Prisma.sql`status = 'ACTIVE'`,
     Prisma.sql`"expiresAt" > NOW()`,
-    Prisma.sql`("threatStatus" = 'ACTIVE' OR "threatStatus" IS NULL)`,
+    Prisma.sql`"threatStatus" = 'ACTIVE'`,
     Prisma.sql`("locationPrecision" IS NULL OR "locationPrecision" != 'AMBIGUOUS')`,
     Prisma.sql`location && ST_MakeEnvelope(
       ${bounds.minLng}, ${bounds.minLat},
@@ -78,15 +79,17 @@ export const getReportsInBounds = async (bounds: BoundingBox, filters?: ReportFi
     ORDER BY "createdAt" DESC
   `;
 
-  return rawReports.map((r) => {
-    const fuzzed = getFuzzedCoordinates(r.id, r.latitude, r.longitude);
-    return {
-      ...r,
-      latitude: fuzzed.latitude,
-      longitude: fuzzed.longitude,
-      fuzzedRadiusMeters: fuzzed.fuzzedRadiusMeters
-    };
-  });
+  return rawReports
+    .filter((r) => isActiveThreatIncident(r))
+    .map((r) => {
+      const fuzzed = getFuzzedCoordinates(r.id, r.latitude, r.longitude);
+      return {
+        ...r,
+        latitude: fuzzed.latitude,
+        longitude: fuzzed.longitude,
+        fuzzedRadiusMeters: fuzzed.fuzzedRadiusMeters
+      };
+    });
 };
 
 // Populate the PostGIS geography point on a Report row (safe inside Prisma interactive transactions)
@@ -118,3 +121,5 @@ export const isWithinDistance = async (
   `;
   return result[0]?.isWithin ?? false;
 };
+
+export { validateCoordinateHierarchy } from '../services/geocodingService';

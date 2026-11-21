@@ -360,8 +360,17 @@ export default function MapClient() {
   // Filter incidents based on active global filter states
   const filteredIncidents = useMemo(() => {
     return incidents.filter((incident: DangerIncident) => {
-      // Strictly enforce active threat status: exclude resolved, historical, or review items from map
+      // Strictly enforce active threat status: exclude resolved, historical, ambiguous, or review items from map
       if (incident.threatStatus && incident.threatStatus !== "ACTIVE") {
+        return false;
+      }
+      if (incident.locationPrecision === "AMBIGUOUS") {
+        return false;
+      }
+      if (incident.status === "resolved") {
+        return false;
+      }
+      if (incident.expiresAt && new Date(incident.expiresAt).getTime() <= Date.now()) {
         return false;
       }
       if (
