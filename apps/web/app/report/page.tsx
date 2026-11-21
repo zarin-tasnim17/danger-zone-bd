@@ -305,14 +305,6 @@ const CATEGORIES: CategoryDefinition[] = [
   },
 ];
 
-const PRESETS = [
-  { nameEn: "Banani 11 Bridge (Dhaka)", nameBn: "বনানী ১১ ব্রিজ", lat: 23.7925, lng: 90.4078 },
-  { nameEn: "Farmgate Footbridge (Dhaka)", nameBn: "ফার্মগেট ওভারব্রিজ", lat: 23.7570, lng: 90.3905 },
-  { nameEn: "Mohakhali Flyover (Dhaka)", nameBn: "মহাখালী ফ্লাইওভার", lat: 23.7776, lng: 90.4054 },
-  { nameEn: "GEC Circle (Chittagong)", nameBn: "জিইসি মোড় (চট্টগ্রাম)", lat: 22.3585, lng: 91.8215 },
-  { nameEn: "Zindabazar (Sylhet)", nameBn: "জিন্দাবাজার (সিলেট)", lat: 24.8949, lng: 91.8687 },
-];
-
 const QUICK_PROMPTS = [
   { en: "Armed individuals spotted on motorcycles", bn: "মোটরসাইকেলে অস্ত্রধারী দল দেখা গেছে" },
   { en: "Pitch dark alley for 200m; streetlamps broken", bn: "২০০ মিটার অন্ধকার রাস্তা; সড়কবাতি নষ্ট" },
@@ -499,11 +491,6 @@ export default function ReportPage() {
     if (hardwareGps && gpsEvaluation.isEligibleHardwareGps) {
       syncCoordinates(hardwareGps.lat, hardwareGps.lng);
     }
-  };
-
-  const handleApplyPreset = (lat: number, lng: number) => {
-    // Only move the incident pin; never fabricate hardwareGps for preset cities
-    syncCoordinates(lat, lng);
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1309,25 +1296,6 @@ export default function ReportPage() {
                         }}
                         className="w-full bg-transparent font-mono font-bold text-slate-900 text-xs focus:outline-none"
                       />
-                    </div>
-                  </div>
-
-                  {/* Preset Locations */}
-                  <div className="space-y-1.5 pt-1">
-                    <span className="text-[11px] font-semibold text-slate-500">
-                      {isBn ? "দ্রুত এলাকা নির্বাচন (ম্যানুয়াল পিন):" : "Quick city presets (Manual Pin):"}
-                    </span>
-                    <div className="flex flex-wrap gap-1.5">
-                      {PRESETS.map((p, idx) => (
-                        <button
-                          key={idx}
-                          type="button"
-                          onClick={() => handleApplyPreset(p.lat, p.lng)}
-                          className="text-[11px] px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 transition-colors cursor-pointer"
-                        >
-                          {isBn ? p.nameBn : p.nameEn.split("—")[0].trim()}
-                        </button>
-                      ))}
                     </div>
                   </div>
                 </div>
