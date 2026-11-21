@@ -80,7 +80,7 @@ export const DEDICATED_CATEGORY_FEEDS: FeedConfig[] = [
     name: 'Google News BD Armed Assault',
     category: 'ARMED_ASSAULT',
     categoryHint: 'ARMED_ASSAULT',
-    url: buildGoogleNewsRssUrl('(assault OR "armed assault" OR "knife attack" OR gunfire OR "কুপিয়ে জখম" OR "ছুরিকাঘাত" OR "গুলিবিদ্ধ" OR "সংঘর্ষ") bangladesh -saudi -india -overseas when:1d'),
+    url: buildGoogleNewsRssUrl('(assault OR "armed assault" OR "knife attack" OR gunfire OR "কুপিয়ে জখম" OR "ছুরিকাঘাত" OR "গুলিবিদ্ধ" OR "সংঘর্ষ" OR arson OR torched OR "set on fire" OR "bomb blast" OR "crude bomb" OR "cocktail blast" OR "অগ্নিসংযোগ" OR "বাসে আগুন" OR "ককটেল বিস্ফোরণ") bangladesh -saudi -india -overseas when:1d'),
     timeoutMs: 10000,
   },
   {
@@ -160,7 +160,7 @@ export const DEDICATED_CATEGORY_FEEDS_EN: FeedConfig[] = [
     name: 'Google News BD Armed Assault (EN)',
     category: 'ARMED_ASSAULT',
     categoryHint: 'ARMED_ASSAULT',
-    url: buildGoogleNewsRssUrl('(assault OR "armed assault" OR "knife attack" OR gunfire OR stabbed OR stabbing OR "violent clash") bangladesh -court -bail -verdict -remand -corruption -politics -saudi -india -overseas when:1d', 'en'),
+    url: buildGoogleNewsRssUrl('(assault OR "armed assault" OR "knife attack" OR gunfire OR stabbed OR stabbing OR "violent clash" OR arson OR torched OR "set on fire" OR "bomb blast" OR "crude bomb" OR "cocktail blast") bangladesh -court -bail -verdict -remand -corruption -politics -saudi -india -overseas when:1d', 'en'),
     timeoutMs: 10000,
   },
   {
@@ -240,7 +240,7 @@ export const DEDICATED_CATEGORY_FEEDS_BN: FeedConfig[] = [
     name: 'Google News BD Armed Assault (BN)',
     category: 'ARMED_ASSAULT',
     categoryHint: 'ARMED_ASSAULT',
-    url: buildGoogleNewsRssUrl('("কোপানো" OR "কুপিয়ে জখম" OR "ছুরিকাঘাত" OR "গুলিবিদ্ধ" OR "সংঘর্ষ" OR "অস্ত্রসহ হামলা" OR "মারামারি") বাংলাদেশ -আদালত -জামিন -রিমান্ড -দুদক -দুর্নীতি -রাজনীতি -সৌদি -ভারত when:1d', 'bn'),
+    url: buildGoogleNewsRssUrl('("কোপানো" OR "কুপিয়ে জখম" OR "ছুরিকাঘাত" OR "গুলিবিদ্ধ" OR "সংঘর্ষ" OR "অস্ত্রসহ হামলা" OR "মারামারি" OR "অগ্নিসংযোগ" OR "বাসে আগুন" OR "ট্রেনে আগুন" OR "ককটেল বিস্ফোরণ" OR "বোমা হামলা" OR "ভাঙচুর ও আগুন") বাংলাদেশ -আদালত -জামিন -রিমান্ড -দুদক -দুর্নীতি -রাজনীতি -সৌদি -ভারত when:1d', 'bn'),
     timeoutMs: 10000,
   },
   {
