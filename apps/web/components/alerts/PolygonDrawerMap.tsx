@@ -16,8 +16,19 @@ import {
 import { useMapStore, MAP_LAYERS } from "@/store/useMapStore";
 import MapLayerSwitcher from "@/components/map/MapLayerSwitcher";
 import { LocateFixed } from "lucide-react";
+import { createDangerMarkerIcon } from "@/lib/mapMarkerUtils";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
+
+export interface ZoneIncidentMarkerItem {
+  id: string;
+  title: string;
+  description?: string;
+  category: string;
+  severity: string;
+  coordinates: { lat: number; lng: number };
+  zoneName?: string;
+}
 
 export interface AlertZoneItem {
   id: string;
@@ -41,6 +52,7 @@ interface PolygonDrawerMapProps {
   userLocationMarker?: [number, number] | null;
   onLocateMe?: () => void;
   isLocating?: boolean;
+  zoneIncidents?: ZoneIncidentMarkerItem[];
 }
 
 // Custom Leaflet DivIcons for daylight map
@@ -122,7 +134,7 @@ function MapPanController({
   const map = useMap();
   useEffect(() => {
     if (center && Number.isFinite(center[0]) && Number.isFinite(center[1])) {
-      map.flyTo(center, zoom || 15, { duration: 1.2 });
+      map.flyTo(center, zoom || 14, { duration: 1.2 });
     }
   }, [center, zoom, map]);
   return null;
@@ -138,6 +150,7 @@ export default function PolygonDrawerMap({
   userLocationMarker,
   onLocateMe,
   isLocating = false,
+  zoneIncidents = [],
 }: PolygonDrawerMapProps) {
   const activeTileLayer = useMapStore((state) => state.activeTileLayer);
   const currentTileConfig = MAP_LAYERS[activeTileLayer] || MAP_LAYERS.google_streets;
@@ -153,6 +166,43 @@ export default function PolygonDrawerMap({
     activeCoords[0][1] === activeCoords[activeCoords.length - 1][1];
 
   const [flyTarget, setFlyTarget] = useState<[number, number] | null>(null);
+
+  // Determine starting map center:
+  // 1. Explicit flyToCenter
+  // 2. Centroid of savedZones[0] (user's latest saved area)
+  // 3. Last saved area center from localStorage
+  // 4. Fallback to Dhaka center
+  const defaultCenter = React.useMemo<[number, number]>(() => {
+    if (flyToCenter && Number.isFinite(flyToCenter[0]) && Number.isFinite(flyToCenter[1])) {
+      return flyToCenter;
+    }
+    if (savedZones.length > 0) {
+      const latest = savedZones[0];
+      const raw = latest.area?.coordinates?.[0] || latest.coordinates || [];
+      if (raw.length > 0) {
+        const sumLng = raw.reduce((sum, c) => sum + c[0], 0);
+        const sumLat = raw.reduce((sum, c) => sum + c[1], 0);
+        return [sumLat / raw.length, sumLng / raw.length];
+      }
+    }
+    if (typeof window !== "undefined") {
+      try {
+        const cached = localStorage.getItem("dz_last_alert_center");
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (
+            Array.isArray(parsed) &&
+            parsed.length === 2 &&
+            Number.isFinite(parsed[0]) &&
+            Number.isFinite(parsed[1])
+          ) {
+            return parsed as [number, number];
+          }
+        }
+      } catch {}
+    }
+    return [23.7925, 90.4078];
+  }, [flyToCenter, savedZones]);
 
   // Extract polygon coordinates safely for saved zones
   const parsedSavedZones = savedZones.map((zone) => {
@@ -172,7 +222,7 @@ export default function PolygonDrawerMap({
   return (
     <div className="w-full h-[340px] sm:h-[400px] lg:h-[440px] rounded-2xl overflow-hidden border border-slate-200/90 shadow-sm relative z-0 bg-slate-50">
       <MapContainer
-        center={[23.7925, 90.4078]} // Dhaka center
+        center={defaultCenter}
         zoom={13}
         minZoom={7}
         maxZoom={18}
@@ -256,6 +306,65 @@ export default function PolygonDrawerMap({
             </Polygon>
           );
         })}
+
+        {/* Active Threats inside Monitored Geofences */}
+        {zoneIncidents &&
+          zoneIncidents.map((incident) => {
+            if (
+              !incident.coordinates ||
+              typeof incident.coordinates.lat !== "number" ||
+              typeof incident.coordinates.lng !== "number"
+            ) {
+              return null;
+            }
+
+            return (
+              <Marker
+                key={`zone-incident-${incident.id}`}
+                position={[incident.coordinates.lat, incident.coordinates.lng]}
+                icon={createDangerMarkerIcon(
+                  incident.category,
+                  (incident.severity || "HIGH") as any,
+                  14
+                )}
+              >
+                <Popup className="tactical-marker-popup">
+                  <div className="p-1 min-w-[200px] space-y-1.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded uppercase bg-red-100 text-red-800">
+                        {incident.severity}
+                      </span>
+                      <span className="text-[10px] font-semibold text-slate-500">
+                        {incident.category}
+                      </span>
+                    </div>
+                    <h4 className="text-xs font-bold text-slate-900 leading-tight">
+                      {incident.title}
+                    </h4>
+                    {incident.description && incident.description !== incident.title && (
+                      <p className="text-[11px] text-slate-600 line-clamp-2">
+                        {incident.description}
+                      </p>
+                    )}
+                    {incident.zoneName && (
+                      <div className="text-[10px] font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
+                        <span>Zone: {incident.zoneName}</span>
+                      </div>
+                    )}
+                  </div>
+                </Popup>
+                <Tooltip direction="top" offset={[0, -12]}>
+                  <div className="text-xs font-semibold text-slate-900">
+                    <span className="font-bold text-red-600">
+                      {incident.severity}:
+                    </span>{" "}
+                    {incident.title}
+                  </div>
+                </Tooltip>
+              </Marker>
+            );
+          })}
 
         {/* Currently Drawing Active Polygon or Polyline */}
         {leafletActivePositions.length >= 3 && isClosed && (
