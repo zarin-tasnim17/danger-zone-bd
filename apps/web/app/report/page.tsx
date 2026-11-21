@@ -1360,10 +1360,10 @@ export default function ReportPage() {
                   ) : (
                     <div className="space-y-3.5 pt-1">
                       {/* AM/PM Time Pickers */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        {/* Start Time Picker */}
-                        <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-1.5">
-                          <label className="text-[11px] font-bold text-slate-600 block uppercase tracking-wide">
+                      <div className="space-y-2.5">
+                        {/* Start Time Row */}
+                        <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-200">
+                          <label className="text-xs font-bold text-slate-700 uppercase tracking-wide">
                             {isBn ? "শুরুর সময় (Start Time)" : "Start Time"}
                           </label>
                           <div className="flex items-center gap-1.5">
@@ -1371,7 +1371,7 @@ export default function ReportPage() {
                             <select
                               value={startHour}
                               onChange={(e) => setStartHour(parseInt(e.target.value, 10))}
-                              className="px-2 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-800 focus:outline-indigo-500"
+                              className="px-2 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-800 focus:outline-indigo-500 cursor-pointer"
                             >
                               {Array.from({ length: 12 }, (_, i) => i + 1).map((h) => (
                                 <option key={h} value={h}>
@@ -1384,7 +1384,7 @@ export default function ReportPage() {
                             <select
                               value={startMinute}
                               onChange={(e) => setStartMinute(parseInt(e.target.value, 10))}
-                              className="px-2 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-800 focus:outline-indigo-500"
+                              className="px-2 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-800 focus:outline-indigo-500 cursor-pointer"
                             >
                               {[0, 15, 30, 45].map((m) => (
                                 <option key={m} value={m}>
@@ -1392,21 +1392,37 @@ export default function ReportPage() {
                                 </option>
                               ))}
                             </select>
-                            {/* AM/PM Select */}
-                            <select
-                              value={startMeridiem}
-                              onChange={(e) => setStartMeridiem(e.target.value as "AM" | "PM")}
-                              className="px-2 py-1.5 rounded-lg border border-indigo-200 bg-indigo-50 text-xs font-black text-indigo-700 focus:outline-indigo-500"
-                            >
-                              <option value="AM">AM</option>
-                              <option value="PM">PM</option>
-                            </select>
+                            {/* AM/PM Segmented Toggle */}
+                            <div className="flex rounded-lg p-0.5 bg-slate-200/80 text-[11px] font-bold">
+                              <button
+                                type="button"
+                                onClick={() => setStartMeridiem("AM")}
+                                className={`px-2 py-1 rounded-md transition-all cursor-pointer ${
+                                  startMeridiem === "AM"
+                                    ? "bg-white text-indigo-700 shadow-2xs font-black"
+                                    : "text-slate-500 hover:text-slate-800"
+                                }`}
+                              >
+                                AM
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setStartMeridiem("PM")}
+                                className={`px-2 py-1 rounded-md transition-all cursor-pointer ${
+                                  startMeridiem === "PM"
+                                    ? "bg-white text-indigo-700 shadow-2xs font-black"
+                                    : "text-slate-500 hover:text-slate-800"
+                                }`}
+                              >
+                                PM
+                              </button>
+                            </div>
                           </div>
                         </div>
 
-                        {/* End Time Picker */}
-                        <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-1.5">
-                          <label className="text-[11px] font-bold text-slate-600 block uppercase tracking-wide">
+                        {/* End Time Row */}
+                        <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-200">
+                          <label className="text-xs font-bold text-slate-700 uppercase tracking-wide">
                             {isBn ? "শেষের সময় (End Time)" : "End Time"}
                           </label>
                           <div className="flex items-center gap-1.5">
@@ -1414,7 +1430,7 @@ export default function ReportPage() {
                             <select
                               value={endHour}
                               onChange={(e) => setEndHour(parseInt(e.target.value, 10))}
-                              className="px-2 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-800 focus:outline-indigo-500"
+                              className="px-2 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-800 focus:outline-indigo-500 cursor-pointer"
                             >
                               {Array.from({ length: 12 }, (_, i) => i + 1).map((h) => (
                                 <option key={h} value={h}>
@@ -1427,7 +1443,7 @@ export default function ReportPage() {
                             <select
                               value={endMinute}
                               onChange={(e) => setEndMinute(parseInt(e.target.value, 10))}
-                              className="px-2 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-800 focus:outline-indigo-500"
+                              className="px-2 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-800 focus:outline-indigo-500 cursor-pointer"
                             >
                               {[0, 15, 30, 45].map((m) => (
                                 <option key={m} value={m}>
@@ -1435,58 +1451,32 @@ export default function ReportPage() {
                                 </option>
                               ))}
                             </select>
-                            {/* AM/PM Select */}
-                            <select
-                              value={endMeridiem}
-                              onChange={(e) => setEndMeridiem(e.target.value as "AM" | "PM")}
-                              className="px-2 py-1.5 rounded-lg border border-indigo-200 bg-indigo-50 text-xs font-black text-indigo-700 focus:outline-indigo-500"
-                            >
-                              <option value="AM">AM</option>
-                              <option value="PM">PM</option>
-                            </select>
+                            {/* AM/PM Segmented Toggle */}
+                            <div className="flex rounded-lg p-0.5 bg-slate-200/80 text-[11px] font-bold">
+                              <button
+                                type="button"
+                                onClick={() => setEndMeridiem("AM")}
+                                className={`px-2 py-1 rounded-md transition-all cursor-pointer ${
+                                  endMeridiem === "AM"
+                                    ? "bg-white text-indigo-700 shadow-2xs font-black"
+                                    : "text-slate-500 hover:text-slate-800"
+                                }`}
+                              >
+                                AM
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setEndMeridiem("PM")}
+                                className={`px-2 py-1 rounded-md transition-all cursor-pointer ${
+                                  endMeridiem === "PM"
+                                    ? "bg-white text-indigo-700 shadow-2xs font-black"
+                                    : "text-slate-500 hover:text-slate-800"
+                                }`}
+                              >
+                                PM
+                              </button>
+                            </div>
                           </div>
-                        </div>
-                      </div>
-
-                      {/* Quick Scenario Presets */}
-                      <div className="space-y-1.5">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
-                          {isBn ? "দ্রুত প্রিসেট (Quick Presets):" : "Quick Presets (AM/PM):"}
-                        </span>
-                        <div className="flex flex-wrap gap-1.5">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setStartHour(6); setStartMinute(0); setStartMeridiem("PM");
-                              setEndHour(6); setEndMinute(0); setEndMeridiem("AM");
-                            }}
-                            className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-100 hover:bg-indigo-50 hover:text-indigo-700 text-slate-700 border border-slate-200/80 transition-colors cursor-pointer flex items-center gap-1"
-                          >
-                            <span>🌙</span>
-                            <span>{isBn ? "সন্ধ্যা–সকাল (06:00 PM – 06:00 AM)" : "06:00 PM – 06:00 AM (Overnight / Unlit)"}</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setStartHour(6); setStartMinute(0); setStartMeridiem("PM");
-                              setEndHour(10); setEndMinute(0); setEndMeridiem("PM");
-                            }}
-                            className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-100 hover:bg-indigo-50 hover:text-indigo-700 text-slate-700 border border-slate-200/80 transition-colors cursor-pointer flex items-center gap-1"
-                          >
-                            <span>🌆</span>
-                            <span>{isBn ? "সন্ধ্যা (06:00 PM – 10:00 PM)" : "06:00 PM – 10:00 PM (Evening Peak)"}</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setStartHour(10); setStartMinute(0); setStartMeridiem("PM");
-                              setEndHour(4); setEndMinute(0); setEndMeridiem("AM");
-                            }}
-                            className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-100 hover:bg-indigo-50 hover:text-indigo-700 text-slate-700 border border-slate-200/80 transition-colors cursor-pointer flex items-center gap-1"
-                          >
-                            <span>🌌</span>
-                            <span>{isBn ? "গভীর রাত (10:00 PM – 04:00 AM)" : "10:00 PM – 04:00 AM (Late Night)"}</span>
-                          </button>
                         </div>
                       </div>
 
