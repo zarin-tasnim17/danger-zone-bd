@@ -12,8 +12,10 @@ describe('[Authorization][RBAC] Frontend UI Guards & Protected Action Gates', ()
 
   it('/admin enforces explicit Admin role login gate before exposing moderation actions', () => {
     const src = fs.readFileSync(path.join(WEB_TEST_CONFIG.webRoot, 'app/admin/page.tsx'), 'utf8');
+    const gatewaySrc = fs.readFileSync(path.join(WEB_TEST_CONFIG.webRoot, 'components/auth/AdminLoginGateway.tsx'), 'utf8');
     assert.ok(src.includes('user?.role !== "ADMIN"'));
-    assert.ok(src.includes('loginAdminWithPassword'));
+    assert.ok(src.includes('AdminLoginGateway'));
+    assert.ok(gatewaySrc.includes('loginAdminWithPassword'));
   });
 
   it('/reports/[id] enforces ownership (report?.isOwner) and ADMIN/VERIFIED_RESPONDER separation on Resolve vs Purge controls', () => {
