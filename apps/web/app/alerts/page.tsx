@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import dynamic from "next/dynamic";
 import Navbar from "@/components/layout/Navbar";
 import { apiFetch } from "@/lib/api";
@@ -166,56 +166,103 @@ export default function AlertsPage() {
     }
   }, []);
 
+  // User gesture listener to unlock AudioContext for alert sound playback
   useEffect(() => {
-    let isCancelled = false;
-    let boundSocket: ReturnType<typeof getSocket> = null;
+    const handleGesture = () => {
+      void unlockAudioContext();
+    };
+    window.addEventListener("click", handleGesture, { once: true, passive: true });
+    window.addEventListener("touchstart", handleGesture, { once: true, passive: true });
+    window.addEventListener("keydown", handleGesture, { once: true, passive: true });
+    return () => {
+      window.removeEventListener("click", handleGesture);
+      window.removeEventListener("touchstart", handleGesture);
+      window.removeEventListener("keydown", handleGesture);
+    };
+  }, []);
 
-    const handleGeofenceAlert = (data: any) => {
-      // 1. Web Audio API dual-pulse 800 Hz warning chime
-      void playDangerAlertSound();
-      // 2. Mobile vibration feedback [300, 150, 300]
+  // Unified Area Coverage Alert Dispatcher (Audio Chime + Mobile Haptic + In-App Toast + Native OS Notification)
+  const dispatchAreaAlert = useCallback(
+    (item: {
+      id: string;
+      title: string;
+      body?: string;
+      category?: string;
+      severity?: string;
+      zoneName?: string;
+    }) => {
+      // 1. Web Audio API dual-pulse 800 Hz alert chime
+      void playDangerAlertSound({ cooldownMs: 1500 });
+
+      // 2. Mobile vibration feedback [200, 100, 200, 100, 400]
       triggerDangerVibration();
+
       // 3. In-app toast notification
       showToast(
-        data.title ||
-          (isBn
-            ? "জরুরি সতর্কতা: আপনার নিরাপত্তা জোনে নতুন বিপদ রিপোর্ট করা হয়েছে!"
-            : "Urgent Alert: Hazard reported inside your monitored geofence!"),
+        `🚨 ${item.title} (${item.category || "HAZARD"}) — ${
+          isBn ? "আপনার এলাকার ভেতরে!" : "Inside your monitored area!"
+        }`,
         "error"
       );
-      // 4. OS System Notification if granted
+
+      // 4. Native OS / Browser System Notification if granted
       if (
         typeof window !== "undefined" &&
         "Notification" in window &&
         Notification.permission === "granted"
       ) {
-        if ("serviceWorker" in navigator) {
-          navigator.serviceWorker.ready
-            .then((reg) => {
-              reg.showNotification(
-                data.title || "DangerZoneBD Safety Alert",
-                {
-                  body:
-                    data.body ||
-                    data.message ||
-                    "A new incident was reported inside your geofenced zone.",
-                  icon: "/icon.svg",
-                  tag: `geofence-${data.data?.reportId || Date.now()}`,
-                  data: { url: "/alerts" },
-                }
-              );
-            })
-            .catch(() => {
-              new Notification(data.title || "DangerZoneBD Safety Alert", {
-                body:
-                  data.body ||
-                  data.message ||
-                  "A new incident was reported inside your geofenced zone.",
-                icon: "/icon.svg",
-              });
-            });
+        const notifTitle = `⚠️ Danger Alert: ${item.title} [${item.severity || "HIGH"}]`;
+        const notifBody = `${item.category ? `[${item.category}] ` : ""}${
+          item.body || item.title
+        } ${
+          isBn
+            ? "আপনার নিরাপত্তা জোনে উপস্থিত।"
+            : "inside your active geofenced zone: " + (item.zoneName || "Perimeter")
+        }`;
+        const notifOptions = {
+          body: notifBody,
+          icon: "/icon.svg",
+          tag: `geofence-${item.id}`,
+          data: { url: "/alerts" },
+        };
+
+        let shown = false;
+        try {
+          const n = new Notification(notifTitle, notifOptions);
+          shown = true;
+          n.onclick = () => {
+            window.focus();
+            n.close();
+          };
+        } catch {
+          // Fall back gracefully for platforms like Android where window Notification is restricted
+        }
+
+        if (!shown && "serviceWorker" in navigator) {
+          navigator.serviceWorker.getRegistration().then((reg) => {
+            if (reg) {
+              reg.showNotification(notifTitle, notifOptions);
+            }
+          }).catch(() => {});
         }
       }
+    },
+    [isBn]
+  );
+
+  useEffect(() => {
+    let isCancelled = false;
+    let boundSocket: ReturnType<typeof getSocket> = null;
+
+    const handleGeofenceAlert = (data: any) => {
+      dispatchAreaAlert({
+        id: data.data?.reportId || data.id || `live-${Date.now()}`,
+        title: data.title || (isBn ? "জরুরি সতর্কতা: আপনার নিরাপত্তা জোনে বিপদ!" : "Urgent Geofence Danger Alert!"),
+        body: data.body || data.message || data.description,
+        category: data.data?.category || data.category,
+        severity: data.data?.severity || data.severity,
+        zoneName: data.data?.zones?.[0] || data.zoneName,
+      });
 
       setLiveAlerts((prev) => [
         {
@@ -357,6 +404,31 @@ export default function AlertsPage() {
 
     return Array.from(map.values());
   }, [activeZoneIncidents, liveAlerts, isBn]);
+
+  const alertedIncidentIdsRef = useRef<Set<string>>(new Set());
+
+  // Automatically trigger Sound & OS Notification whenever an incident is detected in the monitored area coverage
+  useEffect(() => {
+    if (!allGeofenceIncidents.length) return;
+
+    // Filter out incidents that have already triggered an alert in this session
+    const unalerted = allGeofenceIncidents.filter(
+      (inc) => !alertedIncidentIdsRef.current.has(inc.id)
+    );
+
+    if (unalerted.length > 0) {
+      unalerted.forEach((inc) => alertedIncidentIdsRef.current.add(inc.id));
+      const primary = unalerted[0];
+      dispatchAreaAlert({
+        id: primary.id,
+        title: primary.title,
+        body: primary.description,
+        category: primary.category,
+        severity: primary.severity,
+        zoneName: primary.zoneName,
+      });
+    }
+  }, [allGeofenceIncidents, dispatchAreaAlert]);
 
   // Add Point via map click
   const handleAddMapPoint = (point: [number, number]) => {
@@ -745,11 +817,48 @@ export default function AlertsPage() {
     await unlockAudioContext();
     const played = await playDangerAlertSound({ cooldownMs: 0 });
     triggerDangerVibration();
+
+    if (
+      typeof window !== "undefined" &&
+      "Notification" in window &&
+      Notification.permission === "granted"
+    ) {
+      const notifTitle = isBn
+        ? "⚠️ DangerZoneBD পরীক্ষা অ্যালার্ট"
+        : "⚠️ DangerZoneBD Test Alert";
+      const notifBody = isBn
+        ? "সাউন্ড ও পুশ নোটিফিকেশন সিস্টেম সফলভাবে পরীক্ষা করা হয়েছে।"
+        : "Sound and push notification alerts are fully operational.";
+      const notifOptions = {
+        body: notifBody,
+        icon: "/icon.svg",
+        tag: "test-alert",
+      };
+
+      let shown = false;
+      try {
+        const n = new Notification(notifTitle, notifOptions);
+        shown = true;
+        n.onclick = () => {
+          window.focus();
+          n.close();
+        };
+      } catch {}
+
+      if (!shown && "serviceWorker" in navigator) {
+        navigator.serviceWorker.getRegistration().then((reg) => {
+          if (reg) {
+            reg.showNotification(notifTitle, notifOptions);
+          }
+        }).catch(() => {});
+      }
+    }
+
     if (played) {
       showToast(
         isBn
-          ? "অডিও অ্যালার্ট সফলভাবে পরীক্ষা করা হয়েছে (৮০০ Hz ডুয়াল-পালস সাউন্ড)!"
-          : "Audio alert tested successfully (800 Hz dual-pulse chime)!",
+          ? "অডিও ও নোটিফিকেশন সফলভাবে পরীক্ষা করা হয়েছে (৮০০ Hz ডুয়াল-পালস সাউন্ড)!"
+          : "Audio & notification alert tested successfully (800 Hz dual-pulse chime)!",
         "success"
       );
     } else {
@@ -1268,7 +1377,7 @@ export default function AlertsPage() {
 
             {/* Live Socket & Intersecting Geofence Incidents Stream */}
             <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-xs space-y-3">
-              <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+              <div className="flex items-center justify-between pb-2 border-b border-slate-100 flex-wrap gap-2">
                 <div className="flex items-center gap-2">
                   <span
                     className={`w-2.5 h-2.5 rounded-full ${
@@ -1284,6 +1393,28 @@ export default function AlertsPage() {
                     <span className="px-1.5 py-0.2 text-[10px] font-bold bg-red-100 text-red-700 rounded-full">
                       {allGeofenceIncidents.length}
                     </span>
+                  )}
+                  {allGeofenceIncidents.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        await unlockAudioContext();
+                        const top = allGeofenceIncidents[0];
+                        dispatchAreaAlert({
+                          id: top.id,
+                          title: top.title,
+                          body: top.description,
+                          category: top.category,
+                          severity: top.severity,
+                          zoneName: top.zoneName,
+                        });
+                      }}
+                      className="px-2 py-0.5 bg-red-600 hover:bg-red-700 active:scale-95 text-white rounded-md text-[10px] font-bold flex items-center gap-1 shadow-2xs transition-all cursor-pointer ml-1"
+                      title={isBn ? "সব বিপদের জন্য অডিও ও নোটিফিকেশন বাজান" : "Sound alarm & notify for active incidents"}
+                    >
+                      <Volume2 className="w-3 h-3" />
+                      <span>{isBn ? "অ্যালার্ট বাজান" : "Sound Alert"}</span>
+                    </button>
                   )}
                 </div>
                 <span className="text-[10px] text-slate-500 font-mono">
@@ -1317,7 +1448,7 @@ export default function AlertsPage() {
                           setMapCenterTarget([alert.coordinates.lat, alert.coordinates.lng]);
                         }
                       }}
-                      className="p-3 bg-red-50/90 hover:bg-red-100/90 border border-red-200 rounded-xl text-xs text-red-900 transition-colors shadow-2xs space-y-1.5 cursor-pointer"
+                      className="p-3 bg-red-50/90 hover:bg-red-100/90 border border-red-200 rounded-xl text-xs text-red-900 transition-colors shadow-2xs space-y-2 cursor-pointer"
                     >
                       <div className="flex items-start justify-between gap-2">
                         <div className="flex items-start gap-2 min-w-0">
@@ -1350,15 +1481,37 @@ export default function AlertsPage() {
                         )}
                       </div>
 
-                      <div className="flex items-center justify-between text-[10px] text-red-700 pt-1.5 border-t border-red-200/60 font-medium">
+                      <div className="flex items-center justify-between text-[10px] text-red-700 pt-1.5 border-t border-red-200/60 font-medium flex-wrap gap-1">
                         {alert.zoneName && (
                           <span className="font-semibold text-emerald-800 bg-emerald-100/80 px-1.5 py-0.5 rounded">
                             {isBn ? `জোন: ${alert.zoneName}` : `Zone: ${alert.zoneName}`}
                           </span>
                         )}
-                        <span className="text-blue-700 hover:underline flex items-center gap-0.5">
-                          {isBn ? "মানচিত্রে দেখুন →" : "View on Map →"}
-                        </span>
+                        <div className="flex items-center gap-2 ml-auto">
+                          <button
+                            type="button"
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              await unlockAudioContext();
+                              dispatchAreaAlert({
+                                id: alert.id,
+                                title: alert.title,
+                                body: alert.description,
+                                category: alert.category,
+                                severity: alert.severity,
+                                zoneName: alert.zoneName,
+                              });
+                            }}
+                            className="px-2 py-0.5 rounded-md bg-red-200/80 hover:bg-red-300 text-red-950 font-bold text-[10px] flex items-center gap-1 transition-colors cursor-pointer border border-red-300 shadow-2xs"
+                            title={isBn ? "সাউন্ড ও নোটিফিকেশন বাজান" : "Play Sound & Notification"}
+                          >
+                            <Volume2 className="w-3 h-3 text-red-700" />
+                            <span>{isBn ? "সাউন্ড অ্যালার্ট" : "Sound Alert"}</span>
+                          </button>
+                          <span className="text-blue-700 hover:underline flex items-center gap-0.5">
+                            {isBn ? "মানচিত্রে দেখুন →" : "View on Map →"}
+                          </span>
+                        </div>
                       </div>
                     </div>
                   ))}
