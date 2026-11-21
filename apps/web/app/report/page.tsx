@@ -421,6 +421,8 @@ export default function ReportPage() {
 
   // Unmodified live hardware GPS (never populated from calibrated store or manual pin actions)
   const [hardwareGps, setHardwareGps] = useState<HardwareGpsFix | null>(null);
+  const [isLocating, setIsLocating] = useState(false);
+  const [locationNotice, setLocationNotice] = useState<string | null>(null);
 
   // File Upload State
   const [file, setFile] = useState<File | null>(null);
@@ -487,9 +489,52 @@ export default function ReportPage() {
     [syncCoordinates]
   );
 
+  const handleLocateCurrentPosition = useCallback(() => {
+    if (typeof window === "undefined" || !("geolocation" in navigator)) {
+      setLocationNotice(
+        isBn ? "আপনার ডিভাইসে জিপিএস সমর্থিত নয়।" : "Geolocation is not supported on this device."
+      );
+      return;
+    }
+
+    setIsLocating(true);
+    setLocationNotice(null);
+
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const lat = Number(pos.coords.latitude.toFixed(6));
+        const lng = Number(pos.coords.longitude.toFixed(6));
+        const accuracy = Number.isFinite(pos.coords.accuracy) ? pos.coords.accuracy : Infinity;
+        setHardwareGps({ lat, lng, accuracy });
+        syncCoordinates(lat, lng);
+        setIsLocating(false);
+      },
+      (err) => {
+        console.warn("[Report] Live geolocation error:", err.message);
+        setIsLocating(false);
+        const msg =
+          err.code === 1
+            ? isBn
+              ? "ব্রাউজারে লোকেশন পারমিশন দিন বা ম্যাপে ক্লিক করে পিন বসান।"
+              : "Location permission denied. Please allow GPS access or click the map."
+            : err.code === 2
+            ? isBn
+              ? "অবস্থান সংকেত পাওয়া যায়নি।"
+              : "Unable to retrieve device position. Please check your GPS."
+            : isBn
+            ? "অবস্থান নির্ণয়ে সময় শেষ হয়েছে।"
+            : "Location request timed out. Please try again.";
+        setLocationNotice(msg);
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    );
+  }, [isBn, syncCoordinates]);
+
   const handleSnapToDeviceGps = () => {
-    if (hardwareGps && gpsEvaluation.isEligibleHardwareGps) {
+    if (hardwareGps) {
       syncCoordinates(hardwareGps.lat, hardwareGps.lng);
+    } else {
+      handleLocateCurrentPosition();
     }
   };
 
@@ -1166,19 +1211,26 @@ export default function ReportPage() {
                       <span>{isBn ? "ঘটনাস্থল ও জিপিএস রাডার" : "Incident Location & GPS"}</span>
                     </label>
 
-                    {gpsEvaluation.isEligibleHardwareGps && (
-                      <button
-                        type="button"
-                        onClick={handleSnapToDeviceGps}
-                        className="text-[11px] font-bold text-blue-600 hover:text-blue-800 flex items-center gap-1 transition-colors cursor-pointer"
-                      >
-                        <Crosshair className="w-3.5 h-3.5" />
-                        <span>{isBn ? "আমার অবস্থানে বসান" : "Snap to Me"}</span>
-                      </button>
-                    )}
+                    <button
+                      type="button"
+                      onClick={handleLocateCurrentPosition}
+                      disabled={isLocating}
+                      className="text-xs font-bold text-blue-600 hover:text-blue-800 hover:bg-blue-50 px-2.5 py-1.5 rounded-xl border border-blue-200/80 flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer disabled:opacity-60 shadow-2xs"
+                      title={isBn ? "আমার বর্তমান জিপিএস স্থানে পিন বসান" : "Locate and snap to my current GPS"}
+                    >
+                      <Crosshair className={`w-3.5 h-3.5 text-blue-600 ${isLocating ? "animate-spin" : ""}`} />
+                      <span>
+                        {isLocating
+                          ? isBn
+                            ? "খোঁজা হচ্ছে..."
+                            : "Locating..."
+                          : isBn
+                            ? "আমার বর্তমান অবস্থান"
+                            : "Use Current Location"}
+                      </span>
+                    </button>
                   </div>
 
-                  {/* Interactive Leaflet Pin Placement Map */}
                   {/* Fast Geocoding Location Search */}
                   <LocationSearchBar
                     onSelectLocation={(loc: GeocodedLocation) => {
@@ -1189,73 +1241,89 @@ export default function ReportPage() {
                   <ReportPinMap
                     incidentLat={latitude}
                     incidentLng={longitude}
-                    deviceLat={gpsEvaluation.isEligibleHardwareGps ? hardwareGps?.lat : undefined}
-                    deviceLng={gpsEvaluation.isEligibleHardwareGps ? hardwareGps?.lng : undefined}
+                    deviceLat={hardwareGps?.lat}
+                    deviceLng={hardwareGps?.lng}
                     proximityDistance={gpsEvaluation.isEligibleHardwareGps ? gpsEvaluation.distanceMeters : null}
                     proximityRadius={MAX_GPS_PROXIMITY_METERS}
                     onLocationChange={handleMapLocationChange}
-                    onSnapToDevice={gpsEvaluation.isEligibleHardwareGps ? handleSnapToDeviceGps : undefined}
+                    onSnapToDevice={handleSnapToDeviceGps}
+                    onLocateMe={handleLocateCurrentPosition}
+                    isLocating={isLocating}
                     severity={severity}
                     language={language}
                   />
 
-                  {/* Honest GPS Verification Status Pill */}
+                  {/* Streamlined Telemetry Status Bar */}
                   <div
-                    className={`p-3.5 rounded-xl border flex items-start gap-3 transition-colors ${
+                    className={`px-3.5 py-2.5 rounded-xl border flex items-center justify-between gap-3 text-xs transition-colors ${
                       gpsEvaluation.isVerified
-                        ? "bg-emerald-50/80 border-emerald-200 text-emerald-900"
-                        : "bg-amber-50/80 border-amber-200 text-amber-900"
+                        ? "bg-emerald-50/90 border-emerald-200 text-emerald-900"
+                        : "bg-slate-50 border-slate-200 text-slate-700"
                     }`}
                   >
-                    <div className="p-1.5 rounded-lg bg-white shrink-0 shadow-2xs">
-                      {gpsEvaluation.isVerified ? (
-                        <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                      ) : (
-                        <AlertTriangle className="w-4 h-4 text-amber-600" />
-                      )}
-                    </div>
-                    <div className="flex-1 text-xs">
-                      <div className="flex items-center justify-between gap-1">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div
+                        className={`p-1 rounded-lg ${
+                          gpsEvaluation.isVerified
+                            ? "bg-emerald-100 text-emerald-700"
+                            : "bg-slate-200/80 text-slate-600"
+                        } shrink-0`}
+                      >
+                        {gpsEvaluation.isVerified ? (
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                        ) : (
+                          <MapPin className="w-3.5 h-3.5" />
+                        )}
+                      </div>
+                      <div className="truncate">
                         <span className="font-bold">
                           {gpsEvaluation.isVerified
                             ? isBn
-                              ? `হার্ডওয়্যার জিপিএস যাচাইকৃত (≤ ${MAX_GPS_PROXIMITY_METERS} মি)`
-                              : `Hardware GPS Verified (≤ ${MAX_GPS_PROXIMITY_METERS}m)`
-                            : gpsEvaluation.status === "OUT_OF_RANGE"
-                              ? isBn
-                                ? `ম্যানুয়াল পিন: জিপিএস থেকে ${gpsEvaluation.distanceMeters} মি দূরে`
-                                : "Manual Pin / Outside 200m GPS (Unverified)"
-                              : gpsEvaluation.status === "LOW_ACCURACY"
-                                ? isBn
-                                  ? "ম্যানুয়াল পিন: দুর্বল জিপিএস সিগন্যাল (অযাচাইকৃত)"
-                                  : "Manual Pin / Coarse GPS Accuracy (Unverified)"
-                                : isBn
-                                  ? "ম্যানুয়াল পিন / অযাচাইকৃত জিপিএস"
-                                  : "Manual Pin / Unverified GPS"}
+                              ? "হার্ডওয়্যার জিপিএস যাচাইকৃত"
+                              : "Hardware GPS Verified"
+                            : isBn
+                              ? "ম্যানুয়াল ম্যাপ পিন"
+                              : "Custom Map Pin"}
                         </span>
-                        {gpsEvaluation.distanceMeters !== null && (
-                          <span className="font-mono font-bold">{gpsEvaluation.distanceMeters}m</span>
-                        )}
-                      </div>
-                      <p className="text-[11px] text-slate-600 mt-0.5 leading-snug">
-                        {gpsEvaluation.isVerified
-                          ? isBn
-                            ? "আপনার হার্ডওয়্যার জিপিএস এবং পিন করা স্থানের দূরত্ব ২০০ মিটারের মধ্যে রয়েছে।"
-                            : "Unmodified hardware GPS (accuracy ≤ 250m) confirms pin proximity within 200m."
-                          : gpsEvaluation.status === "OUT_OF_RANGE"
+                        <span className="text-[11px] text-slate-500 ml-2 hidden sm:inline">
+                          {gpsEvaluation.isVerified
                             ? isBn
-                              ? "পিনটি আপনার বর্তমান জিপিএস থেকে ২০০ মিটারের বেশি দূরে। এটি অযাচাইকৃত ম্যানুয়াল পিন হিসেবে প্রকাশিত হবে অথবা 'আমার অবস্থানে বসান' চাপুন।"
-                              : "Pin is more than 200m from your GPS. Submitting now tags this report as Manual Pin / Unverified GPS, or click Snap to Me."
-                            : gpsEvaluation.status === "LOW_ACCURACY"
-                              ? isBn
-                                ? "ব্রাউজার অবস্থানের নির্ভুলতা ২৫০ মিটারের বেশি হওয়ায় রিপোর্টটি ম্যানুয়াল পিন হিসেবে প্রকাশিত হবে।"
-                                : "Device location accuracy exceeds 250m; report will be marked Manual Pin / Unverified GPS."
-                              : isBn
-                                ? "হার্ডওয়্যার জিপিএস পাওয়া যায়নি। রিপোর্টটি ম্যানুয়াল পিন / অযাচাইকৃত জিপিএস হিসেবে প্রকাশিত হবে।"
-                                : "No hardware GPS fix acquired. Report will be published as Manual Pin / Unverified GPS."}
-                      </p>
+                              ? `(দূরত্ব ${gpsEvaluation.distanceMeters ?? 0} মি ≤ ২০০ মি)`
+                              : `(Within ${gpsEvaluation.distanceMeters ?? 0}m of device)`
+                            : isBn
+                              ? "• ম্যাপে ক্লিক করে বা 'আমার বর্তমান অবস্থান' দিয়ে সেট করুন"
+                              : "• Click map or tap 'Use Current Location' to pin"}
+                        </span>
+                      </div>
                     </div>
+
+                    {gpsEvaluation.isVerified ? (
+                      <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 border border-emerald-200 shrink-0">
+                        Verified
+                      </span>
+                    ) : (
+                      <span className="text-[10px] font-semibold text-slate-400 font-mono shrink-0">
+                        {latitude.toFixed(4)}, {longitude.toFixed(4)}
+                      </span>
+                    )}
                   </div>
+
+                  {/* Optional Geolocation Error Alert if GPS permission was denied or failed */}
+                  {locationNotice && (
+                    <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-center justify-between gap-2 animate-in fade-in-50 duration-150">
+                      <div className="flex items-center gap-2">
+                        <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                        <span>{locationNotice}</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setLocationNotice(null)}
+                        className="p-1 rounded-lg hover:bg-amber-100 text-amber-700 cursor-pointer"
+                      >
+                        <XCircle className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  )}
 
                   {/* Manual Coordinates Readout */}
                   <div className="grid grid-cols-2 gap-2 text-xs">
