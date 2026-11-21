@@ -12,6 +12,7 @@ import { getSocket } from "@/lib/socket";
 import { getVapidPublicKey, urlBase64ToUint8Array } from "@/lib/webPush";
 import {
   Bell,
+  BellOff,
   MapPin,
   PlusCircle,
   Trash2,
@@ -26,10 +27,6 @@ import {
   LocateFixed,
   PhoneCall,
   Check,
-  ChevronDown,
-  ChevronUp,
-  Layers,
-  Sparkles,
   Info,
   ShieldCheck,
   X,
@@ -93,11 +90,9 @@ export default function AlertsPage() {
   // New Zone Form
   const [zoneName, setZoneName] = useState("");
   const [activeCoords, setActiveCoords] = useState<[number, number][]>([]);
-  const [coordsString, setCoordsString] = useState("");
   const [isCreating, setIsCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const [createSuccess, setCreateSuccess] = useState<string | null>(null);
-  const [showJsonEditor, setShowJsonEditor] = useState(false);
   const [selectedZoneId, setSelectedZoneId] = useState<string | null>(null);
 
   // User GPS Tracking & Map Center Target
@@ -223,12 +218,10 @@ export default function AlertsPage() {
     // If polygon is already closed, start a new one
     if (isClosed) {
       setActiveCoords([point]);
-      setCoordsString(JSON.stringify([point], null, 2));
       return;
     }
     const updated = [...activeCoords, point];
     setActiveCoords(updated);
-    setCoordsString(JSON.stringify(updated, null, 2));
     setCreateError(null);
   };
 
@@ -237,7 +230,6 @@ export default function AlertsPage() {
     if (activeCoords.length === 0) return;
     const updated = activeCoords.slice(0, activeCoords.length - 1);
     setActiveCoords(updated);
-    setCoordsString(JSON.stringify(updated, null, 2));
     setCreateError(null);
   };
 
@@ -251,13 +243,11 @@ export default function AlertsPage() {
     }
     const closed = [...activeCoords, firstPoint];
     setActiveCoords(closed);
-    setCoordsString(JSON.stringify(closed, null, 2));
   };
 
   // Clear Polygon
   const handleClearPolygon = () => {
     setActiveCoords([]);
-    setCoordsString("[]");
     setCreateError(null);
   };
 
@@ -284,7 +274,6 @@ export default function AlertsPage() {
         [lng - delta, lat - delta],
       ];
       setActiveCoords(userBox);
-      setCoordsString(JSON.stringify(userBox, null, 2));
       setZoneName(isBn ? "আমার বর্তমান অবস্থান বলয়" : "My Current Location Perimeter");
       setUserGpsLocation([lat, lng]);
       setMapCenterTarget([lat, lng]);
@@ -353,19 +342,6 @@ export default function AlertsPage() {
     );
   };
 
-  // Handle textarea edit
-  const handleTextareaChange = (val: string) => {
-    setCoordsString(val);
-    try {
-      const parsed = JSON.parse(val);
-      if (Array.isArray(parsed)) {
-        setActiveCoords(parsed);
-      }
-    } catch {
-      // Ignore parse error while user is typing
-    }
-  };
-
   // Submit New Geofence Zone
   const handleCreateZone = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -380,54 +356,46 @@ export default function AlertsPage() {
       return;
     }
 
+    if (activeCoords.length < 4) {
+      setCreateError(
+        isBn
+          ? "একটি বৈধ আবদ্ধ পলিগনের জন্য কমপক্ষে ৪টি বিন্দু প্রয়োজন (৩টি শীর্ষবিন্দু + ১টি সমাপনী বিন্দু)। মানচিত্রে ক্লিক করুন এবং 'Close Ring' বাটনে চাপুন।"
+          : "A valid closed polygon requires at least 4 coordinate pairs. Click on the map and select 'Close Ring' to complete."
+      );
+      return;
+    }
+
+    const first = activeCoords[0];
+    const last = activeCoords[activeCoords.length - 1];
+    if (first[0] !== last[0] || first[1] !== last[1]) {
+      setCreateError(
+        isBn
+          ? "পলিগনের প্রথম এবং শেষ বিন্দু অভিন্ন হতে হবে (বন্ধ বৃত্তাকার রিং)। 'Close Ring' বাটনে চাপুন।"
+          : "Polygon ring must be closed: the first and last coordinates must match. Click 'Close Ring'."
+      );
+      return;
+    }
+
+    const calculatedArea = calculatePolygonAreaKm2(activeCoords);
+    if (calculatedArea > 25.0) {
+      setCreateError(
+        isBn
+          ? `জোনের আয়তন ${calculatedArea} বর্গকিমি, যা অনুমোদিত ২৫ বর্গকিমির চেয়ে বেশি!`
+          : `Geofence area (${calculatedArea} km²) exceeds the maximum limit of 25 km² (anti-abuse cap).`
+      );
+      return;
+    }
+
     setIsCreating(true);
     setCreateError(null);
     setCreateSuccess(null);
 
     try {
-      let parsedCoords: [number, number][];
-      try {
-        parsedCoords = JSON.parse(coordsString);
-      } catch {
-        throw new Error(
-          isBn
-            ? "কোঅর্ডিনেটস অবশ্যই বৈধ JSON অ্যারে [ [দ্রাঘিমাংশ, অক্ষাংশ], ... ] হতে হবে।"
-            : "Coordinates must be a valid JSON array of [longitude, latitude] pairs."
-        );
-      }
-
-      if (parsedCoords.length < 4) {
-        throw new Error(
-          isBn
-            ? "একটি বৈধ আবদ্ধ পলিগনের জন্য কমপক্ষে ৪টি বিন্দু প্রয়োজন (৩টি শীর্ষবিন্দু + ১টি সমাপনী বিন্দু)। 'Close Ring' বাটনে ক্লিক করুন।"
-            : "A valid closed polygon requires at least 4 coordinate pairs. Click 'Close Ring' to complete."
-        );
-      }
-
-      const first = parsedCoords[0];
-      const last = parsedCoords[parsedCoords.length - 1];
-      if (first[0] !== last[0] || first[1] !== last[1]) {
-        throw new Error(
-          isBn
-            ? "পলিগনের প্রথম এবং শেষ বিন্দু অভিন্ন হতে হবে (বন্ধ বৃত্তাকার রিং)। 'Close Ring' বাটনে চাপুন।"
-            : "Polygon ring must be closed: the first and last coordinates must match. Click 'Close Ring'."
-        );
-      }
-
-      const calculatedArea = calculatePolygonAreaKm2(parsedCoords);
-      if (calculatedArea > 25.0) {
-        throw new Error(
-          isBn
-            ? `জোনের আয়তন ${calculatedArea} বর্গকিমি, যা অনুমোদিত ২৫ বর্গকিমির চেয়ে বেশি!`
-            : `Geofence area (${calculatedArea} km²) exceeds the maximum limit of 25 km² (anti-abuse cap).`
-        );
-      }
-
       await apiFetch("/alerts/zones", {
         method: "POST",
         body: JSON.stringify({
           name: zoneName.trim(),
-          coordinates: parsedCoords,
+          coordinates: activeCoords,
         }),
       });
 
@@ -437,6 +405,7 @@ export default function AlertsPage() {
           : `Alert Zone "${zoneName}" successfully established!`
       );
       setZoneName("");
+      setActiveCoords([]);
       fetchZones();
     } catch (err: any) {
       setCreateError(err.message || "Failed to create alert zone");
@@ -590,6 +559,42 @@ export default function AlertsPage() {
     }
   };
 
+  // Web Push Unsubscribe
+  const handleUnsubscribePush = async () => {
+    setIsSubscribingPush(true);
+    try {
+      if (typeof window !== "undefined" && "serviceWorker" in navigator) {
+        const reg = await navigator.serviceWorker.ready;
+        const sub = await reg.pushManager.getSubscription();
+        if (sub) {
+          const endpoint = sub.endpoint;
+          await sub.unsubscribe();
+          try {
+            await apiFetch("/alerts/unsubscribe", {
+              method: "POST",
+              body: JSON.stringify({ endpoint }),
+            });
+          } catch (apiErr) {
+            console.info("[Alerts] Backend unsubscribe notice:", apiErr);
+          }
+        }
+      }
+      setPushSubscribed(false);
+      showToast(
+        isBn ? "ওয়েব পুশ অ্যালার্ট সফলভাবে বন্ধ করা হয়েছে।" : "Web push alerts turned off successfully.",
+        "info"
+      );
+    } catch (err: any) {
+      showToast(
+        err?.message ||
+          (isBn ? "পুশ নোটিফিকেশন বন্ধ করা যায়নি।" : "Failed to turn off push notifications."),
+        "error"
+      );
+    } finally {
+      setIsSubscribingPush(false);
+    }
+  };
+
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 text-slate-900 selection:bg-blue-500 selection:text-white">
       {/* Single Unified Navbar with integrated EN/বাংলা toggle */}
@@ -676,40 +681,61 @@ export default function AlertsPage() {
             </div>
           </div>
 
-          <div className="shrink-0 flex items-center gap-2 w-full md:w-auto">
-            <button
-              onClick={handleSubscribePush}
-              disabled={isSubscribingPush || pushSubscribed}
-              className={`w-full md:w-auto px-5 py-2.5 text-xs font-bold rounded-xl shadow-xs transition-all flex items-center justify-center gap-2 cursor-pointer ${
-                pushSubscribed
-                  ? "bg-emerald-600 text-white cursor-default"
-                  : pushPermission === "denied"
-                  ? "bg-amber-600 hover:bg-amber-700 text-white"
-                  : "bg-blue-600 hover:bg-blue-700 text-white active:scale-95"
-              }`}
-            >
-              {isSubscribingPush ? (
-                <>
-                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                  <span>{isBn ? "সংযোগ হচ্ছে..." : "Connecting..."}</span>
-                </>
-              ) : pushSubscribed ? (
-                <>
-                  <ShieldCheck className="w-4 h-4" />
-                  <span>{isBn ? "পুশ অ্যালার্ট সক্রিয় রয়েছে" : "Push Alerts Active"}</span>
-                </>
-              ) : pushPermission === "denied" ? (
-                <>
-                  <Info className="w-4 h-4" />
-                  <span>{isBn ? "সেটিংস থেকে চালু করুন" : "Enable in Browser Settings"}</span>
-                </>
-              ) : (
-                <>
-                  <Bell className="w-4 h-4" />
-                  <span>{isBn ? "পুশ অ্যালার্ট চালু করুন" : "Enable Push Notifications"}</span>
-                </>
-              )}
-            </button>
+          <div className="shrink-0 flex items-center gap-2.5 w-full md:w-auto">
+            {pushSubscribed ? (
+              <>
+                <div className="hidden sm:flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-xl shadow-2xs">
+                  <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                  <span>{isBn ? "পুশ অ্যালার্ট সক্রিয়" : "Push Alerts Active"}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleUnsubscribePush}
+                  disabled={isSubscribingPush}
+                  className="w-full sm:w-auto px-4 py-2.5 text-xs font-bold rounded-xl shadow-xs transition-all flex items-center justify-center gap-2 cursor-pointer bg-slate-100 hover:bg-rose-50 text-slate-700 hover:text-rose-700 border border-slate-200 hover:border-rose-300 active:scale-95"
+                >
+                  {isSubscribingPush ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin text-rose-600" />
+                      <span>{isBn ? "বন্ধ হচ্ছে..." : "Turning off..."}</span>
+                    </>
+                  ) : (
+                    <>
+                      <BellOff className="w-4 h-4 text-rose-600" />
+                      <span>{isBn ? "অ্যালার্ট বন্ধ করুন" : "Turn Off Alerts"}</span>
+                    </>
+                  )}
+                </button>
+              </>
+            ) : (
+              <button
+                type="button"
+                onClick={handleSubscribePush}
+                disabled={isSubscribingPush}
+                className={`w-full md:w-auto px-5 py-2.5 text-xs font-bold rounded-xl shadow-xs transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                  pushPermission === "denied"
+                    ? "bg-amber-600 hover:bg-amber-700 text-white"
+                    : "bg-blue-600 hover:bg-blue-700 text-white active:scale-95"
+                }`}
+              >
+                {isSubscribingPush ? (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    <span>{isBn ? "সংযোগ হচ্ছে..." : "Connecting..."}</span>
+                  </>
+                ) : pushPermission === "denied" ? (
+                  <>
+                    <Info className="w-4 h-4" />
+                    <span>{isBn ? "সেটিংস থেকে চালু করুন" : "Enable in Browser Settings"}</span>
+                  </>
+                ) : (
+                  <>
+                    <Bell className="w-4 h-4" />
+                    <span>{isBn ? "পুশ অ্যালার্ট চালু করুন" : "Enable Push Notifications"}</span>
+                  </>
+                )}
+              </button>
+            )}
           </div>
         </section>
 
@@ -776,25 +802,6 @@ export default function AlertsPage() {
                     <span>{isBn ? "মুছুন" : "Clear"}</span>
                   </button>
                 </div>
-
-                <button
-                  type="button"
-                  onClick={handleGeolocate}
-                  disabled={isLocatingUser}
-                  className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 disabled:opacity-60 text-slate-700 font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
-                >
-                  {isLocatingUser ? (
-                    <>
-                      <RefreshCw className="w-3.5 h-3.5 text-blue-600 animate-spin" />
-                      <span>{isBn ? "অবস্থান খোঁজা হচ্ছে..." : "Locating..."}</span>
-                    </>
-                  ) : (
-                    <>
-                      <LocateFixed className="w-3.5 h-3.5 text-blue-600" />
-                      <span>{isBn ? "আমার অবস্থান" : "My GPS"}</span>
-                    </>
-                  )}
-                </button>
               </div>
 
               {/* Dynamic Guidance Banner (Placed outside the map to prevent blocking tiles and zoom buttons) */}
@@ -855,6 +862,8 @@ export default function AlertsPage() {
                 }}
                 flyToCenter={mapCenterTarget}
                 userLocationMarker={userGpsLocation}
+                onLocateMe={handleGeolocate}
+                isLocating={isLocatingUser}
               />
 
               {/* Warnings and Status Banners */}
@@ -920,44 +929,6 @@ export default function AlertsPage() {
                   />
                 </div>
 
-                {/* Collapsible Advanced GeoJSON Coordinates Accordion */}
-                <div className="border border-slate-200 rounded-xl overflow-hidden bg-slate-50/50">
-                  <button
-                    type="button"
-                    onClick={() => setShowJsonEditor(!showJsonEditor)}
-                    className="w-full px-3.5 py-2.5 text-xs font-semibold text-slate-700 flex items-center justify-between hover:bg-slate-100 transition-colors cursor-pointer"
-                  >
-                    <div className="flex items-center gap-2">
-                      <Layers className="w-3.5 h-3.5 text-slate-500" />
-                      <span>
-                        {isBn
-                          ? `উন্নত জিওজেসন কোঅর্ডিনেটস (${activeCoords.length} টি পয়েন্ট)`
-                          : `Advanced GeoJSON Coordinates (${activeCoords.length} points)`}
-                      </span>
-                    </div>
-                    {showJsonEditor ? (
-                      <ChevronUp className="w-4 h-4 text-slate-400" />
-                    ) : (
-                      <ChevronDown className="w-4 h-4 text-slate-400" />
-                    )}
-                  </button>
-
-                  {showJsonEditor && (
-                    <div className="p-3 border-t border-slate-200 bg-white space-y-2">
-                      <p className="text-[11px] text-slate-500">
-                        {isBn
-                          ? "পোস্টজিআইএস ডবল-প্রিসিশন [দ্রাঘিমাংশ, অক্ষাংশ] ফর্ম্যাটে পলিগন রিং:"
-                          : "Format: [ [longitude, latitude], ... ] with matching first and last points."}
-                      </p>
-                      <textarea
-                        value={coordsString}
-                        onChange={(e) => handleTextareaChange(e.target.value)}
-                        rows={4}
-                        className="w-full p-2 text-[10px] font-mono bg-slate-50 border border-slate-200 text-slate-800 rounded-xl resize-none focus:outline-none focus:bg-white focus:border-blue-500 transition-colors"
-                      />
-                    </div>
-                  )}
-                </div>
 
                 {/* Submit Button */}
                 <button

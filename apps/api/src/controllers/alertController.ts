@@ -58,3 +58,15 @@ export const subscribePushHandler = async (req: Request, res: Response, next: Ne
     return errorResponse(res, error.message || 'Failed to subscribe to push alerts', statusCode);
   }
 };
+
+export const unsubscribePushHandler = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const userId = req.user!.id;
+    const { endpoint } = req.body || {};
+    console.log(`[Alerts] Unsubscribed Web Push for user ${userId} (endpoint: ${endpoint?.substring(0, 40) || 'all'}...)`);
+    return successResponse(res, { unsubscribed: true, userId }, 200);
+  } catch (error: any) {
+    const statusCode = error.statusCode || 400;
+    return errorResponse(res, error.message || 'Failed to unsubscribe from push alerts', statusCode);
+  }
+};
