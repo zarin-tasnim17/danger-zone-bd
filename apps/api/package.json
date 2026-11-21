@@ -11,6 +11,8 @@
     "db:migrate": "prisma migrate dev",
     "db:seed:admin": "tsx src/scripts/seedAdmin.ts",
     "db:seed:safezones": "tsx src/scripts/seedSafeZones.ts",
+    "db:audit": "tsx src/scripts/auditAndRemediateHistoricalData.ts",
+    "db:remediate": "tsx src/scripts/auditAndRemediateHistoricalData.ts --apply",
     "test:api": "tsx tests/framework/runner.ts --profile=all",
     "test:api:functional": "tsx tests/framework/runner.ts --profile=functional",
     "test:api:auth": "tsx tests/framework/runner.ts --profile=auth",

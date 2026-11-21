@@ -5,37 +5,9 @@ import {
   reportCategorySchema,
   reportSeveritySchema,
   geocodeConfidenceSchema,
+  auditMetadataSchema,
+  assertValidAuditMetadata,
 } from '../harness/contractValidator';
-
-// PROJECT.md § Feature 23 Diagnostic Audit Metadata Contract Schema
-const auditMetadataSchema = z.object({
-  crawlRunId: z.string().min(1),
-  ingestedAt: z.union([z.date(), z.string()]),
-  classification: z.object({
-    category: reportCategorySchema,
-    severity: reportSeveritySchema,
-    confidence: z.number().min(0).max(1),
-    isSafetyRelated: z.boolean(),
-    matchedKeywords: z.array(z.string()).optional(),
-    disqualifiedReason: z.string().optional(),
-  }),
-  geocoding: z.object({
-    method: z.enum(['UPAZILA_DATASET', 'LOCAL_LANDMARK', 'POLICE_STATION', 'NOMINATIM', 'DICTIONARY']),
-    matchedKey: z.string().min(1),
-    locationPrecision: z.enum(['EXACT', 'UPAZILA', 'DISTRICT', 'AMBIGUOUS']),
-    district: z.string().optional(),
-    upazila: z.string().optional(),
-    division: z.string().optional(),
-    distanceToDistrictCenterKm: z.number().optional(),
-  }),
-  deduplication: z.object({
-    checkedCandidatesCount: z.number().int().nonnegative(),
-    isDuplicate: z.boolean(),
-    matchedCanonicalReportId: z.string().optional(),
-    similarityScore: z.number().min(0).max(1).optional(),
-    sharedTokens: z.array(z.string()).optional(),
-  }).optional(),
-});
 
 describe('Tier 1: Feature Coverage - F23: Diagnostic Audit Metadata Schema & Provenance', () => {
   it('T1-F23-01: Ingestion metadata schema validates mandatory crawlRunId and timestamp', () => {

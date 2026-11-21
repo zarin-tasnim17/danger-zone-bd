@@ -1099,9 +1099,10 @@ export const crawlAllNewsFeeds = async (
       const parsePromise = (async () => {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+        let resp: Response | undefined;
 
         try {
-          const resp = await fetch(feedConfig.url, {
+          resp = await fetch(feedConfig.url, {
             signal: controller.signal,
             headers: {
               'User-Agent': 'DangerZoneBD-PublicSafetyNewsCrawler/1.0 (contact@dangerzonebd.org)',
@@ -1138,7 +1139,15 @@ export const crawlAllNewsFeeds = async (
             // Do NOT re-query on explicit HTTP error codes (404, 500, etc.)
             throw fetchErr;
           }
-          // Fallback to parser.parseURL only for non-HTTP fetch failures (e.g. mock test harnesses)
+          if (fetchErr.message?.includes('exceeds limit') || fetchErr.message?.includes('Feed response')) {
+            // Re-throw size limit violations cleanly so MAX_FEED_RESPONSE_BYTES cannot be bypassed
+            throw fetchErr;
+          }
+          if (resp !== undefined) {
+            // Response was already received; do not fallback to parser.parseURL on body read, size overflow, or XML parse error
+            throw fetchErr;
+          }
+          // Fallback to parser.parseURL only for non-HTTP fetch failures before receiving response (e.g. mock test harnesses)
           return await parser.parseURL(feedConfig.url);
         } finally {
           clearTimeout(timeoutId);
