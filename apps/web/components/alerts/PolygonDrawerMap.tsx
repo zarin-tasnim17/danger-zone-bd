@@ -15,6 +15,7 @@ import {
 } from "react-leaflet";
 import { useMapStore, MAP_LAYERS } from "@/store/useMapStore";
 import MapLayerSwitcher from "@/components/map/MapLayerSwitcher";
+import { LocateFixed } from "lucide-react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 
@@ -38,6 +39,8 @@ interface PolygonDrawerMapProps {
   onSelectZone?: (zone: AlertZoneItem) => void;
   flyToCenter?: [number, number] | null;
   userLocationMarker?: [number, number] | null;
+  onLocateMe?: () => void;
+  isLocating?: boolean;
 }
 
 // Custom Leaflet DivIcons for daylight map
@@ -133,6 +136,8 @@ export default function PolygonDrawerMap({
   onSelectZone,
   flyToCenter,
   userLocationMarker,
+  onLocateMe,
+  isLocating = false,
 }: PolygonDrawerMapProps) {
   const activeTileLayer = useMapStore((state) => state.activeTileLayer);
   const currentTileConfig = MAP_LAYERS[activeTileLayer] || MAP_LAYERS.google_streets;
@@ -362,6 +367,22 @@ export default function PolygonDrawerMap({
           </>
         )}
       </div>
+
+      {/* Floating GPS Locate Button on Map (Bottom-Right) */}
+      {onLocateMe && (
+        <div className="absolute bottom-3 right-3 z-[1000]">
+          <button
+            type="button"
+            onClick={onLocateMe}
+            disabled={isLocating}
+            className="w-9 h-9 rounded-xl bg-white/95 hover:bg-white text-slate-800 border border-slate-200/90 shadow-md flex items-center justify-center transition-all active:scale-95 cursor-pointer backdrop-blur-md hover:text-blue-600 disabled:opacity-60"
+            title="Snap to My GPS Location"
+            aria-label="My GPS"
+          >
+            <LocateFixed className={`w-4 h-4 text-blue-600 ${isLocating ? "animate-spin" : ""}`} />
+          </button>
+        </div>
+      )}
     </div>
   );
 }

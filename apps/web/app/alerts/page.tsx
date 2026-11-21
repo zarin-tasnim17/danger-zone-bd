@@ -834,25 +834,6 @@ export default function AlertsPage() {
                     <span>{isBn ? "মুছুন" : "Clear"}</span>
                   </button>
                 </div>
-
-                <button
-                  type="button"
-                  onClick={handleGeolocate}
-                  disabled={isLocatingUser}
-                  className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 disabled:opacity-60 text-slate-700 font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
-                >
-                  {isLocatingUser ? (
-                    <>
-                      <RefreshCw className="w-3.5 h-3.5 text-blue-600 animate-spin" />
-                      <span>{isBn ? "অবস্থান খোঁজা হচ্ছে..." : "Locating..."}</span>
-                    </>
-                  ) : (
-                    <>
-                      <LocateFixed className="w-3.5 h-3.5 text-blue-600" />
-                      <span>{isBn ? "আমার অবস্থান" : "My GPS"}</span>
-                    </>
-                  )}
-                </button>
               </div>
 
               {/* Dynamic Guidance Banner (Placed outside the map to prevent blocking tiles and zoom buttons) */}
@@ -913,6 +894,8 @@ export default function AlertsPage() {
                 }}
                 flyToCenter={mapCenterTarget}
                 userLocationMarker={userGpsLocation}
+                onLocateMe={handleGeolocate}
+                isLocating={isLocatingUser}
               />
 
               {/* Warnings and Status Banners */}
