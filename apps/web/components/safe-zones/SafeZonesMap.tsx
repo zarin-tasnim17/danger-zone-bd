@@ -348,7 +348,7 @@ export default function SafeZonesMap({
         </div>
       </div>
 
-      {/* Floating 'My Location' Button (Bottom-Right) */}
+      {/* Floating 'My Location' Button (Bottom-Right, Icon Only) */}
       {onLocateMe && (
         <div className="absolute bottom-2.5 right-2.5 sm:bottom-3 sm:right-3 z-[450]">
           <button
@@ -361,22 +361,17 @@ export default function SafeZonesMap({
                 : isBn ? "আমার বর্তমান অবস্থানে যান" : "Go to my current location"
             }
             aria-label={isBn ? "আমার বর্তমান অবস্থান" : "My Current Location"}
-            className={`h-9 sm:h-10 px-2.5 sm:px-3.5 rounded-xl flex items-center gap-1.5 transition-all shadow-md cursor-pointer border font-semibold text-xs ${
+            className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center transition-all shadow-md cursor-pointer border ${
               userLocation
                 ? "bg-white text-blue-600 border-blue-300 ring-2 ring-blue-500/25 hover:bg-blue-50 hover:shadow-lg"
                 : "bg-white/95 backdrop-blur-md text-slate-700 border-slate-200/90 hover:text-blue-600 hover:bg-white hover:shadow-lg"
             } active:scale-95`}
           >
             <Crosshair
-              className={`w-4 h-4 sm:w-4.5 sm:h-4.5 shrink-0 ${
+              className={`w-4.5 h-4.5 sm:w-5 sm:h-5 shrink-0 ${
                 isLocatingUser ? "animate-spin text-blue-600" : "text-blue-600"
               }`}
             />
-            <span className="text-[11px] sm:text-xs">
-              {isLocatingUser
-                ? isBn ? "খোঁজা হচ্ছে..." : "Locating..."
-                : isBn ? "আমার অবস্থান" : "My Location"}
-            </span>
           </button>
         </div>
       )}

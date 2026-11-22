@@ -878,15 +878,17 @@ export default function SafeZonesPage() {
                 {/* Left: Interactive Leaflet Map (7 cols) */}
                 <div className="lg:col-span-7 lg:sticky lg:top-24">
                   <div className="bg-white border border-slate-200 rounded-2xl p-3 shadow-xs space-y-2">
-                    <div className="flex items-center justify-between px-2 pt-1">
-                      <div className="flex items-center gap-2">
-                        <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                        <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+                    <div className="flex items-center justify-between px-2 pt-1 gap-2">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse shrink-0"></span>
+                        <h3 className="text-[11px] sm:text-xs font-bold text-slate-900 uppercase tracking-wider truncate">
                           {isBn ? "লাইভ রেডার ও ম্যাপ অবস্থান" : "Interactive Live Haven Map"}
                         </h3>
                       </div>
-                      <span className="text-[11px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200">
-                        {filteredSafeZones.length} {isBn ? "টি কেন্দ্র প্রদর্শিত" : "Pins Loaded"}
+                      <span className="text-[10px] sm:text-[11px] font-bold text-blue-600 bg-blue-50 px-2 sm:px-2.5 py-0.5 rounded-full border border-blue-200 shrink-0 whitespace-nowrap">
+                        {filteredSafeZones.length}
+                        <span className="hidden sm:inline"> {isBn ? "টি কেন্দ্র প্রদর্শিত" : "Pins Loaded"}</span>
+                        <span className="sm:hidden"> {isBn ? "টি কেন্দ্র" : "Pins"}</span>
                       </span>
                     </div>
 
