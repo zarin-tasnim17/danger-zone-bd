@@ -13,11 +13,9 @@ import AdminHeader from "@/components/admin/AdminHeader";
 import AdminTabsNav from "@/components/admin/AdminTabsNav";
 import AdminAnalyticsSection from "@/components/admin/AdminAnalyticsSection";
 import AdminReportsSection from "@/components/admin/AdminReportsSection";
-import AdminVerificationsSection from "@/components/admin/AdminVerificationsSection";
 import AdminUsersSection from "@/components/admin/AdminUsersSection";
 import AdminLogsSection from "@/components/admin/AdminLogsSection";
 import AdminPurgeModal from "@/components/admin/AdminPurgeModal";
-import AdminRejectModal from "@/components/admin/AdminRejectModal";
 import AdminShortcutsModal from "@/components/admin/AdminShortcutsModal";
 import AdminBanModal from "@/components/admin/AdminBanModal";
 import AdminLoadingScreen from "@/components/admin/AdminLoadingScreen";
@@ -25,7 +23,6 @@ import { RefreshCw } from "lucide-react";
 import {
   AdminTab,
   AdminReport,
-  AdminVerification,
   AdminLog,
   AdminTrends,
   AdminUser,
@@ -42,7 +39,6 @@ export default function AdminPage() {
   // Remote Data State
   const [reports, setReports] = useState<AdminReport[]>([]);
   const [logs, setLogs] = useState<AdminLog[]>([]);
-  const [verifications, setVerifications] = useState<AdminVerification[]>([]);
   const [trends, setTrends] = useState<AdminTrends | null>(null);
 
   // Loading & Error States
@@ -53,11 +49,11 @@ export default function AdminPage() {
 
   // News Crawler State
   const [crawlStatus, setCrawlStatus] = useState<string | null>(null);
+  const [crawlError, setCrawlError] = useState<boolean>(false);
   const [isCrawling, setIsCrawling] = useState(false);
 
   // Modal Dialog States
   const [purgeTarget, setPurgeTarget] = useState<AdminReport | null>(null);
-  const [rejectTarget, setRejectTarget] = useState<AdminVerification | null>(null);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
 
   // Ban / Moderation Modal State
@@ -120,22 +116,17 @@ export default function AdminPage() {
         .then((res) => res?.logs || [])
         .catch(() => [] as AdminLog[]);
 
-      const verificationsPromise = apiFetch<AdminVerification[]>("/admin/verifications")
-        .catch(() => [] as AdminVerification[]);
-
       const trendsPromise = apiFetch<AdminTrends>("/admin/analytics/trends")
         .catch(() => null);
 
-      const [reportsData, logsData, verificationsData, trendsData] = await Promise.all([
+      const [reportsData, logsData, trendsData] = await Promise.all([
         reportsPromise,
         logsPromise,
-        verificationsPromise,
         trendsPromise,
       ]);
 
       setReports(reportsData);
       setLogs(logsData);
-      setVerifications(verificationsData);
       setTrends(trendsData);
       setHasLoadedOnce(true);
     } catch (err: any) {
@@ -156,7 +147,43 @@ export default function AdminPage() {
     if (user?.role === "ADMIN") {
       fetchAdminData();
     }
-  }, [user, fetchAdminData]);
+  }, [user?.role, fetchAdminData]);
+
+  // News Crawler Dispatch
+  const handleTriggerNewsCrawl = async () => {
+    setIsCrawling(true);
+    setCrawlError(false);
+    setCrawlStatus(
+      isBn
+        ? "৬৪ জেলার জাতীয় ও আঞ্চলিক সংবাদপত্র থেকে তথ্য সংগ্রহ শুরু হয়েছে..."
+        : "Crawling national and regional feeds across 64 districts..."
+    );
+    try {
+      const res = await apiFetch<any>("/admin/news/crawl", {
+        method: "POST",
+      });
+      const newArticles =
+        res.totalIngested ?? res.crawledCount ?? res.articleCount ?? res.count ?? 0;
+      const verifiedIncidents =
+        res.totalVerifiedMatches ?? res.verifiedIncidentCount ?? res.incidentsCreated ?? 0;
+      const feedsChecked = res.feedsChecked ?? res.feedsCount ?? 0;
+      const statusMsg = isBn
+        ? `নিউজ ক্রলিং সম্পন্ন! ${feedsChecked > 0 ? `${feedsChecked}টি ফিড থেকে ` : ""}${newArticles}টি সংবাদ এবং ${verifiedIncidents}টি নতুন বিপদ রিপোর্ট প্রসেস হয়েছে।`
+        : `News crawl completed! Processed ${newArticles} articles, identified ${verifiedIncidents} active incidents${feedsChecked > 0 ? ` across ${feedsChecked} feeds` : ""}.`;
+      setCrawlStatus(statusMsg);
+      setCrawlError(false);
+      showToast(statusMsg, "success");
+      fetchAdminData();
+    } catch (err: any) {
+      const errorMsg =
+        err.message || (isBn ? "নিউজ ক্রল করতে ব্যর্থ হয়েছে।" : "Failed to run news crawler.");
+      setCrawlStatus(errorMsg);
+      setCrawlError(true);
+      showToast(errorMsg, "error");
+    } finally {
+      setIsCrawling(false);
+    }
+  };
 
   // Purge Report Execution
   const executePurge = async (reason: string) => {
@@ -167,7 +194,7 @@ export default function AdminPage() {
         body: JSON.stringify({ reason }),
       });
       showToast(
-        isBn ? "রিপোর্ট সফলভাবে অপসারণ করা হয়েছে।" : "Incident report purged successfully.",
+        isBn ? "রিপোর্টটি সফলভাবে ডাটাবেজ থেকে মোছা হয়েছে।" : "Report purged successfully.",
         "success"
       );
       setPurgeTarget(null);
@@ -176,44 +203,6 @@ export default function AdminPage() {
       showToast(err.message || "Failed to purge report.", "error");
     }
   };
-
-  // Reject Verification Execution
-  const executeReject = async (reason: string) => {
-    if (!rejectTarget) return;
-    try {
-      await apiFetch(`/admin/verifications/${rejectTarget.id}/reject`, {
-        method: "POST",
-        body: JSON.stringify({ reason }),
-      });
-      showToast(
-        isBn ? "কেওয়াইসি আবেদন প্রত্যাখ্যাত হয়েছে।" : "KYC application rejected.",
-        "success"
-      );
-      setRejectTarget(null);
-      fetchAdminData();
-    } catch (err: any) {
-      showToast(err.message || "Failed to reject verification.", "error");
-    }
-  };
-
-  // Approve Verification Execution
-  const handleApproveVerification = useCallback(
-    async (verifId: string) => {
-      try {
-        await apiFetch(`/admin/verifications/${verifId}/approve`, {
-          method: "POST",
-        });
-        showToast(
-          isBn ? "কেওয়াইসি সফলভাবে অনুমোদিত হয়েছে।" : "KYC verified and responder activated.",
-          "success"
-        );
-        fetchAdminData();
-      } catch (err: any) {
-        showToast(err.message || "Failed to approve verification.", "error");
-      }
-    },
-    [fetchAdminData, isBn]
-  );
 
   // Ban / Unban User Execution (Multi-Identifier Supported)
   const handleBanUser = async (identifier: string, reason: string, action: "ban" | "unban") => {
@@ -224,54 +213,14 @@ export default function AdminPage() {
       });
       showToast(
         action === "ban"
-          ? isBn
-            ? "ইউজার সফলভাবে স্থগিত / নিষিদ্ধ করা হয়েছে।"
-            : "User suspended successfully."
-          : isBn
-          ? "ইউজার অ্যাকাউন্ট সফলভাবে পুনরুদ্ধার করা হয়েছে।"
-          : "User restored successfully.",
+          ? isBn ? "ইউজারকে সফলভাবে নিষিদ্ধ (Ban) করা হয়েছে।" : "User has been banned."
+          : isBn ? "ইউজারের নিষেধাজ্ঞা প্রত্যাহার করা হয়েছে।" : "User unbanned successfully.",
         "success"
       );
       setBanModalTarget(null);
       fetchAdminData();
     } catch (err: any) {
       showToast(err.message || `Failed to ${action} user.`, "error");
-      throw err;
-    }
-  };
-
-  // Trigger News Crawler
-  const handleTriggerNewsCrawl = async () => {
-    setIsCrawling(true);
-    setCrawlStatus(
-      isBn
-        ? "বাংলাদেশি সংবাদমাধ্যম (গুগল নিউজ ও দ্য ডেইলি স্টার) ক্রল করা হচ্ছে..."
-        : "Crawling Bangladesh news feeds (Google News & Daily Star)..."
-    );
-    try {
-      const res = await apiFetch<{
-        message?: string;
-        createdIncidents?: number;
-        scannedFeeds?: number;
-      }>("/cron/news-crawl", {
-        method: "POST",
-      });
-      const count = res?.createdIncidents ?? 0;
-      const feeds = res?.scannedFeeds ?? 22;
-      const successMsg = isBn
-        ? `নিউজ ক্রল সম্পন্ন! ${feeds}টি ফিড থেকে ${count}টি নতুন বিপদচিহ্ন যোগ হয়েছে।`
-        : `News crawl finished! Added ${count} incidents from ${feeds} feeds.`;
-      setCrawlStatus(successMsg);
-      showToast(successMsg, "success");
-      fetchAdminData();
-    } catch (err: any) {
-      const failMsg =
-        err?.message ||
-        (isBn ? "সংবাদ ক্রল প্রক্রিয়া ব্যর্থ হয়েছে।" : "News crawler execution failed.");
-      setCrawlStatus(failMsg);
-      showToast(failMsg, "error");
-    } finally {
-      setIsCrawling(false);
     }
   };
 
@@ -280,10 +229,12 @@ export default function AdminPage() {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (user?.role !== "ADMIN") return;
 
+      // Don't trigger if user is typing in an input or textarea
       const target = e.target as HTMLElement;
       if (
-        ["INPUT", "TEXTAREA", "SELECT"].includes(target?.tagName) ||
-        target?.isContentEditable
+        target.tagName === "INPUT" ||
+        target.tagName === "TEXTAREA" ||
+        target.isContentEditable
       ) {
         return;
       }
@@ -292,7 +243,6 @@ export default function AdminPage() {
 
       if (e.key === "Escape") {
         setPurgeTarget(null);
-        setRejectTarget(null);
         setBanModalTarget(null);
         setShortcutsOpen(false);
       } else if (key === "P") {
@@ -304,17 +254,6 @@ export default function AdminPage() {
       } else if (key === "B") {
         e.preventDefault();
         setActiveTab("users");
-      } else if (key === "A") {
-        if (verifications.length > 0) {
-          e.preventDefault();
-          handleApproveVerification(verifications[0].id);
-        }
-      } else if (key === "R") {
-        if (verifications.length > 0) {
-          e.preventDefault();
-          setActiveTab("verifications");
-          setRejectTarget(verifications[0]);
-        }
       } else if (e.key === "?" || key === "K") {
         e.preventDefault();
         setShortcutsOpen((prev) => !prev);
@@ -323,7 +262,7 @@ export default function AdminPage() {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [user, reports, verifications, handleApproveVerification]);
+  }, [user, reports]);
 
   // -------------------------------------------------------------
   // 1. Initial Authentication Gate (Prevents Gateway flash during session hydration)
@@ -362,26 +301,7 @@ export default function AdminPage() {
   }
 
   // -------------------------------------------------------------
-  // 3. Initial Dashboard Data Loading Gate
-  // Solves: "When I go to the admin page, the whole page and the refresh button are spinning..."
-  // -------------------------------------------------------------
-  if (!hasLoadedOnce && (isLoadingData || dataError)) {
-    return (
-      <div className="min-h-screen flex flex-col bg-slate-50 text-slate-900 selection:bg-red-500 selection:text-white">
-        <Navbar />
-        <main className="flex-1 w-full mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-16 flex flex-col items-center justify-center">
-          <AdminLoadingScreen
-            isBn={isBn}
-            error={dataError}
-            onRetry={fetchAdminData}
-          />
-        </main>
-      </div>
-    );
-  }
-
-  // -------------------------------------------------------------
-  // 4. Authenticated Admin Operations Console
+  // 3. Authenticated Admin Operations Console
   // -------------------------------------------------------------
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 text-slate-900 selection:bg-red-500 selection:text-white">
@@ -400,8 +320,12 @@ export default function AdminPage() {
           onTriggerNewsCrawl={handleTriggerNewsCrawl}
           isCrawling={isCrawling}
           crawlStatus={crawlStatus}
+          isCrawlError={crawlError}
           dataError={dataError}
-          onDismissCrawlStatus={() => setCrawlStatus(null)}
+          onDismissCrawlStatus={() => {
+            setCrawlStatus(null);
+            setCrawlError(false);
+          }}
         />
 
         {/* Active Refresh Live Status Banner */}
@@ -430,7 +354,6 @@ export default function AdminPage() {
           activeTab={activeTab}
           onTabChange={setActiveTab}
           reportsCount={reports.length}
-          verificationsCount={verifications.length}
           logsCount={logs.length}
           isBn={isBn}
         />
@@ -455,15 +378,6 @@ export default function AdminPage() {
                 setBanModalTarget(u);
                 setBanModalAction(action);
               }}
-            />
-          )}
-
-          {activeTab === "verifications" && (
-            <AdminVerificationsSection
-              verifications={verifications}
-              isBn={isBn}
-              onApprove={handleApproveVerification}
-              onSelectReject={setRejectTarget}
             />
           )}
 
@@ -495,15 +409,6 @@ export default function AdminPage() {
           isBn={isBn}
           onClose={() => setPurgeTarget(null)}
           onConfirm={executePurge}
-        />
-      )}
-
-      {rejectTarget && (
-        <AdminRejectModal
-          verification={rejectTarget}
-          isBn={isBn}
-          onClose={() => setRejectTarget(null)}
-          onConfirm={executeReject}
         />
       )}
 

@@ -5,7 +5,6 @@ import { AdminTab } from "./types";
 import {
   LayoutDashboard,
   ShieldAlert,
-  UserCheck,
   UserX,
   FileText,
 } from "lucide-react";
@@ -14,7 +13,7 @@ interface AdminTabsNavProps {
   activeTab: AdminTab;
   onTabChange: (tab: AdminTab) => void;
   reportsCount: number;
-  verificationsCount: number;
+  verificationsCount?: number;
   logsCount: number;
   isBn: boolean;
 }
@@ -23,7 +22,6 @@ export default function AdminTabsNav({
   activeTab,
   onTabChange,
   reportsCount,
-  verificationsCount,
   logsCount,
   isBn,
 }: AdminTabsNavProps) {
@@ -48,14 +46,6 @@ export default function AdminTabsNav({
       icon: ShieldAlert,
       count: reportsCount,
       badgeColor: "bg-red-50 text-red-700 border-red-200",
-    },
-    {
-      id: "verifications",
-      labelEn: "Verifications",
-      labelBn: "কেওয়াইসি যাচাই",
-      icon: UserCheck,
-      count: verificationsCount,
-      badgeColor: "bg-amber-50 text-amber-700 border-amber-200",
     },
     {
       id: "users",
@@ -98,8 +88,6 @@ export default function AdminTabsNav({
                 isActive
                   ? tab.id === "reports"
                     ? "text-red-400"
-                    : tab.id === "verifications"
-                    ? "text-amber-400"
                     : "text-slate-300"
                   : "text-slate-400"
               }`}

@@ -11,6 +11,7 @@ import {
 } from '../services/adminService';
 import { getPendingVerifications, rejectVerification, approveVerification } from '../services/userService';
 import { triggerNewsCrawler } from '../jobs';
+import { ensureDatabaseSchema } from '../db/ensureSchema';
 import { successResponse, errorResponse } from '../utils/responseFormatter';
 
 export const banUserHandler = async (req: Request, res: Response, next: NextFunction) => {
@@ -121,8 +122,18 @@ export const rejectVerificationHandler = async (req: Request, res: Response, nex
 
 export const triggerNewsCrawlHandler = async (req: Request, res: Response, next: NextFunction) => {
   try {
+    await ensureDatabaseSchema();
     const result = await triggerNewsCrawler();
-    return successResponse(res, result, 200);
+    return successResponse(
+      res,
+      {
+        message: 'News crawler executed successfully',
+        timestamp: new Date().toISOString(),
+        ...result,
+        telemetry: (result as any).telemetry || null,
+      },
+      200
+    );
   } catch (error: any) {
     const statusCode = error.statusCode || 500;
     return errorResponse(res, error.message || 'News crawler failed', statusCode);

@@ -28,20 +28,6 @@ export default function AdminShortcutsModal({
       descBn: "ইউজার প্রতিরোধ ট্যাবে গিয়ে ইউজার আইডি বক্সে ফোকাস করে",
     },
     {
-      key: "A",
-      labelEn: "Approve Top KYC",
-      labelBn: "শীর্ষ কেওয়াইসি অনুমোদন",
-      descEn: "Instantly approves the first citizen verification request",
-      descBn: "প্রথম অপেক্ষমান নাগরিক ভেরিফিকেশনটি সরাসরি অনুমোদন করে",
-    },
-    {
-      key: "R",
-      labelEn: "Reject Top KYC",
-      labelBn: "শীর্ষ কেওয়াইসি প্রত্যাখ্যান",
-      descEn: "Opens rejection dialog for the first verification in the queue",
-      descBn: "প্রথম অপেক্ষমান ভেরিফিকেশনটি প্রত্যাখ্যানের কারণ ডায়ালগ খোলে",
-    },
-    {
       key: "Esc",
       labelEn: "Close Dialogs",
       labelBn: "ডায়ালগ বন্ধ করুন",

@@ -1,4 +1,4 @@
-export type AdminTab = "overview" | "reports" | "verifications" | "users" | "logs";
+export type AdminTab = "overview" | "reports" | "users" | "logs";
 
 export interface AdminReport {
   id: string;

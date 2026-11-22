@@ -1,16 +1,18 @@
 "use client";
 
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import dynamic from "next/dynamic";
 import Navbar from "@/components/layout/Navbar";
 import { apiFetch } from "@/lib/api";
 import { useAuthStore } from "@/store/useAuthStore";
+import { useMapStore } from "@/store/useMapStore";
 import { useLanguageStore } from "@/store/useLanguageStore";
 import { showToast } from "@/store/useToastStore";
 import { getSocket } from "@/lib/socket";
 import { getVapidPublicKey, urlBase64ToUint8Array } from "@/lib/webPush";
 import {
   Bell,
+  BellOff,
   MapPin,
   PlusCircle,
   Trash2,
@@ -25,15 +27,16 @@ import {
   LocateFixed,
   PhoneCall,
   Check,
-  ChevronDown,
-  ChevronUp,
-  Layers,
-  Sparkles,
   Info,
   ShieldCheck,
   X,
+  Volume2,
 } from "lucide-react";
-import type { AlertZoneItem } from "@/components/alerts/PolygonDrawerMap";
+import { useIncidentStore } from "@/store/useIncidentStore";
+import { isPointInPolygon } from "@/lib/gpsVerification";
+import { playDangerAlertSound, unlockAudioContext } from "@/lib/audioAlert";
+import { triggerDangerVibration } from "@/lib/vibrationAlert";
+import type { AlertZoneItem, ZoneIncidentMarkerItem } from "@/components/alerts/PolygonDrawerMap";
 
 // Dynamically import Leaflet map with ssr: false to prevent window reference errors
 const PolygonDrawerMap = dynamic(
@@ -61,74 +64,6 @@ interface AlertZone {
   createdAt: string;
 }
 
-const ZONE_PRESETS = [
-  {
-    nameEn: "Gulshan & Banani Diplomatic Hub (~4.2 km²)",
-    nameBn: "গুলশান ও বনানী কূটনৈতিক এলাকা (~৪.২ বর্গকিমি)",
-    zoneNameEn: "Gulshan-Banani Perimeter",
-    zoneNameBn: "গুলশান-বনানী নিরাপত্তা বলয়",
-    coordinates: [
-      [90.4000, 23.7850],
-      [90.4200, 23.7850],
-      [90.4200, 23.8050],
-      [90.4000, 23.8050],
-      [90.4000, 23.7850],
-    ] as [number, number][],
-  },
-  {
-    nameEn: "Dhanmondi Residential & Lake (~3.8 km²)",
-    nameBn: "ধানমন্ডি আবাসিক ও লেক এলাকা (~৩.৮ বর্গকিমি)",
-    zoneNameEn: "Dhanmondi Residential Zone",
-    zoneNameBn: "ধানমন্ডি আবাসিক জোন",
-    coordinates: [
-      [90.3650, 23.7400],
-      [90.3850, 23.7400],
-      [90.3850, 23.7580],
-      [90.3650, 23.7580],
-      [90.3650, 23.7400],
-    ] as [number, number][],
-  },
-  {
-    nameEn: "Uttara Sector 1-7 Commuter Belt (~5.1 km²)",
-    nameBn: "উত্তরা সেক্টর ১-৭ করিডোর (~৫.১ বর্গকিমি)",
-    zoneNameEn: "Uttara Transit Perimeter",
-    zoneNameBn: "উত্তরা ট্রানজিট বলয়",
-    coordinates: [
-      [90.3800, 23.8550],
-      [90.4050, 23.8550],
-      [90.4050, 23.8750],
-      [90.3800, 23.8750],
-      [90.3800, 23.8550],
-    ] as [number, number][],
-  },
-  {
-    nameEn: "Motijheel Commercial Core (~2.9 km²)",
-    nameBn: "মতিঝিল বাণিজ্যিক কেন্দ্র (~২.৯ বর্গকিমি)",
-    zoneNameEn: "Motijheel Business District",
-    zoneNameBn: "মতিঝিল বাণিজ্যিক জোন",
-    coordinates: [
-      [90.4120, 23.7250],
-      [90.4280, 23.7250],
-      [90.4280, 23.7380],
-      [90.4120, 23.7380],
-      [90.4120, 23.7250],
-    ] as [number, number][],
-  },
-  {
-    nameEn: "Chittagong Agrabad Hub (~4.5 km²)",
-    nameBn: "চট্টগ্রাম আগ্রাবাদ এলাকা (~৪.৫ বর্গকিমি)",
-    zoneNameEn: "Chittagong Agrabad Zone",
-    zoneNameBn: "চট্টগ্রাম আগ্রাবাদ বলয়",
-    coordinates: [
-      [91.8050, 22.3200],
-      [91.8250, 22.3200],
-      [91.8250, 22.3400],
-      [91.8050, 22.3400],
-      [91.8050, 22.3200],
-    ] as [number, number][],
-  },
-];
-
 // Geodesic spherical area calculation in km²
 function calculatePolygonAreaKm2(coords: [number, number][]): number {
   if (coords.length < 3) return 0;
@@ -152,6 +87,7 @@ export default function AlertsPage() {
   const { user, initAuth } = useAuthStore();
   const { language } = useLanguageStore();
   const isBn = language === "bn";
+  const { incidents, fetchAllIncidents, initSocketListeners } = useIncidentStore();
 
   const [zones, setZones] = useState<AlertZone[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -160,12 +96,33 @@ export default function AlertsPage() {
   // New Zone Form
   const [zoneName, setZoneName] = useState("");
   const [activeCoords, setActiveCoords] = useState<[number, number][]>([]);
-  const [coordsString, setCoordsString] = useState("");
   const [isCreating, setIsCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const [createSuccess, setCreateSuccess] = useState<string | null>(null);
-  const [showJsonEditor, setShowJsonEditor] = useState(false);
   const [selectedZoneId, setSelectedZoneId] = useState<string | null>(null);
+
+  // User GPS Tracking & Map Center Target (defaults to last placed area from localStorage)
+  const [mapCenterTarget, setMapCenterTarget] = useState<[number, number] | null>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const cached = localStorage.getItem("dz_last_alert_center");
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (
+            Array.isArray(parsed) &&
+            parsed.length === 2 &&
+            Number.isFinite(parsed[0]) &&
+            Number.isFinite(parsed[1])
+          ) {
+            return parsed as [number, number];
+          }
+        }
+      } catch {}
+    }
+    return null;
+  });
+  const [userGpsLocation, setUserGpsLocation] = useState<[number, number] | null>(null);
+  const [isLocatingUser, setIsLocatingUser] = useState(false);
 
   // Web Push Status
   const [pushPermission, setPushPermission] = useState<NotificationPermission | "unsupported">("default");
@@ -218,7 +175,58 @@ export default function AlertsPage() {
     setError(null);
     try {
       const data = await apiFetch<AlertZone[]>("/alerts/zones");
-      setZones(data || []);
+      const loadedZones = data || [];
+      setZones(loadedZones);
+
+      // Auto-focus the map on the last area placed or created (not default Dhaka)
+      if (typeof window !== "undefined") {
+        let targetCenter: [number, number] | null = null;
+        let targetZoneId: string | null = null;
+
+        const savedZoneId = localStorage.getItem("dz_last_alert_zone_id");
+        const matchingZone = savedZoneId
+          ? loadedZones.find((z) => z.id === savedZoneId)
+          : null;
+        const zoneToFocus = matchingZone || loadedZones[0];
+
+        if (zoneToFocus) {
+          targetZoneId = zoneToFocus.id;
+          const raw =
+            zoneToFocus.area?.coordinates?.[0] || zoneToFocus.coordinates || [];
+          if (raw.length > 0) {
+            const sumLng = raw.reduce((sum, c: [number, number]) => sum + c[0], 0);
+            const sumLat = raw.reduce((sum, c: [number, number]) => sum + c[1], 0);
+            targetCenter = [sumLat / raw.length, sumLng / raw.length];
+          }
+        }
+
+        // Fallback to last placed custom coordinates in localStorage if no zone exists
+        if (!targetCenter) {
+          const cachedCenter = localStorage.getItem("dz_last_alert_center");
+          if (cachedCenter) {
+            try {
+              const parsed = JSON.parse(cachedCenter);
+              if (
+                Array.isArray(parsed) &&
+                parsed.length === 2 &&
+                Number.isFinite(parsed[0]) &&
+                Number.isFinite(parsed[1])
+              ) {
+                targetCenter = parsed as [number, number];
+              }
+            } catch {}
+          }
+        }
+
+        if (targetCenter) {
+          setMapCenterTarget(targetCenter);
+          if (targetZoneId) {
+            setSelectedZoneId(targetZoneId);
+            localStorage.setItem("dz_last_alert_zone_id", targetZoneId);
+          }
+          localStorage.setItem("dz_last_alert_center", JSON.stringify(targetCenter));
+        }
+      }
     } catch (err: any) {
       console.warn("[Alerts] Fetch zones warning:", err.message);
       setError(err.message || "Failed to load alert zones");
@@ -227,11 +235,104 @@ export default function AlertsPage() {
     }
   }, []);
 
+  // User gesture listener to unlock AudioContext for alert sound playback
+  useEffect(() => {
+    const handleGesture = () => {
+      void unlockAudioContext();
+    };
+    window.addEventListener("click", handleGesture, { once: true, passive: true });
+    window.addEventListener("touchstart", handleGesture, { once: true, passive: true });
+    window.addEventListener("keydown", handleGesture, { once: true, passive: true });
+    return () => {
+      window.removeEventListener("click", handleGesture);
+      window.removeEventListener("touchstart", handleGesture);
+      window.removeEventListener("keydown", handleGesture);
+    };
+  }, []);
+
+  // Unified Area Coverage Alert Dispatcher (Audio Chime + Mobile Haptic + In-App Toast + Native OS Notification)
+  const dispatchAreaAlert = useCallback(
+    (item: {
+      id: string;
+      title: string;
+      body?: string;
+      category?: string;
+      severity?: string;
+      zoneName?: string;
+    }) => {
+      // 1. Web Audio API dual-pulse 800 Hz alert chime
+      void playDangerAlertSound({ cooldownMs: 1500 });
+
+      // 2. Mobile vibration feedback [200, 100, 200, 100, 400]
+      triggerDangerVibration();
+
+      // 3. In-app toast notification
+      showToast(
+        `🚨 ${item.title} (${item.category || "HAZARD"}) — ${
+          isBn ? "আপনার এলাকার ভেতরে!" : "Inside your monitored area!"
+        }`,
+        "error"
+      );
+
+      // 4. Native OS / Browser System Notification if granted
+      if (
+        typeof window !== "undefined" &&
+        "Notification" in window &&
+        Notification.permission === "granted"
+      ) {
+        const notifTitle = `⚠️ Danger Alert: ${item.title} [${item.severity || "HIGH"}]`;
+        const notifBody = `${item.category ? `[${item.category}] ` : ""}${
+          item.body || item.title
+        } ${
+          isBn
+            ? "আপনার নিরাপত্তা জোনে উপস্থিত।"
+            : "inside your active geofenced zone: " + (item.zoneName || "Perimeter")
+        }`;
+        const notifOptions = {
+          body: notifBody,
+          icon: "/icon.svg",
+          tag: `geofence-${item.id}`,
+          data: { url: "/alerts" },
+        };
+
+        let shown = false;
+        try {
+          const n = new Notification(notifTitle, notifOptions);
+          shown = true;
+          n.onclick = () => {
+            window.focus();
+            n.close();
+          };
+        } catch {
+          // Fall back gracefully for platforms like Android where window Notification is restricted
+        }
+
+        if (!shown && "serviceWorker" in navigator) {
+          navigator.serviceWorker.getRegistration().then((reg) => {
+            if (reg) {
+              reg.showNotification(notifTitle, notifOptions);
+            }
+          }).catch(() => {});
+        }
+      }
+    },
+    [isBn]
+  );
+
   useEffect(() => {
     let isCancelled = false;
     let boundSocket: ReturnType<typeof getSocket> = null;
 
     const handleGeofenceAlert = (data: any) => {
+      dispatchAreaAlert({
+        id: data.data?.reportId || data.id || `live-${Date.now()}`,
+        title: data.title || (isBn ? "জরুরি সতর্কতা: আপনার নিরাপত্তা জোনে বিপদ!" : "Urgent Geofence Danger Alert!"),
+        body: data.body || data.message || data.description,
+        category: data.data?.category || data.category,
+        severity: data.data?.severity || data.severity,
+        zoneName: data.data?.zones?.[0] || data.zoneName,
+      });
+
       setLiveAlerts((prev) => [
         {
           ...data,
@@ -245,8 +346,10 @@ export default function AlertsPage() {
       await initAuth();
       if (isCancelled) return;
 
-      await fetchZones();
+      await Promise.all([fetchZones(), fetchAllIncidents()]);
       if (isCancelled) return;
+
+      initSocketListeners();
 
       // Connect Socket.IO only after initAuth() finishes so the handshake carries socketToken
       const socket = getSocket();
@@ -263,7 +366,7 @@ export default function AlertsPage() {
         boundSocket.off("GEOFENCE_ALERT", handleGeofenceAlert);
       }
     };
-  }, [initAuth, fetchZones]);
+  }, [initAuth, fetchZones, fetchAllIncidents, initSocketListeners]);
 
   // Compute live area
   const areaKm2 = useMemo(() => {
@@ -280,25 +383,135 @@ export default function AlertsPage() {
     );
   }, [activeCoords]);
 
-  // Apply Quick Preset
-  const handleApplyPreset = (preset: typeof ZONE_PRESETS[0]) => {
-    setZoneName(isBn ? preset.zoneNameBn : preset.zoneNameEn);
-    setActiveCoords(preset.coordinates);
-    setCoordsString(JSON.stringify(preset.coordinates, null, 2));
-    setCreateError(null);
-  };
+  // Filter active incidents that fall inside the user's active geofences
+  const activeZoneIncidents = useMemo(() => {
+    if (!zones.length || !incidents.length) return [];
+
+    const results: ZoneIncidentMarkerItem[] = [];
+
+    // Filter by selectedZoneId if one is explicitly selected, otherwise evaluate across all active zones
+    const relevantZones = selectedZoneId
+      ? zones.filter((z) => z.id === selectedZoneId)
+      : zones;
+
+    for (const zone of relevantZones) {
+      let ring: [number, number][] = [];
+      if (zone.area?.coordinates?.[0]) {
+        ring = zone.area.coordinates[0];
+      } else if (zone.coordinates) {
+        ring = zone.coordinates;
+      }
+      if (ring.length < 3) continue;
+
+      for (const inc of incidents) {
+        if (
+          !inc.coordinates ||
+          typeof inc.coordinates.lat !== "number" ||
+          typeof inc.coordinates.lng !== "number"
+        ) {
+          continue;
+        }
+        // point-in-polygon checks [longitude, latitude]
+        const pt: [number, number] = [inc.coordinates.lng, inc.coordinates.lat];
+        if (isPointInPolygon(pt, ring)) {
+          if (!results.some((r) => r.id === inc.id && r.zoneName === zone.name)) {
+            results.push({
+              id: inc.id,
+              title: inc.title || `${inc.category} Incident`,
+              description: inc.description || "",
+              category: inc.category,
+              severity: inc.severity,
+              coordinates: inc.coordinates,
+              zoneName: zone.name,
+            });
+          }
+        }
+      }
+    }
+
+    return results;
+  }, [zones, selectedZoneId, incidents]);
+
+  // Combined incident stream: existing active incidents inside perimeter + live socket triggers
+  const allGeofenceIncidents = useMemo(() => {
+    const map = new Map<string, any>();
+
+    // 1. Existing verified active incidents inside the perimeter
+    activeZoneIncidents.forEach((item) => {
+      map.set(item.id, {
+        id: item.id,
+        title: item.title,
+        description: item.description,
+        category: item.category,
+        severity: item.severity,
+        coordinates: item.coordinates,
+        zoneName: item.zoneName,
+        isLiveStream: false,
+        receivedAt: (item as any).timestamp
+          ? new Date((item as any).timestamp).toLocaleTimeString()
+          : undefined,
+      });
+    });
+
+    // 2. Real-time GEOFENCE_ALERT socket notifications
+    liveAlerts.forEach((item) => {
+      const id = item.data?.reportId || item.id || `live-${Math.random()}`;
+      map.set(id, {
+        id,
+        title: item.title || (isBn ? "বলয়ের ভেতরে জরুরি বিপদ!" : "Hazard Inside Alert Zone!"),
+        description: item.body || item.message || item.description || "",
+        category: item.data?.category || item.category || "GENERAL",
+        severity: item.data?.severity || item.severity || "HIGH",
+        coordinates: item.data
+          ? { lat: item.data.latitude, lng: item.data.longitude }
+          : item.coordinates,
+        zoneName: item.data?.zones?.[0] || item.zoneName || "Active Zone",
+        isLiveStream: true,
+        receivedAt: item.receivedAt || new Date().toLocaleTimeString(),
+      });
+    });
+
+    return Array.from(map.values());
+  }, [activeZoneIncidents, liveAlerts, isBn]);
+
+  const alertedIncidentIdsRef = useRef<Set<string>>(new Set());
+
+  // Automatically trigger Sound & OS Notification whenever an incident is detected in the monitored area coverage
+  useEffect(() => {
+    if (!allGeofenceIncidents.length) return;
+
+    // Filter out incidents that have already triggered an alert in this session
+    const unalerted = allGeofenceIncidents.filter(
+      (inc) => !alertedIncidentIdsRef.current.has(inc.id)
+    );
+
+    if (unalerted.length > 0) {
+      unalerted.forEach((inc) => alertedIncidentIdsRef.current.add(inc.id));
+      const primary = unalerted[0];
+      dispatchAreaAlert({
+        id: primary.id,
+        title: primary.title,
+        body: primary.description,
+        category: primary.category,
+        severity: primary.severity,
+        zoneName: primary.zoneName,
+      });
+    }
+  }, [allGeofenceIncidents, dispatchAreaAlert]);
 
   // Add Point via map click
   const handleAddMapPoint = (point: [number, number]) => {
+    // Save last placed coordinates [lat, lng] to remember user position
+    if (typeof window !== "undefined") {
+      localStorage.setItem("dz_last_alert_center", JSON.stringify([point[1], point[0]]));
+    }
     // If polygon is already closed, start a new one
     if (isClosed) {
       setActiveCoords([point]);
-      setCoordsString(JSON.stringify([point], null, 2));
       return;
     }
     const updated = [...activeCoords, point];
     setActiveCoords(updated);
-    setCoordsString(JSON.stringify(updated, null, 2));
     setCreateError(null);
   };
 
@@ -307,7 +520,6 @@ export default function AlertsPage() {
     if (activeCoords.length === 0) return;
     const updated = activeCoords.slice(0, activeCoords.length - 1);
     setActiveCoords(updated);
-    setCoordsString(JSON.stringify(updated, null, 2));
     setCreateError(null);
   };
 
@@ -321,62 +533,106 @@ export default function AlertsPage() {
     }
     const closed = [...activeCoords, firstPoint];
     setActiveCoords(closed);
-    setCoordsString(JSON.stringify(closed, null, 2));
   };
 
   // Clear Polygon
   const handleClearPolygon = () => {
     setActiveCoords([]);
-    setCoordsString("[]");
     setCreateError(null);
   };
 
   // Geolocate user to start drawing near them
   const handleGeolocate = () => {
-    if (!navigator.geolocation) {
+    if (typeof window === "undefined" || !("geolocation" in navigator)) {
       showToast(
         isBn ? "আপনার ব্রাউজারে জিপিএস সমর্থিত নয়" : "Geolocation is not supported by your browser",
         "error"
       );
       return;
     }
+
+    setIsLocatingUser(true);
+
+    const applyLocationAndBox = (lat: number, lng: number) => {
+      // Add a 500m bounding perimeter around user position
+      const delta = 0.005;
+      const userBox: [number, number][] = [
+        [lng - delta, lat - delta],
+        [lng + delta, lat - delta],
+        [lng + delta, lat + delta],
+        [lng - delta, lat + delta],
+        [lng - delta, lat - delta],
+      ];
+      setActiveCoords(userBox);
+      setZoneName(isBn ? "আমার বর্তমান অবস্থান বলয়" : "My Current Location Perimeter");
+      setUserGpsLocation([lat, lng]);
+      setMapCenterTarget([lat, lng]);
+      if (typeof window !== "undefined") {
+        localStorage.setItem("dz_last_alert_center", JSON.stringify([lat, lng]));
+      }
+      setIsLocatingUser(false);
+      showToast(
+        isBn ? "আপনার অবস্থান মানচিত্রে প্রদর্শিত হয়েছে!" : "Successfully centered on your location!",
+        "success"
+      );
+    };
+
+    const tryCoarseOrStoredFallback = (primaryErr?: GeolocationPositionError) => {
+      // On Windows PC without dedicated GPS hardware, attempt coarse network/IP positioning
+      navigator.geolocation.getCurrentPosition(
+        (coarsePos) => {
+          const lat = parseFloat(coarsePos.coords.latitude.toFixed(5));
+          const lng = parseFloat(coarsePos.coords.longitude.toFixed(5));
+          applyLocationAndBox(lat, lng);
+        },
+        (fallbackErr) => {
+          // Check if user has calibrated location or cached store location from Live Map
+          const storeLoc =
+            useMapStore.getState().userLocation || useMapStore.getState().loadSavedLocation();
+          if (storeLoc && typeof storeLoc.lat === "number" && typeof storeLoc.lng === "number") {
+            applyLocationAndBox(storeLoc.lat, storeLoc.lng);
+            showToast(
+              isBn
+                ? "ডিভাইসে লাইভ জিপিএস সিগন্যাল পাওয়া যায়নি, পূর্বের সংরক্ষিত অবস্থান ব্যবহার করা হয়েছে।"
+                : "Live GPS unavailable. Using last known/saved location.",
+              "info"
+            );
+            return;
+          }
+
+          setIsLocatingUser(false);
+          if (primaryErr?.code === 1 || fallbackErr.code === 1) {
+            showToast(
+              isBn
+                ? "ব্রাউজারে লোকেশন পারমিশন ব্লক করা আছে। ব্রাউজার সেটিংস থেকে লোকেশন অনুমতি দিন।"
+                : "Location access denied. Please allow location permissions in your browser settings.",
+              "error"
+            );
+          } else {
+            showToast(
+              isBn
+                ? "ডিভাইসে জিপিএস পাওয়া যায়নি। ফোনের লোকেশন অন করুন অথবা মানচিত্রে সরাসরি ক্লিক করুন।"
+                : "Could not detect GPS. Please check device location settings or click directly on the map.",
+              "error"
+            );
+          }
+        },
+        { enableHighAccuracy: false, timeout: 8000, maximumAge: 60000 }
+      );
+    };
+
+    // First attempt with high accuracy, fast timeout
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        const lng = parseFloat(pos.coords.longitude.toFixed(5));
         const lat = parseFloat(pos.coords.latitude.toFixed(5));
-        // Add a 500m bounding perimeter around user position
-        const delta = 0.005;
-        const userBox: [number, number][] = [
-          [lng - delta, lat - delta],
-          [lng + delta, lat - delta],
-          [lng + delta, lat + delta],
-          [lng - delta, lat + delta],
-          [lng - delta, lat - delta],
-        ];
-        setActiveCoords(userBox);
-        setCoordsString(JSON.stringify(userBox, null, 2));
-        setZoneName(isBn ? "আমার বর্তমান অবস্থান বলয়" : "My Current Location Perimeter");
+        const lng = parseFloat(pos.coords.longitude.toFixed(5));
+        applyLocationAndBox(lat, lng);
       },
-      () => {
-        showToast(
-          isBn ? "জিপিএস অবস্থান সংগ্রহ করা যায়নি" : "Unable to retrieve your GPS location",
-          "error"
-        );
-      }
+      (err) => {
+        tryCoarseOrStoredFallback(err);
+      },
+      { enableHighAccuracy: true, timeout: 6000, maximumAge: 30000 }
     );
-  };
-
-  // Handle textarea edit
-  const handleTextareaChange = (val: string) => {
-    setCoordsString(val);
-    try {
-      const parsed = JSON.parse(val);
-      if (Array.isArray(parsed)) {
-        setActiveCoords(parsed);
-      }
-    } catch {
-      // Ignore parse error while user is typing
-    }
   };
 
   // Submit New Geofence Zone
@@ -393,56 +649,56 @@ export default function AlertsPage() {
       return;
     }
 
+    if (activeCoords.length < 4) {
+      setCreateError(
+        isBn
+          ? "একটি বৈধ আবদ্ধ পলিগনের জন্য কমপক্ষে ৪টি বিন্দু প্রয়োজন (৩টি শীর্ষবিন্দু + ১টি সমাপনী বিন্দু)। মানচিত্রে ক্লিক করুন এবং 'Close Ring' বাটনে চাপুন।"
+          : "A valid closed polygon requires at least 4 coordinate pairs. Click on the map and select 'Close Ring' to complete."
+      );
+      return;
+    }
+
+    const first = activeCoords[0];
+    const last = activeCoords[activeCoords.length - 1];
+    if (first[0] !== last[0] || first[1] !== last[1]) {
+      setCreateError(
+        isBn
+          ? "পলিগনের প্রথম এবং শেষ বিন্দু অভিন্ন হতে হবে (বন্ধ বৃত্তাকার রিং)। 'Close Ring' বাটনে চাপুন।"
+          : "Polygon ring must be closed: the first and last coordinates must match. Click 'Close Ring'."
+      );
+      return;
+    }
+
+    const calculatedArea = calculatePolygonAreaKm2(activeCoords);
+    if (calculatedArea > 25.0) {
+      setCreateError(
+        isBn
+          ? `জোনের আয়তন ${calculatedArea} বর্গকিমি, যা অনুমোদিত ২৫ বর্গকিমির চেয়ে বেশি!`
+          : `Geofence area (${calculatedArea} km²) exceeds the maximum limit of 25 km² (anti-abuse cap).`
+      );
+      return;
+    }
+
     setIsCreating(true);
     setCreateError(null);
     setCreateSuccess(null);
 
     try {
-      let parsedCoords: [number, number][];
-      try {
-        parsedCoords = JSON.parse(coordsString);
-      } catch {
-        throw new Error(
-          isBn
-            ? "কোঅর্ডিনেটস অবশ্যই বৈধ JSON অ্যারে [ [দ্রাঘিমাংশ, অক্ষাংশ], ... ] হতে হবে।"
-            : "Coordinates must be a valid JSON array of [longitude, latitude] pairs."
-        );
-      }
-
-      if (parsedCoords.length < 4) {
-        throw new Error(
-          isBn
-            ? "একটি বৈধ আবদ্ধ পলিগনের জন্য কমপক্ষে ৪টি বিন্দু প্রয়োজন (৩টি শীর্ষবিন্দু + ১টি সমাপনী বিন্দু)। 'Close Ring' বাটনে ক্লিক করুন।"
-            : "A valid closed polygon requires at least 4 coordinate pairs. Click 'Close Ring' to complete."
-        );
-      }
-
-      const first = parsedCoords[0];
-      const last = parsedCoords[parsedCoords.length - 1];
-      if (first[0] !== last[0] || first[1] !== last[1]) {
-        throw new Error(
-          isBn
-            ? "পলিগনের প্রথম এবং শেষ বিন্দু অভিন্ন হতে হবে (বন্ধ বৃত্তাকার রিং)। 'Close Ring' বাটনে চাপুন।"
-            : "Polygon ring must be closed: the first and last coordinates must match. Click 'Close Ring'."
-        );
-      }
-
-      const calculatedArea = calculatePolygonAreaKm2(parsedCoords);
-      if (calculatedArea > 25.0) {
-        throw new Error(
-          isBn
-            ? `জোনের আয়তন ${calculatedArea} বর্গকিমি, যা অনুমোদিত ২৫ বর্গকিমির চেয়ে বেশি!`
-            : `Geofence area (${calculatedArea} km²) exceeds the maximum limit of 25 km² (anti-abuse cap).`
-        );
-      }
-
       await apiFetch("/alerts/zones", {
         method: "POST",
         body: JSON.stringify({
           name: zoneName.trim(),
-          coordinates: parsedCoords,
+          coordinates: activeCoords,
         }),
       });
+
+      if (activeCoords.length > 0 && typeof window !== "undefined") {
+        const sumLng = activeCoords.reduce((sum, c) => sum + c[0], 0);
+        const sumLat = activeCoords.reduce((sum, c) => sum + c[1], 0);
+        const center: [number, number] = [sumLat / activeCoords.length, sumLng / activeCoords.length];
+        localStorage.setItem("dz_last_alert_center", JSON.stringify(center));
+        setMapCenterTarget(center);
+      }
 
       setCreateSuccess(
         isBn
@@ -450,6 +706,7 @@ export default function AlertsPage() {
           : `Alert Zone "${zoneName}" successfully established!`
       );
       setZoneName("");
+      setActiveCoords([]);
       fetchZones();
     } catch (err: any) {
       setCreateError(err.message || "Failed to create alert zone");
@@ -468,6 +725,9 @@ export default function AlertsPage() {
     setDeletingId(id);
     try {
       await apiFetch(`/alerts/zones/${id}`, { method: "DELETE" });
+      if (typeof window !== "undefined" && localStorage.getItem("dz_last_alert_zone_id") === id) {
+        localStorage.removeItem("dz_last_alert_zone_id");
+      }
       fetchZones();
     } catch (err: any) {
       showToast(`Delete failed: ${err.message}`, "error");
@@ -603,6 +863,101 @@ export default function AlertsPage() {
     }
   };
 
+  // Web Push Unsubscribe
+  const handleUnsubscribePush = async () => {
+    setIsSubscribingPush(true);
+    try {
+      if (typeof window !== "undefined" && "serviceWorker" in navigator) {
+        const reg = await navigator.serviceWorker.ready;
+        const sub = await reg.pushManager.getSubscription();
+        if (sub) {
+          const endpoint = sub.endpoint;
+          await sub.unsubscribe();
+          try {
+            await apiFetch("/alerts/unsubscribe", {
+              method: "POST",
+              body: JSON.stringify({ endpoint }),
+            });
+          } catch (apiErr) {
+            console.info("[Alerts] Backend unsubscribe notice:", apiErr);
+          }
+        }
+      }
+      setPushSubscribed(false);
+      showToast(
+        isBn ? "ওয়েব পুশ অ্যালার্ট সফলভাবে বন্ধ করা হয়েছে।" : "Web push alerts turned off successfully.",
+        "info"
+      );
+    } catch (err: any) {
+      showToast(
+        err?.message ||
+          (isBn ? "পুশ নোটিফিকেশন বন্ধ করা যায়নি।" : "Failed to turn off push notifications."),
+        "error"
+      );
+    } finally {
+      setIsSubscribingPush(false);
+    }
+  };
+
+  // Test Audio & Vibration Alert
+  const handleTestAlertSound = async () => {
+    await unlockAudioContext();
+    const played = await playDangerAlertSound({ cooldownMs: 0 });
+    triggerDangerVibration();
+
+    if (
+      typeof window !== "undefined" &&
+      "Notification" in window &&
+      Notification.permission === "granted"
+    ) {
+      const notifTitle = isBn
+        ? "⚠️ DangerZoneBD পরীক্ষা অ্যালার্ট"
+        : "⚠️ DangerZoneBD Test Alert";
+      const notifBody = isBn
+        ? "সাউন্ড ও পুশ নোটিফিকেশন সিস্টেম সফলভাবে পরীক্ষা করা হয়েছে।"
+        : "Sound and push notification alerts are fully operational.";
+      const notifOptions = {
+        body: notifBody,
+        icon: "/icon.svg",
+        tag: "test-alert",
+      };
+
+      let shown = false;
+      try {
+        const n = new Notification(notifTitle, notifOptions);
+        shown = true;
+        n.onclick = () => {
+          window.focus();
+          n.close();
+        };
+      } catch {}
+
+      if (!shown && "serviceWorker" in navigator) {
+        navigator.serviceWorker.getRegistration().then((reg) => {
+          if (reg) {
+            reg.showNotification(notifTitle, notifOptions);
+          }
+        }).catch(() => {});
+      }
+    }
+
+    if (played) {
+      showToast(
+        isBn
+          ? "অডিও ও নোটিফিকেশন সফলভাবে পরীক্ষা করা হয়েছে (৮০০ Hz ডুয়াল-পালস সাউন্ড)!"
+          : "Audio & notification alert tested successfully (800 Hz dual-pulse chime)!",
+        "success"
+      );
+    } else {
+      showToast(
+        isBn
+          ? "অডিও বাজানো যায়নি। অনুগ্রহ করে ব্রাউজারের সাউন্ড আনমিউট চেক করুন।"
+          : "Could not play audio. Please ensure browser audio is unmuted.",
+        "info"
+      );
+    }
+  };
+
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 text-slate-900 selection:bg-blue-500 selection:text-white">
       {/* Single Unified Navbar with integrated EN/বাংলা toggle */}
@@ -689,40 +1044,70 @@ export default function AlertsPage() {
             </div>
           </div>
 
-          <div className="shrink-0 flex items-center gap-2 w-full md:w-auto">
+          <div className="shrink-0 flex items-center gap-2.5 w-full md:w-auto flex-wrap">
             <button
-              onClick={handleSubscribePush}
-              disabled={isSubscribingPush || pushSubscribed}
-              className={`w-full md:w-auto px-5 py-2.5 text-xs font-bold rounded-xl shadow-xs transition-all flex items-center justify-center gap-2 cursor-pointer ${
-                pushSubscribed
-                  ? "bg-emerald-600 text-white cursor-default"
-                  : pushPermission === "denied"
-                  ? "bg-amber-600 hover:bg-amber-700 text-white"
-                  : "bg-blue-600 hover:bg-blue-700 text-white active:scale-95"
-              }`}
+              type="button"
+              onClick={handleTestAlertSound}
+              className="w-full sm:w-auto px-3.5 py-2.5 text-xs font-semibold rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 transition-all flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 shadow-2xs"
+              title={isBn ? "৮০০ Hz অ্যালার্ট সাউন্ড ও কম্পন পরীক্ষা করুন" : "Test 800 Hz Alert Chime & Vibration"}
             >
-              {isSubscribingPush ? (
-                <>
-                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                  <span>{isBn ? "সংযোগ হচ্ছে..." : "Connecting..."}</span>
-                </>
-              ) : pushSubscribed ? (
-                <>
-                  <ShieldCheck className="w-4 h-4" />
-                  <span>{isBn ? "পুশ অ্যালার্ট সক্রিয় রয়েছে" : "Push Alerts Active"}</span>
-                </>
-              ) : pushPermission === "denied" ? (
-                <>
-                  <Info className="w-4 h-4" />
-                  <span>{isBn ? "সেটিংস থেকে চালু করুন" : "Enable in Browser Settings"}</span>
-                </>
-              ) : (
-                <>
-                  <Bell className="w-4 h-4" />
-                  <span>{isBn ? "পুশ অ্যালার্ট চালু করুন" : "Enable Push Notifications"}</span>
-                </>
-              )}
+              <Volume2 className="w-3.5 h-3.5 text-blue-600" />
+              <span>{isBn ? "সাউন্ড টেস্ট" : "Test Sound"}</span>
             </button>
+            {pushSubscribed ? (
+              <>
+                <div className="hidden sm:flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-xl shadow-2xs">
+                  <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                  <span>{isBn ? "পুশ অ্যালার্ট সক্রিয়" : "Push Alerts Active"}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleUnsubscribePush}
+                  disabled={isSubscribingPush}
+                  className="w-full sm:w-auto px-4 py-2.5 text-xs font-bold rounded-xl shadow-xs transition-all flex items-center justify-center gap-2 cursor-pointer bg-slate-100 hover:bg-rose-50 text-slate-700 hover:text-rose-700 border border-slate-200 hover:border-rose-300 active:scale-95"
+                >
+                  {isSubscribingPush ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin text-rose-600" />
+                      <span>{isBn ? "বন্ধ হচ্ছে..." : "Turning off..."}</span>
+                    </>
+                  ) : (
+                    <>
+                      <BellOff className="w-4 h-4 text-rose-600" />
+                      <span>{isBn ? "অ্যালার্ট বন্ধ করুন" : "Turn Off Alerts"}</span>
+                    </>
+                  )}
+                </button>
+              </>
+            ) : (
+              <button
+                type="button"
+                onClick={handleSubscribePush}
+                disabled={isSubscribingPush}
+                className={`w-full md:w-auto px-5 py-2.5 text-xs font-bold rounded-xl shadow-xs transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                  pushPermission === "denied"
+                    ? "bg-amber-600 hover:bg-amber-700 text-white"
+                    : "bg-blue-600 hover:bg-blue-700 text-white active:scale-95"
+                }`}
+              >
+                {isSubscribingPush ? (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    <span>{isBn ? "সংযোগ হচ্ছে..." : "Connecting..."}</span>
+                  </>
+                ) : pushPermission === "denied" ? (
+                  <>
+                    <Info className="w-4 h-4" />
+                    <span>{isBn ? "সেটিংস থেকে চালু করুন" : "Enable in Browser Settings"}</span>
+                  </>
+                ) : (
+                  <>
+                    <Bell className="w-4 h-4" />
+                    <span>{isBn ? "পুশ অ্যালার্ট চালু করুন" : "Enable Push Notifications"}</span>
+                  </>
+                )}
+              </button>
+            )}
           </div>
         </section>
 
@@ -789,15 +1174,45 @@ export default function AlertsPage() {
                     <span>{isBn ? "মুছুন" : "Clear"}</span>
                   </button>
                 </div>
+              </div>
 
-                <button
-                  type="button"
-                  onClick={handleGeolocate}
-                  className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
-                >
-                  <LocateFixed className="w-3.5 h-3.5 text-blue-600" />
-                  <span>{isBn ? "আমার অবস্থান" : "My GPS"}</span>
-                </button>
+              {/* Dynamic Guidance Banner (Placed outside the map to prevent blocking tiles and zoom buttons) */}
+              <div className="flex items-center justify-between gap-2 px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200/90 text-xs text-slate-700 font-medium shadow-2xs">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span
+                    className={`w-2.5 h-2.5 rounded-full shrink-0 ${
+                      isClosed
+                        ? "bg-emerald-500"
+                        : activeCoords.length > 0
+                        ? "bg-blue-600 animate-pulse"
+                        : "bg-blue-600 animate-ping"
+                    }`}
+                  />
+                  <span className="truncate font-semibold text-slate-800">
+                    {activeCoords.length === 0
+                      ? isBn
+                        ? "মানচিত্রে ক্লিক করে আপনার এলাকার চারপাশে পয়েন্ট বসান"
+                        : "Click map to place perimeter vertices around your area"
+                      : !isClosed
+                      ? isBn
+                        ? `${activeCoords.length}টি পয়েন্ট চিহ্নিত হয়েছে। রিং সম্পূর্ণ করতে ১ম পয়েন্টে চাপুন`
+                        : `${activeCoords.length} vertices placed. Click first point or 'Close Ring' to finish`
+                      : isBn
+                        ? `নিরাপত্তা বলয় আবদ্ধ হয়েছে (${areaKm2} বর্গকিমি)। নিচে নাম দিয়ে সংরক্ষণ করুন`
+                        : `Perimeter closed (${areaKm2} km²). Give your zone a name below to save`}
+                  </span>
+                </div>
+                {activeCoords.length > 0 && !isClosed && (
+                  <span className="text-[11px] text-slate-500 shrink-0 font-mono hidden sm:inline bg-white px-2 py-0.5 rounded-md border border-slate-200">
+                    {Math.max(0, 3 - activeCoords.length) > 0
+                      ? isBn
+                        ? `আরও ${3 - activeCoords.length}টি প্রয়োজন`
+                        : `Need ${3 - activeCoords.length} more`
+                      : isBn
+                        ? "রিং সম্পূর্ণের জন্য প্রস্তুত"
+                        : "Ready to close ring"}
+                  </span>
+                )}
               </div>
 
               {/* Interactive Leaflet Map */}
@@ -806,7 +1221,31 @@ export default function AlertsPage() {
                 onAddPoint={handleAddMapPoint}
                 savedZones={zones}
                 selectedZoneId={selectedZoneId}
-                onSelectZone={(z) => setSelectedZoneId(z.id)}
+                onSelectZone={(z) => {
+                  if (selectedZoneId === z.id) {
+                    setSelectedZoneId(null);
+                  } else {
+                    setSelectedZoneId(z.id);
+                    let coords: [number, number][] = [];
+                    if (z.area?.coordinates?.[0]) coords = z.area.coordinates[0];
+                    else if (z.coordinates) coords = z.coordinates;
+                    if (coords.length > 0) {
+                      const sumLng = coords.reduce((sum, c) => sum + c[0], 0);
+                      const sumLat = coords.reduce((sum, c) => sum + c[1], 0);
+                      const center: [number, number] = [sumLat / coords.length, sumLng / coords.length];
+                      setMapCenterTarget(center);
+                      if (typeof window !== "undefined") {
+                        localStorage.setItem("dz_last_alert_center", JSON.stringify(center));
+                        localStorage.setItem("dz_last_alert_zone_id", z.id);
+                      }
+                    }
+                  }
+                }}
+                flyToCenter={mapCenterTarget}
+                userLocationMarker={userGpsLocation}
+                onLocateMe={handleGeolocate}
+                isLocating={isLocatingUser}
+                zoneIncidents={activeZoneIncidents}
               />
 
               {/* Warnings and Status Banners */}
@@ -854,25 +1293,6 @@ export default function AlertsPage() {
                 </div>
               )}
 
-              {/* Metropolitan Presets */}
-              <div className="pt-2">
-                <label className="block text-xs font-bold text-slate-700 mb-2">
-                  {isBn ? "দ্রুত মেট্রো প্রিসেট নির্বাচন:" : "Quick Metropolitan Presets:"}
-                </label>
-                <div className="flex flex-wrap gap-1.5">
-                  {ZONE_PRESETS.map((preset) => (
-                    <button
-                      type="button"
-                      key={preset.nameEn}
-                      onClick={() => handleApplyPreset(preset)}
-                      className="px-3 py-1.5 text-xs rounded-xl bg-slate-50 hover:bg-blue-50 text-slate-700 hover:text-blue-700 border border-slate-200 hover:border-blue-300 font-semibold transition-all cursor-pointer shadow-2xs"
-                    >
-                      {isBn ? preset.nameBn : preset.nameEn}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
               {/* Create Zone Form */}
               <form onSubmit={handleCreateZone} className="space-y-4 pt-2">
                 <div>
@@ -891,44 +1311,6 @@ export default function AlertsPage() {
                   />
                 </div>
 
-                {/* Collapsible Advanced GeoJSON Coordinates Accordion */}
-                <div className="border border-slate-200 rounded-xl overflow-hidden bg-slate-50/50">
-                  <button
-                    type="button"
-                    onClick={() => setShowJsonEditor(!showJsonEditor)}
-                    className="w-full px-3.5 py-2.5 text-xs font-semibold text-slate-700 flex items-center justify-between hover:bg-slate-100 transition-colors cursor-pointer"
-                  >
-                    <div className="flex items-center gap-2">
-                      <Layers className="w-3.5 h-3.5 text-slate-500" />
-                      <span>
-                        {isBn
-                          ? `উন্নত জিওজেসন কোঅর্ডিনেটস (${activeCoords.length} টি পয়েন্ট)`
-                          : `Advanced GeoJSON Coordinates (${activeCoords.length} points)`}
-                      </span>
-                    </div>
-                    {showJsonEditor ? (
-                      <ChevronUp className="w-4 h-4 text-slate-400" />
-                    ) : (
-                      <ChevronDown className="w-4 h-4 text-slate-400" />
-                    )}
-                  </button>
-
-                  {showJsonEditor && (
-                    <div className="p-3 border-t border-slate-200 bg-white space-y-2">
-                      <p className="text-[11px] text-slate-500">
-                        {isBn
-                          ? "পোস্টজিআইএস ডবল-প্রিসিশন [দ্রাঘিমাংশ, অক্ষাংশ] ফর্ম্যাটে পলিগন রিং:"
-                          : "Format: [ [longitude, latitude], ... ] with matching first and last points."}
-                      </p>
-                      <textarea
-                        value={coordsString}
-                        onChange={(e) => handleTextareaChange(e.target.value)}
-                        rows={4}
-                        className="w-full p-2 text-[10px] font-mono bg-slate-50 border border-slate-200 text-slate-800 rounded-xl resize-none focus:outline-none focus:bg-white focus:border-blue-500 transition-colors"
-                      />
-                    </div>
-                  )}
-                </div>
 
                 {/* Submit Button */}
                 <button
@@ -992,8 +1374,8 @@ export default function AlertsPage() {
                   </p>
                   <p className="text-slate-500 text-[11px]">
                     {isBn
-                      ? "মানচিত্রে ক্লিক করে বা প্রিসেট নির্বাচন করে আপনার প্রথম জোন তৈরি করুন।"
-                      : "Click vertices on the map canvas or apply a metropolitan preset to establish 24/7 monitoring."}
+                      ? "মানচিত্রে ক্লিক করে আপনার প্রথম নিরাপত্তা জোন তৈরি করুন।"
+                      : "Click vertices on the map canvas to establish 24/7 monitoring."}
                   </p>
                 </div>
               ) : (
@@ -1008,7 +1390,23 @@ export default function AlertsPage() {
                     return (
                       <div
                         key={zone.id}
-                        onClick={() => setSelectedZoneId(zone.id)}
+                        onClick={() => {
+                          if (selectedZoneId === zone.id) {
+                            setSelectedZoneId(null);
+                          } else {
+                            setSelectedZoneId(zone.id);
+                            if (rawCoords.length > 0) {
+                              const sumLng = rawCoords.reduce((sum, c) => sum + c[0], 0);
+                              const sumLat = rawCoords.reduce((sum, c) => sum + c[1], 0);
+                              const center: [number, number] = [sumLat / rawCoords.length, sumLng / rawCoords.length];
+                              setMapCenterTarget(center);
+                              if (typeof window !== "undefined") {
+                                localStorage.setItem("dz_last_alert_center", JSON.stringify(center));
+                                localStorage.setItem("dz_last_alert_zone_id", zone.id);
+                              }
+                            }
+                          }
+                        }}
                         className={`p-3.5 rounded-xl border transition-all cursor-pointer ${
                           isSelected
                             ? "bg-blue-50/70 border-blue-300 shadow-xs"
@@ -1074,21 +1472,58 @@ export default function AlertsPage() {
               )}
             </div>
 
-            {/* Live Socket Geofence Trigger Stream */}
+            {/* Live Socket & Intersecting Geofence Incidents Stream */}
             <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-xs space-y-3">
-              <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+              <div className="flex items-center justify-between pb-2 border-b border-slate-100 flex-wrap gap-2">
                 <div className="flex items-center gap-2">
-                  <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-ping" />
+                  <span
+                    className={`w-2.5 h-2.5 rounded-full ${
+                      allGeofenceIncidents.length > 0
+                        ? "bg-red-500 animate-ping"
+                        : "bg-emerald-500"
+                    }`}
+                  />
                   <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800">
-                    {isBn ? "লাইভ জিওফেন্স বিপদ স্ট্রিম" : "Live Geofence Incident Stream"}
+                    {isBn ? "বলয়ের অভ্যন্তরীণ বিপদসমূহ" : "Geofence Incidents Stream"}
                   </h3>
+                  {allGeofenceIncidents.length > 0 && (
+                    <span className="px-1.5 py-0.2 text-[10px] font-bold bg-red-100 text-red-700 rounded-full">
+                      {allGeofenceIncidents.length}
+                    </span>
+                  )}
+                  {allGeofenceIncidents.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        await unlockAudioContext();
+                        const top = allGeofenceIncidents[0];
+                        dispatchAreaAlert({
+                          id: top.id,
+                          title: top.title,
+                          body: top.description,
+                          category: top.category,
+                          severity: top.severity,
+                          zoneName: top.zoneName,
+                        });
+                      }}
+                      className="px-2 py-0.5 bg-red-600 hover:bg-red-700 active:scale-95 text-white rounded-md text-[10px] font-bold flex items-center gap-1 shadow-2xs transition-all cursor-pointer ml-1"
+                      title={isBn ? "সব বিপদের জন্য অডিও ও নোটিফিকেশন বাজান" : "Sound alarm & notify for active incidents"}
+                    >
+                      <Volume2 className="w-3 h-3" />
+                      <span>{isBn ? "অ্যালার্ট বাজান" : "Sound Alert"}</span>
+                    </button>
+                  )}
                 </div>
                 <span className="text-[10px] text-slate-500 font-mono">
-                  Socket: GEOFENCE_ALERT
+                  {selectedZoneId
+                    ? isBn
+                      ? "নির্বাচিত জোন ফিল্টার"
+                      : "Filtered by Zone"
+                    : "PostGIS Live Stream"}
                 </span>
               </div>
 
-              {liveAlerts.length === 0 ? (
+              {allGeofenceIncidents.length === 0 ? (
                 <div className="p-6 bg-slate-50 border border-dashed border-slate-200 rounded-xl text-center text-xs text-slate-500 space-y-1.5">
                   <ShieldAlert className="w-7 h-7 text-slate-300 mx-auto" />
                   <p className="font-semibold text-slate-700">
@@ -1096,36 +1531,89 @@ export default function AlertsPage() {
                   </p>
                   <p className="text-[11px] text-slate-500">
                     {isBn
-                      ? "পোস্টজিআইএস ST_Intersects অ্যালগরিদম দিয়ে যেকোনো রিপোর্ট আপনার জোনের ভেতরে প্রবেশ করামাত্রই তাৎক্ষণিক নোটিফিকেশন পাবেন।"
+                      ? "পোস্টজিআইএস ST_Intersects অ্যালগরিদম দিয়ে যেকোনো রিপোর্ট আপনার জোনের ভেতরে প্রবেশ করামাত্রই তাৎক্ষণিক নোটিফিকেশন পাবেন এবং এখানে প্রদর্শিত হবে।"
                       : "Incidents submitted by citizens intersecting your PostGIS geofences appear here in real time."}
                   </p>
                 </div>
               ) : (
-                <div className="space-y-2">
-                  {liveAlerts.map((alert, idx) => (
+                <div className="space-y-2.5 max-h-[420px] overflow-y-auto pr-0.5">
+                  {allGeofenceIncidents.map((alert) => (
                     <div
-                      key={idx}
-                      className="p-3 bg-red-50/90 border border-red-200 rounded-xl text-xs text-red-900 flex items-start justify-between shadow-2xs gap-2"
+                      key={alert.id}
+                      onClick={() => {
+                        if (alert.coordinates?.lat && alert.coordinates?.lng) {
+                          const center: [number, number] = [alert.coordinates.lat, alert.coordinates.lng];
+                          setMapCenterTarget(center);
+                          if (typeof window !== "undefined") {
+                            localStorage.setItem("dz_last_alert_center", JSON.stringify(center));
+                          }
+                        }
+                      }}
+                      className="p-3 bg-red-50/90 hover:bg-red-100/90 border border-red-200 rounded-xl text-xs text-red-900 transition-colors shadow-2xs space-y-2 cursor-pointer"
                     >
-                      <div className="flex items-start gap-2">
-                        <AlertTriangle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
-                        <div>
-                          <span className="font-bold">
-                            {alert.title || (isBn ? "বলয়ের ভেতরে জরুরি বিপদ!" : "Hazard Inside Alert Zone!")}
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-start gap-2 min-w-0">
+                          <AlertTriangle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="font-bold text-red-950 truncate">
+                                {alert.title}
+                              </span>
+                              <span className="text-[9px] font-bold uppercase px-1.5 py-0.2 rounded bg-red-600 text-white shrink-0">
+                                {alert.severity}
+                              </span>
+                              {alert.category && (
+                                <span className="text-[9px] font-semibold px-1.5 py-0.2 rounded bg-white text-slate-700 border border-red-200 shrink-0">
+                                  {alert.category}
+                                </span>
+                              )}
+                            </div>
+                            {alert.description && alert.description !== alert.title && (
+                              <p className="text-[11px] text-red-800 mt-1 line-clamp-2">
+                                {alert.description}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                        {alert.receivedAt && (
+                          <span className="text-[10px] text-red-600 font-mono shrink-0">
+                            {alert.receivedAt}
                           </span>
-                          <p className="text-[11px] text-red-700 mt-0.5">
-                            {alert.message || alert.description}
-                          </p>
-                          {alert.zoneName && (
-                            <span className="inline-block mt-1 text-[10px] font-bold text-red-800 bg-red-100 px-1.5 py-0.5 rounded">
-                              {isBn ? `জোন: ${alert.zoneName}` : `Zone: ${alert.zoneName}`}
-                            </span>
-                          )}
+                        )}
+                      </div>
+
+                      <div className="flex items-center justify-between text-[10px] text-red-700 pt-1.5 border-t border-red-200/60 font-medium flex-wrap gap-1">
+                        {alert.zoneName && (
+                          <span className="font-semibold text-emerald-800 bg-emerald-100/80 px-1.5 py-0.5 rounded">
+                            {isBn ? `জোন: ${alert.zoneName}` : `Zone: ${alert.zoneName}`}
+                          </span>
+                        )}
+                        <div className="flex items-center gap-2 ml-auto">
+                          <button
+                            type="button"
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              await unlockAudioContext();
+                              dispatchAreaAlert({
+                                id: alert.id,
+                                title: alert.title,
+                                body: alert.description,
+                                category: alert.category,
+                                severity: alert.severity,
+                                zoneName: alert.zoneName,
+                              });
+                            }}
+                            className="px-2 py-0.5 rounded-md bg-red-200/80 hover:bg-red-300 text-red-950 font-bold text-[10px] flex items-center gap-1 transition-colors cursor-pointer border border-red-300 shadow-2xs"
+                            title={isBn ? "সাউন্ড ও নোটিফিকেশন বাজান" : "Play Sound & Notification"}
+                          >
+                            <Volume2 className="w-3 h-3 text-red-700" />
+                            <span>{isBn ? "সাউন্ড অ্যালার্ট" : "Sound Alert"}</span>
+                          </button>
+                          <span className="text-blue-700 hover:underline flex items-center gap-0.5">
+                            {isBn ? "মানচিত্রে দেখুন →" : "View on Map →"}
+                          </span>
                         </div>
                       </div>
-                      <span className="text-[10px] text-red-600 font-mono shrink-0">
-                        {alert.receivedAt}
-                      </span>
                     </div>
                   ))}
                 </div>
