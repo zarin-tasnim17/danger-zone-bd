@@ -14,7 +14,7 @@ describe('Tier 3: Pairwise Combinatorial Interactions - P01: Geocoding Precision
     category: 'ROBBERY',
     severity: 'HIGH',
     isSafetyRelated: true,
-    publishedAt: new Date('2026-11-20T12:00:00Z'),
+    publishedAt: new Date(Date.now() - 2 * 3600 * 1000),
     sourceUrl: 'https://news.bangladesh.test/rep-001',
     sourceName: 'The Daily Star',
     geocode: {

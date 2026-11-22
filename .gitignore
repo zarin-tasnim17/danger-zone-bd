@@ -20,8 +20,28 @@ out/
 # Prisma
 # (Optional) ignore generated client if not storing it in node_modules, but default is in node_modules
 
-# Agent Skills
+# Agent Skills & Tool Hooks
 .agents/
+.codex/
+skills-lock.json
+
+# Build & Compilation Cache Artifacts
+*.tsbuildinfo
+__pycache__/
+*.pyc
+*.cache
+nominatim_cache.json
+
+# Documentation & Spec Artifacts
+docs/
+ERD.svg
+TEST_READY.md
+product.md
+
+# Mined & Scraping Intermediate Datasets (in root)
+/bangladesh_police_stations.json
+/bangladesh_police_stations_verified.json
+
 
 # Lab Report & Documentation Export
 /report/
@@ -31,5 +51,6 @@ out/
 *.zip
 *.7z
 *.tar.gz
+
 
 

@@ -170,6 +170,10 @@ export function loadAllPoliceStations(): PoliceStationFixture[] {
   }
 
   const possiblePaths = [
+    path.resolve(process.cwd(), 'apps/api/src/data/bangladesh_police_stations.json'),
+    path.resolve(__dirname, '../../../apps/api/src/data/bangladesh_police_stations.json'),
+    path.resolve(process.cwd(), 'apps/api/src/data/verifiedPoliceStations.json'),
+    path.resolve(__dirname, '../../../apps/api/src/data/verifiedPoliceStations.json'),
     path.resolve(process.cwd(), 'bangladesh_police_stations.json'),
     path.resolve(__dirname, '../../../bangladesh_police_stations.json'),
     path.resolve(__dirname, '../../../../bangladesh_police_stations.json'),
