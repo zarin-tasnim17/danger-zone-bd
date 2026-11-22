@@ -64,6 +64,24 @@ const CITY_PRESETS = [
   { nameEn: "Sylhet", nameBn: "সিলেট", center: { lat: 24.8998, lng: 91.8541 }, radius: 15000 },
 ];
 
+// High-precision Haversine distance calculator (in meters)
+function calculateHaversineDistanceMeters(
+  lat1: number,
+  lon1: number,
+  lat2: number,
+  lon2: number
+): number {
+  const R = 6371e3; // Earth radius in meters
+  const toRad = (deg: number) => (deg * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return Math.round(R * c);
+}
+
 export default function SafeZonesPage() {
   const router = useRouter();
   const { user, initAuth } = useAuthStore();
@@ -76,8 +94,14 @@ export default function SafeZonesPage() {
   const [error, setError] = useState<string | null>(null);
   const [selectedZone, setSelectedZone] = useState<SafeZoneItem | null>(null);
 
-  // User GPS Location
+  // User GPS Location & Map Camera Fly-to Target
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [flyToCoords, setFlyToCoords] = useState<{
+    lat: number;
+    lng: number;
+    zoom?: number;
+    timestamp: number;
+  } | null>(null);
   const [isLocatingUser, setIsLocatingUser] = useState(false);
   const [gpsError, setGpsError] = useState<string | null>(null);
 
@@ -171,10 +195,20 @@ export default function SafeZonesPage() {
     fetchSafeZones();
   }, [fetchSafeZones]);
 
-  // Locate User GPS and toggle Proximity Mode
+  // Locate User GPS, center map camera, and toggle Proximity Mode
   const handleLocateMe = () => {
     setIsLocatingUser(true);
     setGpsError(null);
+
+    // If coordinates are already cached, immediately fly to them
+    if (userLocation) {
+      setFlyToCoords({
+        lat: userLocation.lat,
+        lng: userLocation.lng,
+        zoom: 15,
+        timestamp: Date.now(),
+      });
+    }
 
     if (!("geolocation" in navigator)) {
       setGpsError("Geolocation is not supported by your browser.");
@@ -191,19 +225,44 @@ export default function SafeZonesPage() {
         setUserLocation(coords);
         setProximityMode(true);
         setActiveCityPreset("Nearest to GPS");
+        setFlyToCoords({
+          lat: coords.lat,
+          lng: coords.lng,
+          zoom: 15,
+          timestamp: Date.now(),
+        });
         setIsLocatingUser(false);
+        showToast(
+          isBn
+            ? "আপনার বর্তমান অবস্থান চিহ্নিত হয়েছে! নিকটবর্তী আশ্রয়স্থলগুলো প্রদর্শিত হচ্ছে।"
+            : "Current location acquired! Ordering safe havens by closest distance.",
+          "success"
+        );
       },
       (err) => {
         if (err.code === 2 || err.code === 3) {
           navigator.geolocation.getCurrentPosition(
             (coarsePos) => {
-              setUserLocation({
+              const coarseCoords = {
                 lat: coarsePos.coords.latitude,
                 lng: coarsePos.coords.longitude,
-              });
+              };
+              setUserLocation(coarseCoords);
               setProximityMode(true);
               setActiveCityPreset("Nearest to GPS");
+              setFlyToCoords({
+                lat: coarseCoords.lat,
+                lng: coarseCoords.lng,
+                zoom: 15,
+                timestamp: Date.now(),
+              });
               setIsLocatingUser(false);
+              showToast(
+                isBn
+                  ? "আপনার বর্তমান অবস্থান চিহ্নিত হয়েছে! নিকটবর্তী আশ্রয়স্থলগুলো প্রদর্শিত হচ্ছে।"
+                  : "Current location acquired! Ordering safe havens by closest distance.",
+                "success"
+              );
             },
             () => {
               setIsLocatingUser(false);
@@ -229,6 +288,12 @@ export default function SafeZonesPage() {
     setActiveCityPreset(preset.nameEn);
     if (preset.center) {
       setUserLocation(preset.center);
+      setFlyToCoords({
+        lat: preset.center.lat,
+        lng: preset.center.lng,
+        zoom: 14,
+        timestamp: Date.now(),
+      });
       setProximityMode(true);
     } else {
       setProximityMode(false);
@@ -328,21 +393,48 @@ export default function SafeZonesPage() {
     setTimeout(() => setCopiedId(null), 2000);
   };
 
-  // Filtered & Searched Safe Zones
+  // Filtered, Enriched with Distance, and Sorted Safe Zones (Closest to Farthest)
   const filteredSafeZones = useMemo(() => {
-    return safeZones.filter((sz) => {
-      // Type filter
-      if (typeFilter !== "ALL" && normalizeSafeZoneType(sz.type) !== typeFilter) return false;
-      // Search query
-      if (!searchQuery.trim()) return true;
-      const q = searchQuery.toLowerCase();
-      return (
-        sz.name.toLowerCase().includes(q) ||
-        (sz.nameBn ? sz.nameBn.toLowerCase().includes(q) : false) ||
-        sz.type.toLowerCase().includes(q)
-      );
-    });
-  }, [safeZones, typeFilter, searchQuery]);
+    const list = safeZones
+      .filter((sz) => {
+        // Type filter
+        if (typeFilter !== "ALL" && normalizeSafeZoneType(sz.type) !== typeFilter) return false;
+        // Search query
+        if (!searchQuery.trim()) return true;
+        const q = searchQuery.toLowerCase();
+        return (
+          sz.name.toLowerCase().includes(q) ||
+          (sz.nameBn ? sz.nameBn.toLowerCase().includes(q) : false) ||
+          sz.type.toLowerCase().includes(q)
+        );
+      })
+      .map((sz) => {
+        if (userLocation) {
+          const dist = calculateHaversineDistanceMeters(
+            userLocation.lat,
+            userLocation.lng,
+            sz.latitude,
+            sz.longitude
+          );
+          return {
+            ...sz,
+            distanceMeters: sz.distanceMeters ?? dist,
+          };
+        }
+        return sz;
+      });
+
+    // When user location is available, sort from closest to farthest
+    if (userLocation) {
+      list.sort((a, b) => {
+        const distA = a.distanceMeters != null ? Number(a.distanceMeters) : Infinity;
+        const distB = b.distanceMeters != null ? Number(b.distanceMeters) : Infinity;
+        return distA - distB;
+      });
+    }
+
+    return list;
+  }, [safeZones, typeFilter, searchQuery, userLocation]);
 
   // Aggregate Category Counts
   const counts = useMemo(() => {
@@ -786,15 +878,17 @@ export default function SafeZonesPage() {
                 {/* Left: Interactive Leaflet Map (7 cols) */}
                 <div className="lg:col-span-7 lg:sticky lg:top-24">
                   <div className="bg-white border border-slate-200 rounded-2xl p-3 shadow-xs space-y-2">
-                    <div className="flex items-center justify-between px-2 pt-1">
-                      <div className="flex items-center gap-2">
-                        <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                        <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+                    <div className="flex items-center justify-between px-2 pt-1 gap-2">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse shrink-0"></span>
+                        <h3 className="text-[11px] sm:text-xs font-bold text-slate-900 uppercase tracking-wider truncate">
                           {isBn ? "লাইভ রেডার ও ম্যাপ অবস্থান" : "Interactive Live Haven Map"}
                         </h3>
                       </div>
-                      <span className="text-[11px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200">
-                        {filteredSafeZones.length} {isBn ? "টি কেন্দ্র প্রদর্শিত" : "Pins Loaded"}
+                      <span className="text-[10px] sm:text-[11px] font-bold text-blue-600 bg-blue-50 px-2 sm:px-2.5 py-0.5 rounded-full border border-blue-200 shrink-0 whitespace-nowrap">
+                        {filteredSafeZones.length}
+                        <span className="hidden sm:inline"> {isBn ? "টি কেন্দ্র প্রদর্শিত" : "Pins Loaded"}</span>
+                        <span className="sm:hidden"> {isBn ? "টি কেন্দ্র" : "Pins"}</span>
                       </span>
                     </div>
 
@@ -803,6 +897,9 @@ export default function SafeZonesPage() {
                       selectedZone={selectedZone}
                       onSelectZone={(z) => setSelectedZone(z)}
                       userLocation={userLocation}
+                      isLocatingUser={isLocatingUser}
+                      onLocateMe={handleLocateMe}
+                      flyToCoords={flyToCoords}
                       language={language}
                       onNavigateSafeRoute={handleNavigateSafePath}
                       className="w-full h-[300px] sm:h-[380px] lg:h-[520px]"
@@ -812,6 +909,22 @@ export default function SafeZonesPage() {
 
                 {/* Right: Shelters List (5 cols) */}
                 <div className="lg:col-span-5 space-y-3 lg:max-h-[calc(100vh-8rem)] lg:overflow-y-auto pr-1">
+                  {userLocation && (
+                    <div className="bg-blue-50/90 border border-blue-200/90 rounded-xl px-3 py-2 flex items-center justify-between text-xs text-blue-900 font-semibold shadow-2xs">
+                      <div className="flex items-center gap-1.5">
+                        <Crosshair className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                        <span>
+                          {isBn
+                            ? "আপনার বর্তমান অবস্থান থেকে দূরত্বের ক্রমানুসারে (নিকটবর্তী থেকে দূরবর্তী)"
+                            : "Ordered by proximity to your current location (closest first)"}
+                        </span>
+                      </div>
+                      <span className="text-[10px] font-mono font-bold text-blue-700 bg-blue-100 px-1.5 py-0.5 rounded shrink-0">
+                        GPS SORT
+                      </span>
+                    </div>
+                  )}
+
                   {filteredSafeZones.map((sz) => {
                     const badge = getTypeBadge(sz.type);
                     const Icon = badge.icon;
@@ -835,13 +948,16 @@ export default function SafeZonesPage() {
                           </span>
 
                           <div className="flex items-center gap-1.5">
-                            {sz.distanceMeters && (
+                            {sz.distanceMeters !== undefined && sz.distanceMeters !== null && (
                               <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full font-mono flex items-center gap-1">
                                 <Sparkles className="w-2.5 h-2.5 text-emerald-600" />
                                 <span>
                                   {Number(sz.distanceMeters) >= 1000
                                     ? `${(Number(sz.distanceMeters) / 1000).toFixed(1)} km`
                                     : `${Math.round(Number(sz.distanceMeters))} m`}
+                                </span>
+                                <span className="text-[9px] text-emerald-600 font-sans hidden sm:inline">
+                                  {isBn ? "দূরে" : "away"}
                                 </span>
                               </span>
                             )}
@@ -952,13 +1068,16 @@ export default function SafeZonesPage() {
                           </span>
 
                           <div className="flex items-center gap-1.5">
-                            {sz.distanceMeters && (
+                            {sz.distanceMeters !== undefined && sz.distanceMeters !== null && (
                               <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full font-mono flex items-center gap-1">
                                 <Sparkles className="w-2.5 h-2.5 text-emerald-600" />
                                 <span>
                                   {Number(sz.distanceMeters) >= 1000
                                     ? `${(Number(sz.distanceMeters) / 1000).toFixed(1)} km`
                                     : `${Math.round(Number(sz.distanceMeters))} m`}
+                                </span>
+                                <span className="text-[9px] text-emerald-600 font-sans hidden sm:inline">
+                                  {isBn ? "দূরে" : "away"}
                                 </span>
                               </span>
                             )}
@@ -1034,6 +1153,9 @@ export default function SafeZonesPage() {
                   selectedZone={selectedZone}
                   onSelectZone={(z) => setSelectedZone(z)}
                   userLocation={userLocation}
+                  isLocatingUser={isLocatingUser}
+                  onLocateMe={handleLocateMe}
+                  flyToCoords={flyToCoords}
                   language={language}
                   onNavigateSafeRoute={handleNavigateSafePath}
                   className="w-full h-[620px]"
