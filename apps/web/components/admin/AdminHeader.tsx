@@ -11,6 +11,7 @@ import {
   Radio,
   CheckCircle2,
   AlertTriangle,
+  AlertCircle,
   X,
 } from "lucide-react";
 
@@ -27,6 +28,7 @@ interface AdminHeaderProps {
   onTriggerNewsCrawl: () => void;
   isCrawling: boolean;
   crawlStatus: string | null;
+  isCrawlError?: boolean;
   dataError: string | null;
   onDismissCrawlStatus?: () => void;
 }
@@ -41,6 +43,7 @@ export default function AdminHeader({
   onTriggerNewsCrawl,
   isCrawling,
   crawlStatus,
+  isCrawlError,
   dataError,
   onDismissCrawlStatus,
 }: AdminHeaderProps) {
@@ -301,35 +304,73 @@ export default function AdminHeader({
         </div>
       )}
 
-      {/* Crawl Completed Notification Banner */}
-      {!isCrawling && crawlStatus && (
-        <div
-          role="status"
-          className="bg-emerald-50 border border-emerald-200 text-emerald-950 rounded-2xl px-4 py-3 text-xs font-medium flex items-center justify-between gap-3 shadow-2xs animate-in fade-in duration-200"
-        >
-          <div className="flex items-center gap-2.5">
-            <div className="w-6 h-6 rounded-lg bg-emerald-100 border border-emerald-300 flex items-center justify-center text-emerald-700 shrink-0">
-              <CheckCircle2 className="w-3.5 h-3.5" />
+      {/* Crawl Completed or Failed Notification Banner */}
+      {!isCrawling && crawlStatus && (() => {
+        const isError =
+          isCrawlError ??
+          /unauthorized|failed|error|ব্যর্থ|ত্রুটি|401|500/i.test(crawlStatus);
+
+        return (
+          <div
+            role="status"
+            className={
+              isError
+                ? "bg-red-50 border border-red-200 text-red-950 rounded-2xl px-4 py-3 text-xs font-medium flex items-center justify-between gap-3 shadow-2xs animate-in fade-in duration-200"
+                : "bg-emerald-50 border border-emerald-200 text-emerald-950 rounded-2xl px-4 py-3 text-xs font-medium flex items-center justify-between gap-3 shadow-2xs animate-in fade-in duration-200"
+            }
+          >
+            <div className="flex items-center gap-2.5">
+              <div
+                className={
+                  isError
+                    ? "w-6 h-6 rounded-lg bg-red-100 border border-red-300 flex items-center justify-center text-red-700 shrink-0"
+                    : "w-6 h-6 rounded-lg bg-emerald-100 border border-emerald-300 flex items-center justify-center text-emerald-700 shrink-0"
+                }
+              >
+                {isError ? (
+                  <AlertCircle className="w-3.5 h-3.5 text-red-600" />
+                ) : (
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                )}
+              </div>
+              <div>
+                <span
+                  className={
+                    isError
+                      ? "font-bold text-red-800 mr-2"
+                      : "font-bold text-emerald-800 mr-2"
+                  }
+                >
+                  {isError
+                    ? isBn
+                      ? "ক্রল ব্যর্থ হয়েছে:"
+                      : "Crawl Failed:"
+                    : isBn
+                    ? "ক্রল সম্পন্ন:"
+                    : "Crawl Complete:"}
+                </span>
+                <span className={isError ? "text-red-900" : "text-emerald-950"}>
+                  {crawlStatus}
+                </span>
+              </div>
             </div>
-            <div>
-              <span className="font-bold text-emerald-800 mr-2">
-                {isBn ? "ক্রল সম্পন্ন:" : "Crawl Complete:"}
-              </span>
-              <span>{crawlStatus}</span>
-            </div>
+            {onDismissCrawlStatus && (
+              <button
+                type="button"
+                onClick={onDismissCrawlStatus}
+                title={isBn ? "বন্ধ করুন" : "Dismiss"}
+                className={
+                  isError
+                    ? "p-1 rounded-lg text-red-600 hover:text-red-900 hover:bg-red-100 transition-colors cursor-pointer"
+                    : "p-1 rounded-lg text-emerald-600 hover:text-emerald-900 hover:bg-emerald-100 transition-colors cursor-pointer"
+                }
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
           </div>
-          {onDismissCrawlStatus && (
-            <button
-              type="button"
-              onClick={onDismissCrawlStatus}
-              title={isBn ? "বন্ধ করুন" : "Dismiss"}
-              className="p-1 rounded-lg text-emerald-600 hover:text-emerald-900 hover:bg-emerald-100 transition-colors cursor-pointer"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          )}
-        </div>
-      )}
+        );
+      })()}
     </header>
   );
 }

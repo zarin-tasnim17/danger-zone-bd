@@ -49,6 +49,7 @@ export default function AdminPage() {
 
   // News Crawler State
   const [crawlStatus, setCrawlStatus] = useState<string | null>(null);
+  const [crawlError, setCrawlError] = useState<boolean>(false);
   const [isCrawling, setIsCrawling] = useState(false);
 
   // Modal Dialog States
@@ -151,6 +152,7 @@ export default function AdminPage() {
   // News Crawler Dispatch
   const handleTriggerNewsCrawl = async () => {
     setIsCrawling(true);
+    setCrawlError(false);
     setCrawlStatus(
       isBn
         ? "৬৪ জেলার জাতীয় ও আঞ্চলিক সংবাদপত্র থেকে তথ্য সংগ্রহ শুরু হয়েছে..."
@@ -169,12 +171,14 @@ export default function AdminPage() {
         ? `নিউজ ক্রলিং সম্পন্ন! ${feedsChecked > 0 ? `${feedsChecked}টি ফিড থেকে ` : ""}${newArticles}টি সংবাদ এবং ${verifiedIncidents}টি নতুন বিপদ রিপোর্ট প্রসেস হয়েছে।`
         : `News crawl completed! Processed ${newArticles} articles, identified ${verifiedIncidents} active incidents${feedsChecked > 0 ? ` across ${feedsChecked} feeds` : ""}.`;
       setCrawlStatus(statusMsg);
+      setCrawlError(false);
       showToast(statusMsg, "success");
       fetchAdminData();
     } catch (err: any) {
       const errorMsg =
         err.message || (isBn ? "নিউজ ক্রল করতে ব্যর্থ হয়েছে।" : "Failed to run news crawler.");
       setCrawlStatus(errorMsg);
+      setCrawlError(true);
       showToast(errorMsg, "error");
     } finally {
       setIsCrawling(false);
@@ -316,8 +320,12 @@ export default function AdminPage() {
           onTriggerNewsCrawl={handleTriggerNewsCrawl}
           isCrawling={isCrawling}
           crawlStatus={crawlStatus}
+          isCrawlError={crawlError}
           dataError={dataError}
-          onDismissCrawlStatus={() => setCrawlStatus(null)}
+          onDismissCrawlStatus={() => {
+            setCrawlStatus(null);
+            setCrawlError(false);
+          }}
         />
 
         {/* Active Refresh Live Status Banner */}
