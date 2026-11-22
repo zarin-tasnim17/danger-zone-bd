@@ -157,14 +157,17 @@ export default function AdminPage() {
         : "Crawling national and regional feeds across 64 districts..."
     );
     try {
-      const res = await apiFetch<any>("/cron/news-crawl", {
+      const res = await apiFetch<any>("/admin/news/crawl", {
         method: "POST",
       });
-      const newArticles = res.crawledCount || res.articleCount || res.count || 0;
-      const verifiedIncidents = res.verifiedIncidentCount || res.incidentsCreated || 0;
+      const newArticles =
+        res.totalIngested ?? res.crawledCount ?? res.articleCount ?? res.count ?? 0;
+      const verifiedIncidents =
+        res.totalVerifiedMatches ?? res.verifiedIncidentCount ?? res.incidentsCreated ?? 0;
+      const feedsChecked = res.feedsChecked ?? res.feedsCount ?? 0;
       const statusMsg = isBn
-        ? `নিউজ ক্রলিং সম্পন্ন! ${newArticles}টি সংবাদ এবং ${verifiedIncidents}টি নতুন বিপদ রিপোর্ট প্রসেস হয়েছে।`
-        : `News crawl completed! Processed ${newArticles} articles, identified ${verifiedIncidents} active incidents.`;
+        ? `নিউজ ক্রলিং সম্পন্ন! ${feedsChecked > 0 ? `${feedsChecked}টি ফিড থেকে ` : ""}${newArticles}টি সংবাদ এবং ${verifiedIncidents}টি নতুন বিপদ রিপোর্ট প্রসেস হয়েছে।`
+        : `News crawl completed! Processed ${newArticles} articles, identified ${verifiedIncidents} active incidents${feedsChecked > 0 ? ` across ${feedsChecked} feeds` : ""}.`;
       setCrawlStatus(statusMsg);
       showToast(statusMsg, "success");
       fetchAdminData();
